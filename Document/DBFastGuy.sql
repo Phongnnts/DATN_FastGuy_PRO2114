@@ -1,0 +1,221 @@
+﻿
+-- 1. Bảng USERS
+CREATE TABLE USERS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    full_name NVARCHAR(100) NOT NULL,
+    phone VARCHAR(15) NOT NULL UNIQUE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('USER', 'STAFF', 'KITCHEN', 'SHIPPER', 'ADMIN')),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'LOCKED')),
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME2 NULL
+);
+
+-- 2. Bảng ADDRESSES
+CREATE TABLE ADDRESSES (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id INT NOT NULL FOREIGN KEY REFERENCES USERS(id),
+    recipient_name NVARCHAR(100) NOT NULL,
+    recipient_phone VARCHAR(15) NOT NULL,
+    address_line NVARCHAR(255) NOT NULL,
+    ward NVARCHAR(100) NOT NULL,
+    district NVARCHAR(100) NOT NULL,
+    city NVARCHAR(100) NOT NULL,
+    is_default TINYINT NOT NULL DEFAULT 0 CHECK (is_default IN (0,1))
+);
+
+-- 3. Bảng CATEGORIES
+CREATE TABLE CATEGORIES (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    name NVARCHAR(100) NOT NULL UNIQUE,
+    description NVARCHAR(255) NULL,
+    sort_order INT NOT NULL DEFAULT 0
+);
+
+-- 4. Bảng PRODUCTS
+CREATE TABLE PRODUCTS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    category_id INT NOT NULL FOREIGN KEY REFERENCES CATEGORIES(id),
+    name NVARCHAR(150) NOT NULL,
+    description NVARCHAR(MAX) NULL,
+    price DECIMAL(18,2) NOT NULL CHECK (price >= 0),
+    sale_price DECIMAL(18,2) NULL CHECK (sale_price >= 0),
+    image_url VARCHAR(255) NOT NULL,
+    stock_quantity INT NOT NULL DEFAULT 0,
+    is_available TINYINT NOT NULL DEFAULT 1 CHECK (is_available IN (0,1)),
+    is_new TINYINT NOT NULL DEFAULT 0 CHECK (is_new IN (0,1)),
+    sold_count INT NOT NULL DEFAULT 0,
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 5. Bảng PRODUCT_OPTIONS
+CREATE TABLE PRODUCT_OPTIONS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    product_id INT NOT NULL FOREIGN KEY REFERENCES PRODUCTS(id),
+    option_type NVARCHAR(50) NOT NULL CHECK (option_type IN ('SIZE', 'TOPPING')),
+    option_name NVARCHAR(100) NOT NULL,
+    extra_price DECIMAL(18,2) NOT NULL DEFAULT 0,
+    stock_quantity INT NOT NULL DEFAULT 0
+);
+
+-- 6. Bảng VOUCHERS
+CREATE TABLE VOUCHERS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    description NVARCHAR(255) NULL,
+    discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('PERCENT', 'FIXED_AMOUNT')),
+    discount_value DECIMAL(18,2) NOT NULL CHECK (discount_value > 0),
+    max_discount DECIMAL(18,2) NULL,
+    min_order_value DECIMAL(18,2) NULL,
+    start_date DATETIME2 NOT NULL,
+    end_date DATETIME2 NOT NULL,
+    usage_limit INT NULL,
+    used_count INT NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'EXPIRED', 'DISABLED')),
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    CHECK (end_date > start_date)
+);
+
+-- 7. Bảng CARTS
+CREATE TABLE CARTS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE FOREIGN KEY REFERENCES USERS(id),
+    voucher_id INT NULL FOREIGN KEY REFERENCES VOUCHERS(id),
+    discount_amount DECIMAL(18,2) NULL DEFAULT 0,
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME2 NULL
+);
+
+
+CREATE TABLE CART_ITEMS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    cart_id INT NOT NULL FOREIGN KEY REFERENCES CARTS(id),
+    product_id INT NOT NULL FOREIGN KEY REFERENCES PRODUCTS(id),
+    option_ids VARCHAR(255) NULL,
+    quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    unit_price DECIMAL(18,2) NOT NULL CHECK (unit_price >= 0)
+);
+
+
+CREATE TABLE ORDERS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_code VARCHAR(20) NOT NULL UNIQUE,
+    user_id INT NULL FOREIGN KEY REFERENCES USERS(id),
+    guest_name NVARCHAR(100) NULL,
+    guest_phone VARCHAR(15) NULL,
+    recipient_name NVARCHAR(100) NOT NULL,
+    recipient_phone VARCHAR(15) NOT NULL,
+    shipping_address_line NVARCHAR(255) NOT NULL,
+    shipping_ward NVARCHAR(100) NOT NULL,
+    shipping_district NVARCHAR(100) NOT NULL,
+    shipping_city NVARCHAR(100) NOT NULL,
+    total_amount DECIMAL(18,2) NOT NULL CHECK (total_amount >= 0),
+    discount_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    final_amount DECIMAL(18,2) NOT NULL, -- computed or set
+    payment_method VARCHAR(20) NOT NULL CHECK (payment_method IN ('COD', 'BANK_TRANSFER')),
+    payment_status VARCHAR(20) NOT NULL DEFAULT 'UNPAID' CHECK (payment_status IN ('UNPAID', 'PAID', 'REFUNDING')),
+    order_status VARCHAR(20) NOT NULL DEFAULT 'PENDING' 
+        CHECK (order_status IN ('PENDING','CONFIRMED','READY','ASSIGNED','PICKED_UP','DELIVERING','DELIVERED','FAILED','CANCELLED')),
+    staff_id INT NULL FOREIGN KEY REFERENCES USERS(id),
+    kitchen_id INT NULL FOREIGN KEY REFERENCES USERS(id),
+    shipper_id INT NULL FOREIGN KEY REFERENCES USERS(id),
+    confirmed_at DATETIME2 NULL,
+    ready_at DATETIME2 NULL,
+    assigned_at DATETIME2 NULL,
+    picked_up_at DATETIME2 NULL,
+    delivered_at DATETIME2 NULL,
+    cancelled_at DATETIME2 NULL,
+    cancel_reason NVARCHAR(255) NULL,
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE(),
+    updated_at DATETIME2 NULL
+);
+
+-- 10. Bảng ORDER_DETAILS
+CREATE TABLE ORDER_DETAILS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_id INT NOT NULL FOREIGN KEY REFERENCES ORDERS(id),
+    product_id INT NULL FOREIGN KEY REFERENCES PRODUCTS(id), -- null if product deleted later
+    product_name NVARCHAR(150) NOT NULL,
+    option_details NVARCHAR(255) NULL,
+    quantity INT NOT NULL CHECK (quantity > 0),
+    unit_price DECIMAL(18,2) NOT NULL CHECK (unit_price >= 0),
+    subtotal DECIMAL(18,2) NOT NULL,
+    special_notes NVARCHAR(255) NULL
+);
+
+-- 11. Bảng ORDER_VOUCHERS
+CREATE TABLE ORDER_VOUCHERS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_id INT NOT NULL FOREIGN KEY REFERENCES ORDERS(id),
+    voucher_id INT NOT NULL FOREIGN KEY REFERENCES VOUCHERS(id),
+    discount_amount DECIMAL(18,2) NOT NULL CHECK (discount_amount >= 0),
+    applied_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 12. Bảng PAYMENT_TRANSACTIONS
+CREATE TABLE PAYMENT_TRANSACTIONS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_id INT NOT NULL FOREIGN KEY REFERENCES ORDERS(id),
+    transaction_code VARCHAR(100) NOT NULL UNIQUE,
+    amount DECIMAL(18,2) NOT NULL CHECK (amount >= 0),
+    provider VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED')),
+    raw_response NVARCHAR(MAX) NULL,
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 13. Bảng DELIVERY_PROOFS
+CREATE TABLE DELIVERY_PROOFS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_id INT NOT NULL UNIQUE FOREIGN KEY REFERENCES ORDERS(id),
+    image_url VARCHAR(255) NOT NULL,
+    shipper_id INT NOT NULL FOREIGN KEY REFERENCES USERS(id),
+    uploaded_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 14. Bảng DELIVERY_FAILURES
+CREATE TABLE DELIVERY_FAILURES (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    order_id INT NOT NULL FOREIGN KEY REFERENCES ORDERS(id),
+    shipper_id INT NOT NULL FOREIGN KEY REFERENCES USERS(id),
+    reason_code VARCHAR(30) NOT NULL CHECK (reason_code IN ('NO_ANSWER', 'WRONG_ADDRESS', 'REJECT', 'OTHER')),
+    reason_note NVARCHAR(255) NULL,
+    reported_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 15. Bảng WORK_SHIFTS
+CREATE TABLE WORK_SHIFTS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id INT NOT NULL FOREIGN KEY REFERENCES USERS(id),
+    shift_date DATE NOT NULL,
+    expected_start TIME NOT NULL,
+    expected_end TIME NOT NULL,
+    start_time TIME NULL,
+    end_time TIME NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED', 'ACTIVE', 'COMPLETED'))
+);
+
+-- 16. Bảng SYSTEM_LOGS
+CREATE TABLE SYSTEM_LOGS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id INT NULL FOREIGN KEY REFERENCES USERS(id),
+    action NVARCHAR(100) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id INT NOT NULL,
+    details NVARCHAR(MAX) NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    created_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- 17. Bảng REPORTS (tùy chọn)
+CREATE TABLE REPORTS (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    admin_id INT NOT NULL FOREIGN KEY REFERENCES USERS(id),
+    report_type VARCHAR(50) NOT NULL CHECK (report_type IN ('DOANH_THU', 'TOP_PRODUCT', 'SHIPPER_PERFORMANCE')),
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    file_url VARCHAR(255) NOT NULL,
+    exported_at DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+

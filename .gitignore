@@ -3,5 +3,5 @@
 
 backend/target/
 
-frontend/node_modules/
+frontend/node_modules/git commit -m "Add gitignore"
 frontend/dist/
