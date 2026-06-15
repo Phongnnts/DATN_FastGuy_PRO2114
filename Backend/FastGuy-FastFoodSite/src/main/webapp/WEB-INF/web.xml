@@ -1,7 +1,43 @@
-<!DOCTYPE web-app PUBLIC
- "-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN"
- "http://java.sun.com/dtd/web-app_2_3.dtd" >
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee
+         https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
 
-<web-app>
-  <display-name>Archetype Created Web Application</display-name>
+  <display-name>FastGuy</display-name>
+
+  <!-- 1. CORS (luôn đầu tiên) -->
+  <filter>
+    <filter-name>CorsFilter</filter-name>
+    <filter-class>filter.CorsFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>CorsFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+  </filter-mapping>
+
+  <!-- 2. Global Exception Handler (bọc tất cả API filter bên trong) -->
+  <filter>
+    <filter-name>GlobalExceptionHandler</filter-name>
+    <filter-class>exception.GlobalExceptionHandler</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>GlobalExceptionHandler</filter-name>
+    <url-pattern>/api/*</url-pattern>
+  </filter-mapping>
+
+  <!-- 3. JWT Auth -->
+  <filter>
+    <filter-name>JwtAuthenticationFilter</filter-name>
+    <filter-class>filter.JwtAuthenticationFilter</filter-class>
+  </filter>
+  <filter-mapping>
+    <filter-name>JwtAuthenticationFilter</filter-name>
+    <url-pattern>/api/*</url-pattern>
+  </filter-mapping>
+
+  <session-config>
+    <session-timeout>30</session-timeout>
+  </session-config>
 </web-app>
