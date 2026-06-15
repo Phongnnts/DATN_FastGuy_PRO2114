@@ -1,7 +1,5 @@
 .idea/
 *.iml
-
 backend/target/
-
-frontend/node_modules/git commit -m "Add gitignore"
+frontend/node_modules/
 frontend/dist/
