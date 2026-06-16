@@ -84,6 +84,9 @@ public class Orders {
     @Column(name = "internal_note", length = 1000)
     private String internalNote;
 
+    @Column(name = "delivery_note", length = 500)
+    private String deliveryNote;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -146,6 +149,8 @@ public class Orders {
     public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
     public String getInternalNote() { return internalNote; }
     public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
+    public String getDeliveryNote() { return deliveryNote; }
+    public void setDeliveryNote(String deliveryNote) { this.deliveryNote = deliveryNote; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public List<OrderItem> getItems() { return items; }
