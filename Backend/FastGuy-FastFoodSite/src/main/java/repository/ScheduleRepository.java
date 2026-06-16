@@ -6,8 +6,26 @@ import jakarta.persistence.EntityManager;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public class ScheduleRepository {
+
+    public Optional<Schedule> findById(Long id) {
+        try (EntityManager em = HibernateConfig.getEntityManager()) {
+            return Optional.ofNullable(em.find(Schedule.class, id));
+        }
+    }
+
+    public Optional<Schedule> findByUserAndDate(Long userId, LocalDate date) {
+        try (EntityManager em = HibernateConfig.getEntityManager()) {
+            return em.createQuery(
+                    "SELECT s FROM Schedule s WHERE s.user.userId = :uid AND s.workDate = :date",
+                    Schedule.class)
+                    .setParameter("uid", userId)
+                    .setParameter("date", date)
+                    .getResultStream().findFirst();
+        }
+    }
 
     public List<Schedule> findByUserIdAndDateRange(Long userId, LocalDate from, LocalDate to) {
         try (EntityManager em = HibernateConfig.getEntityManager()) {
