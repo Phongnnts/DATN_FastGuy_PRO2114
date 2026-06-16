@@ -68,6 +68,24 @@ public class StaffService {
         return ingredientRepository.findAll();
     }
 
+    public List<OrderDTO> getOrderHistory(Long staffId) {
+        return orderRepository.findByStaffId(staffId).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public OrderDTO updateInternalNote(Long orderId, String note) {
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
+        order.setInternalNote(note);
+        order = orderRepository.save(order);
+        return toDTO(order);
+    }
+
+    public List<entity.Ingredient> getLowStockIngredients() {
+        return ingredientRepository.findLowStock();
+    }
+
     public void stockIn(Long ingredientId, BigDecimal quantity, Long staffId) {
         Ingredient ingredient = ingredientRepository.findById(ingredientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ingredient", ingredientId));
@@ -101,6 +119,8 @@ public class StaffService {
         dto.setPaymentStatus(order.getPaymentStatus());
         dto.setOrderStatus(order.getOrderStatus());
         dto.setCreatedAt(order.getCreatedAt());
+        dto.setInternalNote(order.getInternalNote());
+        dto.setDeliveryNote(order.getDeliveryNote());
         if (order.getItems() != null) {
             dto.setItems(order.getItems().stream().map(item -> {
                 OrderItemDTO itemDTO = new OrderItemDTO();

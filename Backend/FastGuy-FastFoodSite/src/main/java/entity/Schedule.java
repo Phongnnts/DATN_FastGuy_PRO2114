@@ -31,6 +31,15 @@ public class Schedule {
     @Column(length = 500)
     private String note;
 
+    @Column(length = 20)
+    private String status = "PENDING";
+
+    @Column(name = "checked_in_at")
+    private LocalDateTime checkedInAt;
+
+    @Column(name = "checked_out_at")
+    private LocalDateTime checkedOutAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -53,6 +62,12 @@ public class Schedule {
     public void setAssignedBy(User assignedBy) { this.assignedBy = assignedBy; }
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public LocalDateTime getCheckedInAt() { return checkedInAt; }
+    public void setCheckedInAt(LocalDateTime checkedInAt) { this.checkedInAt = checkedInAt; }
+    public LocalDateTime getCheckedOutAt() { return checkedOutAt; }
+    public void setCheckedOutAt(LocalDateTime checkedOutAt) { this.checkedOutAt = checkedOutAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

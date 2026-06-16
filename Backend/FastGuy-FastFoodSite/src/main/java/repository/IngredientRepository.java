@@ -29,6 +29,15 @@ public class IngredientRepository {
         }
     }
 
+    public List<Ingredient> findLowStock() {
+        try (EntityManager em = HibernateConfig.getEntityManager()) {
+            return em.createQuery(
+                    "SELECT i FROM Ingredient i WHERE i.stockQuantity < i.minStockThreshold AND i.status = 'ACTIVE' ORDER BY i.stockQuantity ASC",
+                    Ingredient.class)
+                    .getResultList();
+        }
+    }
+
     public Ingredient save(Ingredient ingredient) {
         EntityManager em = HibernateConfig.getEntityManager();
         try {

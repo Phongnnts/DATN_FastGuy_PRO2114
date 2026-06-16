@@ -43,6 +43,27 @@ public class OrderRepository {
         }
     }
 
+    public Optional<Orders> findByOrderCodeAndCustomerPhone(String orderCode, String phone) {
+        try (EntityManager em = HibernateConfig.getEntityManager()) {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.orderCode = :code AND o.customerPhone = :phone",
+                    Orders.class)
+                    .setParameter("code", orderCode)
+                    .setParameter("phone", phone)
+                    .getResultStream().findFirst();
+        }
+    }
+
+    public List<Orders> findByStaffId(Long staffId) {
+        try (EntityManager em = HibernateConfig.getEntityManager()) {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.staff.userId = :sid ORDER BY o.createdAt DESC",
+                    Orders.class)
+                    .setParameter("sid", staffId)
+                    .getResultList();
+        }
+    }
+
     public List<Orders> findAll() {
         try (EntityManager em = HibernateConfig.getEntityManager()) {
             return em.createQuery("SELECT o FROM Orders o ORDER BY o.createdAt DESC", Orders.class)
