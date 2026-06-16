@@ -20,8 +20,24 @@ public class ShipperService {
 
     public List<OrderDTO> getDeliveries(Long shipperId) {
         return orderRepository.findByShipperId(shipperId).stream()
+                .filter(o -> List.of("READY", "DELIVERING").contains(o.getOrderStatus()))
                 .map(this::toDTO)
                 .collect(Collectors.toList());
+    }
+
+    public List<OrderDTO> getDeliveryHistory(Long shipperId) {
+        return orderRepository.findByShipperId(shipperId).stream()
+                .filter(o -> List.of("DELIVERED", "FAILED").contains(o.getOrderStatus()))
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    public OrderDTO updateDeliveryNote(Long orderId, String deliveryNote) {
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
+        order.setDeliveryNote(deliveryNote);
+        order = orderRepository.save(order);
+        return toDTO(order);
     }
 
     public OrderDTO pickUp(Long orderId, Long shipperId) {
@@ -110,6 +126,8 @@ public class ShipperService {
         dto.setPaymentStatus(order.getPaymentStatus());
         dto.setOrderStatus(order.getOrderStatus());
         dto.setCreatedAt(order.getCreatedAt());
+        dto.setInternalNote(order.getInternalNote());
+        dto.setDeliveryNote(order.getDeliveryNote());
         if (order.getItems() != null) {
             dto.setItems(order.getItems().stream().map(item -> {
                 OrderItemDTO itemDTO = new OrderItemDTO();

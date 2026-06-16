@@ -24,6 +24,12 @@ public class OrderService {
     private final UserRepository userRepository = new UserRepository();
     private final ProductService productService = new ProductService();
 
+    public OrderDTO trackOrder(String orderCode, String phone) {
+        Orders order = orderRepository.findByOrderCodeAndCustomerPhone(orderCode, phone)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy đơn hàng với mã và SĐT trên"));
+        return toDTO(order);
+    }
+
     public List<OrderDTO> getByUserId(Long userId) {
         return orderRepository.findByUserId(userId).stream()
                 .map(this::toDTO)
@@ -137,6 +143,8 @@ public class OrderService {
 
         if (order.getStaff() != null) dto.setStaffId(order.getStaff().getUserId());
         if (order.getShipper() != null) dto.setShipperId(order.getShipper().getUserId());
+        dto.setInternalNote(order.getInternalNote());
+        dto.setDeliveryNote(order.getDeliveryNote());
 
         if (order.getItems() != null) {
             dto.setItems(order.getItems().stream().map(item -> {

@@ -20,11 +20,20 @@ public class OrderController extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        RoleRequired.require(req, "USER");
-        Long userId = (Long) req.getAttribute("userId");
         resp.setContentType("application/json; charset=UTF-8");
 
         String pathInfo = req.getPathInfo();
+        String trackCode = req.getParameter("orderCode");
+        String trackPhone = req.getParameter("phone");
+
+        if (pathInfo != null && pathInfo.equals("/track") && trackCode != null && trackPhone != null) {
+            writeJson(resp, ApiResponse.ok(orderService.trackOrder(trackCode, trackPhone)));
+            return;
+        }
+
+        RoleRequired.require(req, "USER");
+        Long userId = (Long) req.getAttribute("userId");
+
         if (pathInfo == null || pathInfo.equals("/")) {
             writeJson(resp, ApiResponse.ok(orderService.getByUserId(userId)));
         } else {
