@@ -28,6 +28,44 @@ public class ReviewService {
                 .collect(Collectors.toList());
     }
 
+    public ReviewDTO createOrderReview(Long userId, Long orderId, Integer rating, String comment) {
+        ValidationUtil.notNull(orderId, "Đơn hàng");
+        ValidationUtil.notNull(rating, "Đánh giá");
+
+        if (rating < 1 || rating > 5) {
+            throw new BadRequestException("Đánh giá phải từ 1 đến 5 sao");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
+
+        if (!"DELIVERED".equals(order.getOrderStatus())) {
+            throw new BadRequestException("Chỉ có thể đánh giá đơn hàng đã giao");
+        }
+        if (!order.getUser().getUserId().equals(userId)) {
+            throw new BadRequestException("Không thể đánh giá đơn hàng của người khác");
+        }
+
+        boolean hasOrderReview = reviewRepository.findAll().stream()
+                .anyMatch(r -> r.getOrder().getOrderId().equals(orderId)
+                        && r.getUser().getUserId().equals(userId)
+                        && r.getProduct() == null);
+        if (hasOrderReview) {
+            throw new BadRequestException("Bạn đã đánh giá đơn hàng này rồi");
+        }
+
+        Review review = new Review();
+        review.setUser(user);
+        review.setOrder(order);
+        review.setProduct(null);
+        review.setRating(rating);
+        review.setComment(comment);
+        review = reviewRepository.save(review);
+        return toDTO(review);
+    }
+
     public ReviewDTO create(Long userId, ReviewDTO dto) {
         ValidationUtil.notNull(dto.getOrderId(), "Đơn hàng");
         ValidationUtil.notNull(dto.getRating(), "Đánh giá");

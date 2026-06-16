@@ -20,6 +20,8 @@ public class OrderDTO {
     private String orderStatus;
     private Long staffId;
     private Long shipperId;
+    private String internalNote;
+    private String deliveryNote;
     private List<OrderItemDTO> items;
     private LocalDateTime createdAt;
 
@@ -53,6 +55,10 @@ public class OrderDTO {
     public void setStaffId(Long staffId) { this.staffId = staffId; }
     public Long getShipperId() { return shipperId; }
     public void setShipperId(Long shipperId) { this.shipperId = shipperId; }
+    public String getInternalNote() { return internalNote; }
+    public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
+    public String getDeliveryNote() { return deliveryNote; }
+    public void setDeliveryNote(String deliveryNote) { this.deliveryNote = deliveryNote; }
     public List<OrderItemDTO> getItems() { return items; }
     public void setItems(List<OrderItemDTO> items) { this.items = items; }
     public LocalDateTime getCreatedAt() { return createdAt; }
