@@ -6,6 +6,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.ScheduleService;
 import service.ShipperService;
 import utils.JsonUtil;
 import utils.RoleRequired;
@@ -16,6 +17,7 @@ import java.util.Map;
 @WebServlet("/api/shipper/*")
 public class ShipperController extends HttpServlet {
     private final ShipperService shipperService = new ShipperService();
+    private final ScheduleService scheduleService = new ScheduleService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -23,7 +25,15 @@ public class ShipperController extends HttpServlet {
         RoleRequired.require(req, "SHIPPER", "ADMIN");
         Long userId = (Long) req.getAttribute("userId");
         resp.setContentType("application/json; charset=UTF-8");
-        writeJson(resp, ApiResponse.ok(shipperService.getDeliveries(userId)));
+
+        String path = req.getPathInfo();
+        if (path != null && path.equals("/history")) {
+            writeJson(resp, ApiResponse.ok(shipperService.getDeliveryHistory(userId)));
+        } else if (path != null && path.equals("/shifts/today")) {
+            writeJson(resp, ApiResponse.ok(scheduleService.getTodaySchedule(userId)));
+        } else {
+            writeJson(resp, ApiResponse.ok(shipperService.getDeliveries(userId)));
+        }
     }
 
     @Override
@@ -50,6 +60,14 @@ public class ShipperController extends HttpServlet {
         } else if (path.matches("/orders/\\d+/collect")) {
             Long orderId = parseIdAt(path, 2);
             writeJson(resp, ApiResponse.ok(shipperService.collectPayment(orderId, userId), "Thu tiền thành công"));
+        } else if (path.matches("/orders/\\d+/delivery-note")) {
+            Long orderId = parseIdAt(path, 2);
+            Map<String, String> body = JsonUtil.fromJson(req.getReader(), Map.class);
+            writeJson(resp, ApiResponse.ok(shipperService.updateDeliveryNote(orderId, body.get("deliveryNote")), "Cập nhật ghi chú giao hàng thành công"));
+        } else if (path.equals("/shifts/check-in")) {
+            writeJson(resp, ApiResponse.ok(scheduleService.checkIn(userId), "Check-in thành công"));
+        } else if (path.equals("/shifts/check-out")) {
+            writeJson(resp, ApiResponse.ok(scheduleService.checkOut(userId), "Check-out thành công"));
         }
     }
 
