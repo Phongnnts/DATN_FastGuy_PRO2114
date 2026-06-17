@@ -3,3 +3,6 @@
 backend/target/
 frontend/node_modules/
 frontend/dist/
+
+Backend/FastGuy-FastFoodSite/target/
+*.class
