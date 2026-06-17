@@ -41,6 +41,16 @@ public class UserDAO {
         }
     }
 
+    public long count() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(u) FROM User u", Long.class)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
     public void save(User user) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

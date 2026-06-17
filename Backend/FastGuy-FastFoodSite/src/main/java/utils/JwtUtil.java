@@ -32,4 +32,14 @@ public class JwtUtil {
             return null;
         }
     }
+
+    public static int getUserId(String token) {
+        Claims claims = validate(token);
+        return claims != null ? claims.get("userId", Integer.class) : -1;
+    }
+
+    public static String getRole(String token) {
+        Claims claims = validate(token);
+        return claims != null ? claims.get("role", String.class) : null;
+    }
 }
