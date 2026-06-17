@@ -7,32 +7,28 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "Schedule")
 public class Schedule {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "schedule_id")
-    private Long scheduleId;
+    private int scheduleId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "user_id")
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "shift_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "shift_id")
     private WorkShift shift;
 
-    @Column(name = "work_date", nullable = false)
+    @Column(name = "work_date")
     private LocalDate workDate;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_by", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "assigned_by")
     private User assignedBy;
 
-    @Column(length = 500)
-    private String note;
-
-    @Column(length = 20)
-    private String status = "PENDING";
+    @Column(name = "status")
+    private String status;
 
     @Column(name = "checked_in_at")
     private LocalDateTime checkedInAt;
@@ -40,18 +36,16 @@ public class Schedule {
     @Column(name = "checked_out_at")
     private LocalDateTime checkedOutAt;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "note")
+    private String note;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
     public Schedule() {}
 
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-    }
-
-    public Long getScheduleId() { return scheduleId; }
-    public void setScheduleId(Long scheduleId) { this.scheduleId = scheduleId; }
+    public int getScheduleId() { return scheduleId; }
+    public void setScheduleId(int scheduleId) { this.scheduleId = scheduleId; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public WorkShift getShift() { return shift; }
@@ -60,14 +54,14 @@ public class Schedule {
     public void setWorkDate(LocalDate workDate) { this.workDate = workDate; }
     public User getAssignedBy() { return assignedBy; }
     public void setAssignedBy(User assignedBy) { this.assignedBy = assignedBy; }
-    public String getNote() { return note; }
-    public void setNote(String note) { this.note = note; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCheckedInAt() { return checkedInAt; }
     public void setCheckedInAt(LocalDateTime checkedInAt) { this.checkedInAt = checkedInAt; }
     public LocalDateTime getCheckedOutAt() { return checkedOutAt; }
     public void setCheckedOutAt(LocalDateTime checkedOutAt) { this.checkedOutAt = checkedOutAt; }
+    public String getNote() { return note; }
+    public void setNote(String note) { this.note = note; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

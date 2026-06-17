@@ -1,54 +1,35 @@
 package utils;
 
-import config.JwtConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 public class JwtUtil {
-    private static final SecretKey key = Keys.hmacShaKeyFor(
-            JwtConfig.SECRET_KEY.getBytes(StandardCharsets.UTF_8)
-    );
+    private static final String SECRET = "FastGuySecretKey2024VeryLongAndSecureEnough12345678";
+    private static final long EXPIRATION = 86400000;
+    private static final SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes());
 
-    public static String generateToken(Long userId, String role) {
-        long now = System.currentTimeMillis();
+    public static String generate(int userId, String role) {
         return Jwts.builder()
-                .subject(String.valueOf(userId))
-                .issuer(JwtConfig.ISSUER)
+                .claim("userId", userId)
                 .claim("role", role)
-                .issuedAt(new Date(now))
-                .expiration(new Date(now + JwtConfig.EXPIRATION_MS))
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
                 .signWith(key)
                 .compact();
     }
 
-    private static Claims parseClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(key)
-                .requireIssuer(JwtConfig.ISSUER)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-    }
-
-    public static Long getUserId(String token) {
-        return Long.parseLong(parseClaims(token).getSubject());
-    }
-
-    public static String getRole(String token) {
-        return parseClaims(token).get("role", String.class);
-    }
-
-    public static boolean validateToken(String token) {
+    public static Claims validate(String token) {
         try {
-            parseClaims(token);
-            return true;
+            return Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
 }
