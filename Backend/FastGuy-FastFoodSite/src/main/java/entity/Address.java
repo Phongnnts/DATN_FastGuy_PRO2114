@@ -6,50 +6,44 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "Address")
 public class Address {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "address_id")
-    private Long addressId;
+    private int addressId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "recipient_name", nullable = false, length = 255)
+    @Column(name = "recipient_name")
     private String recipientName;
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "phone")
     private String phone;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "street")
     private String street;
 
-    @Column(length = 100)
+    @Column(name = "ward")
     private String ward;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "zone_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "zone_id")
     private DeliveryZone zone;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "city")
     private String city;
 
-    @Column(name = "is_default", nullable = false)
-    private Boolean isDefault = false;
+    @Column(name = "is_default")
+    private Boolean isDefault;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
     public Address() {}
 
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-    }
-
-    public Long getAddressId() { return addressId; }
-    public void setAddressId(Long addressId) { this.addressId = addressId; }
+    public int getAddressId() { return addressId; }
+    public void setAddressId(int addressId) { this.addressId = addressId; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public String getRecipientName() { return recipientName; }
