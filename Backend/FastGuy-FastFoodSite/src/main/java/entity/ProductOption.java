@@ -6,32 +6,31 @@ import java.math.BigDecimal;
 @Entity
 @Table(name = "ProductOption")
 public class ProductOption {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "option_id")
-    private Long optionId;
+    private int optionId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "product_id")
     private Product product;
 
-    @Column(name = "option_name", nullable = false, length = 255)
+    @Column(name = "option_name")
     private String optionName;
 
-    @Column(name = "extra_price", nullable = false, precision = 18, scale = 2)
-    private BigDecimal extraPrice = BigDecimal.ZERO;
+    @Column(name = "extra_price")
+    private BigDecimal extraPrice;
 
-    @Column(name = "stock_controlled", nullable = false)
-    private Boolean stockControlled = false;
+    @Column(name = "stock_controlled")
+    private Boolean stockControlled;
 
     @Column(name = "quantity_available")
     private Integer quantityAvailable;
 
     public ProductOption() {}
 
-    public Long getOptionId() { return optionId; }
-    public void setOptionId(Long optionId) { this.optionId = optionId; }
+    public int getOptionId() { return optionId; }
+    public void setOptionId(int optionId) { this.optionId = optionId; }
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }
     public String getOptionName() { return optionName; }

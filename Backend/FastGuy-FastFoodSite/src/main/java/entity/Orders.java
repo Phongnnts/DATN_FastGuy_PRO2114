@@ -3,60 +3,58 @@ package entity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "Orders")
 public class Orders {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "order_id")
-    private Long orderId;
+    private int orderId;
 
-    @Column(name = "order_code", nullable = false, unique = true, length = 50)
+    @Column(name = "order_code")
     private String orderCode;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(name = "customer_name", nullable = false, length = 255)
+    @Column(name = "customer_name")
     private String customerName;
 
-    @Column(name = "customer_phone", nullable = false, length = 20)
+    @Column(name = "customer_phone")
     private String customerPhone;
 
-    @Column(name = "customer_address", nullable = false, length = 500)
+    @Column(name = "customer_address")
     private String customerAddress;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "zone_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "zone_id")
     private DeliveryZone zone;
 
-    @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
+    @Column(name = "total_amount")
     private BigDecimal totalAmount;
 
-    @Column(name = "shipping_fee", nullable = false, precision = 18, scale = 2)
-    private BigDecimal shippingFee = BigDecimal.ZERO;
+    @Column(name = "shipping_fee")
+    private BigDecimal shippingFee;
 
-    @Column(name = "final_amount", nullable = false, precision = 18, scale = 2)
+    @Column(name = "final_amount")
     private BigDecimal finalAmount;
 
-    @Column(name = "payment_method", nullable = false, length = 50)
+    @Column(name = "payment_method")
     private String paymentMethod;
 
-    @Column(name = "payment_status", nullable = false, length = 20)
-    private String paymentStatus = "UNPAID";
+    @Column(name = "payment_status")
+    private String paymentStatus;
 
-    @Column(name = "order_status", nullable = false, length = 30)
-    private String orderStatus = "PENDING";
+    @Column(name = "order_status")
+    private String orderStatus;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "staff_id")
     private User staff;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "shipper_id")
     private User shipper;
 
@@ -78,33 +76,22 @@ public class Orders {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
-    @Column(name = "failure_reason", length = 500)
+    @Column(name = "failure_reason")
     private String failureReason;
 
-    @Column(name = "internal_note", length = 1000)
+    @Column(name = "internal_note")
     private String internalNote;
 
-    @Column(name = "delivery_note", length = 500)
+    @Column(name = "delivery_note")
     private String deliveryNote;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<OrderItem> items;
-
-    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    private Payment payment;
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
     public Orders() {}
 
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-    }
-
-    public Long getOrderId() { return orderId; }
-    public void setOrderId(Long orderId) { this.orderId = orderId; }
+    public int getOrderId() { return orderId; }
+    public void setOrderId(int orderId) { this.orderId = orderId; }
     public String getOrderCode() { return orderCode; }
     public void setOrderCode(String orderCode) { this.orderCode = orderCode; }
     public User getUser() { return user; }
@@ -153,8 +140,4 @@ public class Orders {
     public void setDeliveryNote(String deliveryNote) { this.deliveryNote = deliveryNote; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public List<OrderItem> getItems() { return items; }
-    public void setItems(List<OrderItem> items) { this.items = items; }
-    public Payment getPayment() { return payment; }
-    public void setPayment(Payment payment) { this.payment = payment; }
 }

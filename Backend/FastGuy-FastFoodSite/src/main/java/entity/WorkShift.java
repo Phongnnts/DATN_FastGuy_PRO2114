@@ -6,28 +6,27 @@ import java.time.LocalTime;
 @Entity
 @Table(name = "WorkShift")
 public class WorkShift {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "shift_id")
-    private Long shiftId;
+    private int shiftId;
 
-    @Column(name = "shift_name", nullable = false, length = 100)
+    @Column(name = "shift_name")
     private String shiftName;
 
-    @Column(name = "start_time", nullable = false)
+    @Column(name = "start_time")
     private LocalTime startTime;
 
-    @Column(name = "end_time", nullable = false)
+    @Column(name = "end_time")
     private LocalTime endTime;
 
-    @Column(name = "role_type", nullable = false, length = 20)
+    @Column(name = "role_type")
     private String roleType;
 
     public WorkShift() {}
 
-    public Long getShiftId() { return shiftId; }
-    public void setShiftId(Long shiftId) { this.shiftId = shiftId; }
+    public int getShiftId() { return shiftId; }
+    public void setShiftId(int shiftId) { this.shiftId = shiftId; }
     public String getShiftName() { return shiftName; }
     public void setShiftName(String shiftName) { this.shiftName = shiftName; }
     public LocalTime getStartTime() { return startTime; }

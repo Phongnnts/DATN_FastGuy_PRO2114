@@ -6,31 +6,30 @@ import java.math.BigDecimal;
 @Entity
 @Table(name = "Ingredient")
 public class Ingredient {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ingredient_id")
-    private Long ingredientId;
+    private int ingredientId;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "name")
     private String name;
 
-    @Column(nullable = false, length = 50)
+    @Column(name = "unit")
     private String unit;
 
-    @Column(name = "stock_quantity", nullable = false, precision = 18, scale = 2)
-    private BigDecimal stockQuantity = BigDecimal.ZERO;
+    @Column(name = "stock_quantity")
+    private BigDecimal stockQuantity;
 
-    @Column(name = "min_stock_threshold", nullable = false, precision = 18, scale = 2)
-    private BigDecimal minStockThreshold = BigDecimal.ZERO;
+    @Column(name = "min_stock_threshold")
+    private BigDecimal minStockThreshold;
 
-    @Column(nullable = false, length = 20)
-    private String status = "ACTIVE";
+    @Column(name = "status")
+    private String status;
 
     public Ingredient() {}
 
-    public Long getIngredientId() { return ingredientId; }
-    public void setIngredientId(Long ingredientId) { this.ingredientId = ingredientId; }
+    public int getIngredientId() { return ingredientId; }
+    public void setIngredientId(int ingredientId) { this.ingredientId = ingredientId; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getUnit() { return unit; }

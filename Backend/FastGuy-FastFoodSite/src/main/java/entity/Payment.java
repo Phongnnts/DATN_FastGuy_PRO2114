@@ -7,32 +7,31 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "Payment")
 public class Payment {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "payment_id")
-    private Long paymentId;
+    private int paymentId;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "order_id")
     private Orders order;
 
-    @Column(nullable = false, precision = 18, scale = 2)
+    @Column(name = "amount")
     private BigDecimal amount;
 
-    @Column(name = "payment_method", nullable = false, length = 50)
+    @Column(name = "payment_method")
     private String paymentMethod;
 
-    @Column(name = "transaction_id", length = 255)
+    @Column(name = "transaction_id")
     private String transactionId;
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "status")
     private String status;
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "shipper_id")
     private User shipper;
 
@@ -41,8 +40,8 @@ public class Payment {
 
     public Payment() {}
 
-    public Long getPaymentId() { return paymentId; }
-    public void setPaymentId(Long paymentId) { this.paymentId = paymentId; }
+    public int getPaymentId() { return paymentId; }
+    public void setPaymentId(int paymentId) { this.paymentId = paymentId; }
     public Orders getOrder() { return order; }
     public void setOrder(Orders order) { this.order = order; }
     public BigDecimal getAmount() { return amount; }
