@@ -48,11 +48,7 @@ public class ReviewService {
             throw new BadRequestException("Không thể đánh giá đơn hàng của người khác");
         }
 
-        boolean hasOrderReview = reviewRepository.findAll().stream()
-                .anyMatch(r -> r.getOrder().getOrderId().equals(orderId)
-                        && r.getUser().getUserId().equals(userId)
-                        && r.getProduct() == null);
-        if (hasOrderReview) {
+        if (reviewRepository.existsOrderReview(orderId, userId)) {
             throw new BadRequestException("Bạn đã đánh giá đơn hàng này rồi");
         }
 
