@@ -69,6 +69,7 @@ public class OrderService {
         order.setPaymentMethod(req.getPaymentMethod());
         order.setPaymentStatus("UNPAID");
         order.setOrderStatus("PENDING");
+        order.setInternalNote(req.getInternalNote());
 
         List<OrderItem> orderItems = new ArrayList<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -99,9 +100,6 @@ public class OrderService {
         payment.setAmount(order.getFinalAmount());
         payment.setPaymentMethod(req.getPaymentMethod());
         payment.setStatus("PENDING");
-        if ("COD".equals(req.getPaymentMethod())) {
-            payment.setStatus("PENDING");
-        }
         order.setPayment(payment);
         order = orderRepository.save(order);
 

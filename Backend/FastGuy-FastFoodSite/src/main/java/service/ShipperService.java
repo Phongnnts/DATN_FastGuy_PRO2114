@@ -83,6 +83,9 @@ public class ShipperService {
         if (!"DELIVERING".equals(order.getOrderStatus())) {
             throw new BadRequestException("Đơn hàng không ở trạng thái đang giao");
         }
+        if (reason == null || reason.isBlank()) {
+            throw new BadRequestException("Vui lòng nhập lý do giao hàng thất bại");
+        }
         order.setOrderStatus("FAILED");
         order.setFailureReason(reason);
         order = orderRepository.save(order);
