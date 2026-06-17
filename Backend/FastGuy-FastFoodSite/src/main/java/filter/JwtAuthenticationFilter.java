@@ -16,7 +16,7 @@ import java.util.Set;
 public class JwtAuthenticationFilter implements Filter {
 
     private static final Set<String> PUBLIC_PATHS = Set.of(
-            "/api/auth/", "/api/products", "/api/categories", "/api/delivery-zones", "/api/reviews"
+            "/api/auth/", "/api/products", "/api/categories", "/api/delivery-zones", "/api/reviews", "/api/orders/track"
     );
 
     @Override
