@@ -1,93 +1,51 @@
 package service;
 
-import dto.ChangePasswordRequest;
-import dto.LoginRequest;
-import dto.LoginResponse;
-import dto.RegisterRequest;
+import dao.RoleDAO;
+import dao.UserDAO;
 import entity.Role;
 import entity.User;
-import exception.BadRequestException;
-import exception.DuplicateResourceException;
-import exception.ResourceNotFoundException;
-import exception.UnauthorizedException;
-import jakarta.persistence.EntityManager;
-import repository.RoleRepository;
-import repository.UserRepository;
-import utils.JwtUtil;
 import utils.PasswordUtil;
-import utils.ValidationUtil;
+import utils.JwtUtil;
 
 public class AuthService {
-    private final UserRepository userRepository = new UserRepository();
-    private final RoleRepository roleRepository = new RoleRepository();
+    private UserDAO userDAO = new UserDAO();
+    private RoleDAO roleDAO = new RoleDAO();
 
-    public LoginResponse register(RegisterRequest req) {
-        ValidationUtil.notBlank(req.getFullName(), "Họ tên");
-        ValidationUtil.notBlank(req.getPhone(), "Số điện thoại");
-        ValidationUtil.notBlank(req.getPassword(), "Mật khẩu");
-        ValidationUtil.isPhone(req.getPhone());
-        ValidationUtil.isEmail(req.getEmail());
-        ValidationUtil.minLength(req.getPassword(), 6, "Mật khẩu");
-
-        if (userRepository.existsByPhone(req.getPhone())) {
-            throw new DuplicateResourceException("Số điện thoại đã được đăng ký");
-        }
-
-        Role userRole = roleRepository.findByName("USER");
-        if (userRole == null) {
-            throw new ResourceNotFoundException("Role", "USER");
-        }
-
-        User user = new User(userRole, req.getPhone(),
-                PasswordUtil.hash(req.getPassword()), req.getFullName());
-        user.setEmail(req.getEmail());
-        user = userRepository.save(user);
-
-        String token = JwtUtil.generateToken(user.getUserId(), "USER");
-        return new LoginResponse(token, user.getUserId(), "USER",
-                user.getFullName(), user.getAvatarUrl());
-    }
-
-    public LoginResponse login(LoginRequest req) {
-        ValidationUtil.notBlank(req.getLogin(), "Tên đăng nhập");
-        ValidationUtil.notBlank(req.getPassword(), "Mật khẩu");
-
-        String login = req.getLogin();
-        User user = login.contains("@")
-                ? userRepository.findByEmail(login).orElse(null)
-                : userRepository.findByPhone(login).orElse(null);
-
+    public User login(String login, String password) {
+        User user = userDAO.findByPhone(login);
         if (user == null) {
-            throw new UnauthorizedException("Số điện thoại/email hoặc mật khẩu không đúng");
+            user = userDAO.findByEmail(login);
         }
-
-        if (!"ACTIVE".equals(user.getStatus())) {
-            throw new UnauthorizedException("Tài khoản đã bị khóa");
+        if (user != null && PasswordUtil.check(password, user.getPasswordHash())) {
+            if ("ACTIVE".equals(user.getStatus())) {
+                return user;
+            }
         }
-
-        if (!PasswordUtil.verify(req.getPassword(), user.getPasswordHash())) {
-            throw new UnauthorizedException("Số điện thoại/email hoặc mật khẩu không đúng");
-        }
-
-        String roleName = user.getRole().getRoleName();
-        String token = JwtUtil.generateToken(user.getUserId(), roleName);
-        return new LoginResponse(token, user.getUserId(), roleName,
-                user.getFullName(), user.getAvatarUrl());
+        return null;
     }
 
-    public void changePassword(Long userId, ChangePasswordRequest req) {
-        ValidationUtil.notBlank(req.getOldPassword(), "Mật khẩu cũ");
-        ValidationUtil.notBlank(req.getNewPassword(), "Mật khẩu mới");
-        ValidationUtil.minLength(req.getNewPassword(), 6, "Mật khẩu mới");
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-
-        if (!PasswordUtil.verify(req.getOldPassword(), user.getPasswordHash())) {
-            throw new BadRequestException("Mật khẩu cũ không đúng");
+    public User register(String fullName, String phone, String email, String password) {
+        if (userDAO.findByPhone(phone) != null) {
+            return null;
+        }
+        if (email != null && !email.isEmpty() && userDAO.findByEmail(email) != null) {
+            return null;
         }
 
-        user.setPasswordHash(PasswordUtil.hash(req.getNewPassword()));
-        userRepository.save(user);
+        Role userRole = roleDAO.findByName("USER");
+        if (userRole == null) {
+            return null;
+        }
+
+        User user = new User();
+        user.setFullName(fullName);
+        user.setPhone(phone);
+        user.setEmail(email);
+        user.setPasswordHash(PasswordUtil.hash(password));
+        user.setRole(userRole);
+        user.setStatus("ACTIVE");
+
+        userDAO.save(user);
+        return user;
     }
 }

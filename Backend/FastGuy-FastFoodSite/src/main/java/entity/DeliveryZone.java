@@ -6,30 +6,24 @@ import java.math.BigDecimal;
 @Entity
 @Table(name = "DeliveryZone")
 public class DeliveryZone {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "zone_id")
-    private Long zoneId;
+    private int zoneId;
 
-    @Column(name = "district_name", nullable = false, unique = true, length = 100)
+    @Column(name = "district_name")
     private String districtName;
 
-    @Column(name = "shipping_fee", nullable = false, precision = 18, scale = 2)
+    @Column(name = "shipping_fee")
     private BigDecimal shippingFee;
 
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive = true;
+    @Column(name = "is_active")
+    private Boolean isActive;
 
     public DeliveryZone() {}
 
-    public DeliveryZone(String districtName, BigDecimal shippingFee) {
-        this.districtName = districtName;
-        this.shippingFee = shippingFee;
-    }
-
-    public Long getZoneId() { return zoneId; }
-    public void setZoneId(Long zoneId) { this.zoneId = zoneId; }
+    public int getZoneId() { return zoneId; }
+    public void setZoneId(int zoneId) { this.zoneId = zoneId; }
     public String getDistrictName() { return districtName; }
     public void setDistrictName(String districtName) { this.districtName = districtName; }
     public BigDecimal getShippingFee() { return shippingFee; }
