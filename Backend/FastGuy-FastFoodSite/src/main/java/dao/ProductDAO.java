@@ -16,6 +16,19 @@ public class ProductDAO {
         }
     }
 
+    public List<Product> findByCategoryId(int categoryId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT p FROM Product p WHERE p.category.categoryId = :cid AND p.status = 'AVAILABLE' ORDER BY p.productId",
+                    Product.class)
+                    .setParameter("cid", categoryId)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Product> findAllAvailable() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
