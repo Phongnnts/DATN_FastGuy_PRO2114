@@ -6,53 +6,40 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "Users")
 public class User {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
-    private Long userId;
+    private int userId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "role_id")
     private Role role;
 
-    @Column(length = 255, unique = true)
+    @Column(name = "email")
     private String email;
 
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(name = "phone")
     private String phone;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password_hash")
     private String passwordHash;
 
-    @Column(name = "full_name", nullable = false, length = 255)
+    @Column(name = "full_name")
     private String fullName;
 
-    @Column(name = "avatar_url", length = 500)
+    @Column(name = "avatar_url")
     private String avatarUrl;
 
-    @Column(nullable = false, length = 20)
-    private String status = "ACTIVE";
+    @Column(name = "status")
+    private String status;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
     public User() {}
 
-    public User(Role role, String phone, String passwordHash, String fullName) {
-        this.role = role;
-        this.phone = phone;
-        this.passwordHash = passwordHash;
-        this.fullName = fullName;
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) createdAt = LocalDateTime.now();
-    }
-
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    public int getUserId() { return userId; }
+    public void setUserId(int userId) { this.userId = userId; }
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
     public String getEmail() { return email; }
