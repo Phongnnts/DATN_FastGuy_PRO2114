@@ -24,8 +24,11 @@ public class ReviewController extends HttpServlet {
         resp.setContentType("application/json; charset=UTF-8");
 
         String productId = req.getParameter("product");
-        if (productId != null) {
+        if (productId != null && !productId.isBlank()) {
             writeJson(resp, ApiResponse.ok(reviewService.getByProduct(Long.parseLong(productId))));
+        } else {
+            resp.setStatus(400);
+            writeJson(resp, ApiResponse.error("Vui lòng chọn sản phẩm để xem đánh giá"));
         }
     }
 
