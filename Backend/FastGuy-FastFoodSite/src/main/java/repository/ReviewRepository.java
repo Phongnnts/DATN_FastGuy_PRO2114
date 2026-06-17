@@ -30,6 +30,18 @@ public class ReviewRepository {
         }
     }
 
+    public boolean existsOrderReview(Long orderId, Long userId) {
+        try (EntityManager em = HibernateConfig.getEntityManager()) {
+            Long count = em.createQuery(
+                    "SELECT COUNT(r) FROM Review r WHERE r.order.orderId = :oid AND r.user.userId = :uid AND r.product IS NULL",
+                    Long.class)
+                    .setParameter("oid", orderId)
+                    .setParameter("uid", userId)
+                    .getSingleResult();
+            return count > 0;
+        }
+    }
+
     public Review save(Review review) {
         EntityManager em = HibernateConfig.getEntityManager();
         try {
