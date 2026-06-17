@@ -4,5 +4,18 @@ backend/target/
 frontend/node_modules/
 frontend/dist/
 
+# IDE & editor
+.idea/
+.smarttomcat/
+*.iml
+
+# Build output
+target/
 Backend/FastGuy-FastFoodSite/target/
 *.class
+
+# Docs & assets (not needed on GitHub)
+Document/
+AGENTS.md
+.opencode/
+Trang Chủ.png
