@@ -1,16 +1,15 @@
 package service;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import dao.CartDAO;
 import dao.OrdersDAO;
 import dao.UserDAO;
 import entity.Orders;
 import entity.User;
-import utils.ApiResponse;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public class UserService {
     private UserDAO userDAO = new UserDAO();
