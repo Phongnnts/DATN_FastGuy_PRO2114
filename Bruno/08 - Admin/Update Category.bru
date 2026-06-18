@@ -1,0 +1,24 @@
+meta {
+  name: Update Category
+  method: PUT
+  type: http
+  seq: 8
+}
+
+put {
+  url: http://localhost:8082/FastGuy/api/admin/categories/1
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}
+
+body:json {
+  {
+    "name": "Burger Siêu To",
+    "description": "Các loại burger khổng lồ"
+  }
+}

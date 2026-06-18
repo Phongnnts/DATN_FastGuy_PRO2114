@@ -1,0 +1,17 @@
+meta {
+  name: Get Cart
+  method: GET
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:8082/FastGuy/api/cart
+  body: none
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}
