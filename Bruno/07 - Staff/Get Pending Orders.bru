@@ -1,0 +1,17 @@
+meta {
+  name: Get Pending Orders
+  method: GET
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:8082/FastGuy/api/staff/orders
+  body: none
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}

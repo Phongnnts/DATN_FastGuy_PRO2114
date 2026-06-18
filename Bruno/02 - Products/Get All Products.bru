@@ -1,0 +1,16 @@
+meta {
+  name: Get All Products
+  method: GET
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:8082/FastGuy/api/products
+  body: none
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}

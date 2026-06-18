@@ -1,0 +1,17 @@
+meta {
+  name: Delete Product
+  method: DELETE
+  type: http
+  seq: 5
+}
+
+delete {
+  url: http://localhost:8082/FastGuy/api/admin/products/9
+  body: none
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}

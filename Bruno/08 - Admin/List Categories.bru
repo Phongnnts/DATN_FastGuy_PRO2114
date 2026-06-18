@@ -1,0 +1,17 @@
+meta {
+  name: List Categories (Admin)
+  method: GET
+  type: http
+  seq: 6
+}
+
+get {
+  url: http://localhost:8082/FastGuy/api/admin/categories
+  body: none
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}
