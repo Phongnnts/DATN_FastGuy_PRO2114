@@ -1,17 +1,31 @@
 .idea/
 *.iml
-backend/target/
-frontend/node_modules/
 
 # IDE & editor
 .idea/
 .smarttomcat/
 *.iml
+.vscode/
+Backend/.idea/
+Backend/.smarttomcat/
+Backend/FastGuy-FastFoodSite/.vscode/
 
 # Build output
 target/
 Backend/FastGuy-FastFoodSite/target/
+frontend/dist/
 *.class
+
+# NPM artifacts
+frontend/node_modules/
+Backend/package-lock.json
+
+# GitHub modernization artifacts
+.github/modernize/
+Backend/FastGuy-FastFoodSite/.github/
+
+# Maven
+Backend/FastGuy-FastFoodSite/.mvn/
 
 # Docs & assets (not needed on GitHub)
 Document/
