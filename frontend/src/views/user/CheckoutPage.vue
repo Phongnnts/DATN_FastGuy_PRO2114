@@ -8,6 +8,73 @@ import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
 import { deliveryZoneApi } from '@/api';
 
+const WARDS_BY_ZONE = {
+  1: [
+    { wardId: 1, wardName: 'Phường Bến Nghé' },
+    { wardId: 2, wardName: 'Phường Bến Thành' },
+    { wardId: 3, wardName: 'Phường Cầu Kho' },
+    { wardId: 4, wardName: 'Phường Cầu Ông Lãnh' },
+    { wardId: 5, wardName: 'Phường Đa Kao' },
+    { wardId: 6, wardName: 'Phường Nguyễn Thái Bình' },
+    { wardId: 7, wardName: 'Phường Phạm Ngũ Lão' },
+    { wardId: 8, wardName: 'Phường Tân Định' },
+  ],
+  2: [
+    { wardId: 9, wardName: 'Phường 1' },
+    { wardId: 10, wardName: 'Phường 2' },
+    { wardId: 11, wardName: 'Phường 3' },
+    { wardId: 12, wardName: 'Phường 4' },
+    { wardId: 13, wardName: 'Phường 5' },
+    { wardId: 14, wardName: 'Phường Võ Thị Sáu' },
+    { wardId: 15, wardName: 'Phường Nguyễn Thị Minh Khai' },
+  ],
+  3: [
+    { wardId: 16, wardName: 'Phường Bình Thuận' },
+    { wardId: 17, wardName: 'Phường Phú Mỹ' },
+    { wardId: 18, wardName: 'Phường Phú Thuận' },
+    { wardId: 19, wardName: 'Phường Tân Hưng' },
+    { wardId: 20, wardName: 'Phường Tân Kiểng' },
+    { wardId: 21, wardName: 'Phường Tân Phong' },
+    { wardId: 22, wardName: 'Phường Tân Quy' },
+  ],
+  4: [
+    { wardId: 23, wardName: 'Phường 1' },
+    { wardId: 24, wardName: 'Phường 2' },
+    { wardId: 25, wardName: 'Phường 3' },
+    { wardId: 26, wardName: 'Phường 5' },
+    { wardId: 27, wardName: 'Phường 6' },
+    { wardId: 28, wardName: 'Phường 7' },
+    { wardId: 29, wardName: 'Phường 11' },
+    { wardId: 30, wardName: 'Phường 12' },
+    { wardId: 31, wardName: 'Phường 13' },
+    { wardId: 32, wardName: 'Phường 14' },
+    { wardId: 33, wardName: 'Phường 15' },
+    { wardId: 34, wardName: 'Phường 17' },
+    { wardId: 35, wardName: 'Phường 19' },
+    { wardId: 36, wardName: 'Phường 21' },
+    { wardId: 37, wardName: 'Phường 22' },
+    { wardId: 38, wardName: 'Phường 24' },
+    { wardId: 39, wardName: 'Phường 25' },
+    { wardId: 40, wardName: 'Phường 26' },
+    { wardId: 41, wardName: 'Phường 27' },
+    { wardId: 42, wardName: 'Phường 28' },
+  ],
+  5: [
+    { wardId: 43, wardName: 'Phường Bình Chiểu' },
+    { wardId: 44, wardName: 'Phường Bình Thọ' },
+    { wardId: 45, wardName: 'Phường Hiệp Bình Chánh' },
+    { wardId: 46, wardName: 'Phường Hiệp Bình Phước' },
+    { wardId: 47, wardName: 'Phường Linh Chiểu' },
+    { wardId: 48, wardName: 'Phường Linh Đông' },
+    { wardId: 49, wardName: 'Phường Linh Tây' },
+    { wardId: 50, wardName: 'Phường Linh Trung' },
+    { wardId: 51, wardName: 'Phường Linh Xuân' },
+    { wardId: 52, wardName: 'Phường Tam Bình' },
+    { wardId: 53, wardName: 'Phường Tam Phú' },
+    { wardId: 54, wardName: 'Phường Trường Thọ' },
+  ],
+};
+
 const router = useRouter();
 const auth = useAuthStore();
 const cart = useCartStore();
@@ -15,12 +82,23 @@ const orderStore = useOrderStore();
 
 const zones = ref([]);
 const selectedZone = ref(null);
-const addressDetail = ref('');
+const selectedWard = ref(null);
+const houseNumber = ref('');
 const phone = ref('');
 const paymentMethod = ref('COD');
 const note = ref('');
 const submitting = ref(false);
 const loadingZones = ref(true);
+
+const wards = computed(() => {
+  if (!selectedZone.value) return [];
+  return WARDS_BY_ZONE[selectedZone.value] || [];
+});
+
+const selectedDistrictName = computed(() => {
+  const zone = zones.value.find(z => z.zoneId === selectedZone.value);
+  return zone ? zone.districtName : '';
+});
 
 const shippingFee = computed(() => {
   const zone = zones.value.find(z => z.zoneId === selectedZone.value);
@@ -40,14 +118,25 @@ onMounted(async () => {
   }
 });
 
+function getFullAddress() {
+  const ward = wards.value.find(w => w.wardId === selectedWard.value);
+  const parts = [
+    houseNumber.value.trim(),
+    ward ? ward.wardName : '',
+    selectedDistrictName.value,
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+
 async function placeOrder() {
   if (!selectedZone.value) return alert('Vui lòng chọn quận/huyện');
-  if (!addressDetail.value.trim()) return alert('Vui lòng nhập địa chỉ');
+  const fullAddress = getFullAddress();
+  if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
   submitting.value = true;
   try {
     const order = await orderStore.createOrder({
       zoneId: selectedZone.value,
-      address: addressDetail.value.trim(),
+      address: fullAddress,
       phone: phone.value.trim(),
       paymentMethod: paymentMethod.value,
       note: note.value,
@@ -78,17 +167,30 @@ async function placeOrder() {
             </select>
           </div>
           <div class="form-group">
+            <label class="form-label">Phường / Xã</label>
+            <select v-model="selectedWard" class="form-select" :disabled="!selectedZone">
+              <option value="">Chọn phường/xã</option>
+              <option v-for="w in wards" :key="w.wardId" :value="w.wardId">
+                {{ w.wardName }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Số nhà, số ngõ</label>
+            <input
+              v-model="houseNumber"
+              type="text"
+              class="form-input"
+              placeholder="VD: 123, ngõ 45"
+            />
+          </div>
+          <div class="form-group">
             <label class="form-label">Số điện thoại</label>
             <input v-model="phone" type="tel" class="form-input" placeholder="Số điện thoại nhận hàng" />
           </div>
-          <div class="form-group">
-            <label class="form-label">Địa chỉ</label>
-            <textarea
-              v-model="addressDetail"
-              class="form-textarea"
-              placeholder="Số nhà, tên đường, phường/xã..."
-              rows="2"
-            ></textarea>
+          <div class="preview-address" v-if="getFullAddress()">
+            <i class="bi bi-geo-alt"></i>
+            <span>{{ getFullAddress() }}</span>
           </div>
         </div>
         <div class="card mb-3">
@@ -194,6 +296,21 @@ async function placeOrder() {
   font-size: 16px;
   font-weight: 700;
   margin-bottom: 16px;
+}
+.preview-address {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #E8F5E9;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: #2E7D32;
+  margin-top: 8px;
+}
+.preview-address i {
+  font-size: 18px;
 }
 .payment-selector {
   display: flex;
