@@ -5,6 +5,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import utils.DatabaseUtil;
 
+import java.util.List;
+
 public class UserDAO {
     public User findById(int id) {
         EntityManager em = DatabaseUtil.getEntityManager();
@@ -41,6 +43,16 @@ public class UserDAO {
         }
     }
 
+    public List<User> findAll() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT u FROM User u ORDER BY u.userId", User.class)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public long count() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -60,6 +72,21 @@ public class UserDAO {
             } else {
                 em.merge(user);
             }
+            em.getTransaction().commit();
+        } catch (Exception e) {
+            em.getTransaction().rollback();
+            e.printStackTrace();
+        } finally {
+            em.close();
+        }
+    }
+
+    public void delete(int id) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            User u = em.find(User.class, id);
+            if (u != null) em.remove(u);
             em.getTransaction().commit();
         } catch (Exception e) {
             em.getTransaction().rollback();
