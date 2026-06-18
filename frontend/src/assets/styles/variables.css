@@ -1,0 +1,30 @@
+:root {
+  --primary: #D4764A;
+  --primary-dark: #B8623A;
+  --primary-light: #F5F0ED;
+  --bg: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --text-dark: #1A1A1A;
+  --text-mid: #6B6B6B;
+  --text-light: #A0A0A0;
+  --red-active: #E06040;
+  --border: #E8E8E8;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --font: 'Be Vietnam Pro', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background-color: var(--bg);
+  color: var(--text-dark);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { text-decoration: none; color: inherit; }
+img { max-width: 100%; }
+button { cursor: pointer; font-family: var(--font); }
+input, textarea, select { font-family: var(--font); outline: none; }
