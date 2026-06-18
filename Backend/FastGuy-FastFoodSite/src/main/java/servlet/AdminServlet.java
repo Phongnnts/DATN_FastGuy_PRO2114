@@ -10,7 +10,7 @@ import utils.JwtUtil;
 
 import java.io.IOException;
 
-@WebServlet("/api/admin/home")
+@WebServlet("/api/admin/dashboard")
 public class AdminServlet extends HttpServlet {
     private AdminService adminService = new AdminService();
 
