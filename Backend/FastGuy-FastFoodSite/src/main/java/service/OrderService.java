@@ -1,13 +1,21 @@
 package service;
 
-import dao.*;
-import entity.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
+
+import dao.CartDAO;
+import dao.DeliveryZoneDAO;
+import dao.OrderItemDAO;
+import dao.OrdersDAO;
+import dao.UserDAO;
+import entity.Cart;
+import entity.CartItem;
+import entity.DeliveryZone;
+import entity.OrderItem;
+import entity.Orders;
+import entity.User;
 
 public class OrderService {
     private CartDAO cartDAO = new CartDAO();

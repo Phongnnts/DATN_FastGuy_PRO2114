@@ -1,5 +1,7 @@
 package servlet;
 
+import java.io.IOException;
+
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -7,8 +9,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import service.StaffService;
 import utils.ApiResponse;
 import utils.JwtUtil;
-
-import java.io.IOException;
 
 @WebServlet("/api/staff/home")
 public class StaffServlet extends HttpServlet {
