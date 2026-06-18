@@ -1,16 +1,47 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useOrderStore } from '@/stores/order'
 import { formatPrice, formatDate } from '@/utils/format'
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue'
 import OrderTimeline from '@/components/common/OrderTimeline.vue'
+import { orderApi } from '@/api'
 
 const route = useRoute()
 const router = useRouter()
-const orderStore = useOrderStore()
+const order = ref(null)
 
-const order = computed(() => orderStore.fetchById(route.params.id))
+onMounted(async () => {
+  try {
+    const data = await orderApi.getById(route.params.id)
+    if (data) {
+      order.value = {
+        id: data.orderId,
+        orderCode: data.orderCode,
+        status: data.status,
+        items: (data.items || []).map(i => ({
+          productId: i.productId,
+          productName: i.productName,
+          price: i.unitPrice || 0,
+          quantity: i.quantity,
+          totalPrice: i.totalPrice || 0,
+          image: i.image || ''
+        })),
+        subtotal: data.totalAmount || 0,
+        shippingFee: data.shippingFee || 0,
+        discount: 0,
+        total: data.finalAmount || 0,
+        paymentMethod: data.paymentMethod,
+        paymentStatus: data.paymentStatus,
+        shippingAddress: data.customerAddress || '',
+        note: data.deliveryNote || '',
+        createdAt: data.createdAt,
+        statusHistory: data.statusHistory || [{ status: data.status, time: data.createdAt, note: '' }],
+        canReview: data.canReview || false,
+        review: data.review || null
+      }
+    }
+  } catch {}
+})
 
 function goReview() {
   router.push(`/account/orders/${order.value.id}/review`)
