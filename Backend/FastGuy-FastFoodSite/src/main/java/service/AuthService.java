@@ -5,7 +5,6 @@ import dao.UserDAO;
 import entity.Role;
 import entity.User;
 import utils.PasswordUtil;
-import utils.JwtUtil;
 
 public class AuthService {
     private UserDAO userDAO = new UserDAO();

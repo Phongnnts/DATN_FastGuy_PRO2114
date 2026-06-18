@@ -1,5 +1,9 @@
 package servlet;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 import entity.User;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -10,10 +14,6 @@ import service.AuthService;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 @WebServlet("/api/auth/*")
 public class AuthServlet extends HttpServlet {
