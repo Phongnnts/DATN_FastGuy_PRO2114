@@ -1,13 +1,11 @@
 package utils;
 
-import org.mindrot.jbcrypt.BCrypt;
-
 public class PasswordUtil {
     public static String hash(String password) {
-        return BCrypt.hashpw(password, BCrypt.gensalt());
+        return password;
     }
 
-    public static boolean check(String password, String hash) {
-        return BCrypt.checkpw(password, hash);
+    public static boolean check(String password, String stored) {
+        return password != null && password.equals(stored);
     }
 }
