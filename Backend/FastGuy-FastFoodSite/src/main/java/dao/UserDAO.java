@@ -1,11 +1,11 @@
 package dao;
 
+import java.util.List;
+
 import entity.User;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import utils.DatabaseUtil;
-
-import java.util.List;
 
 public class UserDAO {
     public User findById(int id) {

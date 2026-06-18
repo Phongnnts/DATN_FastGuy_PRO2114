@@ -1,11 +1,11 @@
 package service;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import dao.OrdersDAO;
 import dao.ProductDAO;
 import dao.UserDAO;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class AdminService {
     private UserDAO userDAO = new UserDAO();
