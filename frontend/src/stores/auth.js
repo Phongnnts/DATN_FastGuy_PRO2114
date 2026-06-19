@@ -1,84 +1,99 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { ROLES } from '@/utils/constants'
-import { authApi } from '@/api'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import { ROLES } from '@/utils/constants';
+import { authApi } from '@/api';
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || null)
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const token = ref(localStorage.getItem('token') || null);
+  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'));
 
-  const isLoggedIn = computed(() => !!token.value)
-  const role = computed(() => user.value?.role || ROLES.GUEST)
-  const isUser = computed(() => role.value === ROLES.USER)
-  const isStaff = computed(() => role.value === ROLES.STAFF)
-  const isShipper = computed(() => role.value === ROLES.SHIPPER)
-  const isAdmin = computed(() => role.value === ROLES.ADMIN)
+  const isLoggedIn = computed(() => !!token.value);
+  const role = computed(() => user.value?.role || ROLES.GUEST);
+  const isUser = computed(() => role.value === ROLES.USER);
+  const isStaff = computed(() => role.value === ROLES.STAFF);
+  const isShipper = computed(() => role.value === ROLES.SHIPPER);
+  const isAdmin = computed(() => role.value === ROLES.ADMIN);
 
   function persist() {
     if (token.value) {
-      localStorage.setItem('token', token.value)
-      localStorage.setItem('user', JSON.stringify(user.value))
+      localStorage.setItem('token', token.value);
+      localStorage.setItem('user', JSON.stringify(user.value));
     } else {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
   }
 
   async function login(email, password) {
-    const data = await authApi.login({ login: email, password })
-    token.value = data.token
-    user.value = {
-      id: data.userId,
-      name: data.fullName,
-      role: data.role,
-      email: email,
-      phone: '',
-      avatar: ''
+    const data = await authApi.login({ login: email, password });
+    token.value = data.token;
+      user.value = {
+        id: data.userId,
+        name: data.fullName,
+        role: data.role,
+        email: email,
+        phone: '',
+        avatar: data.avatarUrl || '',
+      };
+      persist();
+      return user.value;
     }
-    persist()
-    return user.value
-  }
 
-  async function register(data) {
+    async function register(data) {
     const result = await authApi.register({
       fullName: data.name,
       phone: data.phone,
       email: data.email,
-      password: data.password
-    })
-    token.value = result.token
+      password: data.password,
+    });
+    token.value = result.token;
     user.value = {
       id: result.userId,
       name: result.fullName,
       role: result.role,
       email: data.email,
       phone: data.phone,
-      avatar: ''
-    }
-    persist()
-    return user.value
+      avatar: '',
+    };
+    persist();
+    return user.value;
   }
 
   function logout() {
-    token.value = null
-    user.value = null
-    persist()
+    token.value = null;
+    user.value = null;
+    persist();
   }
 
   async function updateProfile(data) {
-    if (!user.value) throw new Error('Chưa đăng nhập')
-    Object.assign(user.value, data)
-    persist()
-    return user.value
+    if (!user.value) throw new Error('Chưa đăng nhập');
+    Object.assign(user.value, data);
+    persist();
+    return user.value;
   }
 
   async function changePassword(currentPassword, newPassword) {
-    return true
+    return true;
   }
 
   async function forgotPassword(email) {
-    return { message: 'Link đặt lại mật khẩu đã được gửi đến email của bạn' }
+    return { message: 'Link đặt lại mật khẩu đã được gửi đến email của bạn' };
   }
 
-  return { token, user, isLoggedIn, role, isUser, isStaff, isShipper, isAdmin, login, register, logout, updateProfile, changePassword, forgotPassword }
-})
+  return {
+    token,
+    user,
+    isLoggedIn,
+    role,
+    isUser,
+    isStaff,
+    isShipper,
+    isAdmin,
+    login,
+    register,
+    logout,
+    updateProfile,
+    changePassword,
+    forgotPassword,
+  };
+});

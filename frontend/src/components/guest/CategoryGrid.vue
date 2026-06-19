@@ -37,13 +37,13 @@ function goCategory(slug) {
 
 <style scoped>
 .section {
-  padding: 40px 0;
+  padding: 24px 0;
 }
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .section-title {
   font-size: 18px;
@@ -64,8 +64,8 @@ function goCategory(slug) {
 }
 .cat-card {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
+  border-radius: 8px;
+  padding: 10px;
   text-align: center;
   cursor: pointer;
   transition: border-color 0.15s;
@@ -74,7 +74,7 @@ function goCategory(slug) {
   border-color: var(--primary);
 }
 .cat-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 </style>
