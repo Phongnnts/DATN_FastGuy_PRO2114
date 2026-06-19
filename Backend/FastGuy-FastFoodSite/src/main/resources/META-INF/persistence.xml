@@ -23,7 +23,7 @@
         <class>entity.Review</class>
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
-            <property name="jakarta.persistence.jdbc.url" value="jdbc:sqlserver://localhost:1433;databaseName=FastGuy1;encrypt=false"/>
+            <property name="jakarta.persistence.jdbc.url" value="jdbc:sqlserver://localhost:1433;databaseName=FastGuyDB;encrypt=false"/>
             <property name="jakarta.persistence.jdbc.user" value="JavaDuAn"/>
             <property name="jakarta.persistence.jdbc.password" value="ZaZksnguyen1234"/>
             <property name="hibernate.dialect" value="org.hibernate.dialect.SQLServerDialect"/>
