@@ -33,7 +33,7 @@ function proceedCheckout() {
         <i class="bi bi-cart3"></i>
         <h3>Giỏ hàng trống</h3>
         <p>Hãy thêm món ăn vào giỏ hàng nhé!</p>
-        <router-link to="/menu" class="btn btn-primary"><i class="bi bi-arrow-left"></i> Tiếp tục mua</router-link>
+        <router-link to="/menu" class="btn btn-sm btn-primary">Tiếp tục mua</router-link>
       </div>
       <div v-else class="cart-layout">
         <div class="cart-items card">
@@ -54,7 +54,7 @@ function proceedCheckout() {
           <button class="btn btn-lg btn-primary checkout-btn" @click="proceedCheckout">
             <i class="bi bi-credit-card"></i> Tiến hành đặt hàng
           </button>
-          <router-link to="/menu" class="continue-shopping"><i class="bi bi-arrow-left"></i> Tiếp tục mua</router-link>
+          <router-link to="/menu" class="continue-shopping">Tiếp tục mua</router-link>
         </div>
       </div>
     </div>
