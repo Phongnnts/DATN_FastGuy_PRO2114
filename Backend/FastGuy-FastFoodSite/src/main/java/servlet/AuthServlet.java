@@ -75,6 +75,7 @@ public class AuthServlet extends HttpServlet {
         data.put("userId", user.getUserId());
         data.put("role", user.getRole().getRoleName());
         data.put("fullName", user.getFullName());
+        data.put("avatarUrl", user.getAvatarUrl());
 
         JsonUtil.write(resp, ApiResponse.ok(data, "Đăng nhập thành công"));
     }
