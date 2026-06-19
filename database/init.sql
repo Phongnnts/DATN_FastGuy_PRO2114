@@ -270,10 +270,11 @@ go
 -- ============================================================
 -- 1. ROLE
 -- ============================================================
-insert into Role (role_name) values ('ADMIN');
-insert into Role (role_name) values ('STAFF');
-insert into Role (role_name) values ('SHIPPER');
-insert into Role (role_name) values ('CUSTOMER');
+insert into Role (role_name) values ('USER');     -- 1
+insert into Role (role_name) values ('STAFF');   -- 2
+insert into Role (role_name) values ('SHIPPER'); -- 3
+insert into Role (role_name) values ('ADMIN');   -- 4
+insert into Role (role_name) values ('GUEST');   -- 5
 
 -- ============================================================
 -- 2. CATEGORY
@@ -508,7 +509,7 @@ insert into DeliveryZone (district_name, shipping_fee, is_active) values (N'Cầ
 -- password_hash placeholder: '$2a$10$...'
 -- ============================================================
 insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, status)
-values (1, 'admin@fastguy.com', '0901000001', '123456', N'Admin FastGuy', '', 'ACTIVE');
+values (4, 'admin@fastguy.com', '0901000001', '123456', N'Admin FastGuy', '', 'ACTIVE');
 
 insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, status)
 values (2, 'staff1@fastguy.com', '0901000002', '123456', N'Nguyễn Văn A', '', 'ACTIVE');
@@ -523,13 +524,13 @@ insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, 
 values (3, 'shipper2@fastguy.com', '0901000005', '123456', N'Lê Thị D', '', 'ACTIVE');
 
 insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, status)
-values (4, 'customer1@email.com', '0901000006', '123456', N'Hoàng Văn E', '', 'ACTIVE');
+values (1, 'customer1@email.com', '0901000006', '123456', N'Hoàng Văn E', '', 'ACTIVE');
 
 insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, status)
-values (4, 'customer2@email.com', '0901000007', '123456', N'Mai Thị F', '', 'ACTIVE');
+values (1, 'customer2@email.com', '0901000007', '123456', N'Mai Thị F', '', 'ACTIVE');
 
 insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, status)
-values (4, null, '0901000008', '123456', N'Khách Vãng Lai 1', '', 'ACTIVE');
+values (1, null, '0901000008', '123456', N'Khách Vãng Lai 1', '', 'ACTIVE');
 
 -- ============================================================
 -- 9. ADDRESS
