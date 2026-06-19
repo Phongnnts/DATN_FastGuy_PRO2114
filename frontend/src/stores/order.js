@@ -1,14 +1,14 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { orderApi } from '@/api'
-import { useAuthStore } from '@/stores/auth'
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import { orderApi } from '@/api';
+import { useAuthStore } from '@/stores/auth';
 
 export const useOrderStore = defineStore('order', () => {
-  const allOrders = ref([])
-  const currentOrder = ref(null)
-  const loading = ref(false)
+  const allOrders = ref([]);
+  const currentOrder = ref(null);
+  const loading = ref(false);
 
-  const userOrders = computed(() => allOrders.value)
+  const userOrders = computed(() => allOrders.value);
 
   function mapOrder(o) {
     return {
@@ -16,13 +16,19 @@ export const useOrderStore = defineStore('order', () => {
       orderCode: o.orderCode,
       userId: o.userId,
       status: o.status,
-      items: (o.items || []).map(i => ({
+      items: (o.items || []).map((i) => ({
         productId: i.productId,
         productName: i.productName,
-        price: typeof i.unitPrice === 'string' ? parseFloat(i.unitPrice) : (i.unitPrice || 0),
+        price:
+          typeof i.unitPrice === 'string'
+            ? parseFloat(i.unitPrice)
+            : i.unitPrice || 0,
         quantity: i.quantity,
-        totalPrice: typeof i.totalPrice === 'string' ? parseFloat(i.totalPrice) : (i.totalPrice || 0),
-        image: i.image || ''
+        totalPrice:
+          typeof i.totalPrice === 'string'
+            ? parseFloat(i.totalPrice)
+            : i.totalPrice || 0,
+        image: i.image || '',
       })),
       subtotal: o.totalAmount ? parseFloat(o.totalAmount) : 0,
       shippingFee: o.shippingFee ? parseFloat(o.shippingFee) : 0,
@@ -34,9 +40,11 @@ export const useOrderStore = defineStore('order', () => {
       note: o.deliveryNote || '',
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,
-      statusHistory: o.statusHistory || [{ status: o.status, time: o.createdAt, note: '' }],
-      canReview: o.canReview || false
-    }
+      statusHistory: o.statusHistory || [
+        { status: o.status, time: o.createdAt, note: '' },
+      ],
+      canReview: o.canReview || false,
+    };
   }
 
   function mapOrderListItem(o) {
@@ -46,97 +54,112 @@ export const useOrderStore = defineStore('order', () => {
       status: o.status,
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
       createdAt: o.createdAt,
-      items: o.items || []
-    }
+      items: o.items || [],
+    };
   }
 
   async function fetchOrders() {
-    loading.value = true
+    loading.value = true;
     try {
-      const data = await orderApi.getAll()
-      allOrders.value = (data || []).map(mapOrderListItem)
+      const data = await orderApi.getAll();
+      allOrders.value = (data || []).map(mapOrderListItem);
     } catch {
-      allOrders.value = []
+      allOrders.value = [];
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   function fetchById(id) {
-    const found = allOrders.value.find(o => o.id === Number(id))
+    const found = allOrders.value.find((o) => o.id === Number(id));
     if (found) {
-      currentOrder.value = found
-      return currentOrder.value
+      currentOrder.value = found;
+      return currentOrder.value;
     }
-    fetchDetail(id)
-    return currentOrder.value
+    fetchDetail(id);
+    return currentOrder.value;
   }
 
   async function fetchDetail(id) {
-    loading.value = true
+    loading.value = true;
     try {
-      const data = await orderApi.getById(id)
-      currentOrder.value = data ? mapOrder(data) : null
+      const data = await orderApi.getById(id);
+      currentOrder.value = data ? mapOrder(data) : null;
     } catch {
-      currentOrder.value = null
+      currentOrder.value = null;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function trackOrder(code) {
     try {
-      const data = await orderApi.trackOrder(code)
-      return data ? mapOrder(data) : null
+      const data = await orderApi.trackOrder(code);
+      return data ? mapOrder(data) : null;
     } catch {
-      return null
+      return null;
     }
   }
 
   async function createOrder(orderData) {
-    loading.value = true
+    loading.value = true;
     try {
       const data = await orderApi.create({
         zoneId: orderData.zoneId || 1,
         address: orderData.address || '',
         phone: orderData.phone || '',
         deliveryNote: orderData.note || '',
-        paymentMethod: orderData.paymentMethod || 'COD'
-      })
+        paymentMethod: orderData.paymentMethod || 'COD',
+      });
       const newOrder = {
         id: data.orderId,
         orderCode: data.orderCode,
         status: data.status,
         total: data.finalAmount ? parseFloat(data.finalAmount) : 0,
         createdAt: new Date().toISOString(),
-        items: orderData.items || []
-      }
-      allOrders.value.unshift(newOrder)
-      return newOrder
+        items: orderData.items || [],
+      };
+      allOrders.value.unshift(newOrder);
+      return newOrder;
     } catch (e) {
-      throw e
+      throw e;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function cancelOrder(id) {
     try {
-      await orderApi.cancel(id)
-      const order = allOrders.value.find(o => o.id === Number(id))
-      if (order) order.status = 'CANCELLED'
+      await orderApi.cancel(id);
+      const order = allOrders.value.find((o) => o.id === Number(id));
+      if (order) order.status = 'CANCELLED';
     } catch {
-      throw new Error('Không thể hủy đơn hàng')
+      throw new Error('Không thể hủy đơn hàng');
     }
   }
 
   async function reviewOrder(id, data) {
-    const order = allOrders.value.find(o => o.id === Number(id))
+    const order = allOrders.value.find((o) => o.id === Number(id));
     if (order) {
-      order.review = { rating: data.rating, content: data.content, createdAt: new Date().toISOString() }
+      order.review = {
+        rating: data.rating,
+        content: data.content,
+        createdAt: new Date().toISOString(),
+      };
     }
-    return order
+    return order;
   }
 
-  return { allOrders, currentOrder, loading, userOrders, fetchOrders, fetchById, trackOrder, createOrder, cancelOrder, reviewOrder }
-})
+  return {
+    allOrders,
+    currentOrder,
+    loading,
+    userOrders,
+    fetchOrders,
+    fetchById,
+    trackOrder,
+    createOrder,
+    cancelOrder,
+    reviewOrder,
+  };
+});

@@ -156,20 +156,19 @@ async function addToCart() {
   top: 80px;
 }
 .detail-image-bg {
-  background: #f9f9f9;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
+  background: #f5f5f5;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 400px;
+  width: 100%;
+  aspect-ratio: 1;
   overflow: hidden;
 }
 .detail-image-bg img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  padding: 32px;
+  object-fit: cover;
 }
 .detail-title {
   font-size: 28px;
@@ -288,10 +287,7 @@ async function addToCart() {
     position: static;
   }
   .detail-image-bg {
-    height: 280px;
-  }
-  .detail-image-bg img {
-    padding: 20px;
+    aspect-ratio: 1;
   }
   .detail-title {
     font-size: 22px;
