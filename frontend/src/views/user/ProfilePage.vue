@@ -10,7 +10,7 @@ const success = ref('');
 onMounted(() => {
   if (auth.user) {
     form.value = {
-      name: auth.user.name,
+      fullName: auth.user.fullName,
       email: auth.user.email,
       phone: auth.user.phone || '',
     };
@@ -43,18 +43,18 @@ async function save() {
       </div>
       <div class="profile-avatar-section">
         <img
-          :src="auth.user?.avatar || 'https://i.pravatar.cc/150?u=default'"
+          :src="auth.user?.avatarUrl || 'https://i.pravatar.cc/150?u=default'"
           class="profile-avatar"
         />
         <div>
-          <div class="profile-name">{{ auth.user?.name }}</div>
+          <div class="profile-name">{{ auth.user?.fullName }}</div>
           <div class="profile-role">Thành viên</div>
         </div>
       </div>
       <form @submit.prevent="save">
         <div class="form-group">
           <label class="form-label">Họ tên</label>
-          <input v-model="form.name" class="form-input" :disabled="!editMode" />
+          <input v-model="form.fullName" class="form-input" :disabled="!editMode" />
         </div>
         <div class="form-group">
           <label class="form-label">Email</label>
