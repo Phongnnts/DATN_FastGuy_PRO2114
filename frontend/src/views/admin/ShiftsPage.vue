@@ -98,7 +98,7 @@ function saveSchedule() {
         <div class="modal-header"><h3 class="modal-title">Phân ca</h3><button class="modal-close" @click="showScheduleForm = false"><i class="bi bi-x-lg"></i></button></div>
         <form @submit.prevent="saveSchedule">
           <div class="form-group"><label class="form-label">Ngày</label><input v-model="scheduleForm.date" type="date" class="form-input" required /></div>
-          <div class="form-group"><label class="form-label">Nhân viên</label><select v-model="scheduleForm.userId" class="form-select"><option v-for="u in adminStore.allUsers.filter(u => u.role === 'STAFF' || u.role === 'SHIPPER')" :key="u.id" :value="u.id">{{ u.name }} ({{ u.role }})</option></select></div>
+          <div class="form-group"><label class="form-label">Nhân viên</label><select v-model="scheduleForm.userId" class="form-select"><option v-for="u in adminStore.allUsers.filter(u => u.role === 'STAFF')" :key="u.id" :value="u.id">{{ u.name }} ({{ u.role }})</option></select></div>
           <div class="form-group"><label  class="form-label">Ca</label><select v-model="scheduleForm.shiftId" class="form-select"><option v-for="s in adminStore.allShifts" :key="s.id" :value="s.id">{{ s.name }}</option></select></div>
           <div class="modal-footer"><button type="button" class="btn btn-outline" @click="showScheduleForm = false">Hủy</button><button type="submit" class="btn btn-primary">Thêm</button></div>
         </form>
