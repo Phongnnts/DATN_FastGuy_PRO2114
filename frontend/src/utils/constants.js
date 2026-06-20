@@ -2,7 +2,8 @@ export const ROLES = {
   GUEST: 'GUEST',
   USER: 'USER',
   STAFF: 'STAFF',
-  SHIPPER: 'SHIPPER',
+
+
   ADMIN: 'ADMIN'
 }
 
