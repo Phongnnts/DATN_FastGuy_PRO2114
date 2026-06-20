@@ -27,21 +27,21 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(email, password) {
     const data = await authApi.login({ login: email, password });
     token.value = data.token;
-      user.value = {
-        id: data.userId,
-        name: data.fullName,
-        role: data.role,
-        email: email,
-        phone: '',
-        avatar: data.avatarUrl || '',
-      };
-      persist();
-      return user.value;
-    }
+    user.value = {
+      id: data.userId,
+      fullName: data.fullName,
+      role: data.role,
+      email: email,
+      phone: '',
+      avatarUrl: data.avatarUrl || '',
+    };
+    persist();
+    return user.value;
+  }
 
-    async function register(data) {
+  async function register(data) {
     const result = await authApi.register({
-      fullName: data.name,
+      fullName: data.fullName,
       phone: data.phone,
       email: data.email,
       password: data.password,
@@ -49,11 +49,11 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = result.token;
     user.value = {
       id: result.userId,
-      name: result.fullName,
+      fullName: result.fullName,
       role: result.role,
       email: data.email,
       phone: data.phone,
-      avatar: '',
+      avatarUrl: '',
     };
     persist();
     return user.value;

@@ -32,9 +32,9 @@ const sidebarLinks = [
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
-          <img :src="auth.user?.avatar || 'https://i.pravatar.cc/150?u=default'" class="user-avatar" />
+          <img :src="auth.user?.avatarUrl || 'https://i.pravatar.cc/150?u=default'" class="user-avatar" />
           <div>
-            <div class="user-name">{{ auth.user?.name }}</div>
+            <div class="user-name">{{ auth.user?.fullName }}</div>
             <div class="user-role">Người giao hàng</div>
           </div>
         </div>
