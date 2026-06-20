@@ -39,7 +39,6 @@ const navLinks = [
             <template v-if="auth.isLoggedIn">
               <router-link v-if="auth.isUser" to="/account/profile" class="nav-link" title="Tài khoản"><i class="bi bi-person"></i></router-link>
               <router-link v-else-if="auth.isStaff" to="/staff" class="btn btn-sm">Staff</router-link>
-              <router-link v-else-if="auth.isShipper" to="/shipper" class="btn btn-sm">Shipper</router-link>
               <router-link v-else-if="auth.isAdmin" to="/admin" class="btn btn-sm">Admin</router-link>
               <button class="btn btn-sm btn-ghost" @click="logout"><i class="bi bi-box-arrow-right"></i></button>
             </template>

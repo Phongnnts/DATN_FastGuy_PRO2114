@@ -11,7 +11,8 @@ export const useAuthStore = defineStore('auth', () => {
   const role = computed(() => user.value?.role || ROLES.GUEST);
   const isUser = computed(() => role.value === ROLES.USER);
   const isStaff = computed(() => role.value === ROLES.STAFF);
-  const isShipper = computed(() => role.value === ROLES.SHIPPER);
+
+
   const isAdmin = computed(() => role.value === ROLES.ADMIN);
 
   function persist() {
@@ -87,7 +88,8 @@ export const useAuthStore = defineStore('auth', () => {
     role,
     isUser,
     isStaff,
-    isShipper,
+
+
     isAdmin,
     login,
     register,

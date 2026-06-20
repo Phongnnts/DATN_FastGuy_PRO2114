@@ -10,7 +10,8 @@ export function useAuth() {
   const roleRoutes = computed(() => ({
     [ROLES.USER]: { name: 'Profile' },
     [ROLES.STAFF]: { name: 'StaffDashboard' },
-    [ROLES.SHIPPER]: { name: 'ShipperDashboard' },
+
+
     [ROLES.ADMIN]: { name: 'AdminDashboard' },
   }));
 
