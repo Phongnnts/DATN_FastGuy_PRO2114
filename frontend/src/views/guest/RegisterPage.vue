@@ -25,7 +25,7 @@ async function handleRegister() {
   loading.value = true;
   try {
     await auth.register({
-      name: form.value.name,
+      fullName: form.value.name,
       email: form.value.email,
       phone: form.value.phone,
       password: form.value.password,

@@ -45,9 +45,9 @@ const sidebarLinks = [
       <div class="layout-inner">
         <aside class="sidebar" :class="{ open: mobileMenuOpen }">
           <div class="sidebar-user">
-            <img :src="auth.user?.avatar || 'https://i.pravatar.cc/150?u=default'" class="sidebar-avatar" />
+            <img :src="auth.user?.avatarUrl || 'https://i.pravatar.cc/150?u=default'" class="sidebar-avatar" />
             <div>
-              <div class="sidebar-name">{{ auth.user?.name }}</div>
+              <div class="sidebar-name">{{ auth.user?.fullName }}</div>
               <div class="sidebar-email">{{ auth.user?.email }}</div>
             </div>
           </div>
