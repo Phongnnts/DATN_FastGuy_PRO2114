@@ -5,7 +5,7 @@ import { ROLES } from '@/utils/constants';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import UserLayout from '@/layouts/UserLayout.vue';
 import StaffLayout from '@/layouts/StaffLayout.vue';
-import ShipperLayout from '@/layouts/ShipperLayout.vue';
+
 import AdminLayout from '@/layouts/AdminLayout.vue';
 
 const routes = [
@@ -161,40 +161,6 @@ const routes = [
     ],
   },
 
-  // ─── Shipper ───────────────────────────────
-  {
-    path: '/shipper',
-    component: ShipperLayout,
-    meta: { requiresAuth: true, role: ROLES.SHIPPER },
-    children: [
-      {
-        path: '',
-        name: 'ShipperDashboard',
-        component: () => import('@/views/shipper/DashboardPage.vue'),
-      },
-      {
-        path: 'deliveries',
-        name: 'ShipperDeliveries',
-        component: () => import('@/views/shipper/DeliveriesPage.vue'),
-      },
-      {
-        path: 'deliveries/:id',
-        name: 'ShipperDeliveryDetail',
-        component: () => import('@/views/shipper/DeliveryDetailPage.vue'),
-      },
-      {
-        path: 'history',
-        name: 'ShipperHistory',
-        component: () => import('@/views/shipper/HistoryPage.vue'),
-      },
-      {
-        path: 'shifts',
-        name: 'ShipperShifts',
-        component: () => import('@/views/shipper/ShiftsPage.vue'),
-      },
-    ],
-  },
-
   // ─── Admin ─────────────────────────────────
   {
     path: '/admin',
@@ -280,7 +246,6 @@ router.beforeEach((to, from, next) => {
   ) {
     const roleRoutes = {
       [ROLES.STAFF]: '/staff',
-      [ROLES.SHIPPER]: '/shipper',
       [ROLES.ADMIN]: '/admin',
     };
     const redirect = roleRoutes[auth.role];
@@ -295,7 +260,6 @@ router.beforeEach((to, from, next) => {
     const roleRoutes = {
       [ROLES.USER]: '/account/profile',
       [ROLES.STAFF]: '/staff',
-      [ROLES.SHIPPER]: '/shipper',
       [ROLES.ADMIN]: '/admin',
     };
     return next(

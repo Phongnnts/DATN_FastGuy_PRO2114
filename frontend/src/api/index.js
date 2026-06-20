@@ -5,6 +5,6 @@ export { default as orderApi } from './order';
 export { default as cartApi } from './cart';
 export { default as userApi } from './user';
 export { default as staffApi } from './staff';
-export { default as shipperApi } from './shipper';
+
 export { default as adminApi } from './admin';
 export { default as deliveryZoneApi } from './deliveryZone';
