@@ -3,9 +3,8 @@ export const ROLES = {
   USER: 'USER',
   STAFF: 'STAFF',
 
-
-  ADMIN: 'ADMIN'
-}
+  ADMIN: 'ADMIN',
+};
 
 export const ORDER_STATUS = {
   PENDING: 'PENDING',
@@ -13,8 +12,8 @@ export const ORDER_STATUS = {
   PREPARING: 'PREPARING',
   DELIVERING: 'DELIVERING',
   DELIVERED: 'DELIVERED',
-  CANCELLED: 'CANCELLED'
-}
+  CANCELLED: 'CANCELLED',
+};
 
 export const ORDER_STATUS_LABEL = {
   PENDING: 'Chờ xác nhận',
@@ -22,8 +21,8 @@ export const ORDER_STATUS_LABEL = {
   PREPARING: 'Đang chuẩn bị',
   DELIVERING: 'Đang giao',
   DELIVERED: 'Đã giao',
-  CANCELLED: 'Đã hủy'
-}
+  CANCELLED: 'Đã hủy',
+};
 
 export const ORDER_STATUS_BADGE = {
   PENDING: 'warning',
@@ -31,67 +30,76 @@ export const ORDER_STATUS_BADGE = {
   PREPARING: 'primary',
   DELIVERING: 'info',
   DELIVERED: 'success',
-  CANCELLED: 'danger'
-}
+  CANCELLED: 'danger',
+};
 
 export const SCHEDULE_STATUS = {
   PENDING: 'PENDING',
   CHECKED_IN: 'CHECKED_IN',
   CHECKED_OUT: 'CHECKED_OUT',
-  ABSENT: 'ABSENT'
-}
+  ABSENT: 'ABSENT',
+};
 
 export const SCHEDULE_STATUS_LABEL = {
   PENDING: 'Chờ',
   CHECKED_IN: 'Đã check-in',
   CHECKED_OUT: 'Đã check-out',
-  ABSENT: 'Vắng'
-}
+  ABSENT: 'Vắng',
+};
 
 export const DELIVERY_STATUS = {
   READY: 'READY',
   DELIVERING: 'DELIVERING',
   DELIVERED: 'DELIVERED',
-  FAILED: 'FAILED'
-}
+  FAILED: 'FAILED',
+};
 
 export const DELIVERY_STATUS_LABEL = {
   READY: 'Sẵn sàng',
   DELIVERING: 'Đang giao',
   DELIVERED: 'Đã giao',
-  FAILED: 'Thất bại'
-}
+  FAILED: 'Thất bại',
+};
 
 export const PAYMENT_METHOD = {
   COD: 'COD',
   MOMO: 'MOMO',
   BANK_TRANSFER: 'BANK_TRANSFER',
-  VNPAY: 'VNPAY'
-}
+  VNPAY: 'VNPAY',
+};
 
 export const PAYMENT_METHOD_LABEL = {
   COD: 'Tiền mặt (COD)',
   MOMO: 'Ví MoMo',
   BANK_TRANSFER: 'Chuyển khoản',
-  VNPAY: 'VNPay'
-}
+  VNPAY: 'VNPay',
+};
 
 export const PAYMENT_STATUS = {
   UNPAID: 'UNPAID',
   PAID: 'PAID',
-  REFUNDED: 'REFUNDED'
-}
+  REFUNDED: 'REFUNDED',
+};
 
 export const PAYMENT_STATUS_LABEL = {
   UNPAID: 'Chưa thanh toán',
   PAID: 'Đã thanh toán',
-  REFUNDED: 'Đã hoàn tiền'
-}
+  REFUNDED: 'Đã hoàn tiền',
+};
 
-export const INGREDIENT_UNITS = ['kg', 'g', 'l', 'ml', 'cái', 'hộp', 'chai', 'bịch']
+export const INGREDIENT_UNITS = [
+  'kg',
+  'g',
+  'l',
+  'ml',
+  'cái',
+  'hộp',
+  'chai',
+  'bịch',
+];
 
-export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6h)']
+export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6h)'];
 
-export const DELIVERY_ZONE_TYPES = ['Quận', 'Huyện', 'Phường', 'Xã']
+export const DELIVERY_ZONE_TYPES = ['Quận', 'Huyện', 'Phường', 'Xã'];
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
