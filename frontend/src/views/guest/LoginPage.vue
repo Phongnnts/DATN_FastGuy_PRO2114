@@ -23,9 +23,7 @@ async function handleLogin() {
     const role = user?.role || '';
     const redirect =
       route.query.redirect ||
-      (role === 'USER'
-        ? '/'
-        : `/${role.toLowerCase()}`);
+      (role === 'USER' ? '/' : `/${role.toLowerCase()}`);
     router.push(redirect);
   } catch (e) {
     error.value = e.message;
