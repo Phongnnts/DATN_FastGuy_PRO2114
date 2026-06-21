@@ -33,6 +33,10 @@ public class AdminService {
         data.put("totalProducts", totalProducts);
         data.put("totalRevenue", totalRevenue);
         data.put("ordersByStatus", ordersByStatus);
+        data.put("ordersToday", ordersDAO.countToday());
+        data.put("revenueToday", ordersDAO.sumRevenueToday());
+        data.put("revenueByMonth", ordersDAO.sumRevenueByMonth());
+        data.put("topProducts", ordersDAO.findTopProducts(5));
 
         return data;
     }

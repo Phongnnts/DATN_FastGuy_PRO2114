@@ -28,7 +28,9 @@ const filteredProducts = computed(() => {
   return result;
 });
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredProducts.value.length / pageSize)));
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredProducts.value.length / pageSize)),
+);
 
 const pagedProducts = computed(() => {
   const start = (currentPage.value - 1) * pageSize;
@@ -40,7 +42,8 @@ const pageNumbers = computed(() => {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
   const cp = currentPage.value;
   if (cp <= 3) return [1, 2, 3, 4, '...', total];
-  if (cp >= total - 2) return [1, '...', total - 3, total - 2, total - 1, total];
+  if (cp >= total - 2)
+    return [1, '...', total - 3, total - 2, total - 1, total];
   return [1, '...', cp - 1, cp, cp + 1, '...', total];
 });
 
@@ -122,7 +125,10 @@ function selectCategory(id) {
           >
             {{ p }}
           </button>
-          <button :disabled="currentPage >= totalPages" @click="goPage(currentPage + 1)">
+          <button
+            :disabled="currentPage >= totalPages"
+            @click="goPage(currentPage + 1)"
+          >
             <i class="bi bi-chevron-right"></i>
           </button>
         </div>

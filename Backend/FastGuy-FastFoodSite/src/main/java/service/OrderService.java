@@ -35,7 +35,7 @@ public class OrderService {
         List<CartItem> cartItems = cartDAO.getItems(cart.getCartId());
         if (cartItems.isEmpty()) return null;
 
-        DeliveryZone zone = deliveryZoneDAO.findById(zoneId);
+        DeliveryZone zone = deliveryZoneDAO.findById(zoneId );
         BigDecimal shippingFee = zone != null ? zone.getShippingFee() : BigDecimal.ZERO;
 
         BigDecimal totalAmount = BigDecimal.ZERO;
