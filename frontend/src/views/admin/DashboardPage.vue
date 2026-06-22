@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice } from '@/utils/format';
 import { Chart, registerables } from 'chart.js';
@@ -7,8 +7,10 @@ import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
 const adminStore = useAdminStore();
+
 const revenueChartRef = ref(null);
 const topChartRef = ref(null);
+
 let revenueChart = null;
 let topChart = null;
 
@@ -32,27 +34,60 @@ function getCSSVar(name) {
     .trim();
 }
 
+function destroyCharts() {
+  if (revenueChart) {
+    revenueChart.destroy();
+    revenueChart = null;
+  }
+
+  if (topChart) {
+    topChart.destroy();
+    topChart = null;
+  }
+}
+
 function buildCharts() {
   if (!adminStore.dashboard) return;
+
   destroyCharts();
+
   const d = adminStore.dashboard;
+
   const primary = getCSSVar('--primary') || '#D4764A';
   const border = getCSSVar('--border') || '#E8E8E8';
   const textMid = getCSSVar('--text-mid') || '#6B6B6B';
 
-  const chartFont = { family: "'Be Vietnam Pro', sans-serif", size: 12 };
+  const chartFont = {
+    family: "'Be Vietnam Pro', sans-serif",
+    size: 12,
+  };
+
   const chartDefaults = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    plugins: {
+      legend: {
+        display: false,
+      },
+    },
     scales: {
       x: {
-        grid: { color: border },
-        ticks: { font: chartFont, color: textMid },
+        grid: {
+          color: border,
+        },
+        ticks: {
+          font: chartFont,
+          color: textMid,
+        },
       },
       y: {
-        grid: { color: border },
-        ticks: { font: chartFont, color: textMid },
+        grid: {
+          color: border,
+        },
+        ticks: {
+          font: chartFont,
+          color: textMid,
+        },
       },
     },
   };
@@ -60,7 +95,7 @@ function buildCharts() {
   const months = d.revenueByMonth || [];
   const tops = d.topProducts || [];
 
-  if (revenueChartRef.value && months.length) {
+  if (revenueChartRef.value && months.length > 0) {
     revenueChart = new Chart(revenueChartRef.value, {
       type: 'bar',
       data: {
@@ -69,7 +104,7 @@ function buildCharts() {
           {
             label: 'Doanh thu',
             data: months.map((m) => m.revenue || m.value),
-            backgroundColor: primary + '33',
+            backgroundColor: `${primary}33`,
             borderColor: primary,
             borderWidth: 2,
             borderRadius: 4,
@@ -79,13 +114,16 @@ function buildCharts() {
       options: {
         ...chartDefaults,
         scales: {
-          x: { ...chartDefaults.scales.x },
+          x: {
+            ...chartDefaults.scales.x,
+          },
           y: {
             ...chartDefaults.scales.y,
             beginAtZero: true,
             ticks: {
               ...chartDefaults.scales.y.ticks,
-              callback: (v) => (v / 1000000).toFixed(0) + 'tr',
+              callback: (value) =>
+                `${(Number(value) / 1000000).toFixed(0)}tr`,
             },
           },
         },
@@ -93,7 +131,9 @@ function buildCharts() {
     });
   }
 
-  if (topChartRef.value && tops.length) {
+  if (topChartRef.value && tops.length > 0) {
+    revenueChart;
+
     topChart = new Chart(topChartRef.value, {
       type: 'bar',
       data: {
@@ -102,7 +142,7 @@ function buildCharts() {
           {
             label: 'Đã bán',
             data: tops.slice(0, 5).map((p) => p.sold || p.value),
-            backgroundColor: primary + '33',
+            backgroundColor: `${primary}33`,
             borderColor: primary,
             borderWidth: 2,
             borderRadius: 4,
@@ -113,74 +153,40 @@ function buildCharts() {
         ...chartDefaults,
         indexAxis: 'y',
         scales: {
-          x: { ...chartDefaults.scales.x, beginAtZero: true },
-          y: { ...chartDefaults.scales.y },
+          x: {
+            ...chartDefaults.scales.x,
+            beginAtZero: true,
+          },
+          y: {
+            ...chartDefaults.scales.y,
+          },
         },
       },
     });
   }
 }
 
-function destroyCharts() {
-  revenueChart?.destroy();
-  revenueChart = null;
-  topChart?.destroy();
-  topChart = null;
-}
-
 onMounted(async () => {
   await adminStore.fetchDashboard();
+
+  await nextTick();
+
   buildCharts();
 });
 
 watch(
   () => adminStore.dashboard,
-  () => {
+  async () => {
+    await nextTick();
+
     buildCharts();
+  },
+  {
+    deep: true,
   },
 );
 
-onUnmounted(destroyCharts);
+onUnmounted(() => {
+  destroyCharts();
+});
 </script>
-
-<template>
-  <div>
-    <div class="page-header"><h1>Tổng quan</h1></div>
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-value">{{ data.totalUsers.toLocaleString() }}</div>
-        <div class="stat-label">Người dùng</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ data.totalOrders.toLocaleString() }}</div>
-        <div class="stat-label">Đơn hàng</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ formatPrice(data.totalRevenue) }}</div>
-        <div class="stat-label">Doanh thu</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ data.totalProducts }}</div>
-        <div class="stat-label">Sản phẩm</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ data.ordersToday }}</div>
-        <div class="stat-label">Đơn hôm nay</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ formatPrice(data.revenueToday) }}</div>
-        <div class="stat-label">Doanh thu hôm nay</div>
-      </div>
-    </div>
-    <div class="grid-2">
-      <div class="chart-container">
-        <h3 style="margin-bottom: 12px">Doanh thu theo tháng</h3>
-        <div style="height: 260px"><canvas ref="revenueChartRef"></canvas></div>
-      </div>
-      <div class="chart-container">
-        <h3 style="margin-bottom: 12px">Sản phẩm bán chạy</h3>
-        <div style="height: 260px"><canvas ref="topChartRef"></canvas></div>
-      </div>
-    </div>
-  </div>
-</template>
