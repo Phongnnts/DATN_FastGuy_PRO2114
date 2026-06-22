@@ -24,6 +24,12 @@ function remove() {
     </div>
     <div class="cart-item-info">
       <h4>{{ item.name }}</h4>
+      <div v-if="item.optionData" class="cart-item-option">
+        {{ item.optionData.optionName }}
+        <span v-if="item.optionData.extraPrice > 0"
+          >(+{{ formatPrice(item.optionData.extraPrice) }})</span
+        >
+      </div>
       <div class="cart-item-price">
         {{ formatPrice(item.discountPrice || item.price) }}
       </div>
@@ -82,6 +88,11 @@ function remove() {
   font-size: 15px;
   font-weight: 600;
   margin-bottom: 4px;
+}
+.cart-item-option {
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-bottom: 2px;
 }
 .cart-item-price {
   font-size: 14px;
