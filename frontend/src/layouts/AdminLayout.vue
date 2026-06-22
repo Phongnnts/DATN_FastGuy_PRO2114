@@ -9,7 +9,7 @@ const sidebarOpen = ref(false);
 
 function logout() {
   auth.logout();
-  router.push('/');
+  router.push('/login'); // sửa nhẹ cho đúng flow login
 }
 
 const sidebarLinks = [
@@ -28,26 +28,39 @@ const sidebarLinks = [
 
 <template>
   <div class="sidebar-layout">
+
+    <!-- Overlay mobile -->
+    <div
+      v-if="sidebarOpen"
+      class="sidebar-overlay"
+      @click="sidebarOpen = false"
+    ></div>
+
     <aside class="sidebar" :class="{ open: sidebarOpen }">
       <div class="sidebar-brand">
-        <span class="brand-text" style="font-size: 18px; font-weight: 800"
-          >Fast<span style="color: var(--primary)">Guy</span></span
-        >
+        <span class="brand-text" style="font-size: 18px; font-weight: 800">
+          Fast<span style="color: var(--primary)">Guy</span>
+        </span>
         <div style="font-size: 11px; color: var(--text-mid); margin-top: 1px">
           Admin
         </div>
       </div>
+
       <nav class="sidebar-nav">
         <router-link
           v-for="link in sidebarLinks"
           :key="link.path"
           :to="link.path"
+          class="sidebar-link"
+          active-class="active"
+          exact-active-class="active"
           @click="sidebarOpen = false"
         >
           <i :class="link.icon"></i>
           <span>{{ link.label }}</span>
         </router-link>
       </nav>
+
       <div class="sidebar-footer">
         <div class="user-info">
           <img
@@ -61,6 +74,7 @@ const sidebarLinks = [
         </div>
       </div>
     </aside>
+
     <div class="main-content">
       <div class="topbar">
         <div class="topbar-left">
@@ -73,15 +87,18 @@ const sidebarLinks = [
           </button>
           <h2>Admin Panel</h2>
         </div>
+
         <div class="topbar-right">
-          <router-link to="/" class="btn btn-sm"
-            ><i class="bi bi-house"></i> Website</router-link
-          >
+          <router-link to="/" class="btn btn-sm">
+            <i class="bi bi-house"></i> Website
+          </router-link>
+
           <button class="btn btn-sm btn-ghost" @click="logout">
             <i class="bi bi-box-arrow-right"></i> Đăng xuất
           </button>
         </div>
       </div>
+
       <div class="page-content">
         <router-view />
       </div>
