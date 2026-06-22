@@ -58,29 +58,33 @@ export const useCartStore = defineStore('cart', () => {
     return productStore.allProducts.find((p) => p.id === Number(productId));
   }
 
-  async function addItem(productId, quantity = 1) {
+  async function addItem(productId, quantity = 1, optionData = null) {
     const auth = useAuthStore();
     if (auth.isLoggedIn) {
       const product = findProduct(productId);
       try {
+        const price = product ? product.discountPrice || product.price : 0;
         await cartApi.addItem({
           productId,
           quantity,
-          unitPrice: product ? product.discountPrice || product.price : 0,
-          optionData: null,
+          unitPrice: price,
+          optionData: optionData ? JSON.stringify(optionData) : null,
         });
-        addLocalItem(productId, quantity);
+        addLocalItem(productId, quantity, optionData);
       } catch (err) {
         console.error('Cart API addItem failed, falling back to local:', err);
-        addLocalItem(productId, quantity);
+        addLocalItem(productId, quantity, optionData);
       }
     } else {
-      addLocalItem(productId, quantity);
+      addLocalItem(productId, quantity, optionData);
     }
   }
 
-  function addLocalItem(productId, quantity) {
-    const existing = items.value.find((i) => i.productId === productId);
+  function addLocalItem(productId, quantity, optionData) {
+    const optionKey = optionData ? JSON.stringify(optionData) : '';
+    const existing = items.value.find(
+      (i) => i.productId === productId && (i.optionKey || '') === optionKey,
+    );
     if (existing) {
       existing.quantity += quantity;
     } else {
@@ -93,6 +97,8 @@ export const useCartStore = defineStore('cart', () => {
         discountPrice: product.discountPrice,
         image: product.image,
         quantity,
+        optionData,
+        optionKey,
       });
     }
     save();
@@ -119,15 +125,27 @@ export const useCartStore = defineStore('cart', () => {
     try {
       const data = await cartApi.get();
       if (data && data.items) {
-        items.value = data.items.map((ci) => ({
-          cartItemId: ci.cartItemId,
-          productId: ci.productId,
-          name: ci.productName || '',
-          price: ci.unitPrice ? parseFloat(ci.unitPrice) : 0,
-          discountPrice: null,
-          image: ci.imageUrl || '',
-          quantity: ci.quantity,
-        }));
+        items.value = data.items.map((ci) => {
+          let optionData = null;
+          if (ci.optionData) {
+            try {
+              optionData = JSON.parse(ci.optionData);
+            } catch {
+              optionData = { raw: ci.optionData };
+            }
+          }
+          return {
+            cartItemId: ci.cartItemId,
+            productId: ci.productId,
+            name: ci.productName || '',
+            price: ci.unitPrice ? parseFloat(ci.unitPrice) : 0,
+            discountPrice: null,
+            image: ci.imageUrl || '',
+            quantity: ci.quantity,
+            optionData,
+            optionKey: optionData ? JSON.stringify(optionData) : '',
+          };
+        });
         save();
       }
     } catch (err) {
@@ -155,7 +173,7 @@ export const useCartStore = defineStore('cart', () => {
           productId: item.productId,
           quantity: item.quantity,
           unitPrice: item.discountPrice || item.price,
-          optionData: null,
+          optionData: item.optionData ? JSON.stringify(item.optionData) : null,
         });
       } catch (err) {
         console.error('Cart migration addItem failed:', err);
