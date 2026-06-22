@@ -51,6 +51,19 @@ public class ProductDAO {
         }
     }
 
+    public List<entity.ProductOption> findOptionsByProductId(int productId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM ProductOption o WHERE o.product.productId = :pid",
+                    entity.ProductOption.class)
+                    .setParameter("pid", productId)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public long count() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
