@@ -121,9 +121,35 @@ export const useStaffStore = defineStore('staff', () => {
     }
   }
 
-  async function updateOrderStatus(id, status) {
+  async function fetchPreparingOrders() {
+    loading.value = true;
     try {
-      await staffApi.updateOrderStatus(id, status);
+      const data = await staffApi.getPreparingOrders();
+      allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+      return allOrders.value;
+    } catch {
+      return [];
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function fetchReadyOrders() {
+    loading.value = true;
+    try {
+      const data = await staffApi.getReadyOrders();
+      allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+      return allOrders.value;
+    } catch {
+      return [];
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function updateOrderStatus(id, status, failureReason) {
+    try {
+      await staffApi.updateOrderStatus(id, status, failureReason);
       const order = allOrders.value.find((o) => o.id === id);
       if (order) {
         order.status = status;
@@ -131,7 +157,7 @@ export const useStaffStore = defineStore('staff', () => {
         order.statusHistory.push({
           status,
           time: new Date().toISOString(),
-          note: '',
+          note: status === 'CANCELLED' ? (failureReason || '') : '',
         });
       }
     } catch {
@@ -159,6 +185,8 @@ export const useStaffStore = defineStore('staff', () => {
     fetchDashboard,
     fetchOrders,
     fetchConfirmedOrders,
+    fetchPreparingOrders,
+    fetchReadyOrders,
     fetchOrderById,
     updateOrderStatus,
     saveInternalNote,
