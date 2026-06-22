@@ -19,22 +19,54 @@ public class StaffOrderService {
         return ordersDAO.findByStatus("CONFIRMED");
     }
 
+    public List<Orders> getPreparingOrders() {
+        return ordersDAO.findByStatus("PREPARING");
+    }
+
+    public List<Orders> getReadyOrders() {
+        return ordersDAO.findByStatus("READY");
+    }
+
     public Orders getOrderDetail(int orderId) {
         return ordersDAO.findById(orderId);
     }
 
-    public boolean updateStatus(int orderId, String status, int staffId) {
+    public boolean updateStatus(int orderId, String status, int staffId, String failureReason) {
         Orders order = ordersDAO.findById(orderId);
         if (order == null) return false;
 
+        String current = order.getOrderStatus();
+
+        switch (status) {
+            case "CONFIRMED":
+                if (!"PENDING".equals(current)) return false;
+                order.setConfirmedAt(LocalDateTime.now());
+                break;
+            case "PREPARING":
+                if (!"CONFIRMED".equals(current)) return false;
+                break;
+            case "READY":
+                if (!"PREPARING".equals(current)) return false;
+                order.setReadyAt(LocalDateTime.now());
+                break;
+            case "CANCELLED":
+                if ("READY".equals(current)) return false;
+                order.setCancelledAt(LocalDateTime.now());
+                if (failureReason != null && !failureReason.isEmpty()) {
+                    order.setFailureReason(failureReason);
+                }
+                break;
+            default:
+                return false;
+        }
+
         order.setOrderStatus(status);
         order.setStaff(new entity.User() {{ setUserId(staffId); }});
-        if ("CONFIRMED".equals(status)) {
-            order.setConfirmedAt(LocalDateTime.now());
-        } else if ("CANCELLED".equals(status)) {
-            order.setCancelledAt(LocalDateTime.now());
-        }
         ordersDAO.save(order);
         return true;
+    }
+
+    public boolean updateStatus(int orderId, String status, int staffId) {
+        return updateStatus(orderId, status, staffId, null);
     }
 }
