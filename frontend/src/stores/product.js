@@ -9,6 +9,10 @@ function ensureImage(url) {
   return url && url.trim() ? url : PLACEHOLDER_IMAGE;
 }
 
+function parsePrice(v) {
+  return typeof v === 'string' ? parseFloat(v) : v;
+}
+
 export const useProductStore = defineStore('product', () => {
   const allProducts = ref([]);
   const allCategories = ref([]);
@@ -48,7 +52,7 @@ export const useProductStore = defineStore('product', () => {
       name: p.name,
       categoryId: p.categoryId,
       categoryName: p.categoryName || '',
-      price: typeof p.price === 'string' ? parseFloat(p.price) : p.price,
+      price: parsePrice(p.price),
       discountPrice: p.discountPrice || null,
       image: ensureImage(p.imageUrl),
       description: p.description || '',
@@ -56,6 +60,8 @@ export const useProductStore = defineStore('product', () => {
       reviewCount: p.reviewCount || 0,
       inStock: p.inStock !== undefined ? p.inStock : true,
       featured: p.featured || false,
+      options: p.options || [],
+      galleryImages: p.galleryImages || [],
     };
   }
 
@@ -96,9 +102,21 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
-  function fetchById(id) {
-    const found = allProducts.value.find((p) => p.id === Number(id));
-    currentProduct.value = found || null;
+  async function fetchById(id) {
+    const local = allProducts.value.find((p) => p.id === Number(id));
+    if (local) {
+      currentProduct.value = local;
+    }
+    try {
+      const data = await productApi.getById(id);
+      if (data) {
+        currentProduct.value = mapProduct(data);
+      }
+    } catch {
+      if (!currentProduct.value) {
+        currentProduct.value = null;
+      }
+    }
     return currentProduct.value;
   }
 
