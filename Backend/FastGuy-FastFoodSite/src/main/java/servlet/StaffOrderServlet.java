@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import dao.OrderItemDAO;
+import dao.OrdersDAO;
 import entity.Orders;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -20,6 +21,7 @@ import utils.JwtUtil;
 public class StaffOrderServlet extends HttpServlet {
     private StaffOrderService staffOrderService = new StaffOrderService();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
+    private OrdersDAO ordersDAO = new OrdersDAO();
 
     private int getStaffId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
@@ -52,9 +54,21 @@ public class StaffOrderServlet extends HttpServlet {
             List<Orders> orders = staffOrderService.getConfirmedOrders();
             List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
             ApiResponse.ok(resp, result);
+        } else if (path.equals("/preparing")) {
+            List<Orders> orders = staffOrderService.getPreparingOrders();
+            List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
+            ApiResponse.ok(resp, result);
+        } else if (path.equals("/ready")) {
+            List<Orders> orders = staffOrderService.getReadyOrders();
+            List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
+            ApiResponse.ok(resp, result);
         } else if (path.equals("/history")) {
-            ApiResponse.ok(resp, staffOrderService.getPendingOrders().stream()
-                    .map(o -> toListItem(o)).collect(Collectors.toList()));
+            List<Orders> all = new java.util.ArrayList<>();
+            all.addAll(staffOrderService.getReadyOrders());
+            List<Orders> cancelled = ordersDAO.findByStatus("CANCELLED");
+            all.addAll(cancelled);
+            all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+            ApiResponse.ok(resp, all.stream().map(o -> toListItem(o)).collect(Collectors.toList()));
         } else {
             try {
                 int orderId = Integer.parseInt(path.substring(1));
@@ -98,13 +112,14 @@ public class StaffOrderServlet extends HttpServlet {
                 return;
             }
             String status = (String) body.get("status");
-            if (status == null || (!"CONFIRMED".equals(status) && !"CANCELLED".equals(status))) {
+            if (status == null || (!"CONFIRMED".equals(status) && !"PREPARING".equals(status) && !"READY".equals(status) && !"CANCELLED".equals(status))) {
                 ApiResponse.error(resp, "Invalid status", 400);
                 return;
             }
-            boolean ok = staffOrderService.updateStatus(orderId, status, staffId);
+            String failureReason = (String) body.get("failureReason");
+            boolean ok = staffOrderService.updateStatus(orderId, status, staffId, failureReason);
             if (!ok) {
-                ApiResponse.error(resp, "Order not found", 404);
+                ApiResponse.error(resp, "Cannot update status: invalid transition", 400);
                 return;
             }
             ApiResponse.ok(resp, null, "Status updated");
@@ -163,8 +178,17 @@ public class StaffOrderServlet extends HttpServlet {
         if (o.getConfirmedAt() != null) {
             history.add(Map.of("status", "CONFIRMED", "time", o.getConfirmedAt().toString(), "note", ""));
         }
+        String currentStatus = o.getOrderStatus();
+        if ("PREPARING".equals(currentStatus) || o.getReadyAt() != null) {
+            String t = o.getConfirmedAt() != null ? o.getConfirmedAt().toString() : "";
+            history.add(Map.of("status", "PREPARING", "time", t, "note", "Đang chế biến"));
+        }
+        if (o.getReadyAt() != null) {
+            history.add(Map.of("status", "READY", "time", o.getReadyAt().toString(), "note", ""));
+        }
         if (o.getCancelledAt() != null) {
-            history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", ""));
+            String reason = o.getFailureReason() != null ? o.getFailureReason() : "";
+            history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", reason));
         }
         m.put("statusHistory", history);
         m.put("internalNotes", new java.util.ArrayList<>());
