@@ -212,8 +212,17 @@ public class OrderServlet extends HttpServlet {
         if (o.getConfirmedAt() != null) {
             history.add(Map.of("status", "CONFIRMED", "time", o.getConfirmedAt().toString(), "note", ""));
         }
+        String currentStatus = o.getOrderStatus();
+        if ("PREPARING".equals(currentStatus) || o.getReadyAt() != null) {
+            String t = o.getConfirmedAt() != null ? o.getConfirmedAt().toString() : "";
+            history.add(Map.of("status", "PREPARING", "time", t, "note", "Đang chế biến"));
+        }
+        if (o.getReadyAt() != null) {
+            history.add(Map.of("status", "READY", "time", o.getReadyAt().toString(), "note", ""));
+        }
         if (o.getCancelledAt() != null) {
-            history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", ""));
+            String reason = o.getFailureReason() != null ? o.getFailureReason() : "";
+            history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", reason));
         }
         data.put("statusHistory", history);
         data.put("canReview", "DELIVERED".equals(o.getOrderStatus()));
