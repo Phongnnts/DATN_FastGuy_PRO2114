@@ -13,7 +13,9 @@ const searchTerm = ref('')
 
 const tabs = [
   { key: 'PENDING', label: 'Chờ xác nhận' },
-  { key: 'CONFIRMED', label: 'Đã xác nhận' }
+  { key: 'CONFIRMED', label: 'Đã xác nhận' },
+  { key: 'PREPARING', label: 'Đang chế biến' },
+  { key: 'READY', label: 'Đã sẵn sàng' },
 ]
 
 onMounted(() => staffStore.fetchOrders())
@@ -22,6 +24,8 @@ async function switchTab(tab) {
   activeTab.value = tab
   if (tab === 'PENDING') await staffStore.fetchOrders()
   else if (tab === 'CONFIRMED') await staffStore.fetchConfirmedOrders()
+  else if (tab === 'PREPARING') await staffStore.fetchPreparingOrders()
+  else if (tab === 'READY') await staffStore.fetchReadyOrders()
 }
 
 const filteredOrders = computed(() => {
@@ -60,8 +64,8 @@ function goDetail(id) { router.push(`/staff/orders/${id}`) }
           <tbody>
             <tr v-for="order in filteredOrders" :key="order.id" @click="goDetail(order.id)" style="cursor:pointer">
               <td><strong>{{ order.orderCode }}</strong></td>
-              <td>Người dùng #{{ order.userId }}</td>
-              <td>{{ order.items.length }} món</td>
+              <td>{{ order.customerName || 'Người dùng #' + order.userId }}</td>
+              <td>{{ order.items ? order.items.length : 0 }} món</td>
               <td>{{ formatPrice(order.total) }}</td>
               <td>{{ formatDate(order.createdAt) }}</td>
               <td><OrderStatusBadge :status="order.status" /></td>
