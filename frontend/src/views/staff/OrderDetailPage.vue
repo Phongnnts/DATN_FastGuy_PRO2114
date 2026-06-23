@@ -22,13 +22,6 @@ async function updateStatus(status) {
   try {
     await staffStore.updateOrderStatus(order.value.id, status);
     order.value.status = status;
-    if (order.value.statusHistory) {
-      order.value.statusHistory.push({
-        status,
-        time: new Date().toISOString(),
-        note: '',
-      });
-    }
   } catch (e) {
     alert(e.message);
   }
@@ -56,13 +49,6 @@ async function cancelOrder() {
   try {
     await staffStore.updateOrderStatus(order.value.id, 'CANCELLED', cancelReason.value);
     order.value.status = 'CANCELLED';
-    if (order.value.statusHistory) {
-      order.value.statusHistory.push({
-        status: 'CANCELLED',
-        time: new Date().toISOString(),
-        note: cancelReason.value,
-      });
-    }
     showCancelModal.value = false;
   } catch (e) {
     alert(e.message);
