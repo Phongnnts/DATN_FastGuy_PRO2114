@@ -155,7 +155,7 @@ public class AuthServlet extends HttpServlet {
     }
 
     private void handleLogout(HttpServletResponse resp) throws IOException {
-        JsonUtil.write(resp, ApiResponse.ok(null, "Đăng xuất thành công"));
+        JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đăng xuất thành công"));
     }
 
     private void handleGetProfile(HttpServletRequest req, HttpServletResponse resp) throws IOException {
