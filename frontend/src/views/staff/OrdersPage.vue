@@ -18,7 +18,7 @@ const tabs = [
   { key: 'READY', label: 'Đã sẵn sàng' },
 ]
 
-onMounted(() => staffStore.fetchOrders())
+onMounted(() => switchTab('PENDING'))
 
 async function switchTab(tab) {
   activeTab.value = tab
