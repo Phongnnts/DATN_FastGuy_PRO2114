@@ -94,4 +94,16 @@ export default {
       responseType: 'blob',
     });
   },
+  getOptions(productId) {
+    return client.get(`/admin/products/${productId}/options`);
+  },
+  createOption(productId, data) {
+    return client.post(`/admin/products/${productId}/options`, data);
+  },
+  updateOption(optionId, data) {
+    return client.put(`/admin/products/options/${optionId}`, data);
+  },
+  deleteOption(optionId) {
+    return client.delete(`/admin/products/options/${optionId}`);
+  },
 };
