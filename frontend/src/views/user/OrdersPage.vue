@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
 import { formatPrice, formatDate } from '@/utils/format';
@@ -9,6 +9,8 @@ const router = useRouter();
 const orderStore = useOrderStore();
 const activeTab = ref('ALL');
 const orders = computed(() => orderStore.userOrders);
+
+onMounted(() => orderStore.fetchOrders());
 
 const tabs = [
   { key: 'ALL', label: 'Tất cả' },
