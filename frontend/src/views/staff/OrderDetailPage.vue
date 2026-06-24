@@ -10,22 +10,49 @@ const route = useRoute();
 const staffStore = useStaffStore();
 
 const order = ref(null);
+const showCancelModal = ref(false);
+const cancelReason = ref('');
 
 onMounted(async () => {
   order.value = await staffStore.fetchOrderById(route.params.id);
 });
 
-async function confirmOrder() {
+async function updateStatus(status) {
   if (!order.value) return;
-  await staffStore.updateOrderStatus(order.value.id, 'CONFIRMED');
-  order.value.status = 'CONFIRMED';
+  try {
+    await staffStore.updateOrderStatus(order.value.id, status);
+    order.value.status = status;
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function confirmOrder() {
+  await updateStatus('CONFIRMED');
+}
+
+async function startPreparing() {
+  await updateStatus('PREPARING');
+}
+
+async function completeOrder() {
+  await updateStatus('READY');
+}
+
+function openCancelModal() {
+  cancelReason.value = '';
+  showCancelModal.value = true;
 }
 
 async function cancelOrder() {
   if (!order.value) return;
-  if (!confirm('Hủy đơn hàng này?')) return;
-  await staffStore.updateOrderStatus(order.value.id, 'CANCELLED');
-  order.value.status = 'CANCELLED';
+  try {
+    await staffStore.updateOrderStatus(order.value.id, 'CANCELLED', cancelReason.value);
+    order.value.status = 'CANCELLED';
+    showCancelModal.value = false;
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function printInvoice() {
@@ -78,18 +105,32 @@ function printInvoice() {
             class="btn btn-primary"
             @click="confirmOrder"
           >
-            <i class="bi bi-check-lg"></i> Xác nhận đơn
+            <i class="bi bi-check-lg"></i> Xác nhận
           </button>
           <button
-            v-if="order.status === 'PENDING'"
+            v-if="order.status === 'CONFIRMED'"
+            class="btn btn-primary"
+            @click="startPreparing"
+          >
+            <i class="bi bi-fire"></i> Bắt đầu chế biến
+          </button>
+          <button
+            v-if="order.status === 'PREPARING'"
+            class="btn btn-success"
+            @click="completeOrder"
+          >
+            <i class="bi bi-check2-all"></i> Hoàn thành
+          </button>
+          <button
+            v-if="order.status !== 'READY'"
             class="btn btn-outline"
             style="border-color: var(--red-active); color: var(--red-active)"
-            @click="cancelOrder"
+            @click="openCancelModal"
           >
             <i class="bi bi-x-lg"></i> Hủy đơn
           </button>
-          <span v-if="order.status === 'CONFIRMED'" class="badge badge-success"
-            >Đã xác nhận</span
+          <span v-if="order.status === 'READY'" class="badge badge-success"
+            >Đã sẵn sàng</span
           >
           <span v-if="order.status === 'CANCELLED'" class="badge badge-error"
             >Đã hủy</span
@@ -133,7 +174,7 @@ function printInvoice() {
       </table>
       <div class="order-totals" style="margin-top: 16px; text-align: right">
         <div>Tạm tính: {{ formatPrice(order.subtotal) }}</div>
-        <div>Phí ship: Miễn phí</div>
+        <div>Phí ship: {{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</div>
         <div style="font-size: 20px; font-weight: 800; margin-top: 8px">
           Tổng: {{ formatPrice(order.total) }}
         </div>
@@ -142,6 +183,34 @@ function printInvoice() {
     <div class="card mt-3">
       <h3 style="font-weight: 700; margin-bottom: 16px">Lịch sử trạng thái</h3>
       <OrderTimeline :history="order.statusHistory" />
+    </div>
+
+    <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Hủy đơn hàng</h3>
+          <button class="btn btn-sm btn-outline" @click="showCancelModal = false">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Lý do hủy</label>
+            <textarea
+              v-model="cancelReason"
+              class="form-textarea"
+              placeholder="Nhập lý do hủy đơn..."
+              rows="3"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" @click="showCancelModal = false">Quay lại</button>
+          <button class="btn btn-danger" @click="cancelOrder" :disabled="!cancelReason.trim()">
+            <i class="bi bi-x-lg"></i> Xác nhận hủy
+          </button>
+        </div>
+      </div>
     </div>
   </div>
   <div v-else class="empty-state" style="padding: 60px 0">
@@ -178,5 +247,68 @@ function printInvoice() {
   border-radius: 99px;
   font-size: 13px;
   font-weight: 600;
+}
+.btn-success {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-success:hover {
+  background: #059669;
+}
+.btn-danger {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  background: #dc2626;
+}
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  background: #fff;
+  border-radius: var(--radius);
+  width: 440px;
+  max-width: 90vw;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 0;
+}
+.modal-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+.modal-body {
+  padding: 20px 24px;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
 }
 </style>

@@ -1,58 +1,122 @@
 # Module Guest
 
-**Mục tiêu**: Xem thực đơn, chi tiết sản phẩm (kèm option Size/Combo + gallery ảnh Cloudinary), giỏ hàng, đặt hàng (checkout), tra cứu đơn.
-
 **Người phụ trách**: Người 2
+
+## Mục tiêu
+
+Khách xem menu, xem chi tiết món, chọn `ProductVariant`, thêm giỏ hàng và xem cart đúng biến thể.
 
 ---
 
 ## Files
 
-### Backend
-- `servlet/ProductServlet.java` (sửa wildcard + thêm `/{id}`)
+### Backend phối hợp
+
+- `servlet/ProductServlet.java`
 - `servlet/CategoryServlet.java`
-- `servlet/DeliveryZoneServlet.java`
 - `servlet/CartServlet.java`
-- `servlet/OrderServlet.java`
-- `service/CartService.java`
-- `service/OrderService.java`
+- `dao/ProductDAO.java`
+- `entity/Product.java`
+- `entity/ProductVariant.java`
 
 ### Frontend
+
 - `views/guest/HomePage.vue`
 - `views/guest/MenuPage.vue`
 - `views/guest/ProductDetailPage.vue`
 - `views/guest/CartPage.vue`
 - `views/guest/TrackOrderPage.vue`
 - `stores/cart.js`
+- `stores/product.js`
+- `api/product.js`
 
 ---
 
-## API Endpoints
+## API Product cần dùng
 
-| Method | Path | Trạng thái |
-|--------|------|------------|
-| GET | `/api/products` | ✅ Có |
-| GET | `/api/products/{id}` (kèm options + image_url) | ❌ Sửa |
-| GET | `/api/categories` | ✅ Có |
-| GET | `/api/delivery-zones` | ✅ Có |
-| GET/POST/PUT/DELETE | `/api/cart/*` | ✅ Có |
-| POST | `/api/orders/` (checkout) | ✅ Có |
-| GET | `/api/orders/track?code=` | ✅ Có |
+### Product list
+
+```http
+GET /api/products
+```
+
+Cần trả:
+
+```json
+{
+  "productId": 1,
+  "name": "Classic Beef Burger",
+  "basePrice": 45000,
+  "imageUrl": "",
+  "defaultVariant": {
+    "variantId": 1,
+    "price": 45000
+  }
+}
+```
+
+### Product detail
+
+```http
+GET /api/products/{id}
+```
+
+Cần trả:
+
+```json
+{
+  "productId": 1,
+  "name": "Classic Beef Burger",
+  "basePrice": 45000,
+  "galleryImages": [],
+  "variants": [
+    {
+      "variantId": 1,
+      "variantName": "Mặc định",
+      "price": 45000,
+      "isDefault": true,
+      "status": "AVAILABLE"
+    }
+  ]
+}
+```
 
 ---
 
 ## Việc cần làm
 
-- [ ] Backend: sửa `ProductServlet` exact path → wildcard `/api/products/*`
-- [ ] Backend: thêm handler `GET /{id}` trả về product + options + image_url
-- [ ] Frontend: `ProductDetailPage` — radio chọn Size/Combo + cộng extra price
-- [ ] Frontend: `ProductDetailPage` — gallery Cloudinary (nhiều ảnh)
-- [ ] Frontend: `ProductDetailPage` — giữ chỗ hiển thị review (chưa cần dữ liệu)
-- [ ] Frontend: `CartPage` — hiển thị option đã chọn trên từng item
+### Frontend
+
+- [ ] `MenuPage.vue`: hiển thị `basePrice` hoặc giá variant mặc định.
+- [ ] `ProductDetailPage.vue`: load `variants`.
+- [ ] `ProductDetailPage.vue`: cho khách chọn variant.
+- [ ] `ProductDetailPage.vue`: đổi giá theo variant.
+- [ ] `ProductDetailPage.vue`: add cart gửi `productId`, `variantId`, `quantity`.
+- [ ] `CartPage.vue`: hiển thị `variantName`.
+- [ ] `CartPage.vue`: bỏ phụ thuộc `optionData`.
+- [ ] `stores/cart.js`: lưu cart item theo variant.
+
+### Backend phối hợp
+
+- [ ] Product detail phải trả variants.
+- [ ] Cart API phải nhận `variantId`.
+- [ ] Backend validate variant thuộc product.
+
+---
+
+## Checklist test
+
+- [ ] Menu hiển thị giá đúng.
+- [ ] Product detail hiển thị variant.
+- [ ] Chọn variant đổi giá đúng.
+- [ ] Add cart đúng variant.
+- [ ] Cart hiển thị đúng variant.
+- [ ] Không còn lỗi option cũ.
 
 ---
 
 ## Phụ thuộc
 
-- **Auth**: Cần Auth để checkout (lấy user từ JWT)
-- **Common**: Cần Cloudinary config để hiển thị ảnh
+- **Admin**: cần ProductVariant CRUD.
+- **Common**: cần format tiền, constants.
+- **User**: Checkout dùng cart item mới.
