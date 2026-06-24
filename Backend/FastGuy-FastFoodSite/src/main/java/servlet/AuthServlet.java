@@ -26,6 +26,26 @@ public class AuthServlet extends HttpServlet {
     }
 
     @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+            throws ServletException, IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        setCors(resp);
+
+        String path = req.getPathInfo();
+
+        try {
+            if (path == null || path.equals("/profile")) {
+                handleGetProfile(req, resp);
+            } else {
+                resp.sendError(404);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JsonUtil.write(resp, ApiResponse.error("Lỗi máy chủ"));
+        }
+    }
+
+    @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         resp.setContentType("application/json;charset=UTF-8");
@@ -34,6 +54,11 @@ public class AuthServlet extends HttpServlet {
         String path = req.getPathInfo();
 
         try {
+            if (path != null && path.equals("/logout")) {
+                handleLogout(resp);
+                return;
+            }
+
             Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
             if (body == null) {
                 JsonUtil.write(resp, ApiResponse.error("Dữ liệu không hợp lệ"));
@@ -44,6 +69,26 @@ public class AuthServlet extends HttpServlet {
                 handleLogin(body, resp);
             } else if (path.equals("/register")) {
                 handleRegister(body, resp);
+            } else {
+                resp.sendError(404);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JsonUtil.write(resp, ApiResponse.error("Lỗi máy chủ"));
+        }
+    }
+
+    @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp)
+            throws ServletException, IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        setCors(resp);
+
+        String path = req.getPathInfo();
+
+        try {
+            if (path.equals("/profile")) {
+                handleUpdateProfile(req, resp);
             } else {
                 resp.sendError(404);
             }
@@ -107,6 +152,74 @@ public class AuthServlet extends HttpServlet {
 
         resp.setStatus(201);
         JsonUtil.write(resp, ApiResponse.ok(data, "Đăng ký thành công"));
+    }
+
+    private void handleLogout(HttpServletResponse resp) throws IOException {
+        JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đăng xuất thành công"));
+    }
+
+    private void handleGetProfile(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        int userId = getUserIdFromToken(req);
+        if (userId == -1) {
+            ApiResponse.error(resp, "Unauthorized", 401);
+            return;
+        }
+
+        User user = authService.getProfile(userId);
+        if (user == null) {
+            ApiResponse.error(resp, "Không tìm thấy người dùng", 404);
+            return;
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("userId", user.getUserId());
+        data.put("fullName", user.getFullName());
+        data.put("email", user.getEmail());
+        data.put("phone", user.getPhone());
+        data.put("avatarUrl", user.getAvatarUrl());
+        data.put("role", user.getRole().getRoleName());
+        data.put("status", user.getStatus());
+        data.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+
+        JsonUtil.write(resp, ApiResponse.ok(data));
+    }
+
+    private void handleUpdateProfile(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        int userId = getUserIdFromToken(req);
+        if (userId == -1) {
+            ApiResponse.error(resp, "Unauthorized", 401);
+            return;
+        }
+
+        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+        if (body == null) {
+            JsonUtil.write(resp, ApiResponse.error("Dữ liệu không hợp lệ"));
+            return;
+        }
+
+        User user = authService.updateProfile(userId, body);
+        if (user == null) {
+            JsonUtil.write(resp, ApiResponse.error("Số điện thoại hoặc email đã tồn tại"));
+            return;
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("userId", user.getUserId());
+        data.put("fullName", user.getFullName());
+        data.put("email", user.getEmail());
+        data.put("phone", user.getPhone());
+        data.put("avatarUrl", user.getAvatarUrl());
+
+        JsonUtil.write(resp, ApiResponse.ok(data, "Cập nhật thành công"));
+    }
+
+    private int getUserIdFromToken(HttpServletRequest req) {
+        String authHeader = req.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return -1;
+        }
+        String token = authHeader.substring(7);
+        return JwtUtil.getUserId(token);
     }
 
     private void setCors(HttpServletResponse resp) {

@@ -8,6 +8,7 @@ export const useStaffStore = defineStore('staff', () => {
   const allIngredients = ref([]);
   const shiftStatus = ref({ current: null });
   const loading = ref(false);
+  let fetchVersion = 0;
 
   const lowStockIngredients = computed(() =>
     allIngredients.value.filter((i) => i.currentStock <= i.minStock),
@@ -78,9 +79,11 @@ export const useStaffStore = defineStore('staff', () => {
   }
 
   async function fetchOrders() {
+    const version = ++fetchVersion;
     loading.value = true;
     try {
       const data = await staffApi.getOrders();
+      if (version !== fetchVersion) return allOrders.value;
       allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
       return allOrders.value;
     } catch {
@@ -91,9 +94,11 @@ export const useStaffStore = defineStore('staff', () => {
   }
 
   async function fetchConfirmedOrders() {
+    const version = ++fetchVersion;
     loading.value = true;
     try {
       const data = await staffApi.getConfirmedOrders();
+      if (version !== fetchVersion) return allOrders.value;
       allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
       return allOrders.value;
     } catch {
@@ -121,9 +126,39 @@ export const useStaffStore = defineStore('staff', () => {
     }
   }
 
-  async function updateOrderStatus(id, status) {
+  async function fetchPreparingOrders() {
+    const version = ++fetchVersion;
+    loading.value = true;
     try {
-      await staffApi.updateOrderStatus(id, status);
+      const data = await staffApi.getPreparingOrders();
+      if (version !== fetchVersion) return allOrders.value;
+      allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+      return allOrders.value;
+    } catch {
+      return [];
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function fetchReadyOrders() {
+    const version = ++fetchVersion;
+    loading.value = true;
+    try {
+      const data = await staffApi.getReadyOrders();
+      if (version !== fetchVersion) return allOrders.value;
+      allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+      return allOrders.value;
+    } catch {
+      return [];
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function updateOrderStatus(id, status, failureReason) {
+    try {
+      await staffApi.updateOrderStatus(id, status, failureReason);
       const order = allOrders.value.find((o) => o.id === id);
       if (order) {
         order.status = status;
@@ -131,7 +166,7 @@ export const useStaffStore = defineStore('staff', () => {
         order.statusHistory.push({
           status,
           time: new Date().toISOString(),
-          note: '',
+          note: status === 'CANCELLED' ? (failureReason || '') : '',
         });
       }
     } catch {
@@ -159,6 +194,8 @@ export const useStaffStore = defineStore('staff', () => {
     fetchDashboard,
     fetchOrders,
     fetchConfirmedOrders,
+    fetchPreparingOrders,
+    fetchReadyOrders,
     fetchOrderById,
     updateOrderStatus,
     saveInternalNote,

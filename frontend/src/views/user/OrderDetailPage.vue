@@ -43,6 +43,23 @@ onMounted(async () => {
   } catch {}
 })
 
+async function cancelOrder() {
+  if (!confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
+  try {
+    await orderApi.cancel(order.value.id);
+    order.value.status = 'CANCELLED';
+    if (order.value.statusHistory) {
+      order.value.statusHistory.push({
+        status: 'CANCELLED',
+        time: new Date().toISOString(),
+        note: 'Khách hủy',
+      });
+    }
+  } catch (e) {
+    alert(e.message || 'Không thể hủy đơn hàng');
+  }
+}
+
 function goReview() {
   router.push(`/account/orders/${order.value.id}/review`)
 }
@@ -96,6 +113,11 @@ function goReview() {
           <p>{{ order.review.content }}</p>
           <span style="font-size:12px;color:var(--text-light)">{{ formatDate(order.review.createdAt) }}</span>
         </div>
+      </div>
+      <div v-if="order.status === 'PENDING'" style="margin-top:16px">
+        <button class="btn btn-outline" style="border-color:var(--red-active);color:var(--red-active)" @click="cancelOrder">
+          <i class="bi bi-x-lg"></i> Hủy đơn hàng
+        </button>
       </div>
       <div v-if="order.canReview && !order.review" style="margin-top:16px">
         <button class="btn btn-primary" @click="goReview"><i class="bi bi-star"></i> Đánh giá đơn hàng</button>
