@@ -10,11 +10,17 @@ export default {
   getConfirmedOrders(params) {
     return client.get('/staff/orders/confirmed', { params });
   },
+  getPreparingOrders(params) {
+    return client.get('/staff/orders/preparing', { params });
+  },
+  getReadyOrders(params) {
+    return client.get('/staff/orders/ready', { params });
+  },
   getOrderById(id) {
     return client.get(`/staff/orders/${id}`);
   },
-  updateOrderStatus(id, status) {
-    return client.put(`/staff/orders/${id}/status`, { status });
+  updateOrderStatus(id, status, failureReason) {
+    return client.put(`/staff/orders/${id}/status`, { status, failureReason });
   },
   assignOrder(id, staffId) {
     return client.put(`/staff/orders/${id}/assign`, { staffId });

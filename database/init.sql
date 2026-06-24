@@ -29,56 +29,38 @@ create table DeliveryZone
 )
 go
 
-create table Ingredient
-(
-    ingredient_id       int identity
-        primary key,
-    name                nvarchar(255) not null,
-    unit                nvarchar(50)  not null,
-    stock_quantity      decimal(10, 2) default 0,
-    min_stock_threshold decimal(10, 2) default 0,
-    status              varchar(20)    default 'ACTIVE'
-)
-go
-
 create table Product
 (
-    product_id  int identity
+    product_id     int identity
         primary key,
-    category_id int            not null
+    category_id    int            not null
         references Category,
-    name        nvarchar(255)  not null,
-    description nvarchar(1000),
-    price       decimal(10, 2) not null,
-    image_url   varchar(500),
-    status      varchar(20) default 'AVAILABLE',
-    created_at  datetime2   default getdate(),
-    updated_at  datetime2
+    name           nvarchar(255)  not null,
+    description    nvarchar(1000),
+    base_price     decimal(10, 2),
+    image_url      varchar(500),
+    gallery_images nvarchar(max),
+    status         varchar(20) default 'AVAILABLE',
+    created_at     datetime2   default getdate(),
+    updated_at     datetime2
 )
 go
 
-create table ProductIngredient
+create table ProductVariant
 (
-    product_ingredient_id int identity
+    variant_id         int identity
         primary key,
-    product_id            int            not null
+    product_id         int            not null
         references Product,
-    ingredient_id         int            not null
-        references Ingredient,
-    quantity_required     decimal(10, 2) not null
-)
-go
-
-create table ProductOption
-(
-    option_id          int identity
-        primary key,
-    product_id         int           not null
-        references Product,
-    option_name        nvarchar(255) not null,
-    extra_price        decimal(10, 2) default 0,
-    stock_controlled   bit            default 0,
-    quantity_available int
+    variant_name       nvarchar(255)  not null,
+    price              decimal(10, 2) not null,
+    original_price     decimal(10, 2),
+    sku                varchar(100),
+    quantity_available int,
+    is_default         bit         default 0,
+    status             varchar(20) default 'AVAILABLE',
+    created_at         datetime2   default getdate(),
+    updated_at         datetime2
 )
 go
 
@@ -111,19 +93,24 @@ go
 
 create table Address
 (
-    address_id     int identity
+    address_id      int identity
         primary key,
-    user_id        int           not null
+    user_id         int           not null
         references Users,
-    recipient_name nvarchar(255) not null,
-    phone          varchar(20)   not null,
-    street         nvarchar(255) not null,
-    ward           nvarchar(100),
-    zone_id        int           not null
+    recipient_name  nvarchar(255) not null,
+    phone           varchar(20)   not null,
+    street          nvarchar(255) not null,
+    ward_name       nvarchar(100),
+    district_name   nvarchar(100),
+    province_name   nvarchar(100),
+    ghn_province_id int,
+    ghn_district_id int,
+    ghn_ward_code   varchar(50),
+    zone_id         int
         references DeliveryZone,
-    city           nvarchar(100) default N'TP. Hồ Chí Minh',
-    is_default     bit           default 0,
-    created_at     datetime2     default getdate()
+    city            nvarchar(100) default N'TP. Hồ Chí Minh',
+    is_default      bit           default 0,
+    created_at      datetime2     default getdate()
 )
 go
 create table Cart
@@ -145,45 +132,57 @@ create table CartItem
         references Cart,
     product_id   int            not null
         references Product,
+    variant_id   int            not null
+        references ProductVariant,
     quantity     int            not null,
-    option_data  nvarchar(max),
-    unit_price   decimal(10, 2) not null
+    unit_price   decimal(10, 2) not null,
+    created_at   datetime2 default getdate()
 )
 go
 
 create table Orders
 (
-    order_id         int identity
+    order_id                 int identity
         primary key,
-    order_code       varchar(50)    not null
+    order_code               varchar(50)    not null
         unique,
-    user_id          int
+    user_id                  int
         references Users,
-    customer_name    nvarchar(255)  not null,
-    customer_phone   varchar(20)    not null,
-    customer_address nvarchar(500)  not null,
-    zone_id          int            not null
+    customer_name            nvarchar(255)  not null,
+    customer_phone           varchar(20)    not null,
+    customer_address         nvarchar(500)  not null,
+    zone_id                  int
         references DeliveryZone,
-    total_amount     decimal(10, 2) not null,
-    shipping_fee     decimal(10, 2) default 0,
-    final_amount     decimal(10, 2) not null,
-    payment_method   varchar(50)    not null,
-    payment_status   varchar(20)    default 'UNPAID',
-    order_status     varchar(30)    default 'PENDING',
-    staff_id         int
+    to_province_name         nvarchar(100),
+    to_district_name         nvarchar(100),
+    to_ward_name             nvarchar(100),
+    ghn_province_id          int,
+    ghn_district_id          int,
+    ghn_ward_code            varchar(50),
+    total_amount             decimal(10, 2) not null,
+    shipping_fee             decimal(10, 2) default 0,
+    final_amount             decimal(10, 2) not null,
+    shipping_provider        varchar(30)    default 'GHN',
+    shipping_service_id      int,
+    shipping_service_type_id int,
+    expected_delivery_time   datetime2,
+    payment_method           varchar(50)    not null,
+    payment_status           varchar(20)    default 'UNPAID',
+    order_status             varchar(30)    default 'PENDING',
+    staff_id                 int
         references Users,
-    shipper_id       int
+    shipper_id               int
         references Users,
-    assigned_at      datetime2,
-    confirmed_at     datetime2,
-    ready_at         datetime2,
-    picked_up_at     datetime2,
-    delivered_at     datetime2,
-    cancelled_at     datetime2,
-    failure_reason   nvarchar(500),
-    internal_note    nvarchar(1000),
-    delivery_note    nvarchar(500),
-    created_at       datetime2      default getdate()
+    assigned_at              datetime2,
+    confirmed_at             datetime2,
+    ready_at                 datetime2,
+    picked_up_at             datetime2,
+    delivered_at             datetime2,
+    cancelled_at             datetime2,
+    failure_reason           nvarchar(500),
+    internal_note            nvarchar(1000),
+    delivery_note            nvarchar(500),
+    created_at               datetime2      default getdate()
 )
 go
 
@@ -195,10 +194,12 @@ create table OrderItem
         references Orders,
     product_id    int
         references Product,
+    variant_id    int
+        references ProductVariant,
     product_name  nvarchar(255)  not null,
+    variant_name  nvarchar(255),
     quantity      int            not null,
     unit_price    decimal(10, 2) not null,
-    option_data   nvarchar(max),
     total_price   decimal(10, 2) not null
 )
 go
@@ -297,185 +298,128 @@ insert into Category (name, description, sort_order, status) values (N'Tráng Mi
 -- ============================================================
 
 -- Burger (category_id = 1)
-insert into Product (category_id, name, description, price, image_url, status) values (1, N'Classic Beef Burger', N'Burger bò cổ điển với thịt bò nướng, rau xà lách, cà chua và sốt đặc biệt', 45000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (1, N'Double Cheese Burger', N'Burger bò với hai lớp phô mai béo ngậy', 55000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (1, N'BBQ Bacon Burger', N'Burger bò kèm thịt xông khói và sốt BBQ', 59000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (1, N'Crispy Chicken Burger', N'Burger gà chiên giòn với rau sống tươi mát', 49000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (1, N'Spicy Chicken Burger', N'Burger gà cay với sốt cay Hàn Quốc', 52000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (1, N'Vietnamese Bánh Mì Burger', N'Burger phong cách Việt Nam với đồ chua, rau thơm và pate', 55000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (1, N'Teriyaki Burger', N'Burger thịt bò sốt Teriyaki đậm đà', 56000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (1, N'Classic Beef Burger', N'Burger bò cổ điển với thịt bò nướng, rau xà lách, cà chua và sốt đặc biệt', 45000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (1, N'Double Cheese Burger', N'Burger bò với hai lớp phô mai béo ngậy', 55000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (1, N'BBQ Bacon Burger', N'Burger bò kèm thịt xông khói và sốt BBQ', 59000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (1, N'Crispy Chicken Burger', N'Burger gà chiên giòn với rau sống tươi mát', 49000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (1, N'Spicy Chicken Burger', N'Burger gà cay với sốt cay Hàn Quốc', 52000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (1, N'Vietnamese Bánh Mì Burger', N'Burger phong cách Việt Nam với đồ chua, rau thơm và pate', 55000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (1, N'Teriyaki Burger', N'Burger thịt bò sốt Teriyaki đậm đà', 56000, '', 'AVAILABLE');
 
 -- Gà Rán (category_id = 2)
-insert into Product (category_id, name, description, price, image_url, status) values (2, N'Gà Rán Giòn Truyền Thống', N'Gà rán giòn rụm, công thức truyền thống', 49000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (2, N'Gà Rán Cay Hàn Quốc', N'Gà rán sốt cay Hàn Quốc đậm đà', 55000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (2, N'Gà Sốt Mật Ong', N'Gà rán sốt mật ong ngọt ngào', 52000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (2, N'Gà Sốt Phô Mai', N'Gà rán phủ sốt phô mai béo ngậy', 58000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (2, N'Cánh Gà BBQ', N'Cánh gà nướng sốt BBQ thơm lừng', 45000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (2, N'Gà Popcorn', N'Gà viên chiên giòn ăn liền', 35000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (2, N'Gà Rán Giòn Truyền Thống', N'Gà rán giòn rụm, công thức truyền thống', 49000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (2, N'Gà Rán Cay Hàn Quốc', N'Gà rán sốt cay Hàn Quốc đậm đà', 55000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (2, N'Gà Sốt Mật Ong', N'Gà rán sốt mật ong ngọt ngào', 52000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (2, N'Gà Sốt Phô Mai', N'Gà rán phủ sốt phô mai béo ngậy', 58000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (2, N'Cánh Gà BBQ', N'Cánh gà nướng sốt BBQ thơm lừng', 45000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (2, N'Gà Popcorn', N'Gà viên chiên giòn ăn liền', 35000, '', 'AVAILABLE');
 
 -- Tacos & Wraps (category_id = 3)
-insert into Product (category_id, name, description, price, image_url, status) values (3, N'Beef Tacos', N'Tacos bò với rau củ tươi và sốt salsa', 45000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (3, N'Chicken Tacos', N'Tacos gà với sốt kem chua', 42000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (3, N'Shrimp Tacos', N'Tacos tôm tươi với sốt bơ tỏi', 55000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (3, N'Spicy Vietnamese Pork Tacos', N'Tacos thịt heo cay phong cách Việt', 48000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (3, N'Chicken Wrap', N'Wrap gà tươi mát với rau củ', 42000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (3, N'Beef Wrap', N'Wrap bò với phô mai và sốt đặc biệt', 45000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (3, N'Beef Tacos', N'Tacos bò với rau củ tươi và sốt salsa', 45000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (3, N'Chicken Tacos', N'Tacos gà với sốt kem chua', 42000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (3, N'Shrimp Tacos', N'Tacos tôm tươi với sốt bơ tỏi', 55000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (3, N'Spicy Vietnamese Pork Tacos', N'Tacos thịt heo cay phong cách Việt', 48000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (3, N'Chicken Wrap', N'Wrap gà tươi mát với rau củ', 42000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (3, N'Beef Wrap', N'Wrap bò với phô mai và sốt đặc biệt', 45000, '', 'AVAILABLE');
 
 -- Pizza (category_id = 4)
-insert into Product (category_id, name, description, price, image_url, status) values (4, N'Pepperoni Pizza', N'Pizza pepperoni truyền thống với phô mai mozzarella', 89000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (4, N'Hawaiian Pizza', N'Pizza Hawaii với dứa và jambon', 85000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (4, N'BBQ Chicken Pizza', N'Pizza gà BBQ với hành tây và phô mai', 92000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (4, N'Seafood Pizza', N'Pizza hải sản với tôm, mực và sốt đặc biệt', 99000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (4, N'Pizza Bò Nướng Việt Nam', N'Pizza bò nướng phong cách Việt Nam', 95000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (4, N'Pizza Gà Xé Phô Mai', N'Pizza gà xé phô mai béo ngậy', 89000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (4, N'Pepperoni Pizza', N'Pizza pepperoni truyền thống với phô mai mozzarella', 89000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (4, N'Hawaiian Pizza', N'Pizza Hawaii với dứa và jambon', 85000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (4, N'BBQ Chicken Pizza', N'Pizza gà BBQ với hành tây và phô mai', 92000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (4, N'Seafood Pizza', N'Pizza hải sản với tôm, mực và sốt đặc biệt', 99000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (4, N'Pizza Bò Nướng Việt Nam', N'Pizza bò nướng phong cách Việt Nam', 95000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (4, N'Pizza Gà Xé Phô Mai', N'Pizza gà xé phô mai béo ngậy', 89000, '', 'AVAILABLE');
 
 -- Món Ăn Kèm (category_id = 5)
-insert into Product (category_id, name, description, price, image_url, status) values (5, N'Khoai Tây Chiên', N'Khoai tây chiên giòn vàng', 20000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (5, N'Khoai Lắc Phô Mai', N'Khoai tây lắc phô mai thơm ngon', 25000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (5, N'Khoai Tây Múi Cau', N'Khoai tây cắt múi cau chiên giòn', 22000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (5, N'Hành Tây Chiên', N'Hành tây chiên giòn rụm', 25000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (5, N'Mozzarella Sticks', N'Phô mai Mozzarella chiên giòn', 35000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (5, N'Salad Rau Củ', N'Salad rau củ tươi ngon với sốt dầu giấm', 28000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (5, N'Nugget Gà', N'Nugget gà chiên giòn', 30000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (5, N'Khoai Tây Chiên', N'Khoai tây chiên giòn vàng', 20000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (5, N'Khoai Lắc Phô Mai', N'Khoai tây lắc phô mai thơm ngon', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (5, N'Khoai Tây Múi Cau', N'Khoai tây cắt múi cau chiên giòn', 22000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (5, N'Hành Tây Chiên', N'Hành tây chiên giòn rụm', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (5, N'Mozzarella Sticks', N'Phô mai Mozzarella chiên giòn', 35000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (5, N'Salad Rau Củ', N'Salad rau củ tươi ngon với sốt dầu giấm', 28000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (5, N'Nugget Gà', N'Nugget gà chiên giòn', 30000, '', 'AVAILABLE');
 
 -- Cơm (category_id = 6)
-insert into Product (category_id, name, description, price, image_url, status) values (6, N'Cơm Gà Chiên Nước Mắm', N'Cơm gà chiên giòn sốt nước mắm đậm đà', 45000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (6, N'Cơm Gà Xối Mỡ', N'Cơm gà xối mỡ thơm béo', 42000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (6, N'Cơm Sườn Nướng', N'Cơm sườn nướng than hoa', 48000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (6, N'Cơm Bò Lúc Lắc', N'Cơm bò lúc lắc với rau củ xào', 55000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (6, N'Cơm Gà Sốt Tiêu Đen', N'Cơm gà sốt tiêu đen cay nồng', 48000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (6, N'Cơm Gà Chiên Nước Mắm', N'Cơm gà chiên giòn sốt nước mắm đậm đà', 45000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (6, N'Cơm Gà Xối Mỡ', N'Cơm gà xối mỡ thơm béo', 42000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (6, N'Cơm Sườn Nướng', N'Cơm sườn nướng than hoa', 48000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (6, N'Cơm Bò Lúc Lắc', N'Cơm bò lúc lắc với rau củ xào', 55000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (6, N'Cơm Gà Sốt Tiêu Đen', N'Cơm gà sốt tiêu đen cay nồng', 48000, '', 'AVAILABLE');
 
 -- Cơm Tấm (category_id = 7)
-insert into Product (category_id, name, description, price, image_url, status) values (7, N'Cơm Tấm Sườn', N'Cơm tấm sườn nướng với mỡ hành', 45000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (7, N'Cơm Tấm Sườn Bì Chả', N'Cơm tấm đầy đủ sườn, bì, chả trứng', 55000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (7, N'Cơm Tấm Gà Nướng', N'Cơm tấm gà nướng thơm lừng', 48000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (7, N'Cơm Tấm Sườn Trứng', N'Cơm tấm sườn nướng kèm trứng ốp la', 50000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (7, N'Cơm Tấm Sườn', N'Cơm tấm sườn nướng với mỡ hành', 45000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (7, N'Cơm Tấm Sườn Bì Chả', N'Cơm tấm đầy đủ sườn, bì, chả trứng', 55000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (7, N'Cơm Tấm Gà Nướng', N'Cơm tấm gà nướng thơm lừng', 48000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (7, N'Cơm Tấm Sườn Trứng', N'Cơm tấm sườn nướng kèm trứng ốp la', 50000, '', 'AVAILABLE');
 
 -- Cơm Rang (category_id = 8)
-insert into Product (category_id, name, description, price, image_url, status) values (8, N'Cơm Rang Dương Châu', N'Cơm rang Dương Châu thập cẩm', 40000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (8, N'Cơm Rang Gà Xé', N'Cơm rang gà xé với rau củ', 42000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (8, N'Cơm Rang Bò', N'Cơm rang bò đậm đà', 45000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (8, N'Cơm Rang Hải Sản', N'Cơm rang hải sản tôm mực', 50000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (8, N'Cơm Rang Kim Chi', N'Cơm rang kim chi Hàn Quốc cay nhẹ', 42000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (8, N'Cơm Rang Dương Châu', N'Cơm rang Dương Châu thập cẩm', 40000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (8, N'Cơm Rang Gà Xé', N'Cơm rang gà xé với rau củ', 42000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (8, N'Cơm Rang Bò', N'Cơm rang bò đậm đà', 45000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (8, N'Cơm Rang Hải Sản', N'Cơm rang hải sản tôm mực', 50000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (8, N'Cơm Rang Kim Chi', N'Cơm rang kim chi Hàn Quốc cay nhẹ', 42000, '', 'AVAILABLE');
 
 -- Bánh Mì (category_id = 9)
-insert into Product (category_id, name, description, price, image_url, status) values (9, N'Bánh Mì Thịt Nướng', N'Bánh mì thịt nướng với đồ chua, rau thơm', 30000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (9, N'Bánh Mì Gà Xé', N'Bánh mì gà xé với sốt đặc biệt', 30000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (9, N'Bánh Mì Xíu Mại', N'Bánh mì xíu mại sốt cà đậm đà', 35000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (9, N'Bánh Mì Chả Cá', N'Bánh mì chả cá chiên giòn', 30000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (9, N'Bánh Mì Bò Phô Mai', N'Bánh mì bò nướng phô mai', 35000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (9, N'Bánh Mì Thịt Nướng', N'Bánh mì thịt nướng với đồ chua, rau thơm', 30000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (9, N'Bánh Mì Gà Xé', N'Bánh mì gà xé với sốt đặc biệt', 30000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (9, N'Bánh Mì Xíu Mại', N'Bánh mì xíu mại sốt cà đậm đà', 35000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (9, N'Bánh Mì Chả Cá', N'Bánh mì chả cá chiên giòn', 30000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (9, N'Bánh Mì Bò Phô Mai', N'Bánh mì bò nướng phô mai', 35000, '', 'AVAILABLE');
 
 -- Món Cuốn (category_id = 10)
-insert into Product (category_id, name, description, price, image_url, status) values (10, N'Gỏi Cuốn Tôm Thịt', N'Gỏi cuốn tôm thịt tươi mát', 25000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (10, N'Bò Lá Lốt Cuốn', N'Bò cuốn lá lốt thơm nức', 35000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (10, N'Nem Nướng Cuốn', N'Nem nướng cuốn với rau sống', 30000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (10, N'Chả Giò Chiên', N'Chả giò chiên giòn rụm', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (10, N'Gỏi Cuốn Tôm Thịt', N'Gỏi cuốn tôm thịt tươi mát', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (10, N'Bò Lá Lốt Cuốn', N'Bò cuốn lá lốt thơm nức', 35000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (10, N'Nem Nướng Cuốn', N'Nem nướng cuốn với rau sống', 30000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (10, N'Chả Giò Chiên', N'Chả giò chiên giòn rụm', 25000, '', 'AVAILABLE');
 
 -- Đồ Uống (category_id = 11)
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Coca-Cola', N'Nước giải khát Coca-Cola lon', 12000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Pepsi', N'Nước giải khát Pepsi lon', 12000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Sprite', N'Nước giải khát Sprite lon', 12000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Fanta', N'Nước giải khát Fanta lon', 12000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Trà Chanh', N'Trà chanh tươi mát lạnh', 20000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Trà Đào', N'Trà đào thơm ngon ngọt dịu', 25000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Trà Tắc', N'Trà tắc (quất) chua ngọt giải nhiệt', 20000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Trà Sữa', N'Trà sữa trân châu đường đen', 35000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Cà Phê Sữa Đá', N'Cà phê sữa đá đậm đà', 25000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Cà Phê Muối', N'Cà phê muối đặc biệt', 30000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Nước Cam', N'Nước cam tươi nguyên chất', 30000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (11, N'Chanh Dây', N'Nước chanh dây chua ngọt', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Coca-Cola', N'Nước giải khát Coca-Cola lon', 12000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Pepsi', N'Nước giải khát Pepsi lon', 12000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Sprite', N'Nước giải khát Sprite lon', 12000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Fanta', N'Nước giải khát Fanta lon', 12000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Trà Chanh', N'Trà chanh tươi mát lạnh', 20000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Trà Đào', N'Trà đào thơm ngon ngọt dịu', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Trà Tắc', N'Trà tắc (quất) chua ngọt giải nhiệt', 20000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Trà Sữa', N'Trà sữa trân châu đường đen', 35000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Cà Phê Sữa Đá', N'Cà phê sữa đá đậm đà', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Cà Phê Muối', N'Cà phê muối đặc biệt', 30000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Nước Cam', N'Nước cam tươi nguyên chất', 30000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (11, N'Chanh Dây', N'Nước chanh dây chua ngọt', 25000, '', 'AVAILABLE');
 
 -- Tráng Miệng (category_id = 12)
-insert into Product (category_id, name, description, price, image_url, status) values (12, N'Kem Vanilla', N'Kem vanilla mát lạnh', 15000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (12, N'Kem Chocolate', N'Kem chocolate béo ngậy', 15000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (12, N'Sundae Caramel', N'Sundae caramel với sốt caramel ngọt ngào', 25000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (12, N'Bánh Flan', N'Bánh flan mềm mịn với caramel', 20000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (12, N'Tiramisu Mini', N'Tiramisu mini vị cà phê Ý', 35000, '', 'AVAILABLE');
-insert into Product (category_id, name, description, price, image_url, status) values (12, N'Bánh Su Kem', N'Bánh su kem tươi mát', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (12, N'Kem Vanilla', N'Kem vanilla mát lạnh', 15000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (12, N'Kem Chocolate', N'Kem chocolate béo ngậy', 15000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (12, N'Sundae Caramel', N'Sundae caramel với sốt caramel ngọt ngào', 25000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (12, N'Bánh Flan', N'Bánh flan mềm mịn với caramel', 20000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (12, N'Tiramisu Mini', N'Tiramisu mini vị cà phê Ý', 35000, '', 'AVAILABLE');
+insert into Product (category_id, name, description, base_price, image_url, status) values (12, N'Bánh Su Kem', N'Bánh su kem tươi mát', 25000, '', 'AVAILABLE');
 
 -- ============================================================
--- 4. INGREDIENT
+-- 4. PRODUCT_VARIANT
 -- ============================================================
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Thịt bò xay', N'kg', 50, 10, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Thịt gà', N'kg', 60, 15, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Thịt heo', N'kg', 40, 10, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Tôm tươi', N'kg', 20, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Mực', N'kg', 15, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bánh mì burger', N'cái', 200, 50, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bánh pizza', N'cái', 100, 20, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bánh tortilla', N'cái', 150, 30, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bánh mì Việt Nam', N'cái', 100, 20, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Cơm trắng', N'kg', 100, 20, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Cơm tấm', N'kg', 80, 15, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Phô mai Mozzarella', N'kg', 25, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Phô mai Cheddar', N'kg', 20, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Xà lách', N'kg', 15, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Cà chua', N'kg', 20, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Hành tây', N'kg', 25, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Khoai tây', N'kg', 80, 20, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Trứng', N'quả', 200, 50, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Sữa tươi', N'lít', 40, 10, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Dầu ăn', N'lít', 30, 10, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Sốt BBQ', N'lít', 15, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Sốt Teriyaki', N'lít', 10, 3, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Sốt mayonnaise', N'lít', 15, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Tương ớt', N'lít', 10, 3, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Nước mắm', N'lít', 10, 3, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bột chiên giòn', N'kg', 30, 10, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Kem vanilla', N'lít', 10, 3, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Kem chocolate', N'lít', 10, 3, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Trà túi lọc', N'hộp', 20, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Cà phê bột', N'kg', 15, 5, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Đường', N'kg', 50, 10, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bột bánh flan', N'hộp', 10, 3, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bánh su kem', N'cái', 50, 10, 'ACTIVE');
-insert into Ingredient (name, unit, stock_quantity, min_stock_threshold, status) values (N'Bánh tiramisu', N'cái', 20, 5, 'ACTIVE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status)
+select product_id, N'Mặc định', base_price, 1, status from Product;
 
--- ============================================================
--- 5. PRODUCT_INGREDIENT (mỗi product ~ 3-4 nguyên liệu)
--- ============================================================
--- Classic Beef Burger (product_id = 1)
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (1, 1, 0.15);
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (1, 6, 1);
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (1, 14, 0.03);
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (1, 15, 0.02);
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (1, 12, 0.02);
-
--- Gà Rán Giòn Truyền Thống (product_id = 8)
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (8, 2, 0.2);
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (8, 26, 0.05);
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (8, 20, 0.1);
-
--- Khoai Tây Chiên (product_id = 33)
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (33, 17, 0.2);
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (33, 20, 0.05);
-
--- Coca-Cola (product_id = 70)
-insert into ProductIngredient (product_id, ingredient_id, quantity_required) values (56, 31, 0.02);
-
--- ============================================================
--- 6. PRODUCT_OPTION
--- ============================================================
--- Burger: thêm size
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (1, N'Size L (lớn)', 10000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (2, N'Size L (lớn)', 10000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (4, N'Size L (lớn)', 10000, 0, null);
+-- Burger: size lớn
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (1, N'Size L (lớn)', 55000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (2, N'Size L (lớn)', 65000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (4, N'Size L (lớn)', 59000, 0, 'AVAILABLE');
 
 -- Gà Rán: combo / miếng
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (8, N'Combo 3 miếng', 20000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (8, N'Combo 6 miếng', 45000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (13, N'Combo 6 cánh', 25000, 0, null);
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (8, N'Combo 3 miếng', 69000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (8, N'Combo 6 miếng', 94000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (13, N'Combo 6 cánh', 70000, 0, 'AVAILABLE');
 
 -- Pizza: size
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (21, N'Size L (30cm)', 30000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (22, N'Size L (30cm)', 30000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (23, N'Size L (30cm)', 30000, 0, null);
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (20, N'Size L (30cm)', 119000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (21, N'Size L (30cm)', 115000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (22, N'Size L (30cm)', 122000, 0, 'AVAILABLE');
 
 -- Đồ Uống: size
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (60, N'Size L', 5000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (61, N'Size L', 5000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (62, N'Size L', 5000, 0, null);
-insert into ProductOption (product_id, option_name, extra_price, stock_controlled, quantity_available) values (63, N'Size L', 5000, 0, null);
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (60, N'Size L', 25000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (61, N'Size L', 30000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (62, N'Size L', 25000, 0, 'AVAILABLE');
+insert into ProductVariant (product_id, variant_name, price, is_default, status) values (63, N'Size L', 25000, 0, 'AVAILABLE');
 
 -- ============================================================
 -- 7. DELIVERY_ZONE
@@ -535,14 +479,14 @@ values (1, null, '0901000008', '123456', N'Khách Vãng Lai 1', '', 'ACTIVE');
 -- ============================================================
 -- 9. ADDRESS
 -- ============================================================
-insert into Address (user_id, recipient_name, phone, street, ward, zone_id, city, is_default)
-values (6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi', N'Phường Bến Nghé', 1, N'TP. Hồ Chí Minh', 1);
+insert into Address (user_id, recipient_name, phone, street, ward_name, district_name, province_name, zone_id, city, is_default)
+values (6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi', N'Phường Bến Nghé', N'Quận 1', N'TP. Hồ Chí Minh', 1, N'TP. Hồ Chí Minh', 1);
 
-insert into Address (user_id, recipient_name, phone, street, ward, zone_id, city, is_default)
-values (7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ', N'Phường Bến Thành', 1, N'TP. Hồ Chí Minh', 1);
+insert into Address (user_id, recipient_name, phone, street, ward_name, district_name, province_name, zone_id, city, is_default)
+values (7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ', N'Phường Bến Thành', N'Quận 1', N'TP. Hồ Chí Minh', 1, N'TP. Hồ Chí Minh', 1);
 
-insert into Address (user_id, recipient_name, phone, street, ward, zone_id, city, is_default)
-values (6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt', N'Phường Cô Giang', 4, N'TP. Hồ Chí Minh', 0);
+insert into Address (user_id, recipient_name, phone, street, ward_name, district_name, province_name, zone_id, city, is_default)
+values (6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt', N'Phường Cô Giang', N'Quận 4', N'TP. Hồ Chí Minh', 4, N'TP. Hồ Chí Minh', 0);
 
 -- ============================================================
 -- 10. CART & CART_ITEM (giỏ hàng mẫu)
@@ -550,42 +494,55 @@ values (6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt', N'Phường C
 insert into Cart (user_id, session_id) values (6, null);
 insert into Cart (user_id, session_id) values (7, null);
 
-insert into CartItem (cart_id, product_id, quantity, option_data, unit_price) values (1, 1, 2, null, 45000);
-insert into CartItem (cart_id, product_id, quantity, option_data, unit_price) values (1, 8, 1, '{"size":"Combo 3 miếng"}', 69000);
-insert into CartItem (cart_id, product_id, quantity, option_data, unit_price) values (1, 56, 2, null, 12000);
-insert into CartItem (cart_id, product_id, quantity, option_data, unit_price) values (2, 22, 1, '{"size":"Size L (30cm)"}', 115000);
-insert into CartItem (cart_id, product_id, quantity, option_data, unit_price) values (2, 33, 1, null, 20000);
+insert into CartItem (cart_id, product_id, variant_id, quantity, unit_price)
+select 1, 1, variant_id, 2, price from ProductVariant where product_id = 1 and is_default = 1;
+insert into CartItem (cart_id, product_id, variant_id, quantity, unit_price)
+select 1, 8, variant_id, 1, price from ProductVariant where product_id = 8 and variant_name = N'Combo 3 miếng';
+insert into CartItem (cart_id, product_id, variant_id, quantity, unit_price)
+select 1, 56, variant_id, 2, price from ProductVariant where product_id = 56 and is_default = 1;
+insert into CartItem (cart_id, product_id, variant_id, quantity, unit_price)
+select 2, 21, variant_id, 1, price from ProductVariant where product_id = 21 and variant_name = N'Size L (30cm)';
+insert into CartItem (cart_id, product_id, variant_id, quantity, unit_price)
+select 2, 26, variant_id, 1, price from ProductVariant where product_id = 26 and is_default = 1;
 
 -- ============================================================
 -- 11. ORDERS & ORDER_ITEM
 -- ============================================================
 insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, zone_id, total_amount, shipping_fee, final_amount, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, delivered_at, created_at)
-values ('FG-20250601-001', 6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi, Phường Bến Nghé, Quận 1', 1, 162000, 15000, 177000, 'CASH', 'PAID', 'DELIVERED', 2, 4, '2025-06-01 10:15:00', '2025-06-01 10:20:00', '2025-06-01 10:40:00', '2025-06-01 10:50:00', '2025-06-01 11:10:00', '2025-06-01 10:00:00');
+values ('FG-20250601-001', 6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi, Phường Bến Nghé, Quận 1', 1, 171000, 15000, 186000, 'CASH', 'PAID', 'DELIVERED', 2, 4, '2025-06-01 10:15:00', '2025-06-01 10:20:00', '2025-06-01 10:40:00', '2025-06-01 10:50:00', '2025-06-01 11:10:00', '2025-06-01 10:00:00');
 
 insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, zone_id, total_amount, shipping_fee, final_amount, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, delivered_at, created_at)
 values ('FG-20250601-002', 7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ, Phường Bến Thành, Quận 1', 1, 135000, 15000, 150000, 'BANKING', 'PAID', 'DELIVERED', 3, 5, '2025-06-01 11:30:00', '2025-06-01 11:35:00', '2025-06-01 12:00:00', '2025-06-01 12:10:00', '2025-06-01 12:30:00', '2025-06-01 11:15:00');
 
 insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, zone_id, total_amount, shipping_fee, final_amount, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, delivered_at, created_at)
-values ('FG-20250602-001', 6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt, Phường Cô Giang, Quận 4', 4, 95000, 12000, 107000, 'CASH', 'UNPAID', 'PENDING', null, null, null, null, null, null, null, '2025-06-02 14:00:00');
+values ('FG-20250602-001', 6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt, Phường Cô Giang, Quận 4', 4, 117000, 12000, 129000, 'CASH', 'UNPAID', 'PENDING', null, null, null, null, null, null, null, '2025-06-02 14:00:00');
 
 insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, zone_id, total_amount, shipping_fee, final_amount, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, delivered_at, created_at)
-values ('FG-20250602-002', null, N'Nguyễn Vãng Lai', '0901888999', N'12 Nguyễn Trãi, Phường Phạm Ngũ Lão, Quận 1', 1, 45000, 15000, 60000, 'CASH', 'UNPAID', 'CONFIRMED', 2, 4, '2025-06-02 14:30:00', '2025-06-02 14:35:00', null, null, null, '2025-06-02 14:20:00');
+values ('FG-20250602-002', null, N'Nguyễn Vãng Lai', '0901888999', N'12 Nguyễn Trãi, Phường Phạm Ngũ Lão, Quận 1', 1, 49000, 15000, 64000, 'CASH', 'UNPAID', 'CONFIRMED', 2, 4, '2025-06-02 14:30:00', '2025-06-02 14:35:00', null, null, null, '2025-06-02 14:20:00');
 
 -- Order Items cho Order 1
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (1, 1, N'Classic Beef Burger', 2, 45000, null, 90000);
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (1, 8, N'Gà Rán Giòn Truyền Thống', 1, 49000, '{"size":"Combo 3 miếng"}', 69000);
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (1, 56, N'Coca-Cola', 1, 12000, null, 12000);
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 1, 1, variant_id, N'Classic Beef Burger', variant_name, 2, price, price * 2 from ProductVariant where product_id = 1 and is_default = 1;
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 1, 8, variant_id, N'Gà Rán Giòn Truyền Thống', variant_name, 1, price, price from ProductVariant where product_id = 8 and variant_name = N'Combo 3 miếng';
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 1, 56, variant_id, N'Coca-Cola', variant_name, 1, price, price from ProductVariant where product_id = 56 and is_default = 1;
 
 -- Order Items cho Order 2
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (2, 22, N'Hawaiian Pizza', 1, 85000, '{"size":"Size L (30cm)"}', 115000);
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (2, 33, N'Khoai Tây Chiên', 1, 20000, null, 20000);
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 2, 21, variant_id, N'Hawaiian Pizza', variant_name, 1, price, price from ProductVariant where product_id = 21 and variant_name = N'Size L (30cm)';
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 2, 26, variant_id, N'Khoai Tây Chiên', variant_name, 1, price, price from ProductVariant where product_id = 26 and is_default = 1;
 
 -- Order Items cho Order 3
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (3, 23, N'BBQ Chicken Pizza', 1, 92000, null, 92000);
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (3, 61, N'Trà Đào', 1, 25000, null, 25000);
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 3, 22, variant_id, N'BBQ Chicken Pizza', variant_name, 1, price, price from ProductVariant where product_id = 22 and is_default = 1;
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 3, 61, variant_id, N'Trà Đào', variant_name, 1, price, price from ProductVariant where product_id = 61 and is_default = 1;
 
 -- Order Items cho Order 4
-insert into OrderItem (order_id, product_id, product_name, quantity, unit_price, option_data, total_price) values (4, 4, N'Crispy Chicken Burger', 1, 49000, null, 49000);
+insert into OrderItem (order_id, product_id, variant_id, product_name, variant_name, quantity, unit_price, total_price)
+select 4, 4, variant_id, N'Crispy Chicken Burger', variant_name, 1, price, price from ProductVariant where product_id = 4 and is_default = 1;
 
 -- ============================================================
 -- 12. PAYMENT
@@ -598,7 +555,7 @@ insert into Payment (order_id, amount, payment_method, transaction_id, status, p
 -- ============================================================
 insert into Review (user_id, order_id, product_id, rating, comment) values (6, 1, 1, 5, N'Burger ngon, thịt bò mọng nước');
 insert into Review (user_id, order_id, product_id, rating, comment) values (6, 1, 8, 4, N'Gà rán giòn, nhưng hơi mặn');
-insert into Review (user_id, order_id, product_id, rating, comment) values (7, 2, 22, 5, N'Pizza Hawaiian rất ngon, phô mai nhiều');
+insert into Review (user_id, order_id, product_id, rating, comment) values (7, 2, 21, 5, N'Pizza Hawaiian rất ngon, phô mai nhiều');
 
 -- ============================================================
 -- 14. WORK_SHIFT

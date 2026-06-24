@@ -168,7 +168,7 @@ public class OrdersDAO {
         }
     }
 
-    public void save(Orders order) {
+    public void save(Orders order) throws RuntimeException {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -181,6 +181,7 @@ public class OrdersDAO {
         } catch (Exception e) {
             em.getTransaction().rollback();
             e.printStackTrace();
+            throw new RuntimeException("Failed to save order: " + e.getMessage(), e);
         } finally {
             em.close();
         }
