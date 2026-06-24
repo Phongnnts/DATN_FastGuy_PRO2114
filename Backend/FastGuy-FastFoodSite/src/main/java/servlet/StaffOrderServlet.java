@@ -44,43 +44,48 @@ public class StaffOrderServlet extends HttpServlet {
         int staffId = getStaffId(req, resp);
         if (staffId < 0) return;
 
-        String path = req.getPathInfo();
+        try {
+            String path = req.getPathInfo();
 
-        if (path == null || path.equals("/")) {
-            List<Orders> orders = staffOrderService.getPendingOrders();
-            List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/confirmed")) {
-            List<Orders> orders = staffOrderService.getConfirmedOrders();
-            List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/preparing")) {
-            List<Orders> orders = staffOrderService.getPreparingOrders();
-            List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/ready")) {
-            List<Orders> orders = staffOrderService.getReadyOrders();
-            List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/history")) {
-            List<Orders> all = new java.util.ArrayList<>();
-            all.addAll(staffOrderService.getReadyOrders());
-            List<Orders> cancelled = ordersDAO.findByStatus("CANCELLED");
-            all.addAll(cancelled);
-            all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
-            ApiResponse.ok(resp, all.stream().map(o -> toListItem(o)).collect(Collectors.toList()));
-        } else {
-            try {
-                int orderId = Integer.parseInt(path.substring(1));
-                Orders order = staffOrderService.getOrderDetail(orderId);
-                if (order == null) {
-                    ApiResponse.error(resp, "Order not found", 404);
-                    return;
+            if (path == null || path.equals("/")) {
+                List<Orders> orders = staffOrderService.getPendingOrders();
+                List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
+                ApiResponse.ok(resp, result);
+            } else if (path.equals("/confirmed")) {
+                List<Orders> orders = staffOrderService.getConfirmedOrders();
+                List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
+                ApiResponse.ok(resp, result);
+            } else if (path.equals("/preparing")) {
+                List<Orders> orders = staffOrderService.getPreparingOrders();
+                List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
+                ApiResponse.ok(resp, result);
+            } else if (path.equals("/ready")) {
+                List<Orders> orders = staffOrderService.getReadyOrders();
+                List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
+                ApiResponse.ok(resp, result);
+            } else if (path.equals("/history")) {
+                List<Orders> all = new java.util.ArrayList<>();
+                all.addAll(staffOrderService.getReadyOrders());
+                List<Orders> cancelled = ordersDAO.findByStatus("CANCELLED");
+                all.addAll(cancelled);
+                all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+                ApiResponse.ok(resp, all.stream().map(o -> toListItem(o)).collect(Collectors.toList()));
+            } else {
+                try {
+                    int orderId = Integer.parseInt(path.substring(1));
+                    Orders order = staffOrderService.getOrderDetail(orderId);
+                    if (order == null) {
+                        ApiResponse.error(resp, "Order not found", 404);
+                        return;
+                    }
+                    ApiResponse.ok(resp, toDetail(order));
+                } catch (NumberFormatException e) {
+                    resp.sendError(404);
                 }
-                ApiResponse.ok(resp, toDetail(order));
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            ApiResponse.error(resp, "Internal error: " + e.getMessage(), 500);
         }
     }
 
@@ -132,7 +137,7 @@ public class StaffOrderServlet extends HttpServlet {
         Map<String, Object> m = new HashMap<>();
         m.put("orderId", o.getOrderId());
         m.put("orderCode", o.getOrderCode());
-        m.put("userId", o.getUser().getUserId());
+        m.put("userId", o.getUser() != null ? o.getUser().getUserId() : null);
         m.put("customerName", o.getCustomerName());
         m.put("orderStatus", o.getOrderStatus());
         m.put("items", new java.util.ArrayList<>());
@@ -145,7 +150,7 @@ public class StaffOrderServlet extends HttpServlet {
         Map<String, Object> m = new HashMap<>();
         m.put("orderId", o.getOrderId());
         m.put("orderCode", o.getOrderCode());
-        m.put("userId", o.getUser().getUserId());
+        m.put("userId", o.getUser() != null ? o.getUser().getUserId() : null);
         m.put("customerName", o.getCustomerName());
         m.put("customerPhone", o.getCustomerPhone());
         m.put("orderStatus", o.getOrderStatus());
