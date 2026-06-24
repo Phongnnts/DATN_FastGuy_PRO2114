@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
 import { formatPrice, formatDate } from '@/utils/format';
@@ -10,11 +10,14 @@ const orderStore = useOrderStore();
 const activeTab = ref('ALL');
 const orders = computed(() => orderStore.userOrders);
 
+onMounted(() => orderStore.fetchOrders());
+
 const tabs = [
   { key: 'ALL', label: 'Tất cả' },
   { key: 'PENDING', label: 'Chờ xác nhận' },
   { key: 'CONFIRMED', label: 'Đã xác nhận' },
   { key: 'PREPARING', label: 'Đang chuẩn bị' },
+  { key: 'READY', label: 'Đã sẵn sàng' },
   { key: 'DELIVERING', label: 'Đang giao' },
   { key: 'DELIVERED', label: 'Đã giao' },
   { key: 'CANCELLED', label: 'Đã hủy' },
