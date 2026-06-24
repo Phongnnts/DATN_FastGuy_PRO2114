@@ -10,6 +10,7 @@ export const ORDER_STATUS = {
   PENDING: 'PENDING',
   CONFIRMED: 'CONFIRMED',
   PREPARING: 'PREPARING',
+  READY: 'READY',
   DELIVERING: 'DELIVERING',
   DELIVERED: 'DELIVERED',
   CANCELLED: 'CANCELLED',
@@ -19,6 +20,7 @@ export const ORDER_STATUS_LABEL = {
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
   PREPARING: 'Đang chuẩn bị',
+  READY: 'Đã sẵn sàng',
   DELIVERING: 'Đang giao',
   DELIVERED: 'Đã giao',
   CANCELLED: 'Đã hủy',
@@ -28,6 +30,7 @@ export const ORDER_STATUS_BADGE = {
   PENDING: 'warning',
   CONFIRMED: 'info',
   PREPARING: 'primary',
+  READY: 'success',
   DELIVERING: 'info',
   DELIVERED: 'success',
   CANCELLED: 'danger',
@@ -103,3 +106,20 @@ export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6
 export const DELIVERY_ZONE_TYPES = ['Quận', 'Huyện', 'Phường', 'Xã'];
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+export const CLOUDINARY = {
+  cloudName: 'ds4dnsj0o',
+  uploadPreset: 'upload-fastguy',
+  uploadUrl: 'https://api.cloudinary.com/v1_1/ds4dnsj0o/image/upload',
+  folders: [
+    'Image_Cloudinery/Burger/',
+    'Image_Cloudinery/GaRan/',
+    'Image_Cloudinery/Tacos/',
+    'Image_Cloudinery/Pizza/',
+    'Image_Cloudinery/Com/',
+    'Image_Cloudinery/BanhMi/',
+    'Image_Cloudinery/GoiTom/',
+    'Image_Cloudinery/KhoaiTay/',
+    'Image_Cloudinery/Nuoc/',
+  ],
+};
