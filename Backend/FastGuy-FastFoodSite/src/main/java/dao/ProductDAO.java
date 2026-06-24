@@ -1,6 +1,7 @@
 package dao;
 
 import entity.Product;
+import entity.ProductOption;
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
 
@@ -51,6 +52,19 @@ public class ProductDAO {
         }
     }
 
+    public List<entity.ProductOption> findOptionsByProductId(int productId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM ProductOption o WHERE o.product.productId = :pid",
+                    entity.ProductOption.class)
+                    .setParameter("pid", productId)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public long count() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -85,6 +99,48 @@ public class ProductDAO {
             em.getTransaction().begin();
             Product p = em.find(Product.class, id);
             if (p != null) em.remove(p);
+            em.getTransaction().commit();
+        } catch (Exception e) {
+            em.getTransaction().rollback();
+            e.printStackTrace();
+        } finally {
+            em.close();
+        }
+    }
+
+    public ProductOption findOptionById(int id) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.find(ProductOption.class, id);
+        } finally {
+            em.close();
+        }
+    }
+
+    public void saveOption(ProductOption option) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            if (option.getOptionId() == 0) {
+                em.persist(option);
+            } else {
+                em.merge(option);
+            }
+            em.getTransaction().commit();
+        } catch (Exception e) {
+            em.getTransaction().rollback();
+            e.printStackTrace();
+        } finally {
+            em.close();
+        }
+    }
+
+    public void deleteOption(int id) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            ProductOption o = em.find(ProductOption.class, id);
+            if (o != null) em.remove(o);
             em.getTransaction().commit();
         } catch (Exception e) {
             em.getTransaction().rollback();

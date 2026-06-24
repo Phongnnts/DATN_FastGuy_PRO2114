@@ -1,5 +1,7 @@
 package service;
 
+import java.util.Map;
+
 import dao.RoleDAO;
 import dao.UserDAO;
 import entity.Role;
@@ -43,6 +45,38 @@ public class AuthService {
         user.setPasswordHash(PasswordUtil.hash(password));
         user.setRole(userRole);
         user.setStatus("ACTIVE");
+
+        userDAO.save(user);
+        return user;
+    }
+
+    public User getProfile(int userId) {
+        return userDAO.findById(userId);
+    }
+
+    public User updateProfile(int userId, Map<String, Object> data) {
+        User user = userDAO.findById(userId);
+        if (user == null) return null;
+
+        String fullName = (String) data.get("fullName");
+        String phone = (String) data.get("phone");
+        String email = (String) data.get("email");
+
+        if (fullName != null && !fullName.isEmpty()) {
+            user.setFullName(fullName);
+        }
+        if (phone != null && !phone.isEmpty()) {
+            if (userDAO.findByPhone(phone) != null && !phone.equals(user.getPhone())) {
+                return null;
+            }
+            user.setPhone(phone);
+        }
+        if (email != null && !email.isEmpty()) {
+            if (userDAO.findByEmail(email) != null && !email.equals(user.getEmail())) {
+                return null;
+            }
+            user.setEmail(email);
+        }
 
         userDAO.save(user);
         return user;
