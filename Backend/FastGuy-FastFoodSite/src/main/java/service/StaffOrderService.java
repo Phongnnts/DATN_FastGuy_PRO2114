@@ -2,7 +2,9 @@ package service;
 
 import dao.OrderItemDAO;
 import dao.OrdersDAO;
+import dao.UserDAO;
 import entity.Orders;
+import entity.User;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -10,6 +12,7 @@ import java.util.List;
 public class StaffOrderService {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
+    private UserDAO userDAO = new UserDAO();
 
     public List<Orders> getPendingOrders() {
         return ordersDAO.findByStatus("PENDING");
@@ -61,7 +64,10 @@ public class StaffOrderService {
         }
 
         order.setOrderStatus(status);
-        order.setStaff(new entity.User() {{ setUserId(staffId); }});
+        User staffUser = userDAO.findById(staffId);
+        if (staffUser != null) {
+            order.setStaff(staffUser);
+        }
         ordersDAO.save(order);
         return true;
     }
