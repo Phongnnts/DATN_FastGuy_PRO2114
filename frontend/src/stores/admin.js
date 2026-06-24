@@ -26,6 +26,8 @@ export const useAdminStore = defineStore('admin', () => {
       image: p.imageUrl || '',
       description: p.description || '',
       inStock: p.status === 'AVAILABLE',
+      galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
+      options: Array.isArray(p.options) ? p.options : [],
     };
   }
 
@@ -180,6 +182,37 @@ export const useAdminStore = defineStore('admin', () => {
     } catch {}
   }
 
+  async function fetchOptions(productId) {
+    try {
+      return await adminApi.getOptions(productId);
+    } catch {
+      return [];
+    }
+  }
+
+  async function createOption(productId, data) {
+    try {
+      const res = await adminApi.createOption(productId, data);
+      return res;
+    } catch {
+      return null;
+    }
+  }
+
+  async function updateOption(optionId, data) {
+    try {
+      return await adminApi.updateOption(optionId, data);
+    } catch {
+      return null;
+    }
+  }
+
+  async function deleteOption(optionId) {
+    try {
+      await adminApi.deleteOption(optionId);
+    } catch {}
+  }
+
   async function createCategory(data) {
     try {
       const res = await adminApi.createCategory(data);
@@ -329,6 +362,10 @@ export const useAdminStore = defineStore('admin', () => {
     createProduct,
     updateProduct,
     deleteProduct,
+    fetchOptions,
+    createOption,
+    updateOption,
+    deleteOption,
     createCategory,
     updateCategory,
     deleteCategory,
