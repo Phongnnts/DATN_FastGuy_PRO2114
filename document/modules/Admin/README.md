@@ -1,72 +1,120 @@
 # Module Admin
 
-**Mục tiêu**: Dashboard Chart.js đơn giản, CRUD đầy đủ (Users, Products, Categories, DeliveryZones), upload ảnh Cloudinary.
-
-**Bỏ qua**: Shifts, Schedules, Ingredients, Reports.
-
 **Người phụ trách**: Người 5
+
+## Mục tiêu
+
+Admin quản lý product theo schema mới, gồm `Product` và `ProductVariant`, upload ảnh Cloudinary và kiểm tra dashboard.
 
 ---
 
 ## Files
 
 ### Backend
+
 - `servlet/AdminServlet.java`
 - `servlet/AdminUserServlet.java`
 - `servlet/AdminProductServlet.java`
 - `servlet/AdminCategoryServlet.java`
 - `servlet/AdminDeliveryZoneServlet.java`
-- `service/AdminService.java`
+- `servlet/ProductServlet.java`
+- `dao/ProductDAO.java`
+- `entity/Product.java`
+- `entity/ProductVariant.java`
 
 ### Frontend
-- `views/admin/DashboardPage.vue` (Chart.js bar)
+
+- `views/admin/DashboardPage.vue`
 - `views/admin/UsersPage.vue`
-- `views/admin/ProductsPage.vue` (upload Cloudinary)
+- `views/admin/ProductsPage.vue`
 - `views/admin/CategoriesPage.vue`
 - `views/admin/DeliveryZonesPage.vue`
 - `api/admin.js`
 
 ---
 
-## API Endpoints
+## Product model mới
 
-| Method | Path | Trạng thái |
-|--------|------|------------|
-| GET | `/api/admin/dashboard` | ✅ Có |
-| GET/POST/PUT/DELETE | `/api/admin/users/*` | ✅ Có |
-| GET/POST/PUT/DELETE | `/api/admin/products/*` | ✅ Có |
-| GET/POST/PUT/DELETE | `/api/admin/categories/*` | ✅ Có |
-| GET/POST/PUT/DELETE | `/api/admin/delivery-zones/*` | ✅ Có |
+```text
+Product = món cha
+ProductVariant = phiên bản bán được
+```
+
+Ví dụ:
+
+```text
+Product: Pizza Hải Sản
+- Variant: Size M - 89000
+- Variant: Size L - 119000
+```
 
 ---
 
-## Cloudinary Upload
+## API cần hỗ trợ
 
-**Cấu hình**:
-```
-Cloud name:     ds4dnsj0o
-Upload preset:  upload-fastguy
-API URL:        https://api.cloudinary.com/v1_1/ds4dnsj0o/image/upload
-```
-
-**Thư mục**: `Image_Cloudinery/Burger/`, `BanhMi/`, `Com/`, `GaRan/`, `GoiTom/`, `KhoaiTay/`, `Nuoc/`, `Pizza/`, `Tacos/`
-
-**Luồng**: Admin chọn danh mục → tự động chọn thư mục → upload ảnh → lưu URL → preview.
+| Method | Path | Mục tiêu |
+|---|---|---|
+| GET | `/api/admin/products` | List products |
+| POST | `/api/admin/products` | Tạo product |
+| PUT | `/api/admin/products/{id}` | Sửa product |
+| DELETE | `/api/admin/products/{id}` | Xóa/ẩn product |
+| GET | `/api/admin/products/{id}/variants` | List variants |
+| POST | `/api/admin/products/{id}/variants` | Tạo variant |
+| PUT | `/api/admin/variants/{id}` | Sửa variant |
+| DELETE | `/api/admin/variants/{id}` | Xóa/ẩn variant |
 
 ---
 
 ## Việc cần làm
 
-- [ ] Backend: sửa `Product.java` thêm field `galleryImages`
-- [ ] Backend: sửa `ProductDAO` lưu/load galleryImages
-- [ ] Frontend: `ProductsPage` — thêm upload Cloudinary widget
-- [ ] Frontend: `ProductsPage` — dropdown chọn thư mục ảnh
-- [ ] Frontend: `ProductsPage` — preview ảnh + gallery
-- [ ] Frontend: kiểm tra `DashboardPage` chart hiển thị
+### Backend
+
+- [ ] Sửa `Product.java`: `basePrice`, `galleryImages`.
+- [ ] Tạo `ProductVariant.java`.
+- [ ] Sửa `ProductDAO`:
+  - `findVariantsByProductId`
+  - `findVariantById`
+  - `saveVariant`
+  - `deleteVariant`
+- [ ] Sửa `ProductServlet` trả variants.
+- [ ] Sửa `AdminProductServlet` CRUD variants.
+- [ ] Không dùng `ProductOption` nữa.
+
+### Frontend
+
+- [ ] `ProductsPage.vue`: product form dùng `basePrice`.
+- [ ] `ProductsPage.vue`: thêm/sửa/xóa variants.
+- [ ] `ProductsPage.vue`: set default variant.
+- [ ] `ProductsPage.vue`: upload ảnh Cloudinary.
+- [ ] `ProductsPage.vue`: gallery images.
+- [ ] `DashboardPage.vue`: kiểm tra chart.
+
+---
+
+## Cloudinary
+
+```text
+Cloud name: ds4dnsj0o
+Upload preset: upload-fastguy
+Upload URL: https://api.cloudinary.com/v1_1/ds4dnsj0o/image/upload
+```
+
+---
+
+## Checklist test
+
+- [ ] Admin tạo product.
+- [ ] Admin tạo variant.
+- [ ] Product detail thấy variant mới.
+- [ ] Admin sửa giá variant.
+- [ ] Đơn cũ không đổi giá.
+- [ ] Ẩn variant không làm vỡ đơn cũ.
+- [ ] Upload ảnh/galleries hoạt động.
 
 ---
 
 ## Phụ thuộc
 
-- **Auth**: Cần đăng nhập
-- **Common**: Layout, constants, Cloudinary config
+- **Database**: cần `ProductVariant`.
+- **Common**: cần Cloudinary constants.
+- **Guest**: dùng product response mới.

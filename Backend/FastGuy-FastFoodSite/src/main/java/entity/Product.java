@@ -36,6 +36,9 @@ public class Product {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "gallery_images", columnDefinition = "nvarchar(max)")
+    private String galleryImages;
+
     @Column(name = "status")
     private String status;
 
@@ -59,6 +62,8 @@ public class Product {
     public void setPrice(BigDecimal price) { this.price = price; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getGalleryImages() { return galleryImages; }
+    public void setGalleryImages(String galleryImages) { this.galleryImages = galleryImages; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
