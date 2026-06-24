@@ -1,92 +1,106 @@
 # Module Staff
 
-**Mục tiêu**: Xử lý đơn hàng đầy đủ luồng PENDING → CONFIRMED → PREPARING → READY (bàn giao giao hàng). Dashboard Chart.js 4 màu.
+**Người phụ trách**: Người 4
 
-**Người phụ trách**: Người 4 — **Module quan trọng nhất**
+## Mục tiêu
+
+Staff xử lý đơn hàng đầy đủ flow:
+
+```text
+PENDING → CONFIRMED → PREPARING → READY
+PENDING/CONFIRMED/PREPARING → CANCELLED
+```
 
 ---
 
 ## Files
 
 ### Backend
+
 - `servlet/StaffDashboardServlet.java`
 - `servlet/StaffOrderServlet.java`
-- `service/StaffService.java`
 - `service/StaffOrderService.java`
+- `dao/OrdersDAO.java`
+- `dao/OrderItemDAO.java`
 
 ### Frontend
-- `views/staff/DashboardPage.vue` (doughnut chart 4 màu)
-- `views/staff/OrdersPage.vue` (tab PENDING / CONFIRMED / PREPARING / READY)
-- `views/staff/OrderDetailPage.vue` (3 nút: Xác nhận / Chế biến / Hoàn thành)
+
+- `views/staff/DashboardPage.vue`
+- `views/staff/OrdersPage.vue`
+- `views/staff/OrderDetailPage.vue`
 - `views/staff/OrderHistoryPage.vue`
-
----
-
-## Luồng trạng thái
-
-```
-PENDING ──→ CONFIRMED ──→ PREPARING ──→ READY
-PENDING ──→ CANCELLED
-```
-
-| Trạng thái | Staff làm gì? | Ghi timestamp |
-|------------|---------------|---------------|
-| PENDING | Xem thông tin đơn | — |
-| CONFIRMED | Bấm "Xác nhận" | `confirmed_at` |
-| PREPARING | Bấm "Bắt đầu chế biến" | — |
-| READY | Bấm "Hoàn thành" | `ready_at` |
-| CANCELLED | Bấm "Hủy đơn" + lý do | `cancelled_at` + `failure_reason` |
+- `stores/staff.js`
+- `api/staff.js`
 
 ---
 
 ## API Endpoints
 
-| Method | Path | Trạng thái |
-|--------|------|------------|
-| GET | `/api/staff/dashboard` (kèm ordersByStatus) | ✅ Có |
-| GET | `/api/staff/orders/` | ✅ Có |
-| GET | `/api/staff/orders/confirmed` | ✅ Có |
-| GET | `/api/staff/orders/history` | ✅ Có |
-| GET | `/api/staff/orders/{id}` | ✅ Có |
-| PUT | `/api/staff/orders/{id}/status` (cho phép CONFIRMED→PREPARING→READY) | ❌ Sửa |
+| Method | Path | Mục tiêu |
+|---|---|---|
+| GET | `/api/staff/dashboard` | Dashboard + ordersByStatus |
+| GET | `/api/staff/orders` | PENDING |
+| GET | `/api/staff/orders/confirmed` | CONFIRMED |
+| GET | `/api/staff/orders/preparing` | PREPARING |
+| GET | `/api/staff/orders/ready` | READY |
+| GET | `/api/staff/orders/history` | READY/CANCELLED history |
+| GET | `/api/staff/orders/{id}` | Chi tiết đơn |
+| PUT | `/api/staff/orders/{id}/status` | Chuyển trạng thái |
 
 ---
 
-## Dashboard Chart.js — 4 màu
+## Response order item cần có
 
-| Trạng thái | Màu |
-|------------|-----|
-| PENDING | Vàng `#F59E0B` |
-| CONFIRMED | Xanh dương `#3B82F6` |
-| PREPARING | Tím `#8B5CF6` |
-| READY | Xanh lá `#10B981` |
-
----
-
-## Giao diện OrderDetailPage
-
-| Button | Hiện khi | Chuyển thành |
-|--------|----------|--------------|
-| "Xác nhận" | PENDING | CONFIRMED |
-| "Bắt đầu chế biến" | CONFIRMED | PREPARING |
-| "Hoàn thành" | PREPARING | READY |
-| "Hủy đơn" | Luôn (trừ READY) | CANCELLED + modal lý do |
+```json
+{
+  "productId": 1,
+  "variantId": 2,
+  "productName": "Classic Beef Burger",
+  "variantName": "Size L",
+  "quantity": 1,
+  "unitPrice": 55000,
+  "totalPrice": 55000
+}
+```
 
 ---
 
 ## Việc cần làm
 
-- [ ] Backend: sửa `StaffOrderService.updateStatus()` cho phép CONFIRMED→PREPARING→READY
-- [ ] Backend: thêm ghi `confirmed_at`, `ready_at`, `cancelled_at`
-- [ ] Frontend: `OrderDetailPage` — thêm 3 button (Xác nhận / Chế biến / Hoàn thành)
-- [ ] Frontend: `OrderDetailPage` — button "Hủy đơn" + modal nhập failure_reason
-- [ ] Frontend: `OrdersPage` — thêm tab PREPARING + READY
-- [ ] Frontend: kiểm tra doughnut chart hiển thị đúng 4 màu
+### Backend
+
+- [ ] `StaffOrderService.updateStatus()` validate đúng flow.
+- [ ] Ghi `confirmedAt` khi CONFIRMED.
+- [ ] Ghi `readyAt` khi READY.
+- [ ] Ghi `cancelledAt` + `failureReason` khi CANCELLED.
+- [ ] `StaffOrderServlet.toDetail()` trả `variantName`.
+- [ ] Null-safe với guest order `user_id = null`.
+- [ ] Không để `OrdersDAO.save()` nuốt lỗi âm thầm.
+
+### Frontend
+
+- [ ] `OrdersPage.vue`: tabs không race condition.
+- [ ] `OrdersPage.vue`: PENDING/CONFIRMED/PREPARING/READY đều fetch đúng.
+- [ ] `OrderDetailPage.vue`: hiển thị product + variant.
+- [ ] `OrderDetailPage.vue`: nút status đúng trạng thái hiện tại.
+- [ ] `OrderDetailPage.vue`: cancel modal có lý do.
+- [ ] `DashboardPage.vue`: chart status đúng màu.
+
+---
+
+## Checklist test
+
+- [ ] PENDING tab có đơn mới.
+- [ ] Xác nhận đơn chuyển sang CONFIRMED.
+- [ ] Bắt đầu chế biến chuyển sang PREPARING.
+- [ ] Hoàn thành chuyển sang READY.
+- [ ] Hủy đơn lưu lý do.
+- [ ] User timeline cập nhật.
+- [ ] Không còn 500 ở staff tabs.
 
 ---
 
 ## Phụ thuộc
 
-- **Auth**: Cần đăng nhập
-- **Guest**: Cần có đơn PENDING từ khách
-- **User**: User cần thấy trạng thái Staff cập nhật
+- **User/Guest**: cần đơn hàng được checkout.
+- **Database**: OrderItem có `variant_id`, `variant_name`.
