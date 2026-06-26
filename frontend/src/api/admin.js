@@ -52,18 +52,6 @@ export default {
   deleteDeliveryZone(id) {
     return client.delete(`/admin/delivery-zones/${id}`);
   },
-  getIngredients() {
-    return client.get('/admin/ingredients');
-  },
-  createIngredient(data) {
-    return client.post('/admin/ingredients', data);
-  },
-  updateIngredient(id, data) {
-    return client.put(`/admin/ingredients/${id}`, data);
-  },
-  deleteIngredient(id) {
-    return client.delete(`/admin/ingredients/${id}`);
-  },
   getShifts() {
     return client.get('/admin/shifts');
   },
