@@ -35,7 +35,7 @@ public class OrderService {
         List<CartItem> cartItems = cartDAO.getItems(cart.getCartId());
         if (cartItems.isEmpty()) return null;
 
-        DeliveryZone zone = deliveryZoneDAO.findById(zoneId );
+        DeliveryZone zone = zoneId > 0 ? deliveryZoneDAO.findById(zoneId) : null;
         BigDecimal shippingFee = zone != null ? zone.getShippingFee() : BigDecimal.ZERO;
 
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -54,6 +54,7 @@ public class OrderService {
         order.setTotalAmount(totalAmount);
         order.setShippingFee(shippingFee);
         order.setFinalAmount(finalAmount);
+        order.setShippingProvider(zone != null ? "FALLBACK_ZONE" : "NONE");
         order.setPaymentMethod(paymentMethod != null ? paymentMethod : "COD");
         order.setPaymentStatus("UNPAID");
         order.setOrderStatus("PENDING");
@@ -66,10 +67,11 @@ public class OrderService {
             OrderItem oi = new OrderItem();
             oi.setOrder(order);
             oi.setProduct(ci.getProduct());
+            oi.setVariant(ci.getVariant());
             oi.setProductName(ci.getProduct().getName());
+            oi.setVariantName(ci.getVariant() != null ? ci.getVariant().getVariantName() : "");
             oi.setQuantity(ci.getQuantity());
             oi.setUnitPrice(ci.getUnitPrice());
-            oi.setOptionData(ci.getOptionData());
             oi.setTotalPrice(ci.getUnitPrice().multiply(BigDecimal.valueOf(ci.getQuantity())));
             orderItemDAO.save(oi);
         }
