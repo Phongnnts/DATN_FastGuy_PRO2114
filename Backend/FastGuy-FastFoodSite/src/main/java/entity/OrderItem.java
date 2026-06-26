@@ -27,17 +27,21 @@ public class OrderItem {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    @ManyToOne
+    @JoinColumn(name = "variant_id")
+    private ProductVariant variant;
+
     @Column(name = "product_name")
     private String productName;
+
+    @Column(name = "variant_name")
+    private String variantName;
 
     @Column(name = "quantity")
     private int quantity;
 
     @Column(name = "unit_price")
     private BigDecimal unitPrice;
-
-    @Column(name = "option_data")
-    private String optionData;
 
     @Column(name = "total_price")
     private BigDecimal totalPrice;
@@ -50,14 +54,16 @@ public class OrderItem {
     public void setOrder(Orders order) { this.order = order; }
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }
+    public ProductVariant getVariant() { return variant; }
+    public void setVariant(ProductVariant variant) { this.variant = variant; }
     public String getProductName() { return productName; }
     public void setProductName(String productName) { this.productName = productName; }
+    public String getVariantName() { return variantName; }
+    public void setVariantName(String variantName) { this.variantName = variantName; }
     public int getQuantity() { return quantity; }
     public void setQuantity(int quantity) { this.quantity = quantity; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
-    public String getOptionData() { return optionData; }
-    public void setOptionData(String optionData) { this.optionData = optionData; }
     public BigDecimal getTotalPrice() { return totalPrice; }
     public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
 }

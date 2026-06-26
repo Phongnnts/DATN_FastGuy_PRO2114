@@ -168,7 +168,9 @@ public class StaffOrderServlet extends HttpServlet {
                 .map(oi -> {
                     Map<String, Object> im = new HashMap<>();
                     im.put("productId", oi.getProduct().getProductId());
+                    im.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
                     im.put("productName", oi.getProductName());
+                    im.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
                     im.put("quantity", oi.getQuantity());
                     im.put("unitPrice", oi.getUnitPrice());
                     im.put("totalPrice", oi.getTotalPrice());
