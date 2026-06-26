@@ -1,83 +1,142 @@
 # Module Auth
 
-**Người phụ trách**: Người 1
-
-## Mục tiêu
-
-Đảm bảo đăng nhập, đăng ký, profile, JWT và route guard ổn định cho toàn bộ hệ thống.
+**Nhánh git:** `module/auth`
+**Người phụ trách:** Người 1
 
 ---
 
-## Files
+## Trạng thái
 
-### Backend
-
-- `servlet/AuthServlet.java`
-- `service/AuthService.java`
-- `dao/UserDAO.java`
-- `utils/JwtUtil.java`
-
-### Frontend
-
-- `views/guest/LoginPage.vue`
-- `views/guest/RegisterPage.vue`
-- `views/user/ProfilePage.vue`
-- `views/user/ChangePasswordPage.vue`
-- `stores/auth.js`
-- `api/auth.js`
-- `router/index.js`
+**Backend đã xong.** Chỉ cần kiểm tra backend + sửa frontend.
 
 ---
 
-## API Endpoints
+## Files cần sửa
 
-| Method | Path | Việc cần kiểm tra |
-|---|---|---|
-| POST | `/api/auth/login` | Login đúng role, trả JWT đúng |
-| POST | `/api/auth/register` | Tạo USER mới |
-| GET | `/api/auth/profile` | Lấy profile từ token |
-| PUT | `/api/auth/profile` | Cập nhật tên/sđt/avatar |
-| POST | `/api/auth/logout` | Optional, frontend có thể clear token |
+| File | Việc |
+|---|---|
+| `frontend/src/stores/auth.js` | Kiểm tra JWT decode, lưu session, role getter |
+| `frontend/src/router/index.js` | Route guard theo role |
+| `frontend/src/views/guest/LoginPage.vue` | Form login, gọi API |
+| `frontend/src/views/guest/RegisterPage.vue` | Form register |
+| `frontend/src/views/user/ProfilePage.vue` | Hiển thị + sửa thông tin |
+| `frontend/src/views/user/ChangePasswordPage.vue` | Đổi mật khẩu |
 
 ---
 
-## Việc cần làm
+## API hiện tại
 
-### Backend
+### POST /api/auth/login
 
-- [ ] Kiểm tra JWT payload có `userId`, `role`, `email`, `fullName`.
-- [ ] Kiểm tra login trả đúng role: USER / STAFF / ADMIN.
-- [ ] Hoàn thiện `GET /api/auth/profile`.
-- [ ] Hoàn thiện `PUT /api/auth/profile`.
-- [ ] Chuẩn hóa lỗi: missing token, invalid token, forbidden.
+```json
+Request: { "email": "admin@fastguy.com", "password": "123456" }
+Response: {
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiJ9...",
+    "userId": 1,
+    "role": "ADMIN",
+    "email": "admin@fastguy.com",
+    "fullName": "Admin FastGuy"
+  }
+}
+```
 
-### Frontend
+### POST /api/auth/register
 
-- [ ] Kiểm tra login/register form validation.
-- [ ] Kiểm tra lưu token vào auth store.
-- [ ] Kiểm tra refresh trang vẫn giữ session.
-- [ ] Kiểm tra route guard:
-  - Guest không vào User/Staff/Admin.
-  - User không vào Staff/Admin.
-  - Staff không vào Admin.
-  - Admin vào dashboard đúng.
+```json
+Request: { "email": "...", "password": "...", "phone": "...", "fullName": "..." }
+Response: { "success": true, "data": { "userId": 9 } }
+```
+
+### GET /api/auth/profile
+
+```json
+Response: { "success": true, "data": { "userId": 1, "email": "...", "fullName": "...", "phone": "...", "avatarUrl": "", "roleName": "ADMIN" } }
+```
+
+### PUT /api/auth/profile
+
+```json
+Request: { "fullName": "...", "phone": "...", "avatarUrl": "..." }
+Response: { "success": true, "message": "Profile updated" }
+```
+
+---
+
+## AI Prompt — stores/auth.js
+
+```
+Kiểm tra và sửa file `frontend/src/stores/auth.js`.
+
+Yêu cầu:
+1. Khi login thành công, lưu token vào localStorage với key 'token'
+2. decode JWT bằng tay (base64 parse payload) để lấy userId, role, email, fullName
+3. Khi khởi tạo store (module load), kiểm tra localStorage có token không → decode → set user
+4. Token hết hạn (exp) thì tự động logout
+5. Các getter:
+   - isLoggedIn: !!token.value
+   - role: user.value?.role || 'GUEST'
+   - isUser: role === 'USER'
+   - isStaff: role === 'STAFF'
+   - isAdmin: role === 'ADMIN'
+6. Hàm logout(): xóa token, xóa user, redirect về /login
+7. Hàm updateProfile(data): gọi PUT /api/auth/profile, cập nhật user
+
+import { ref, computed } from 'vue'
+import { authApi } from '@/api'
+import { ROLES } from '@/utils/constants'
+```
+
+---
+
+## AI Prompt — router/index.js
+
+```
+Kiểm tra file `frontend/src/router/index.js`.
+
+Route guard yêu cầu:
+1. GuestLayout (path: /): chỉ cho GUEST (chưa login)
+   - LoginPage, RegisterPage, ForgotPasswordPage, HomePage, MenuPage, CartPage, TrackOrderPage
+   - Nếu đã login → redirect về /user/home hoặc /staff/dashboard hoặc /admin tùy role
+2. UserLayout (path: /user): chỉ cho USER
+   - Nếu chưa login → redirect /login
+   - Nếu role khác USER → redirect về home phù hợp
+3. StaffLayout (path: /staff): chỉ cho STAFF
+   - Nếu chưa login → redirect /login
+   - Nếu role khác STAFF → redirect
+4. AdminLayout (path: /admin): chỉ cho ADMIN
+
+Sử dụng `router.beforeEach` với `useAuthStore()`.
+```
+
+---
+
+## AI Prompt — LoginPage.vue
+
+```
+Sửa `frontend/src/views/guest/LoginPage.vue`.
+
+Yêu cầu:
+1. Form nhập email, password
+2. Gọi `authStore.login(email, password)`
+3. Nếu thành công, redirect theo role:
+   - ADMIN → /admin
+   - STAFF → /staff/dashboard
+   - USER → /
+4. Nếu thất bại, hiển thị lỗi
+5. Có link đến RegisterPage
+```
 
 ---
 
 ## Checklist test
 
-- [ ] Login admin thành công.
-- [ ] Login staff thành công.
-- [ ] Login user thành công.
-- [ ] Register user mới.
-- [ ] Profile load đúng.
-- [ ] Profile update đúng.
-- [ ] Token sai/hết hạn bị logout.
-- [ ] Route guard đúng role.
-
----
-
-## Phụ thuộc
-
-- Module này nên ổn định đầu tiên.
-- Guest/User/Staff/Admin đều phụ thuộc Auth.
+- [ ] Login admin → vào /admin
+- [ ] Login staff → vào /staff/dashboard
+- [ ] Login user → vào /
+- [ ] Register user mới → login được
+- [ ] Profile hiển thị đúng thông tin
+- [ ] Profile update được
+- [ ] Token sai/hết hạn → tự logout
+- [ ] Route guard: guest không vào user/staff/admin

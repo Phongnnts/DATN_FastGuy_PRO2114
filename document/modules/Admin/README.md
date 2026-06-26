@@ -1,120 +1,188 @@
 # Module Admin
 
-**Người phụ trách**: Người 5
-
-## Mục tiêu
-
-Admin quản lý product theo schema mới, gồm `Product` và `ProductVariant`, upload ảnh Cloudinary và kiểm tra dashboard.
+**Nhánh git:** `module/admin`
+**Người phụ trách:** Người 5
 
 ---
 
-## Files
+## Trạng thái
 
-### Backend
-
-- `servlet/AdminServlet.java`
-- `servlet/AdminUserServlet.java`
-- `servlet/AdminProductServlet.java`
-- `servlet/AdminCategoryServlet.java`
-- `servlet/AdminDeliveryZoneServlet.java`
-- `servlet/ProductServlet.java`
-- `dao/ProductDAO.java`
-- `entity/Product.java`
-- `entity/ProductVariant.java`
-
-### Frontend
-
-- `views/admin/DashboardPage.vue`
-- `views/admin/UsersPage.vue`
-- `views/admin/ProductsPage.vue`
-- `views/admin/CategoriesPage.vue`
-- `views/admin/DeliveryZonesPage.vue`
-- `api/admin.js`
+**Backend đã xong CRUD Product + ProductVariant.** Cần sửa frontend.
 
 ---
 
-## Product model mới
+## API
 
-```text
-Product = món cha
-ProductVariant = phiên bản bán được
-```
+### Product
 
-Ví dụ:
-
-```text
-Product: Pizza Hải Sản
-- Variant: Size M - 89000
-- Variant: Size L - 119000
-```
-
----
-
-## API cần hỗ trợ
-
-| Method | Path | Mục tiêu |
+| Method | Path | Body/Params |
 |---|---|---|
-| GET | `/api/admin/products` | List products |
-| POST | `/api/admin/products` | Tạo product |
-| PUT | `/api/admin/products/{id}` | Sửa product |
-| DELETE | `/api/admin/products/{id}` | Xóa/ẩn product |
-| GET | `/api/admin/products/{id}/variants` | List variants |
-| POST | `/api/admin/products/{id}/variants` | Tạo variant |
-| PUT | `/api/admin/variants/{id}` | Sửa variant |
-| DELETE | `/api/admin/variants/{id}` | Xóa/ẩn variant |
+| GET | `/api/admin/products` | List all |
+| POST | `/api/admin/products` | `{ categoryId, name, description, basePrice, imageUrl, galleryImages, status }` |
+| PUT | `/api/admin/products/{id}` | `{ name, basePrice, ... }` |
+| DELETE | `/api/admin/products/{id}` | |
+
+### Variant
+
+| Method | Path | Body/Params |
+|---|---|---|
+| GET | `/api/admin/products/{id}/variants` | List variants của product |
+| POST | `/api/admin/products/{id}/variants` | `{ variantName, price, isDefault }` |
+| PUT | `/api/admin/variants/{id}` | `{ variantName, price, isDefault, status }` |
+| DELETE | `/api/admin/variants/{id}` | |
+
+### Response product
+
+```json
+{
+  "productId": 1,
+  "name": "Classic Beef Burger",
+  "categoryId": 1,
+  "categoryName": "Burger",
+  "basePrice": 45000,
+  "imageUrl": "...",
+  "description": "...",
+  "status": "AVAILABLE",
+  "galleryImages": ["https://..."],
+  "variants": [
+    { "variantId": 1, "variantName": "Mặc định", "price": 45000, "isDefault": true, "status": "AVAILABLE" },
+    { "variantId": 2, "variantName": "Size L", "price": 55000, "isDefault": false, "status": "AVAILABLE" }
+  ]
+}
+```
+
+### Response variant
+
+```json
+{ "variantId": 2, "variantName": "Size L", "price": 55000, "originalPrice": null, "sku": null, "quantityAvailable": null, "isDefault": false, "status": "AVAILABLE" }
+```
 
 ---
 
-## Việc cần làm
+## File cần sửa
 
-### Backend
-
-- [ ] Sửa `Product.java`: `basePrice`, `galleryImages`.
-- [ ] Tạo `ProductVariant.java`.
-- [ ] Sửa `ProductDAO`:
-  - `findVariantsByProductId`
-  - `findVariantById`
-  - `saveVariant`
-  - `deleteVariant`
-- [ ] Sửa `ProductServlet` trả variants.
-- [ ] Sửa `AdminProductServlet` CRUD variants.
-- [ ] Không dùng `ProductOption` nữa.
-
-### Frontend
-
-- [ ] `ProductsPage.vue`: product form dùng `basePrice`.
-- [ ] `ProductsPage.vue`: thêm/sửa/xóa variants.
-- [ ] `ProductsPage.vue`: set default variant.
-- [ ] `ProductsPage.vue`: upload ảnh Cloudinary.
-- [ ] `ProductsPage.vue`: gallery images.
-- [ ] `DashboardPage.vue`: kiểm tra chart.
+| File | Việc |
+|---|---|
+| `frontend/src/stores/admin.js` | Thêm variant CRUD methods, bỏ nốt option cũ |
+| `frontend/src/api/admin.js` | Thêm variant endpoints |
+| `frontend/src/views/admin/ProductsPage.vue` | Form dùng basePrice, quản lý variants |
+| `frontend/src/views/admin/DashboardPage.vue` | Kiểm tra chart |
 
 ---
 
-## Cloudinary
+## AI Prompt 1 — stores/admin.js
 
-```text
-Cloud name: ds4dnsj0o
-Upload preset: upload-fastguy
-Upload URL: https://api.cloudinary.com/v1_1/ds4dnsj0o/image/upload
+```
+Sửa `frontend/src/stores/admin.js`.
+
+Thêm các method cho ProductVariant:
+```
+async function fetchVariants(productId) {
+  loading.value = true;
+  try {
+    const data = await adminApi.getVariants(productId);
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+  finally { loading.value = false; }
+}
+
+async function createVariant(productId, data) {
+  try {
+    const res = await adminApi.createVariant(productId, data);
+    return res;
+  } catch { return null; }
+}
+
+async function updateVariant(id, data) {
+  try {
+    await adminApi.updateVariant(id, data);
+  } catch {}
+}
+
+async function deleteVariant(id) {
+  try {
+    await adminApi.deleteVariant(id);
+  } catch {}
+}
+```
+Thêm vào return: `fetchVariants, createVariant, updateVariant, deleteVariant`
+```
+
+---
+
+## AI Prompt 2 — api/admin.js
+
+```
+Sửa `frontend/src/api/admin.js`.
+
+Thêm:
+```
+getVariants(productId) { return client.get(`/admin/products/${productId}/variants`); },
+createVariant(productId, data) { return client.post(`/admin/products/${productId}/variants`, data); },
+updateVariant(id, data) { return client.put(`/admin/variants/${id}`, data); },
+deleteVariant(id) { return client.delete(`/admin/variants/${id}`); },
+```
+
+Đã bỏ ingredient methods từ trước.
+```
+
+---
+
+## AI Prompt 3 — ProductsPage.vue
+
+```
+Sửa `frontend/src/views/admin/ProductsPage.vue`.
+
+Mô hình mới:
+- Product = món cha, có `basePrice` (giá hiển thị)
+- ProductVariant = phiên bản khách mua, có `price` (giá thật)
+- Mỗi product có 1 variant mặc định + nhiều variant phụ
+
+Yêu cầu:
+
+### Form thêm/sửa Product
+- Các field: categoryId, name, description, basePrice, imageUrl, status
+- basePrice là giá hiển thị "từ xx.xxxđ"
+- Upload ảnh Cloudinary (giữ nguyên)
+- Gallery images
+
+### Quản lý Variants
+- Khi xem/sửa product, hiển thị danh sách variants
+- Mỗi variant hiển thị: variantName, price, isDefault, status
+- Nút "Thêm variant": mở form nhập variantName, price, checkbox isDefault
+- Nút "Sửa": mở form sửa variantName, price, isDefault
+- Nút "Xóa": confirm rồi gọi deleteVariant
+- Khi set isDefault = true cho variant nào, các variant khác tự thành false
+
+### API gọi
+- Load product: `adminStore.fetchProducts()` hoặc `adminApi.getProduct(id)`
+- Load variants: `adminStore.fetchVariants(productId)`
+- Tạo variant: `adminStore.createVariant(productId, { variantName, price, isDefault })`
+- Sửa variant: `adminStore.updateVariant(variantId, { variantName, price, isDefault })`
+- Xóa variant: `adminStore.deleteVariant(variantId)`
+```
+
+---
+
+## Cloudinary Config
+
+```js
+CLOUDINARY: {
+  cloudName: 'ds4dnsj0o',
+  uploadPreset: 'upload-fastguy',
+  uploadUrl: 'https://api.cloudinary.com/v1_1/ds4dnsj0o/image/upload',
+}
 ```
 
 ---
 
 ## Checklist test
 
-- [ ] Admin tạo product.
-- [ ] Admin tạo variant.
-- [ ] Product detail thấy variant mới.
-- [ ] Admin sửa giá variant.
-- [ ] Đơn cũ không đổi giá.
-- [ ] Ẩn variant không làm vỡ đơn cũ.
-- [ ] Upload ảnh/galleries hoạt động.
-
----
-
-## Phụ thuộc
-
-- **Database**: cần `ProductVariant`.
-- **Common**: cần Cloudinary constants.
-- **Guest**: dùng product response mới.
+- [ ] Tạo product với basePrice
+- [ ] Tạo variant (Size M, Size L...)
+- [ ] Set variant mặc định
+- [ ] Product detail trả variants
+- [ ] Sửa giá variant
+- [ ] Xóa variant
+- [ ] Đơn cũ không đổi giá (OrderItem snapshot)
+- [ ] Upload ảnh Cloudinary
