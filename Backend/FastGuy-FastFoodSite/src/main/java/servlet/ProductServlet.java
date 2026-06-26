@@ -1,7 +1,8 @@
 package servlet;
 
 import dao.ProductDAO;
-import entity.ProductOption;
+import entity.Product;
+import entity.ProductVariant;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,15 +31,9 @@ public class ProductServlet extends HttpServlet {
             List<Map<String, Object>> products;
             if (categoryParam != null) {
                 int categoryId = Integer.parseInt(categoryParam);
-                products = productDAO.findByCategoryId(categoryId)
-                        .stream()
-                        .map(this::toMap)
-                        .collect(Collectors.toList());
+                products = productDAO.findByCategoryId(categoryId).stream().map(this::toMap).collect(Collectors.toList());
             } else {
-                products = productDAO.findAllAvailable()
-                        .stream()
-                        .map(this::toMap)
-                        .collect(Collectors.toList());
+                products = productDAO.findAllAvailable().stream().map(this::toMap).collect(Collectors.toList());
             }
             ApiResponse.ok(resp, products);
             return;
@@ -46,7 +41,7 @@ public class ProductServlet extends HttpServlet {
 
         try {
             int productId = Integer.parseInt(path.substring(1));
-            entity.Product p = productDAO.findById(productId);
+            Product p = productDAO.findById(productId);
             if (p == null || !"AVAILABLE".equals(p.getStatus())) {
                 ApiResponse.error(resp, "Product not found", 404);
                 return;
@@ -57,45 +52,54 @@ public class ProductServlet extends HttpServlet {
         }
     }
 
-    private Map<String, Object> toMap(entity.Product p) {
+    private Map<String, Object> toVariantMap(ProductVariant v) {
         Map<String, Object> m = new HashMap<>();
+        m.put("variantId", v.getVariantId());
+        m.put("variantName", v.getVariantName());
+        m.put("price", v.getPrice());
+        m.put("originalPrice", v.getOriginalPrice());
+        m.put("sku", v.getSku());
+        m.put("quantityAvailable", v.getQuantityAvailable());
+        m.put("isDefault", v.getIsDefault() != null ? v.getIsDefault() : false);
+        m.put("status", v.getStatus());
+        return m;
+    }
+
+    private Map<String, Object> toMap(Product p) {
+        Map<String, Object> m = new HashMap<>();
+        ProductVariant defaultVariant = productDAO.findDefaultVariantByProductId(p.getProductId());
         m.put("productId", p.getProductId());
         m.put("name", p.getName());
         m.put("description", p.getDescription() != null ? p.getDescription() : "");
-        m.put("price", p.getPrice());
+        m.put("basePrice", p.getBasePrice());
+        m.put("price", defaultVariant != null ? defaultVariant.getPrice() : p.getBasePrice());
+        m.put("defaultVariant", defaultVariant != null ? toVariantMap(defaultVariant) : null);
         m.put("imageUrl", p.getImageUrl() != null ? p.getImageUrl() : "");
         m.put("categoryId", p.getCategory().getCategoryId());
         m.put("categoryName", p.getCategory().getName());
         return m;
     }
 
-    private Map<String, Object> toDetailMap(entity.Product p) {
+    private Map<String, Object> toDetailMap(Product p) {
         Map<String, Object> m = toMap(p);
-
-        List<Map<String, Object>> options = productDAO.findOptionsByProductId(p.getProductId())
-                .stream()
-                .map(o -> {
-                    Map<String, Object> om = new HashMap<>();
-                    om.put("optionId", o.getOptionId());
-                    om.put("optionName", o.getOptionName());
-                    om.put("extraPrice", o.getExtraPrice());
-                    om.put("stockControlled", o.getStockControlled() != null ? o.getStockControlled() : false);
-                    om.put("quantityAvailable", o.getQuantityAvailable());
-                    return om;
-                })
+        List<Map<String, Object>> variants = productDAO.findVariantsByProductId(p.getProductId()).stream()
+                .map(this::toVariantMap)
                 .collect(Collectors.toList());
-        m.put("options", options);
+        m.put("variants", variants);
 
         String gallery = p.getGalleryImages();
         List<String> galleryList = new ArrayList<>();
         if (gallery != null && !gallery.isEmpty()) {
-            for (String url : gallery.split(",")) {
-                String trimmed = url.trim();
-                if (!trimmed.isEmpty()) galleryList.add(trimmed);
+            if (gallery.trim().startsWith("[")) {
+                galleryList.add(gallery);
+            } else {
+                for (String url : gallery.split(",")) {
+                    String trimmed = url.trim();
+                    if (!trimmed.isEmpty()) galleryList.add(trimmed);
+                }
             }
         }
         m.put("galleryImages", galleryList);
-
         return m;
     }
 }

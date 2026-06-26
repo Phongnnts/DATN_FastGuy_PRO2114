@@ -1,7 +1,7 @@
 package dao;
 
 import entity.Product;
-import entity.ProductOption;
+import entity.ProductVariant;
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
 
@@ -52,14 +52,38 @@ public class ProductDAO {
         }
     }
 
-    public List<entity.ProductOption> findOptionsByProductId(int productId) {
+    public List<ProductVariant> findVariantsByProductId(int productId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT o FROM ProductOption o WHERE o.product.productId = :pid",
-                    entity.ProductOption.class)
+                    "SELECT v FROM ProductVariant v WHERE v.product.productId = :pid ORDER BY v.isDefault DESC, v.variantId",
+                    ProductVariant.class)
                     .setParameter("pid", productId)
                     .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public ProductVariant findDefaultVariantByProductId(int productId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<ProductVariant> result = em.createQuery(
+                    "SELECT v FROM ProductVariant v WHERE v.product.productId = :pid AND v.isDefault = true ORDER BY v.variantId",
+                    ProductVariant.class)
+                    .setParameter("pid", productId)
+                    .setMaxResults(1)
+                    .getResultList();
+            return result.isEmpty() ? null : result.get(0);
+        } finally {
+            em.close();
+        }
+    }
+
+    public ProductVariant findVariantById(int id) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.find(ProductVariant.class, id);
         } finally {
             em.close();
         }
@@ -88,6 +112,7 @@ public class ProductDAO {
         } catch (Exception e) {
             em.getTransaction().rollback();
             e.printStackTrace();
+            throw new RuntimeException("Failed to save product: " + e.getMessage(), e);
         } finally {
             em.close();
         }
@@ -103,48 +128,42 @@ public class ProductDAO {
         } catch (Exception e) {
             em.getTransaction().rollback();
             e.printStackTrace();
+            throw new RuntimeException("Failed to delete product: " + e.getMessage(), e);
         } finally {
             em.close();
         }
     }
 
-    public ProductOption findOptionById(int id) {
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            return em.find(ProductOption.class, id);
-        } finally {
-            em.close();
-        }
-    }
-
-    public void saveOption(ProductOption option) {
+    public void saveVariant(ProductVariant variant) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
-            if (option.getOptionId() == 0) {
-                em.persist(option);
+            if (variant.getVariantId() == 0) {
+                em.persist(variant);
             } else {
-                em.merge(option);
+                em.merge(variant);
             }
             em.getTransaction().commit();
         } catch (Exception e) {
             em.getTransaction().rollback();
             e.printStackTrace();
+            throw new RuntimeException("Failed to save variant: " + e.getMessage(), e);
         } finally {
             em.close();
         }
     }
 
-    public void deleteOption(int id) {
+    public void deleteVariant(int id) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
-            ProductOption o = em.find(ProductOption.class, id);
-            if (o != null) em.remove(o);
+            ProductVariant v = em.find(ProductVariant.class, id);
+            if (v != null) em.remove(v);
             em.getTransaction().commit();
         } catch (Exception e) {
             em.getTransaction().rollback();
             e.printStackTrace();
+            throw new RuntimeException("Failed to delete variant: " + e.getMessage(), e);
         } finally {
             em.close();
         }
