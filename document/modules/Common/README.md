@@ -1,126 +1,196 @@
 # Module Common
 
-**Người phụ trách**: Người 6
+**Nhánh git:** `module/common`
+**Người phụ trách:** Người 6
+
+---
 
 ## Mục tiêu
 
-Quản lý phần dùng chung: layouts, constants, styles, router, helper, docs, build/test. Đồng thời hỗ trợ Database và Shipping vì đây là phần nền tảng của giai đoạn mới.
+1. Tạo GHN backend (ShippingServlet, ShippingService, GhnClient)
+2. Cập nhật constants/layout
+3. Hỗ trợ các module khác
 
 ---
 
-## Files
+## 1. GHN Backend — Files cần tạo
 
-### Layouts
+### Backend files mới
 
-- `layouts/GuestLayout.vue`
-- `layouts/UserLayout.vue`
-- `layouts/StaffLayout.vue`
-- `layouts/AdminLayout.vue`
+| File | Nội dung |
+|---|---|
+| `Backend/src/main/java/utils/GhnClient.java` | HTTP client gọi GHN API |
+| `Backend/src/main/java/service/ShippingService.java` | Business logic + fallback |
+| `Backend/src/main/java/servlet/ShippingServlet.java` | REST API |
+| `Backend/src/main/java/utils/AppConfig.java` | Config GHN từ env/file |
 
-### Styles
+### API cần implement
 
-- `assets/styles/global.css`
-- `assets/styles/variables.css`
+```http
+GET  /api/shipping/provinces
+GET  /api/shipping/districts?provinceId=202
+GET  /api/shipping/wards?districtId=1442
+POST /api/shipping/fee
+```
 
-### Utils
+### AI Prompt — GhnClient.java
 
-- `utils/constants.js`
-- `utils/format.js`
-- `utils/helpers.js`
-- `utils/validators.js`
+```
+Tạo `Backend/src/main/java/utils/GhnClient.java`.
 
-### Components
+Yêu cầu:
+1. Dùng `java.net.http.HttpClient` (Java 17) hoặc `HttpURLConnection`
+2. Đọc token từ AppConfig
+3. Các method:
+   - getProvinces() → List<Map> (provinceId, provinceName)
+   - getDistricts(int provinceId) → List<Map> (districtId, districtName)
+   - getWards(int districtId) → List<Map> (wardCode, wardName)
+   - calculateFee(int toDistrictId, String toWardCode, int weight, int length, int width, int height) → Map (fee, serviceId, expectedDeliveryTime)
+4. Host mặc định: https://dev-online-gateway.ghn.vn
+5. Parse JSON bằng Jackson hoặc JsonUtil
+6. Xử lý lỗi: trả về null hoặc map có error field
 
-- `components/common/ProductCard.vue`
-- `components/common/OrderStatusBadge.vue`
-- `components/common/OrderTimeline.vue`
-- `components/common/HeroBanner.vue`
-
-### Router
-
-- `router/index.js`
-
-### Backend common
-
-- `utils/DatabaseUtil.java`
-- `utils/JsonUtil.java`
-- `utils/ApiResponse.java`
-
----
-
-## Constants cần cập nhật
-
-- Cloudinary config.
-- Order status:
-  - PENDING
-  - CONFIRMED
-  - PREPARING
-  - READY
-  - CANCELLED
-- Payment status:
-  - UNPAID
-  - PAID
-- Shipping provider:
-  - GHN
-  - FALLBACK_ZONE
-- Product status:
-  - AVAILABLE
-  - UNAVAILABLE
-
----
-
-## Việc cần làm
-
-### Frontend common
-
-- [ ] Cập nhật `constants.js`.
-- [ ] Kiểm tra `formatPrice`.
-- [ ] Kiểm tra `formatDate`.
-- [ ] Kiểm tra `OrderStatusBadge` đủ trạng thái.
-- [ ] Kiểm tra `OrderTimeline` không duplicate trạng thái.
-- [ ] Kiểm tra layouts/sidebar.
-- [ ] Bỏ link Ingredients/LowStock nếu không còn dùng.
-
-### Backend common
-
-- [ ] `ApiResponse` trả error nhất quán.
-- [ ] `JsonUtil` parse request ổn định.
-- [ ] `DatabaseUtil` không hardcode secret.
-
-### Docs/Test
-
-- [ ] Cập nhật `document/WORK_PLAN.md`.
-- [ ] Cập nhật README module.
-- [ ] Viết checklist demo.
-- [ ] Chạy backend compile.
-- [ ] Chạy frontend build.
-
----
-
-## Cloudinary Config
-
-```js
-CLOUDINARY: {
-  cloudName: 'ds4dnsj0o',
-  uploadPreset: 'upload-fastguy',
-  uploadUrl: 'https://api.cloudinary.com/v1_1/ds4dnsj0o/image/upload',
+Cấu trúc:
+```
+package utils;
+public class GhnClient {
+  public GhnClient() {}
+  public List<Map<String, Object>> getProvinces() { ... }
+  public List<Map<String, Object>> getDistricts(int provinceId) { ... }
+  public List<Map<String, Object>> getWards(int districtId) { ... }
+  public Map<String, Object> calculateFee(int toDistrictId, String toWardCode, int weight, int length, int width, int height) { ... }
 }
+```
+```
+
+### AI Prompt — ShippingService.java
+
+```
+Tạo `Backend/src/main/java/service/ShippingService.java`.
+
+Yêu cầu:
+1. Dùng GhnClient gọi GHN
+2. Nếu GHN lỗi/timeout → fallback sang DeliveryZone
+3. Các method:
+   - getProvinces()
+   - getDistricts(int provinceId)
+   - getWards(int districtId)
+   - calculateFee(int toDistrictId, String toWardCode, int weight, int length, int width, int height)
+4. Fallback: lấy DeliveryZone gần nhất hoặc mặc định
+
+Struct:
+```
+package service;
+public class ShippingService {
+  private GhnClient ghnClient = new GhnClient();
+  private DeliveryZoneDAO deliveryZoneDAO = new DeliveryZoneDAO();
+  
+  public Map<String, Object> calculateFee(...) {
+    try {
+      Map<String, Object> result = ghnClient.calculateFee(toDistrictId, toWardCode, weight, length, width, height);
+      if (result != null) {
+        result.put("shippingProvider", "GHN");
+        return result;
+      }
+    } catch (Exception e) { e.printStackTrace(); }
+    // fallback
+    Map<String, Object> fallback = new HashMap<>();
+    fallback.put("shippingProvider", "FALLBACK_ZONE");
+    fallback.put("shippingFee", 15000);
+    return fallback;
+  }
+}
+```
+```
+
+### AI Prompt — ShippingServlet.java
+
+```
+Tạo `Backend/src/main/java/servlet/ShippingServlet.java`.
+
+Yêu cầu:
+- @WebServlet("/api/shipping/*")
+- doGet: provinces, districts, wards
+- doPost: calculate fee
+- Không cần auth (public)
+- Trả về ApiResponse
+
+Endpoints:
+1. GET /api/shipping/provinces → list provinces
+2. GET /api/shipping/districts?provinceId=202 → list districts
+3. GET /api/shipping/wards?districtId=1442 → list wards
+4. POST /api/shipping/fee → body: { toDistrictId, toWardCode, weight, length, width, height } → { shippingProvider, shippingFee, ... }
+```
+
+### AI Prompt — AppConfig.java
+
+```
+Tạo `Backend/src/main/java/utils/AppConfig.java`.
+
+Yêu cầu:
+1. Đọc GHN token từ biến môi trường: GHN_TOKEN, GHN_SHOP_ID
+2. Nếu không có env, dùng giá trị mặc định dev
+3. Cung cấp getter static:
+   - getGhnToken()
+   - getGhnShopId()
+   - getGhnHost()
 ```
 
 ---
 
-## Checklist test
+## 2. Frontend Common — Files cần kiểm tra
 
-- [ ] Layout không vỡ.
-- [ ] Sidebar đúng role.
-- [ ] Status badge đúng màu.
-- [ ] Timeline đúng thứ tự.
-- [ ] Format tiền/ngày đúng.
-- [ ] Backend compile.
-- [ ] Frontend build.
+| File | Việc |
+|---|---|
+| `frontend/src/utils/constants.js` | Thêm Cloudinary, order status, payment status, shipping provider |
+| `frontend/src/utils/format.js` | Kiểm tra formatPrice, formatDate |
+| `frontend/src/components/common/OrderStatusBadge.vue` | Đủ màu cho PENDING/CONFIRMED/PREPARING/READY/CANCELLED |
+| `frontend/src/components/common/OrderTimeline.vue` | Không duplicate status |
+| `frontend/src/router/index.js` | Đã bỏ ingredient routes |
 
 ---
 
-## Phụ thuộc
+## AI Prompt — constants.js
 
-- Tất cả module khác phụ thuộc Common.
+```
+Cập nhật `frontend/src/utils/constants.js`.
+
+Thêm:
+```
+export const ROLES = { GUEST: 'GUEST', USER: 'USER', STAFF: 'STAFF', ADMIN: 'ADMIN' };
+
+export const ORDER_STATUS = {
+  PENDING: 'Chờ xác nhận',
+  CONFIRMED: 'Đã xác nhận',
+  PREPARING: 'Đang chế biến',
+  READY: 'Đã sẵn sàng',
+  CANCELLED: 'Đã hủy',
+};
+
+export const PAYMENT_STATUS = { UNPAID: 'Chưa thanh toán', PAID: 'Đã thanh toán' };
+
+export const SHIPPING_PROVIDER = { GHN: 'GHN', FALLBACK_ZONE: 'Giao hàng nội bộ' };
+
+export const CLOUDINARY = {
+  cloudName: 'ds4dnsj0o',
+  uploadPreset: 'upload-fastguy',
+  uploadUrl: 'https://api.cloudinary.com/v1_1/ds4dnsj0o/image/upload',
+};
+```
+
+Kiểm tra các file import constants để xài đúng.
+```
+
+---
+
+## 3. Checklist cleanup
+
+- [ ] Backend compile: `mvn clean compile`
+- [ ] Frontend build: `npm run build`
+- [ ] GHN provinces API hoạt động
+- [ ] GHN districts API hoạt động
+- [ ] GHN wards API hoạt động
+- [ ] GHN fee API hoạt động
+- [ ] Fallback DeliveryZone khi GHN lỗi
+- [ ] constants.js có đủ Cloudinary, order status
+- [ ] Sidebar/layout không còn link Ingredients/LowStock
