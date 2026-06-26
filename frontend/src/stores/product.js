@@ -48,19 +48,21 @@ export const useProductStore = defineStore('product', () => {
 
   function mapProduct(p) {
     return {
-      id: p.productId,
+      productId: p.productId,
       name: p.name,
       categoryId: p.categoryId,
       categoryName: p.categoryName || '',
+      basePrice: parsePrice(p.basePrice),
       price: parsePrice(p.price),
       discountPrice: p.discountPrice || null,
+      defaultVariant: p.defaultVariant || null,
+      variants: p.variants || [],
       image: ensureImage(p.imageUrl),
       description: p.description || '',
       rating: p.rating || 0,
       reviewCount: p.reviewCount || 0,
       inStock: p.inStock !== undefined ? p.inStock : true,
       featured: p.featured || false,
-      options: p.options || [],
       galleryImages: p.galleryImages || [],
     };
   }
@@ -103,7 +105,7 @@ export const useProductStore = defineStore('product', () => {
   }
 
   async function fetchById(id) {
-    const local = allProducts.value.find((p) => p.id === Number(id));
+    const local = allProducts.value.find((p) => p.productId === Number(id));
     if (local) {
       currentProduct.value = local;
     }

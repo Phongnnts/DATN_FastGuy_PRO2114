@@ -42,7 +42,7 @@ onMounted(() => {
           <div class="grid-5">
             <ProductCard
               v-for="p in previewProducts"
-              :key="p.id"
+              :key="p.productId"
               :product="p"
             />
           </div>
