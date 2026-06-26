@@ -108,7 +108,7 @@ function selectCategory(id) {
         <div class="grid-5">
           <ProductCard
             v-for="product in pagedProducts"
-            :key="product.id"
+            :key="product.productId"
             :product="product"
           />
         </div>
