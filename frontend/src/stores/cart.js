@@ -30,10 +30,7 @@ export const useCartStore = defineStore('cart', () => {
     items.value.reduce((sum, i) => sum + i.quantity, 0),
   );
   const subtotal = computed(() =>
-    items.value.reduce(
-      (sum, i) => sum + (i.discountPrice || i.price) * i.quantity,
-      0,
-    ),
+    items.value.reduce((sum, i) => sum + i.price * i.quantity, 0),
   );
 
   function loadFromStorage() {
@@ -55,60 +52,62 @@ export const useCartStore = defineStore('cart', () => {
 
   function findProduct(productId) {
     const productStore = useProductStore();
-    return productStore.allProducts.find((p) => p.id === Number(productId));
+    return productStore.allProducts.find((p) => p.productId === Number(productId));
   }
 
-  async function addItem(productId, quantity = 1, optionData = null) {
+  function itemKey(productId, variantId) {
+    return productId + '_' + variantId;
+  }
+
+  async function addItem(productId, variantId, quantity = 1) {
     const auth = useAuthStore();
     if (auth.isLoggedIn) {
-      const product = findProduct(productId);
       try {
-        const price = product ? product.discountPrice || product.price : 0;
-        await cartApi.addItem({
-          productId,
-          quantity,
-          unitPrice: price,
-          optionData: optionData ? JSON.stringify(optionData) : null,
-        });
-        addLocalItem(productId, quantity, optionData);
+        await cartApi.addItem({ productId, variantId, quantity });
+        await fetchCart();
       } catch (err) {
         console.error('Cart API addItem failed, falling back to local:', err);
-        addLocalItem(productId, quantity, optionData);
+        addLocalItem(productId, variantId, quantity);
       }
     } else {
-      addLocalItem(productId, quantity, optionData);
+      addLocalItem(productId, variantId, quantity);
     }
   }
 
-  function addLocalItem(productId, quantity, optionData) {
-    const optionKey = optionData ? JSON.stringify(optionData) : '';
-    const existing = items.value.find(
-      (i) => i.productId === productId && (i.optionKey || '') === optionKey,
-    );
+  function addLocalItem(productId, variantId, quantity) {
+    const key = itemKey(productId, variantId);
+    const existing = items.value.find((i) => i.key === key);
     if (existing) {
       existing.quantity += quantity;
     } else {
-      const product = findProduct(productId);
+      const productStore = useProductStore();
+      const product = productStore.allProducts.find((p) => p.productId === Number(productId))
+        || productStore.currentProduct;
       if (!product) return;
+      const variant = (product.variants || []).find((v) => v.variantId === Number(variantId))
+        || product.defaultVariant;
+      if (!variant) return;
       items.value.push({
-        productId: product.id,
+        cartItemId: null,
+        productId: Number(productId),
+        variantId: Number(variantId),
+        key,
         name: product.name,
-        price: product.price,
-        discountPrice: product.discountPrice,
+        variantName: variant.variantName,
+        price: variant.price,
         image: product.image,
         quantity,
-        optionData,
-        optionKey,
       });
     }
     save();
   }
 
-  function updateQuantity(productId, quantity) {
-    const item = items.value.find((i) => i.productId === productId);
+  function updateQuantity(productId, variantId, quantity) {
+    const key = itemKey(productId, variantId);
+    const item = items.value.find((i) => i.key === key);
     if (item) {
       if (quantity <= 0) {
-        removeItem(productId);
+        removeItem(productId, variantId);
         return;
       }
       item.quantity = quantity;
@@ -116,8 +115,9 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  function removeItem(productId) {
-    items.value = items.value.filter((i) => i.productId !== productId);
+  function removeItem(productId, variantId) {
+    const key = itemKey(productId, variantId);
+    items.value = items.value.filter((i) => i.key !== key);
     save();
   }
 
@@ -125,27 +125,17 @@ export const useCartStore = defineStore('cart', () => {
     try {
       const data = await cartApi.get();
       if (data && data.items) {
-        items.value = data.items.map((ci) => {
-          let optionData = null;
-          if (ci.optionData) {
-            try {
-              optionData = JSON.parse(ci.optionData);
-            } catch {
-              optionData = { raw: ci.optionData };
-            }
-          }
-          return {
-            cartItemId: ci.cartItemId,
-            productId: ci.productId,
-            name: ci.productName || '',
-            price: ci.unitPrice ? parseFloat(ci.unitPrice) : 0,
-            discountPrice: null,
-            image: ci.imageUrl || '',
-            quantity: ci.quantity,
-            optionData,
-            optionKey: optionData ? JSON.stringify(optionData) : '',
-          };
-        });
+        items.value = data.items.map((ci) => ({
+          cartItemId: ci.cartItemId,
+          productId: ci.productId,
+          variantId: ci.variantId,
+          key: itemKey(ci.productId, ci.variantId),
+          name: ci.productName || '',
+          variantName: ci.variantName || '',
+          price: ci.unitPrice ? parseFloat(ci.unitPrice) : 0,
+          image: ci.imageUrl || '',
+          quantity: ci.quantity,
+        }));
         save();
       }
     } catch (err) {
@@ -171,9 +161,8 @@ export const useCartStore = defineStore('cart', () => {
       try {
         await cartApi.addItem({
           productId: item.productId,
+          variantId: item.variantId,
           quantity: item.quantity,
-          unitPrice: item.discountPrice || item.price,
-          optionData: item.optionData ? JSON.stringify(item.optionData) : null,
         });
       } catch (err) {
         console.error('Cart migration addItem failed:', err);
