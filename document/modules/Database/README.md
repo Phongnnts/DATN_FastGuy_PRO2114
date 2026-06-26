@@ -24,7 +24,7 @@ ProductOption = thay bằng ProductVariant
 
 ```text
 database/init.sql
-database/FastGuyDBUPdate.md
+database/FastGuyDBUpdate.md
 ```
 
 ---
