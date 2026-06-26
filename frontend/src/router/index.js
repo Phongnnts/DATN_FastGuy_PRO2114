@@ -144,16 +144,6 @@ const routes = [
         component: () => import('@/views/staff/OrderHistoryPage.vue'),
       },
       {
-        path: 'ingredients',
-        name: 'StaffIngredients',
-        component: () => import('@/views/staff/IngredientsPage.vue'),
-      },
-      {
-        path: 'ingredients/low-stock',
-        name: 'StaffLowStock',
-        component: () => import('@/views/staff/LowStockPage.vue'),
-      },
-      {
         path: 'shifts',
         name: 'StaffShifts',
         component: () => import('@/views/staff/ShiftsPage.vue'),
@@ -191,11 +181,6 @@ const routes = [
         path: 'delivery-zones',
         name: 'AdminDeliveryZones',
         component: () => import('@/views/admin/DeliveryZonesPage.vue'),
-      },
-      {
-        path: 'ingredients',
-        name: 'AdminIngredients',
-        component: () => import('@/views/admin/IngredientsPage.vue'),
       },
       {
         path: 'orders',

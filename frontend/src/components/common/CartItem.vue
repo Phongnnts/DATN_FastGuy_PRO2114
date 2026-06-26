@@ -24,11 +24,8 @@ function remove() {
     </div>
     <div class="cart-item-info">
       <h4>{{ item.name }}</h4>
-      <div v-if="item.optionData" class="cart-item-option">
-        {{ item.optionData.optionName }}
-        <span v-if="item.optionData.extraPrice > 0"
-          >(+{{ formatPrice(item.optionData.extraPrice) }})</span
-        >
+      <div v-if="item.variantName" class="cart-item-option">
+        {{ item.variantName }}
       </div>
       <div class="cart-item-price">
         {{ formatPrice(item.discountPrice || item.price) }}
