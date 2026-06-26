@@ -197,7 +197,9 @@ public class OrderServlet extends HttpServlet {
                 .map(oi -> {
                     Map<String, Object> m = new HashMap<>();
                     m.put("productId", oi.getProduct().getProductId());
+                    m.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
                     m.put("productName", oi.getProductName());
+                    m.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
                     m.put("quantity", oi.getQuantity());
                     m.put("unitPrice", oi.getUnitPrice());
                     m.put("totalPrice", oi.getTotalPrice());

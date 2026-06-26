@@ -1,6 +1,7 @@
 package entity;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,14 +28,18 @@ public class CartItem {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    @ManyToOne
+    @JoinColumn(name = "variant_id")
+    private ProductVariant variant;
+
     @Column(name = "quantity")
     private int quantity;
 
-    @Column(name = "option_data")
-    private String optionData;
-
     @Column(name = "unit_price")
     private BigDecimal unitPrice;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
     public CartItem() {}
 
@@ -44,10 +49,12 @@ public class CartItem {
     public void setCart(Cart cart) { this.cart = cart; }
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }
+    public ProductVariant getVariant() { return variant; }
+    public void setVariant(ProductVariant variant) { this.variant = variant; }
     public int getQuantity() { return quantity; }
     public void setQuantity(int quantity) { this.quantity = quantity; }
-    public String getOptionData() { return optionData; }
-    public void setOptionData(String optionData) { this.optionData = optionData; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }
