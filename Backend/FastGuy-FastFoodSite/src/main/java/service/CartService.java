@@ -5,9 +5,9 @@ import dao.ProductDAO;
 import entity.Cart;
 import entity.CartItem;
 import entity.Product;
+import entity.ProductVariant;
 import entity.User;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -37,11 +37,12 @@ public class CartService {
             Map<String, Object> m = new HashMap<>();
             m.put("cartItemId", ci.getCartItemId());
             m.put("productId", ci.getProduct().getProductId());
+            m.put("variantId", ci.getVariant() != null ? ci.getVariant().getVariantId() : null);
             m.put("productName", ci.getProduct().getName());
+            m.put("variantName", ci.getVariant() != null ? ci.getVariant().getVariantName() : "");
             m.put("imageUrl", ci.getProduct().getImageUrl());
             m.put("quantity", ci.getQuantity());
             m.put("unitPrice", ci.getUnitPrice());
-            m.put("optionData", ci.getOptionData() != null ? ci.getOptionData() : "");
             return m;
         }).collect(Collectors.toList());
 
@@ -51,16 +52,23 @@ public class CartService {
         return result;
     }
 
-    public boolean addItem(User user, int productId, int quantity, BigDecimal unitPrice, String optionData) {
+    public boolean addItem(User user, int productId, int variantId, int quantity) {
+        if (quantity <= 0) return false;
+        Product product = productDAO.findById(productId);
+        if (product == null || !"AVAILABLE".equals(product.getStatus())) return false;
+        ProductVariant variant = productDAO.findVariantById(variantId);
+        if (variant == null || variant.getProduct() == null || variant.getProduct().getProductId() != productId) return false;
+        if (!"AVAILABLE".equals(variant.getStatus())) return false;
+        if (variant.getQuantityAvailable() != null && variant.getQuantityAvailable() < quantity) return false;
+
         Cart cart = getOrCreateCart(user);
         CartItem item = new CartItem();
         item.setCart(cart);
-        Product product = productDAO.findById(productId);
-        if (product == null) return false;
         item.setProduct(product);
+        item.setVariant(variant);
         item.setQuantity(quantity);
-        item.setUnitPrice(unitPrice);
-        item.setOptionData(optionData);
+        item.setUnitPrice(variant.getPrice());
+        item.setCreatedAt(LocalDateTime.now());
         cartDAO.addItem(item);
         return true;
     }

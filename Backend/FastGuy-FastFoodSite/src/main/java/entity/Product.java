@@ -30,8 +30,8 @@ public class Product {
     @Column(name = "description")
     private String description;
 
-    @Column(name = "price")
-    private BigDecimal price;
+    @Column(name = "base_price")
+    private BigDecimal basePrice;
 
     @Column(name = "image_url")
     private String imageUrl;
@@ -58,8 +58,8 @@ public class Product {
     public void setName(String name) { this.name = name; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
-    public BigDecimal getPrice() { return price; }
-    public void setPrice(BigDecimal price) { this.price = price; }
+    public BigDecimal getBasePrice() { return basePrice; }
+    public void setBasePrice(BigDecimal basePrice) { this.basePrice = basePrice; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
     public String getGalleryImages() { return galleryImages; }
