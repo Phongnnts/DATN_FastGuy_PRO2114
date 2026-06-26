@@ -92,7 +92,12 @@ public class AddressServlet extends HttpServlet {
         address.setRecipientName((String) body.get("recipientName"));
         address.setPhone((String) body.get("phone"));
         address.setStreet((String) body.get("street"));
-        address.setWard((String) body.get("ward"));
+        address.setWardName((String) body.get("wardName"));
+        address.setDistrictName((String) body.get("districtName"));
+        address.setProvinceName((String) body.get("provinceName"));
+        if (body.containsKey("ghnProvinceId")) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
+        if (body.containsKey("ghnDistrictId")) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
+        if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
         address.setCity((String) body.getOrDefault("city", "Hồ Chí Minh"));
 
         Object zoneIdObj = body.get("zoneId");
@@ -159,7 +164,12 @@ public class AddressServlet extends HttpServlet {
             if (body.containsKey("recipientName")) address.setRecipientName((String) body.get("recipientName"));
             if (body.containsKey("phone")) address.setPhone((String) body.get("phone"));
             if (body.containsKey("street")) address.setStreet((String) body.get("street"));
-            if (body.containsKey("ward")) address.setWard((String) body.get("ward"));
+            if (body.containsKey("wardName")) address.setWardName((String) body.get("wardName"));
+            if (body.containsKey("districtName")) address.setDistrictName((String) body.get("districtName"));
+            if (body.containsKey("provinceName")) address.setProvinceName((String) body.get("provinceName"));
+            if (body.containsKey("ghnProvinceId")) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
+            if (body.containsKey("ghnDistrictId")) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
+            if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
             if (body.containsKey("city")) address.setCity((String) body.get("city"));
 
             Object zoneIdObj = body.get("zoneId");
@@ -215,7 +225,12 @@ public class AddressServlet extends HttpServlet {
         m.put("recipientName", a.getRecipientName());
         m.put("phone", a.getPhone());
         m.put("street", a.getStreet());
-        m.put("ward", a.getWard());
+        m.put("wardName", a.getWardName());
+        m.put("districtName", a.getDistrictName());
+        m.put("provinceName", a.getProvinceName());
+        m.put("ghnProvinceId", a.getGhnProvinceId());
+        m.put("ghnDistrictId", a.getGhnDistrictId());
+        m.put("ghnWardCode", a.getGhnWardCode());
         m.put("city", a.getCity());
         m.put("isDefault", a.getIsDefault());
         m.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
