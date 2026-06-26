@@ -130,10 +130,6 @@ onUnmounted(destroyCharts);
           <div class="stat-label">Đã xác nhận</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">{{ data.lowStockIngredients || 0 }}</div>
-          <div class="stat-label">Nguyên liệu sắp hết</div>
-        </div>
-        <div class="stat-card">
           <div class="stat-value">{{ data.todaySchedule ? 1 : 0 }}</div>
           <div class="stat-label">Nhân viên trực</div>
         </div>
