@@ -20,12 +20,6 @@ const sidebarLinks = [
     path: '/staff/orders/history',
     icon: 'bi-clock-history',
   },
-  { label: 'Nguyên liệu', path: '/staff/ingredients', icon: 'bi-basket' },
-  {
-    label: 'Tồn kho thấp',
-    path: '/staff/ingredients/low-stock',
-    icon: 'bi-exclamation-triangle',
-  },
   { label: 'Ca làm việc', path: '/staff/shifts', icon: 'bi-calendar-check' },
 ];
 </script>
