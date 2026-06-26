@@ -18,7 +18,7 @@ defineProps({
       <div class="grid-5">
         <ProductCard
           v-for="product in products"
-          :key="product.id"
+          :key="product.productId"
           :product="product"
         />
       </div>
