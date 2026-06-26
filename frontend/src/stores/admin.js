@@ -11,7 +11,7 @@ export const useAdminStore = defineStore('admin', () => {
   const allZones = ref([]);
   const allShifts = ref([]);
   const allSchedules = ref([]);
-  const allIngredients = ref([]);
+
   const loading = ref(false);
   const error = ref('');
 
@@ -104,15 +104,6 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function fetchIngredients() {
-    try {
-      const data = await adminApi.getIngredients();
-      allIngredients.value = Array.isArray(data) ? data : [];
-      return allIngredients.value;
-    } catch {
-      return [];
-    }
-  }
 
   async function fetchShifts() {
     try {
@@ -261,29 +252,6 @@ export const useAdminStore = defineStore('admin', () => {
     } catch {}
   }
 
-  async function createIngredient(data) {
-    try {
-      const res = await adminApi.createIngredient(data);
-      await fetchIngredients();
-      return res;
-    } catch {
-      return null;
-    }
-  }
-
-  async function updateIngredient(id, data) {
-    try {
-      await adminApi.updateIngredient(id, data);
-      await fetchIngredients();
-    } catch {}
-  }
-
-  async function deleteIngredient(id) {
-    try {
-      await adminApi.deleteIngredient(id);
-      await fetchIngredients();
-    } catch {}
-  }
 
   async function createShift(data) {
     try {
@@ -344,7 +312,6 @@ export const useAdminStore = defineStore('admin', () => {
     allZones,
     allShifts,
     allSchedules,
-    allIngredients,
     loading,
     error,
     fetchDashboard,
@@ -353,7 +320,6 @@ export const useAdminStore = defineStore('admin', () => {
     fetchCategories,
     fetchOrders,
     fetchZones,
-    fetchIngredients,
     fetchShifts,
     fetchSchedules,
     createUser,
@@ -372,9 +338,6 @@ export const useAdminStore = defineStore('admin', () => {
     createZone,
     updateZone,
     deleteZone,
-    createIngredient,
-    updateIngredient,
-    deleteIngredient,
     createShift,
     updateShift,
     deleteShift,
