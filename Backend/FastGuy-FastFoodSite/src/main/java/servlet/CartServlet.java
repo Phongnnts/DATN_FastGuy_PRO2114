@@ -9,7 +9,6 @@ import utils.ApiResponse;
 import utils.JwtUtil;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.Map;
 
 @WebServlet("/api/cart/*")
@@ -53,17 +52,17 @@ public class CartServlet extends HttpServlet {
         }
 
         int productId = ((Number) body.get("productId")).intValue();
-        int quantity = ((Number) body.get("quantity")).intValue();
-        BigDecimal unitPrice = new BigDecimal(body.get("unitPrice").toString());
-        String optionData = (String) body.get("optionData");
+        int variantId = ((Number) body.get("variantId")).intValue();
+        int quantity = body.containsKey("quantity") ? ((Number) body.get("quantity")).intValue() : 1;
 
         boolean ok = cartService.addItem(
                 new entity.User() {{ setUserId(userId); }},
-                productId, quantity, unitPrice, optionData);
+                productId, variantId, quantity);
         if (!ok) {
-            ApiResponse.error(resp, "Product not found", 404);
+            ApiResponse.error(resp, "Cannot add to cart: invalid product/variant or insufficient stock", 400);
             return;
         }
+        resp.setStatus(201);
         ApiResponse.ok(resp, null, "Added to cart");
     }
 
