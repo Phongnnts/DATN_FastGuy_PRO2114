@@ -1,6 +1,6 @@
 # WORK PLAN — FastGuy
 
-## Mục tiêu giai đoạn tiếp theo
+## Mục tiêu giai đoạn
 
 Hoàn thiện FastGuy theo thiết kế mới:
 
@@ -9,466 +9,342 @@ Product = món cha / món chung
 ProductVariant = phiên bản khách thật sự mua
 GHN = nguồn chính tính phí vận chuyển
 DeliveryZone = fallback khi GHN lỗi/dev offline
-Ingredient/ProductIngredient = bỏ khỏi scope
+Ingredient/ProductIngredient = bỏ hẳn
 ```
+
+---
+
+## Trạng thái hiện tại (Phase 0 — Đã hoàn thành)
+
+### Database
+
+- `init.sql` mới bao gồm:
+  - `Product` dùng `base_price`
+  - `ProductVariant`
+  - `CartItem` có `variant_id` (bỏ `option_data`)
+  - `OrderItem` có `variant_id`, `variant_name` (bỏ `option_data`)
+  - `Address` thêm GHN fields
+  - `Orders` thêm GHN fields
+  - Đã bỏ: `Ingredient`, `ProductIngredient`, `ProductOption`
+
+### Backend
+
+| File | Thay đổi |
+|---|---|
+| `Product.java` | `price` → `basePrice` |
+| `ProductVariant.java` | Entity mới |
+| `CartItem.java` | Bỏ `optionData`, thêm `variant` |
+| `OrderItem.java` | Bỏ `optionData`, thêm `variant`, `variantName` |
+| `Address.java` | Thêm GHN fields |
+| `Orders.java` | Thêm GHN + shipping fields |
+| `ProductDAO.java` | Bỏ option methods, thêm variant methods |
+| `CartService.java` | `addItem` nhận `variantId`, giá lấy từ variant |
+| `OrderService.java` | Checkout copy snapshot variant |
+| `StaffService.java` | Bỏ `lowStockIngredients` |
+| `ProductServlet.java` | Trả `variants` |
+| `AdminProductServlet.java` | CRUD variant thay option |
+| `CartServlet.java` | Nhận `variantId` (không nhận `unitPrice`/`optionData`) |
+| `persistence.xml` | Đăng ký `ProductVariant`, bỏ entity cũ |
+
+### Frontend
+
+- Đã bỏ routes Ingredients/LowStock (staff + admin)
+- Đã bỏ API Ingredient (admin/staff)
+- Đã bỏ store Ingredient (admin/staff)
+- Đã bỏ `lowStockIngredients` dashboard card
+- Đã bỏ `optionData` khỏi CartItem, thay bằng `variantName`
+
+### Branches
+
+Tất cả 6 nhánh `module/*` đã merge `develop` mới nhất và push.
 
 ---
 
 ## Phân công tổng quan
 
-| Người       | Module chính       | Phạm vi                                                  |
-| ----------- | ------------------ | -------------------------------------------------------- |
-| **Người 1** | Auth               | Login/register/profile, JWT, route guard                 |
-| **Người 2** | Guest              | Menu, ProductDetail, ProductVariant UI, Cart             |
-| **Người 3** | User               | Address CRUD, Checkout, GHN address UI, order history    |
-| **Người 4** | Staff              | Order processing PENDING → READY, tabs, timeline         |
-| **Người 5** | Admin              | Product CRUD, ProductVariant CRUD, Cloudinary, dashboard |
-| **Người 6** | Common/DB/Shipping | Database, GHN backend, constants, layout, docs, test     |
+| Người | Module chính | Phạm vi |
+|---|---|---|
+| **Người 1** | Auth | Login/register/profile, JWT, route guard |
+| **Người 2** | Guest | Menu, ProductDetail, ProductVariant UI, Cart |
+| **Người 3** | User | Address CRUD, Checkout, GHN address UI, order history |
+| **Người 4** | Staff | Order processing PENDING → READY, tabs, timeline |
+| **Người 5** | Admin | Product CRUD, ProductVariant CRUD, Cloudinary, dashboard |
+| **Người 6** | Common/DB/Shipping | Database, GHN backend, constants, layout, docs, test |
 
 ---
 
-## Module 1 — Auth / Người 1
+## Phase 1 — ProductVariant API + Admin UI
 
-### Mục tiêu
+**Yêu cầu:** Phải hoàn thành trước Phase 2 (Guest cần Product API hoàn chỉnh).
 
-Đảm bảo hệ thống đăng nhập, đăng ký, profile và phân quyền ổn định cho toàn bộ flow.
+### Người 5 — Admin
 
-### Backend
+| STT | Việc | File |
+|---|---|---|
+| 1.1 | `ProductsPage.vue`: form dùng `basePrice`, thêm gallery images | `admin/ProductsPage.vue` |
+| 1.2 | `ProductsPage.vue`: quản lý variants (thêm/sửa/xóa, set default) | `admin/ProductsPage.vue` |
+| 1.3 | Upload ảnh Cloudinary widget | `admin/ProductsPage.vue` |
+| 1.4 | Kiểm tra `DashboardPage.vue` | `admin/DashboardPage.vue` |
 
-- Kiểm tra `AuthServlet.java`.
-- Kiểm tra `AuthService.java`.
-- Kiểm tra `UserDAO.java`.
-- Kiểm tra `JwtUtil.java`.
-- Hoàn thiện/củng cố API:
-  - `POST /api/auth/login`
-  - `POST /api/auth/register`
-  - `GET /api/auth/profile`
-  - `PUT /api/auth/profile`
-  - `POST /api/auth/logout` nếu cần.
-- JWT cần có:
-  - `userId`
-  - `role`
-  - `email`
-  - `fullName`
-
-### Frontend
-
-- Kiểm tra `LoginPage.vue`.
-- Kiểm tra `RegisterPage.vue`.
-- Kiểm tra `ProfilePage.vue`.
-- Kiểm tra `ChangePasswordPage.vue`.
-- Kiểm tra `stores/auth.js`.
-- Kiểm tra `router/index.js`.
-- Route guard:
-  - Guest không vào User/Staff/Admin.
-  - User không vào Staff/Admin.
-  - Staff không vào Admin.
-  - Admin không bị redirect sai.
+**Backend đã xong** — AdminProductServlet có đầy đủ CRUD variant.
 
 ### Checklist
 
-- [ ] Login Admin/Staff/User thành công.
-- [ ] Register user mới thành công.
-- [ ] Refresh trang vẫn giữ session.
-- [ ] Token sai/hết hạn thì logout.
-- [ ] Profile load đúng dữ liệu.
-- [ ] Route guard đúng role.
+- [ ] Admin tạo product
+- [ ] Admin tạo variant (size M, size L, combo...)
+- [ ] Admin set default variant
+- [ ] Product detail trả variants
+- [ ] Upload ảnh Cloudinary
 
 ---
 
-## Module 2 — Guest / Người 2
+## Phase 2 — Guest ProductDetail + Cart
 
-### Mục tiêu
+**Phụ thuộc:** Phase 1 xong (Product API có variants).
 
-Khách xem menu, xem chi tiết món, chọn `ProductVariant`, thêm giỏ hàng và xem cart đúng biến thể.
+### Người 2 — Guest
 
-### Backend phối hợp
+| STT | Việc | File |
+|---|---|---|
+| 2.1 | `MenuPage.vue`: hiển thị `basePrice` hoặc default variant price | `guest/MenuPage.vue` |
+| 2.2 | `ProductDetailPage.vue`: load `variants`, cho chọn variant, đổi giá | `guest/ProductDetailPage.vue` |
+| 2.3 | Add cart gửi `productId`, `variantId`, `quantity` | `guest/ProductDetailPage.vue` |
+| 2.4 | `CartPage.vue`: hiển thị `variantName`, bỏ `optionData` | `guest/CartPage.vue` |
+| 2.5 | `stores/cart.js`: sửa `addItem` thành `(productId, variantId, quantity)` | `stores/cart.js` |
 
-Phối hợp với Người 5 để thống nhất product response:
+### Response API cần dùng
+
+**Product list:**
 
 ```json
 {
   "productId": 1,
   "name": "Classic Beef Burger",
   "basePrice": 45000,
+  "price": 45000,
+  "defaultVariant": { "variantId": 1, "variantName": "Mặc định", "price": 45000 },
   "imageUrl": "",
-  "galleryImages": [],
-  "variants": [
-    {
-      "variantId": 1,
-      "variantName": "Mặc định",
-      "price": 45000,
-      "isDefault": true,
-      "status": "AVAILABLE"
-    }
-  ]
+  "categoryName": "Burger"
 }
 ```
 
-### Frontend
+**Product detail:**
 
-- Sửa `MenuPage.vue`:
-  - Hiển thị `basePrice` hoặc giá variant mặc định.
-  - Không dùng `Product.price` cũ.
-- Sửa `ProductDetailPage.vue`:
-  - Load `variants`.
-  - Cho khách chọn variant.
-  - Giá thay đổi theo variant.
-  - Add cart gửi `productId`, `variantId`, `quantity`.
-- Sửa `CartPage.vue`:
-  - Hiển thị `variantName`.
-  - Không dùng `optionData`.
-  - Tổng tiền tính từ `unitPrice * quantity`.
-- Kiểm tra `stores/cart.js`:
-  - Lưu variant trong item.
-  - Không còn phụ thuộc option string.
-
-### Checklist
-
-- [ ] Menu hiển thị giá đúng.
-- [ ] Product detail hiển thị variants.
-- [ ] Chọn variant đổi giá đúng.
-- [ ] Add cart gửi đúng `variantId`.
-- [ ] Cart hiển thị đúng tên variant.
-- [ ] Không còn lỗi `optionData`.
-
----
-
-## Module 3 — User / Người 3
-
-### Mục tiêu
-
-User quản lý địa chỉ, checkout với GHN, xem lịch sử đơn và trạng thái đơn.
-
-### Backend
-
-- Cập nhật `AddressServlet.java`.
-- Cập nhật `AddressDAO.java`.
-- Address cần hỗ trợ:
-  - `provinceName`
-  - `districtName`
-  - `wardName`
-  - `ghnProvinceId`
-  - `ghnDistrictId`
-  - `ghnWardCode`
-  - `zoneId` nullable fallback.
-- Cập nhật `OrderServlet.java` để nhận GHN shipping fields.
-- Cập nhật `OrderService.checkout()`:
-  - Đọc cart theo `variantId`.
-  - Lưu shipping fee thật.
-  - Lưu snapshot địa chỉ.
-
-### Frontend
-
-- Sửa `ProfilePage.vue`:
-  - CRUD địa chỉ.
-  - Lưu tỉnh/huyện/xã GHN.
-- Sửa `CheckoutPage.vue`:
-  - Load provinces.
-  - Chọn province → load districts.
-  - Chọn district → load wards.
-  - Chọn ward → gọi `/api/shipping/fee`.
-  - Hiển thị shipping fee.
-- Sửa `OrdersPage.vue`.
-- Sửa `OrderDetailPage.vue`:
-  - Hiển thị product + variant.
-  - Hiển thị shipping fee.
-  - Hiển thị timeline.
-
-### Checklist
-
-- [ ] Thêm/sửa/xóa địa chỉ.
-- [ ] Set địa chỉ mặc định.
-- [ ] Checkout dùng địa chỉ đã lưu.
-- [ ] Checkout tính phí GHN.
-- [ ] Order lưu đúng shipping fee.
-- [ ] User thấy trạng thái staff cập nhật.
-
----
-
-## Module 4 — Staff / Người 4
-
-### Mục tiêu
-
-Staff xử lý đơn hàng ổn định theo flow:
-
-```text
-PENDING → CONFIRMED → PREPARING → READY
-PENDING/CONFIRMED/PREPARING → CANCELLED
+```json
+{
+  "productId": 1,
+  "name": "Classic Beef Burger",
+  "basePrice": 45000,
+  "variants": [
+    { "variantId": 1, "variantName": "Mặc định", "price": 45000, "isDefault": true, "status": "AVAILABLE" },
+    { "variantId": 2, "variantName": "Size L", "price": 55000, "isDefault": false, "status": "AVAILABLE" }
+  ],
+  "galleryImages": []
+}
 ```
 
-### Backend
-
-- Cập nhật `StaffOrderServlet.java`.
-- Cập nhật `StaffOrderService.java`.
-- Đảm bảo API:
-  - `GET /api/staff/orders`
-  - `GET /api/staff/orders/confirmed`
-  - `GET /api/staff/orders/preparing`
-  - `GET /api/staff/orders/ready`
-  - `GET /api/staff/orders/history`
-  - `GET /api/staff/orders/{id}`
-  - `PUT /api/staff/orders/{id}/status`
-- Response order item cần có:
-  - `productName`
-  - `variantName`
-  - `quantity`
-  - `unitPrice`
-  - `totalPrice`
-
-### Frontend
-
-- Sửa `OrdersPage.vue`:
-  - Tabs hoạt động đúng.
-  - Không race condition.
-  - Không bị 500 silent.
-  - Hiển thị trạng thái đúng.
-- Sửa `OrderDetailPage.vue`:
-  - Hiển thị product + variant.
-  - Nút chuyển trạng thái đúng.
-  - Timeline đúng.
-  - Hủy đơn có lý do.
-- Sửa `DashboardPage.vue`:
-  - Chart status đúng màu.
-
 ### Checklist
 
-- [ ] PENDING tab có đơn mới.
-- [ ] Confirm xong qua CONFIRMED.
-- [ ] Start preparing xong qua PREPARING.
-- [ ] Complete xong qua READY.
-- [ ] Cancel đơn lưu lý do.
-- [ ] User timeline cập nhật.
-- [ ] Không còn 500 ở các tab.
+- [ ] Menu hiển thị giá đúng
+- [ ] Product detail hiển thị variants
+- [ ] Chọn variant đổi giá đúng
+- [ ] Add cart gửi `productId`, `variantId`, `quantity`
+- [ ] Cart hiển thị `variantName`
 
 ---
 
-## Module 5 — Admin / Người 5
+## Phase 3 — Checkout basic + Order + Staff
 
-### Mục tiêu
+**Phụ thuộc:** Phase 2 xong (Cart có variant). Backend đã xong.
 
-Admin quản lý product và variant theo schema mới, upload ảnh Cloudinary và kiểm tra dashboard.
+### Người 3 — User
 
-### Backend
+| STT | Việc | File |
+|---|---|---|
+| 3.1 | `ProfilePage.vue`: CRUD address mới (wardName/districtName/provinceName/GHN ids) | `user/ProfilePage.vue` |
+| 3.2 | `CheckoutPage.vue`: checkout với cart variant, fallback fee | `user/CheckoutPage.vue` |
+| 3.3 | `OrderDetailPage.vue`: hiển thị `variantName`, product | `user/OrderDetailPage.vue` |
+| 3.4 | `OrdersPage.vue`: lịch sử đơn | `user/OrdersPage.vue` |
 
-- Sửa `Product.java`:
-  - `basePrice`
-  - `galleryImages`
-  - bỏ dùng `price` cũ.
-- Tạo `ProductVariant.java`.
-- Sửa `ProductDAO.java`:
-  - `findVariantsByProductId`
-  - `findVariantById`
-  - `saveVariant`
-  - `deleteVariant`
-- Sửa `ProductServlet.java`:
-  - Product detail trả variants.
-- Sửa `AdminProductServlet.java`:
-  - CRUD product.
-  - CRUD variant.
-  - Không dùng `ProductOption`.
+### Người 4 — Staff
 
-### Frontend
-
-- Sửa `ProductsPage.vue`:
-  - Form product dùng `basePrice`.
-  - Quản lý danh sách variants.
-  - Thêm/sửa/xóa variant.
-  - Set default variant.
-  - Upload ảnh Cloudinary.
-  - Gallery images.
-- Kiểm tra `DashboardPage.vue`.
-- Kiểm tra `CategoriesPage.vue`.
+| STT | Việc | File |
+|---|---|---|
+| 3.5 | `OrdersPage.vue`: tabs PENDING/CONFIRMED/PREPARING/READY (fix race + 500) | `staff/OrdersPage.vue` |
+| 3.6 | `OrderDetailPage.vue`: hiển thị `variantName`, product | `staff/OrderDetailPage.vue` |
+| 3.7 | Nút chuyển trạng thái đúng, cancel modal | `staff/OrderDetailPage.vue` |
+| 3.8 | `DashboardPage.vue`: chart status đúng màu | `staff/DashboardPage.vue` |
 
 ### Checklist
 
-- [ ] Admin tạo product.
-- [ ] Admin tạo variant.
-- [ ] Product detail thấy variant mới.
-- [ ] Admin sửa giá variant.
-- [ ] Đơn cũ không đổi giá vì OrderItem snapshot.
-- [ ] Xóa/ẩn variant không làm vỡ đơn cũ.
+- [ ] User checkout tạo đơn thành công
+- [ ] OrderItem có `variantName`
+- [ ] User xem đơn thấy variant
+- [ ] Staff tabs hoạt động đúng
+- [ ] Staff detail thấy variant
+- [ ] Staff chuyển trạng thái đúng flow
+- [ ] Không còn 500 ở tabs
 
 ---
 
-## Module 6 — Common / Database / Shipping / Người 6
+## Phase 4 — GHN Shipping
 
-### Mục tiêu
+**Phụ thuộc:** Phase 3 xong (checkout basic ổn định).
 
-Đảm bảo schema mới, GHN API, constants, layout, docs và test tổng thể.
+### Người 6 — Shipping
 
-### Database
+| STT | Việc | File |
+|---|---|---|
+| 4.1 | Tạo `GhnClient.java` gọi API GHN | `utils/GhnClient.java` |
+| 4.2 | Tạo `ShippingService.java` xử lý business | `service/ShippingService.java` |
+| 4.3 | Tạo `ShippingServlet.java` expose API | `servlet/ShippingServlet.java` |
+| 4.4 | Implement provinces API | `ShippingServlet.java` |
+| 4.5 | Implement districts API | `ShippingServlet.java` |
+| 4.6 | Implement wards API | `ShippingServlet.java` |
+| 4.7 | Implement fee calculation | `ShippingServlet.java` |
+| 4.8 | Implement fallback DeliveryZone | `ShippingService.java` |
+| 4.9 | Config GHN (token/shopId không hardcode) | `utils/AppConfig.java` |
 
-- Kiểm tra `database/init.sql`.
-- Đảm bảo có:
-  - `ProductVariant`
-  - `Product.base_price`
-  - `Product.gallery_images`
-  - `CartItem.variant_id`
-  - `OrderItem.variant_id`
-  - `OrderItem.variant_name`
-  - GHN fields trong `Address`
-  - GHN fields trong `Orders`
-- Đảm bảo đã bỏ:
-  - `Ingredient`
-  - `ProductIngredient`
-  - `ProductOption`
+### Người 3 (phối hợp)
 
-### Shipping GHN
+| STT | Việc | File |
+|---|---|---|
+| 4.10 | `CheckoutPage.vue`: chọn province/district/ward | `user/CheckoutPage.vue` |
+| 4.11 | Gọi `/api/shipping/fee` | `user/CheckoutPage.vue` |
+| 4.12 | Hiển thị shipping fee thật | `user/CheckoutPage.vue` |
+| 4.13 | Lưu GHN fields vào order | `user/CheckoutPage.vue` + `OrderService.java` (đã sẵn entity) |
 
-Tạo backend shipping:
-
-```text
-ShippingServlet
-ShippingService
-GhnClient
-```
-
-Endpoint:
+### API GHN cần implement
 
 ```http
-GET /api/shipping/provinces
-GET /api/shipping/districts?provinceId=
-GET /api/shipping/wards?districtId=
+GET  /api/shipping/provinces
+GET  /api/shipping/districts?provinceId=202
+GET  /api/shipping/wards?districtId=1442
 POST /api/shipping/fee
 ```
 
-Yêu cầu:
+Body tính phí:
 
-- Không hardcode token trong code.
-- Token/shopId lấy từ config/env.
-- Nếu GHN lỗi thì fallback `DeliveryZone`.
+```json
+{
+  "toDistrictId": 1442,
+  "toWardCode": "20107",
+  "weight": 1000,
+  "length": 20,
+  "width": 20,
+  "height": 10
+}
+```
 
-### Common
+Response:
 
-- Cập nhật `constants.js`:
-  - Cloudinary.
-  - order status.
-  - payment status.
-  - shipping provider.
-- Kiểm tra layouts/sidebar.
-- Bỏ menu Ingredients/LowStock nếu không dùng.
-- Kiểm tra `format.js`.
-
-### Docs/Test
-
-- Cập nhật tài liệu trong `document/`.
-- Viết checklist demo.
-- Build backend/frontend.
+```json
+{
+  "shippingProvider": "GHN",
+  "shippingFee": 25000,
+  "serviceId": 53320,
+  "serviceTypeId": 2,
+  "expectedDeliveryTime": "2026-06-26T10:00:00"
+}
+```
 
 ### Checklist
 
-- [ ] `init.sql` chạy được từ đầu.
-- [ ] Backend compile.
-- [ ] Frontend build.
-- [ ] GHN fee API hoạt động hoặc fallback.
-- [ ] Sidebar không còn link không dùng.
-- [ ] Full flow demo chạy được.
+- [ ] Lấy province thành công
+- [ ] Lấy district theo province thành công
+- [ ] Lấy ward theo district thành công
+- [ ] Tính phí GHN thành công
+- [ ] GHN lỗi thì fallback zone
+- [ ] Checkout lưu đúng shipping fee
+- [ ] Orders lưu đúng GHN fields
 
 ---
 
-# Timeline triển khai
+## Phase 5 — Integration + Test
 
-## Tuần 1 — Database + Model nền tảng
+### Người 1 — Auth
 
-| Người   | Việc                                     |
-| ------- | ---------------------------------------- |
-| Người 1 | Rà Auth/profile/route guard              |
-| Người 2 | Chuẩn bị ProductDetail dùng variant      |
-| Người 3 | Chuẩn bị Address mới có GHN fields       |
-| Người 4 | Rà Staff order không phụ thuộc schema cũ |
-| Người 5 | Tạo entity/DAO ProductVariant            |
-| Người 6 | Chốt `init.sql`, kiểm tra schema mới     |
+- Kiểm tra `LoginPage.vue`, `RegisterPage.vue`, `ProfilePage.vue`, `ChangePasswordPage.vue`
+- Route guard: Guest → User → Staff → Admin
+- Refresh giữ session, token hết hạn logout
 
-## Tuần 2 — ProductVariant + Cart
+### Người 2 — Guest UX
 
-| Người   | Việc                                               |
-| ------- | -------------------------------------------------- |
-| Người 1 | Fix auth/profile phát sinh                         |
-| Người 2 | ProductDetail chọn variant + Cart hiển thị variant |
-| Người 3 | Checkout đọc cart mới                              |
-| Người 4 | Staff detail hiển thị variant                      |
-| Người 5 | Admin CRUD variant                                 |
-| Người 6 | Common constants/status                            |
+- Menu/Cart mượt
+- Không còn lỗi `optionData`
 
-## Tuần 3 — GHN + Checkout + Order
+### Người 3 — User integration
 
-| Người   | Việc                                        |
-| ------- | ------------------------------------------- |
-| Người 1 | Test role guard toàn flow                   |
-| Người 2 | Đảm bảo cart gửi đúng variant               |
-| Người 3 | Checkout chọn tỉnh/huyện/xã + tính phí ship |
-| Người 4 | Staff tabs/status ổn định                   |
-| Người 5 | Admin kiểm tra product data                 |
-| Người 6 | GHN API backend + fallback                  |
+- User order history/detail
+- Timeline trạng thái
+- Shipping fee hiển thị
 
-## Tuần 4 — Integration + Demo
+### Người 4 — Staff full test
 
-| Người   | Việc                               |
-| ------- | ---------------------------------- |
-| Người 1 | Auth/session/permission test       |
-| Người 2 | Guest/menu/cart UX                 |
-| Người 3 | User order history/detail/timeline |
-| Người 4 | Staff order flow full test         |
-| Người 5 | Admin dashboard/products/orders    |
-| Người 6 | Docs + build + checklist demo      |
+- Staff order flow PENDING → CONFIRMED → PREPARING → READY
+- Cancel + lý do
+
+### Người 5 — Admin integration
+
+- Dashboard/products/orders
+- CRUD variant
+
+### Người 6 — Common cleanup
+
+- Cập nhật `constants.js`: Cloudinary, order status, shipping provider
+- Kiểm tra sidebar/layout
+- Frontend build
 
 ---
 
-# Checklist end-to-end
+## Phase 6 — Cleanup cuối
 
-## Flow 1 — Product Variant
+### Tất cả
 
-```text
-Admin tạo product
-→ Admin tạo variants
-→ Guest xem product detail
-→ Guest chọn variant
-→ Add cart
-→ Cart hiển thị variant
-```
+- [ ] Xóa file frontend Ingredient/LowStock còn sót (nếu có)
+- [ ] `npm run build` không lỗi
+- [ ] Cập nhật README/document
 
-## Flow 2 — Checkout GHN
+---
 
-```text
-User chọn địa chỉ
-→ Chọn tỉnh/huyện/xã
-→ Gọi GHN fee
-→ Checkout
-→ Order lưu shipping fee + GHN fields
-```
+## Timeline
 
-## Flow 3 — Staff Status
+| Tuần | Phase | Người tham gia chính |
+|---|---|---|
+| Tuần 1 | Phase 1 — Admin variant UI | Người 5 |
+| Tuần 1 | Phase 2 — Guest ProductDetail + Cart | Người 2 |
+| Tuần 2 | Phase 3 — Checkout + Order + Staff | Người 3, Người 4 |
+| Tuần 2 | Phase 1 bổ sung | Người 5 (nếu cần) |
+| Tuần 3 | Phase 4 — GHN Shipping | Người 6 + Người 3 |
+| Tuần 3 | Phase 5 — Integration test | Tất cả |
+| Tuần 4 | Phase 6 — Cleanup + Demo | Tất cả |
 
-```text
-Order PENDING
-→ Staff CONFIRMED
-→ Staff PREPARING
-→ Staff READY
-→ User thấy timeline cập nhật
-```
+---
 
-## Flow 4 — Admin kiểm tra
+## Luồng end-to-end
 
 ```text
-Admin xem dashboard
-→ Xem product/variant
-→ Xem order
-→ Kiểm tra dữ liệu không lỗi
+Admin tạo product + variant
+→ Guest xem menu, chọn variant
+→ Add cart → Cart hiển thị variant
+→ User checkout → chọn tỉnh/huyện/xã GHN → tính phí ship
+→ Order PENDING
+→ Staff CONFIRMED → PREPARING → READY
+→ User theo dõi timeline
 ```
 
 ---
 
-# Lệnh kiểm tra trước khi demo
+## Command kiểm tra
 
-## Backend
+### Backend
 
 ```bash
 cd Backend/FastGuy-FastFoodSite
 mvn clean compile
 ```
 
-## Frontend
+### Frontend
 
 ```bash
 cd Frontend
