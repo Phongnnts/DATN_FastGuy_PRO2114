@@ -1,18 +1,13 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { staffApi } from '@/api';
 
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
   const allOrders = ref([]);
-  const allIngredients = ref([]);
   const shiftStatus = ref({ current: null });
   const loading = ref(false);
   let fetchVersion = 0;
-
-  const lowStockIngredients = computed(() =>
-    allIngredients.value.filter((i) => i.currentStock <= i.minStock),
-  );
 
   function mapOrder(o) {
     return {
@@ -187,10 +182,8 @@ export const useStaffStore = defineStore('staff', () => {
   return {
     dashboard,
     allOrders,
-    allIngredients,
     shiftStatus,
     loading,
-    lowStockIngredients,
     fetchDashboard,
     fetchOrders,
     fetchConfirmedOrders,
