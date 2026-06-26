@@ -32,8 +32,23 @@ public class Address {
     @Column(name = "street")
     private String street;
 
-    @Column(name = "ward")
-    private String ward;
+    @Column(name = "ward_name")
+    private String wardName;
+
+    @Column(name = "district_name")
+    private String districtName;
+
+    @Column(name = "province_name")
+    private String provinceName;
+
+    @Column(name = "ghn_province_id")
+    private Integer ghnProvinceId;
+
+    @Column(name = "ghn_district_id")
+    private Integer ghnDistrictId;
+
+    @Column(name = "ghn_ward_code")
+    private String ghnWardCode;
 
     @ManyToOne
     @JoinColumn(name = "zone_id")
@@ -60,8 +75,18 @@ public class Address {
     public void setPhone(String phone) { this.phone = phone; }
     public String getStreet() { return street; }
     public void setStreet(String street) { this.street = street; }
-    public String getWard() { return ward; }
-    public void setWard(String ward) { this.ward = ward; }
+    public String getWardName() { return wardName; }
+    public void setWardName(String wardName) { this.wardName = wardName; }
+    public String getDistrictName() { return districtName; }
+    public void setDistrictName(String districtName) { this.districtName = districtName; }
+    public String getProvinceName() { return provinceName; }
+    public void setProvinceName(String provinceName) { this.provinceName = provinceName; }
+    public Integer getGhnProvinceId() { return ghnProvinceId; }
+    public void setGhnProvinceId(Integer ghnProvinceId) { this.ghnProvinceId = ghnProvinceId; }
+    public Integer getGhnDistrictId() { return ghnDistrictId; }
+    public void setGhnDistrictId(Integer ghnDistrictId) { this.ghnDistrictId = ghnDistrictId; }
+    public String getGhnWardCode() { return ghnWardCode; }
+    public void setGhnWardCode(String ghnWardCode) { this.ghnWardCode = ghnWardCode; }
     public DeliveryZone getZone() { return zone; }
     public void setZone(DeliveryZone zone) { this.zone = zone; }
     public String getCity() { return city; }
