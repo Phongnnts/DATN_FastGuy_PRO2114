@@ -21,7 +21,7 @@ async function updateStatus(status) {
   if (!order.value) return;
   try {
     await staffStore.updateOrderStatus(order.value.id, status);
-    order.value.status = status;
+    order.value = await staffStore.fetchOrderById(route.params.id);
   } catch (e) {
     alert(e.message);
   }
@@ -48,7 +48,7 @@ async function cancelOrder() {
   if (!order.value) return;
   try {
     await staffStore.updateOrderStatus(order.value.id, 'CANCELLED', cancelReason.value);
-    order.value.status = 'CANCELLED';
+    order.value = await staffStore.fetchOrderById(route.params.id);
     showCancelModal.value = false;
   } catch (e) {
     alert(e.message);
@@ -145,6 +145,7 @@ function printInvoice() {
           <tr>
             <th></th>
             <th>Sản phẩm</th>
+            <th>Phân loại</th>
             <th>Đơn giá</th>
             <th>Số lượng</th>
             <th>Thành tiền</th>
@@ -164,6 +165,7 @@ function printInvoice() {
               />
             </td>
             <td>{{ item.productName }}</td>
+            <td>{{ item.variantName || 'Mặc định' }}</td>
             <td>{{ formatPrice(item.price) }}</td>
             <td>{{ item.quantity }}</td>
             <td>
