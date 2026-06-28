@@ -6,8 +6,8 @@ public class AppConfig {
     private static final String GHN_HOST;
 
     static {
-        GHN_TOKEN = System.getenv("GHN_TOKEN") != null ? System.getenv("GHN_TOKEN") : "";
-        GHN_SHOP_ID = System.getenv("GHN_SHOP_ID") != null ? System.getenv("GHN_SHOP_ID") : "";
+        GHN_TOKEN = System.getenv("GHN_TOKEN") != null ? System.getenv("GHN_TOKEN") : "e956f31b-713a-11f1-bcbb-caab4368df61";
+        GHN_SHOP_ID = System.getenv("GHN_SHOP_ID") != null ? System.getenv("GHN_SHOP_ID") : "6513527";
         GHN_HOST = "https://dev-online-gateway.ghn.vn";
     }
 
