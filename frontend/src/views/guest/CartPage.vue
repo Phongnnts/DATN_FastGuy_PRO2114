@@ -10,11 +10,11 @@ const router = useRouter();
 const auth = useAuthStore();
 const cart = useCartStore();
 
-function updateQty(productId, qty) {
-  cart.updateQuantity(productId, qty);
+function updateQty(productId, variantId, qty) {
+  cart.updateQuantity(productId, variantId, qty);
 }
-function removeItem(productId) {
-  cart.removeItem(productId);
+function removeItem(productId, variantId) {
+  cart.removeItem(productId, variantId);
 }
 
 function proceedCheckout() {
@@ -45,7 +45,7 @@ function proceedCheckout() {
         <div class="cart-items card">
           <CartItem
             v-for="item in cart.items"
-            :key="item.productId"
+            :key="item.key"
             :item="item"
             @update:quantity="updateQty"
             @remove="removeItem"

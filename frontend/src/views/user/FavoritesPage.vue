@@ -7,7 +7,7 @@ const productStore = useProductStore()
 const favorites = ref(JSON.parse(localStorage.getItem('favorites') || '[]'))
 
 const favoriteProducts = computed(() =>
-  productStore.allProducts.filter(p => favorites.value.includes(p.id))
+  productStore.allProducts.filter(p => favorites.value.includes(p.productId))
 )
 
 function toggleFavorite(productId) {
@@ -29,9 +29,9 @@ function toggleFavorite(productId) {
         <router-link to="/menu" class="btn btn-primary">Khám phá thực đơn</router-link>
       </div>
       <div v-else class="grid-4">
-        <div v-for="product in favoriteProducts" :key="product.id" style="position:relative">
+        <div v-for="product in favoriteProducts" :key="product.productId" style="position:relative">
           <ProductCard :product="product" />
-          <button class="fav-btn" @click="toggleFavorite(product.id)"><i class="bi bi-heart-fill"></i></button>
+          <button class="fav-btn" @click="toggleFavorite(product.productId)"><i class="bi bi-heart-fill"></i></button>
         </div>
       </div>
     </div>

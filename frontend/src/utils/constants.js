@@ -105,6 +105,11 @@ export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6
 
 export const DELIVERY_ZONE_TYPES = ['Quận', 'Huyện', 'Phường', 'Xã'];
 
+export const SHIPPING_PROVIDER = {
+  GHN: 'GHN',
+  FALLBACK_ZONE: 'Giao hàng nội bộ',
+};
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const CLOUDINARY = {
