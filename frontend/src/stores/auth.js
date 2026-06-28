@@ -73,7 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function changePassword(currentPassword, newPassword) {
-    return true;
+    await authApi.changePassword({ currentPassword, newPassword });
   }
 
   async function forgotPassword(email) {

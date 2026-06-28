@@ -16,8 +16,9 @@ const addressForm = ref({
   recipientName: '',
   phone: '',
   street: '',
-  ward: '',
-  zoneId: null,
+  wardName: '',
+  districtName: '',
+  provinceName: '',
   isDefault: false,
 });
 
@@ -54,8 +55,9 @@ function openAddAddress() {
     recipientName: '',
     phone: '',
     street: '',
-    ward: '',
-    zoneId: zones.value.length > 0 ? zones.value[0].zoneId : null,
+    wardName: '',
+    districtName: '',
+    provinceName: '',
     isDefault: addresses.value.length === 0,
   };
   showAddressForm.value = true;
@@ -67,8 +69,9 @@ function openEditAddress(addr) {
     recipientName: addr.recipientName || '',
     phone: addr.phone || '',
     street: addr.street || '',
-    ward: addr.ward || '',
-    zoneId: addr.zone ? addr.zone.zoneId : (zones.value.length > 0 ? zones.value[0].zoneId : null),
+    wardName: addr.wardName || '',
+    districtName: addr.districtName || '',
+    provinceName: addr.provinceName || '',
     isDefault: addr.isDefault || false,
   };
   showAddressForm.value = true;
@@ -80,8 +83,9 @@ async function saveAddress() {
       recipientName: addressForm.value.recipientName,
       phone: addressForm.value.phone,
       street: addressForm.value.street,
-      ward: addressForm.value.ward,
-      zoneId: addressForm.value.zoneId,
+      wardName: addressForm.value.wardName,
+      districtName: addressForm.value.districtName,
+      provinceName: addressForm.value.provinceName,
       isDefault: addressForm.value.isDefault,
     };
     if (editingAddress.value) {
@@ -212,10 +216,7 @@ async function saveProfile() {
               <span v-if="addr.isDefault" class="badge badge-primary">Mặc định</span>
             </div>
             <div class="address-detail">
-              {{ addr.street }}, {{ addr.ward }}, {{ addr.city }}
-            </div>
-            <div class="address-zone" v-if="addr.zone">
-              {{ addr.zone.districtName }}
+              {{ addr.street }}, {{ addr.wardName }}, {{ addr.districtName }}, {{ addr.provinceName }}
             </div>
           </div>
           <div class="address-actions">
@@ -256,16 +257,16 @@ async function saveProfile() {
               <input v-model="addressForm.phone" type="tel" class="form-input" required />
             </div>
             <div class="form-group">
+              <label class="form-label">Tỉnh / Thành phố</label>
+              <input v-model="addressForm.provinceName" class="form-input" placeholder="VD: TP. Hồ Chí Minh" required />
+            </div>
+            <div class="form-group">
               <label class="form-label">Quận / Huyện</label>
-              <select v-model="addressForm.zoneId" class="form-select" required>
-                <option v-for="z in zones" :key="z.zoneId" :value="z.zoneId">
-                  {{ z.districtName }}
-                </option>
-              </select>
+              <input v-model="addressForm.districtName" class="form-input" placeholder="VD: Quận 1" required />
             </div>
             <div class="form-group">
               <label class="form-label">Phường / Xã</label>
-              <input v-model="addressForm.ward" class="form-input" placeholder="VD: Phường Bến Nghé" required />
+              <input v-model="addressForm.wardName" class="form-input" placeholder="VD: Phường Bến Nghé" required />
             </div>
             <div class="form-group">
               <label class="form-label">Số nhà, tên đường</label>
