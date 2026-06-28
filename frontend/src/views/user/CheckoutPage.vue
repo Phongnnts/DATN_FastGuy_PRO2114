@@ -158,6 +158,21 @@ function canPlaceOrder() {
     && recipientName.value.trim() && phone.value.trim() && street.value.trim();
 }
 
+function getProvinceName() {
+  const p = provinces.value.find(p => p.id === selectedProvince.value);
+  return p?.name || '';
+}
+
+function getDistrictName() {
+  const d = districts.value.find(d => d.id === selectedDistrict.value);
+  return d?.name || '';
+}
+
+function getWardName() {
+  const w = wards.value.find(w => w.code === selectedWard.value);
+  return w?.name || '';
+}
+
 async function placeOrder() {
   if (!canPlaceOrder()) return alert('Vui lòng điền đầy đủ thông tin giao hàng');
   const fullAddress = getFullAddress();
@@ -165,11 +180,17 @@ async function placeOrder() {
   submitting.value = true;
   try {
     const order = await orderStore.createOrder({
-      zoneId: 1,
       address: fullAddress,
       phone: phone.value.trim(),
       deliveryNote: note.value,
       paymentMethod: paymentMethod.value,
+      ghnProvinceId: selectedProvince.value,
+      ghnDistrictId: selectedDistrict.value,
+      ghnWardCode: selectedWard.value,
+      toProvinceName: getProvinceName(),
+      toDistrictName: getDistrictName(),
+      toWardName: getWardName(),
+      shippingFee: shippingFee.value,
     });
     cart.clear();
     router.push(`/account/orders/${order.id}`);
