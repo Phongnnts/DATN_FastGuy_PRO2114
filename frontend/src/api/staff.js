@@ -28,9 +28,6 @@ export default {
   saveInternalNote(id, note) {
     return client.post(`/staff/orders/${id}/notes`, { note });
   },
-  stockIn(id, data) {
-    return client.post(`/staff/ingredients/${id}/stock-in`, data);
-  },
   checkIn() {
     return client.post('/staff/shifts/check-in');
   },
