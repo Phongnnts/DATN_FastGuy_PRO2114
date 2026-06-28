@@ -1,253 +1,303 @@
-# WORK PLAN — FastGuy Comprehensive
+# WORK PLAN — Sửa lỗi toàn diện
 
 ## Mục tiêu
 
-Hoàn thiện dự án FastGuy theo đúng thiết kế database mới. Chia làm 4 module chính:
+Sửa các lỗi API mismatch, field name sai, thiếu endpoint, và dọn dẹp code chết.
 
-| Module | Nhánh | Actor | Mô tả |
+## Phân công theo nhóm
+
+| Nhóm | Mức độ | Số lỗi | Mô tả |
 |---|---|---|---|
-| User | `module/user` | Khách hàng | Checkout GHN, chọn tỉnh/huyện/xã, tính phí ship |
-| Admin | `module/admin` | Quản trị viên | Dashboard hoàn chỉnh, quản lý hệ thống |
-| Staff | `module/staff` | Nhân viên | Xử lý đơn, dashboard chart |
-| Shipper | `module/shipper` | Tài xế giao hàng | Nhận đơn, giao hàng, mobile UI |
+| **A** | CRITICAL | 8 | Gây crash hoặc mất dữ liệu |
+| **B** | MODERATE | 8 | Sai field name, thiếu field |
+| **C** | CLEANUP | 4 | Xóa file entity/DAO cũ |
+| **D** | FEATURE | 15 | Thiếu backend endpoint |
 
 ---
 
-## Module User — Checkout GHN
+## File danh sách đầy đủ
 
-### Yêu cầu
+```
+document/WORK_PLAN.md
+```
 
-Checkout phải gửi GHN fields thay vì `zoneId` cứng. Mặc định chọn TP.HCM.
+---
 
-### API thay đổi
+## Nhóm A — Critical (sửa ngay)
 
-**POST /api/orders** — request body mới:
+### A1. `stores/staff.js` — thiếu checkIn/checkOut
 
-```json
-{
-  "address": "123 Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
-  "phone": "0901000006",
-  "deliveryNote": "",
-  "paymentMethod": "COD",
-  "ghnProvinceId": 202,
-  "ghnDistrictId": 1442,
-  "ghnWardCode": "20107",
-  "toProvinceName": "TP. Hồ Chí Minh",
-  "toDistrictName": "Quận 1",
-  "toWardName": "Phường Bến Nghé",
-  "shippingFee": 15000
+**Vấn đề:** `views/staff/ShiftsPage.vue` gọi `staffStore.checkIn()` / `checkOut()` nhưng store không có method này → crash.
+
+**Sửa:** Thêm vào `stores/staff.js`:
+
+```js
+async function checkIn() {
+  try { return await staffApi.checkIn(); } catch { return null; }
+}
+async function checkOut() {
+  try { return await staffApi.checkOut(); } catch { return null; }
 }
 ```
 
-### File cần sửa
-
-| STT | File | Việc |
-|---|---|---|
-| 1 | `OrderServlet.java` | Đọc 8 field GHN từ body |
-| 2 | `OrderService.java` | Sửa method `checkout`, set GHN fields vào Orders |
-| 3 | `frontend/views/user/CheckoutPage.vue` | Hàm `placeOrder()` gửi GHN field, mặc định TP.HCM |
-| 4 | `frontend/stores/order.js` | Đảm bảo `createOrder` pass toàn bộ data |
+Thêm vào `return`: `checkIn, checkOut`
 
 ---
 
-## Module Admin — Dashboard hoàn chỉnh + Quản lý
+### A2. `guest/TrackOrderPage.vue` — thiếu await
 
-### Hiện tại đã có
+**Vấn đề:** Dòng 19: `const result = orderStore.trackOrder(orderCode.value)` — thiếu `await` → Promise luôn truthy → tracking luôn "thành công".
 
-Backend `AdminService.getDashboard()` ✅ trả về:
-- `totalUsers`, `totalOrders`, `totalProducts`, `totalRevenue`
-- `ordersByStatus`, `ordersToday`, `revenueToday`
-- `revenueByMonth`, `topProducts`
+**Sửa:**
 
-Frontend `DashboardPage.vue` ✅ có:
-- 6 stat cards (users, orders, products, revenue, ordersToday, revenueToday)
-- 2 charts (revenue by month bar, top products horizontal bar)
-
-### Cần bổ sung
-
-#### Dashboard
-
-- [ ] Thêm doughnut chart `ordersByStatus` (PENDING, CONFIRMED, PREPARING, READY, ...)
-- [ ] Thêm stat card "Chờ xác nhận" (pendingOrders)
-- [ ] Thêm stat card "Đơn hôm nay"
-
-#### Product management
-
-- [ ] Kiểm tra `ProductsPage.vue` CRUD variant hoạt động
-- [ ] Kiểm tra upload Cloudinary
-
-#### User management
-
-- [ ] `UsersPage.vue` — danh sách user, role, trạng thái
-
-#### UI improvements
-
-- [ ] Đổi `grid-2` thành `grid-3` để có 3 chart cạnh nhau
-
-### API
-
-```http
-GET /api/admin/dashboard
-Response: { totalUsers, totalOrders, totalProducts, totalRevenue,
-            ordersByStatus: { PENDING: 2, CONFIRMED: 1, ... },
-            ordersToday, revenueToday, revenueByMonth: [...], topProducts: [...] }
+```js
+const result = await orderStore.trackOrder(orderCode.value);
 ```
 
 ---
 
-## Module Staff — Đã hoàn thiện
+### A3. `user/OrderReviewPage.vue` — async trong computed
 
-### Hiện tại đã có
+**Vấn đề:** `computed(() => orderStore.fetchById(route.params.id))` — async không reactive trong computed.
 
-- [x] 4 tab: PENDING / CONFIRMED / PREPARING / READY
-- [x] OrderDetail: nút chuyển trạng thái + cancel modal
-- [x] Dashboard: doughnut chart + 4 stat cards
-- [x] Đã bỏ lowStockIngredients
+**Sửa:**
 
-### Chỉ cần kiểm tra
+```js
+const order = ref(null);
+onMounted(async () => {
+  order.value = await orderStore.fetchById(route.params.id);
+});
+```
 
-- [ ] Tabs fetch đúng API, không 500
-- [ ] Status buttons hoạt động đúng flow
-- [ ] Items hiển thị variantName
+Bỏ dòng `const order = computed(...)` cũ.
 
 ---
 
-## Module Shipper — Tài xế giao hàng
+### A4. `admin/RevenueReportPage.vue` — thiếu fetchDashboard
 
-### Mô tả
+**Vấn đề:** Đọc `adminStore.dashboard` trực tiếp nhưng không gọi `fetchDashboard()` → crash nếu vào trang trực tiếp.
 
-Shipper là actor mới (role_id = 3). Sau khi Staff chuyển đơn sang READY, shipper nhận đơn và giao cho khách.
+**Sửa:** Thêm vào `onMounted`:
 
-### Luồng
+```js
+onMounted(async () => {
+  await adminStore.fetchDashboard();
+});
+```
+
+---
+
+### A5. `admin/TopProductsReportPage.vue` — thiếu fetchDashboard
+
+**Sửa:** Giống A4 — thêm `onMounted` gọi `adminStore.fetchDashboard()`.
+
+---
+
+### A6. `stores/auth.js` — updateProfile không gọi API
+
+**Vấn đề:** Chỉ `Object.assign(user.value, data)` local, không gọi backend → mất dữ liệu.
+
+**Sửa:**
+
+```js
+async function updateProfile(data) {
+  try {
+    await authApi.updateProfile(data);
+    Object.assign(user.value, data);
+  } catch {
+    throw new Error('Cập nhật thất bại');
+  }
+}
+```
+
+---
+
+### A7. `stores/order.js` — reviewOrder không gọi API
+
+**Vấn đề:** Chỉ update local, không gọi `orderApi.review()` → review không lưu.
+
+**Sửa:**
+
+```js
+async function reviewOrder(id, data) {
+  try {
+    await orderApi.review(id, data);
+    const order = currentOrder.value;
+    if (order) { order.review = data; }
+  } catch {
+    throw new Error('Gửi đánh giá thất bại');
+  }
+}
+```
+
+---
+
+### A8. `stores/product.js` + `ProductServlet.java` — phantom fields
+
+**Vấn đề:** Store đọc `discountPrice`, `rating`, `reviewCount`, `inStock`, `featured` nhưng backend không trả → luôn null/0/false.
+
+**Sửa frontend** (`stores/product.js` — mapProduct):
+
+```js
+discountPrice: p.discountPrice || null,
+rating: p.rating || 0,
+reviewCount: p.reviewCount || 0,
+inStock: p.inStock !== undefined ? p.inStock : (p.status === 'AVAILABLE'),
+featured: p.featured || false,
+```
+
+**Sửa backend** (`ProductServlet.java` — toMap):
+
+```java
+m.put("discountPrice", null);
+m.put("rating", 0);
+m.put("reviewCount", 0);
+m.put("inStock", "AVAILABLE".equals(p.getStatus()));
+m.put("featured", false);
+```
+
+Tương tự với `AdminProductServlet.java` — toMap.
+
+---
+
+## Nhóm B — Moderate (sai field name)
+
+### B1. `user/CheckoutPage.vue` — addr.ward → addr.wardName
+
+| Dòng | Cũ | Mới |
+|---|---|---|
+| 230 | `addr.ward` | `addr.wardName` |
+
+Dòng 230 đang dùng `addr.street, addr.ward, addr.city`. Đổi `addr.ward` → `addr.wardName`.
+
+### B2. `user/ProfilePage.vue` — addr.ward → addr.wardName
+
+| Dòng | Cũ | Mới |
+|---|---|---|
+| 102 | `addr.ward` | `addr.wardName` |
+| 106 | `addr.ward` | `addr.wardName` |
+
+### B3. `stores/staff.js` — thiếu updatedAt
+
+Thêm vào `mapOrderListItem()`:
+
+```js
+updatedAt: o.updatedAt || o.confirmedAt || o.createdAt,
+```
+
+### B4. `ShipperServlet.java` — items rỗng
+
+**Vấn đề:** `toDetail()` trả `data.items = new ArrayList<>()`, không load OrderItem từ DB.
+
+**Sửa:**
+
+```java
+List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
+    .stream()
+    .map(oi -> {
+        Map<String, Object> im = new HashMap<>();
+        im.put("productId", oi.getProduct().getProductId());
+        im.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
+        im.put("productName", oi.getProductName());
+        im.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
+        im.put("quantity", oi.getQuantity());
+        im.put("unitPrice", oi.getUnitPrice());
+        im.put("totalPrice", oi.getTotalPrice());
+        return im;
+    })
+    .collect(Collectors.toList());
+data.put("items", items);
+```
+
+### B5. `stores/order.js` — fetchById logic sai
+
+**Sửa:**
+
+```js
+async function fetchById(id) {
+  if (currentOrder.value?.id === Number(id)) return currentOrder.value;
+  await fetchDetail(id);
+  return currentOrder.value;
+}
+```
+
+### B6. `admin/ShiftsPage.vue` — u.name → u.fullName
+
+| Dòng | Cũ | Mới |
+|---|---|---|
+| 248 | `u.name` | `u.fullName` |
+| 248 | `u.role` | `u.roleName` |
+
+### B7. `user/CheckoutPage.vue` — thiếu variantName
+
+Thêm vào template trong vòng lặp item:
+
+```html
+<div v-if="item.variantName" class="item-variant">
+  {{ item.variantName }}
+</div>
+```
+
+### B8. `AdminService.java` — thiếu pendingOrders
+
+Thêm vào `getDashboard()`:
+
+```java
+data.put("pendingOrders", ordersDAO.countByStatus("PENDING"));
+```
+
+---
+
+## Nhóm C — Cleanup (xóa file cũ)
+
+Xóa các file không còn dùng:
+
+| File | Lý do |
+|---|---|
+| `entity/Ingredient.java` | Bảng `Ingredient` không tồn tại |
+| `entity/ProductIngredient.java` | Bảng `ProductIngredient` không tồn tại |
+| `entity/ProductOption.java` | Bảng `ProductOption` không tồn tại |
+| `dao/IngredientDAO.java` | DAO duy nhất references Ingredient — không còn dùng |
+
+---
+
+## Nhóm D — Thiếu backend endpoint
+
+| STT | API | Servlet | Hành động |
+|---|---|---|---|
+| D1 | `PUT /auth/change-password` | `AuthServlet.java` | Thêm handler trong doPut |
+| D2 | `POST /auth/forgot-password` | `AuthServlet.java` | Thêm handler trong doPost |
+| D3 | `POST /auth/reset-password` | `AuthServlet.java` | Thêm handler trong doPost |
+| D4 | `POST /auth/cart/migrate` | `AuthServlet.java` | Thêm handler trong doPost |
+| D5 | `GET/POST/DELETE /user/favorites` | `FavoritesServlet.java` | Tạo mới |
+| D6 | `GET /user/vouchers` | `VoucherServlet.java` | Tạo mới |
+| D7 | `POST /orders/{id}/review` | `OrderServlet.java` | Thêm handler trong doPost |
+| D8 | `GET /admin/orders` | `AdminOrderServlet.java` | Tạo mới |
+| D9 | `GET/POST/PUT/DELETE /admin/shifts` | `AdminShiftServlet.java` | Tạo mới |
+| D10 | `GET/POST /admin/schedules` | `AdminScheduleServlet.java` | Tạo mới |
+| D11 | `GET /admin/reports/revenue` | `AdminServlet.java` | Thêm handler |
+| D12 | `GET /admin/reports/top-products` | `AdminServlet.java` | Thêm handler |
+| D13 | `PUT /staff/orders/{id}/assign` | `StaffOrderServlet.java` | Thêm handler |
+| D14 | `POST /staff/orders/{id}/notes` | `StaffOrderServlet.java` | Thêm handler |
+| D15 | `GET /staff/orders/export` | `StaffOrderServlet.java` | Thêm handler |
+| D16 | `POST/GET /staff/shifts/*` | `StaffShiftServlet.java` | Tạo mới |
+| D17 | `GET /products/featured` | `ProductServlet.java` | Thêm handler |
+
+---
+
+## Thứ tự triển khai
 
 ```text
-READY → Shipper nhận đơn → PICKED_UP (đã lấy hàng) → DELIVERED (đã giao)
-READY → CANCELLED (nếu shipper hủy)
+Bước 1: Nhóm A (8 lỗi critical)
+Bước 2: Nhóm B (8 lỗi moderate)
+Bước 3: Nhóm C (xóa 4 file)
+Bước 4: Nhóm D (tạo/handler endpoint)
+Bước 5: Backend compile + Frontend build
 ```
-
-### Backend — File cần tạo
-
-| File | Mô tả |
-|---|---|
-| `servlet/ShipperServlet.java` | REST API cho shipper |
-| `service/ShipperService.java` | Business logic |
-| `entity/Orders.java` | Đã có sẵn shipper_id, picked_up_at, delivered_at |
-
-### API Endpoints
-
-| Method | Path | Mô tả |
-|---|---|---|
-| GET | `/api/shipper/orders` | Danh sách đơn READY để nhận |
-| GET | `/api/shipper/orders/mine` | Đơn shipper đang giao |
-| PUT | `/api/shipper/orders/{id}/pickup` | Đã lấy hàng → PICKED_UP |
-| PUT | `/api/shipper/orders/{id}/deliver` | Đã giao → DELIVERED |
-| GET | `/api/shipper/orders/history` | Lịch sử giao hàng |
-
-### Backend — ShipperService.java (mẫu)
-
-```
-package service;
-
-public class ShipperService {
-    private OrdersDAO ordersDAO = new OrdersDAO();
-
-    // Lấy đơn READY chưa có shipper
-    public List<Orders> getAvailableOrders() {
-        return ordersDAO.findByStatus("READY");
-    }
-
-    // Lấy đơn của shipper
-    public List<Orders> getMyOrders(int shipperId) {
-        // Query orders where shipper_id = shipperId AND status IN ('PICKED_UP', 'READY')
-    }
-
-    // Nhận đơn - gán shipper_id, chuyển READY → PICKED_UP
-    public boolean pickUpOrder(int orderId, int shipperId) {
-        // Gán shipper_id, set picked_up_at, chuyển status
-    }
-
-    // Giao thành công - chuyển PICKED_UP → DELIVERED
-    public boolean deliverOrder(int orderId) {
-        // Set delivered_at, chuyển status
-    }
-}
-```
-
-### Frontend — Shipper mobile UI
-
-Thiết kế mobile-first (responsive, hoặc có thể làm PWA).
-
-#### File cần tạo
-
-| File | Mô tả |
-|---|---|
-| `layouts/ShipperLayout.vue` | Layout mobile cho shipper |
-| `views/shipper/DashboardPage.vue` | Trang chủ, danh sách đơn chờ |
-| `views/shipper/MyOrdersPage.vue` | Đơn đang giao + lịch sử |
-| `views/shipper/OrderDetailPage.vue` | Chi tiết đơn + nút pickup/deliver |
-| `stores/shipper.js` | Store Pinia cho shipper |
-| `api/shipper.js` | API client |
-| `router/index.js` | Thêm route cho `/shipper/*` |
-
-#### Giao diện mobile
-
-- Tối ưu cho màn hình nhỏ (dưới 768px)
-- Card thay vì table
-- Nút lớn dễ bấm
-- Tích hợp bản đồ (có thể dùng Google Maps hoặc Leaflet)
-
-#### Dashboard shipper
-
-- Số đơn chờ nhận hôm nay
-- Số đơn đang giao
-- Danh sách đơn READY (có địa chỉ, khoảng cách)
-- Nút "Nhận đơn"
-
-#### Order detail
-
-- Thông tin khách hàng (tên, sđt, địa chỉ)
-- Sản phẩm đã đặt (productName + variantName)
-- Phí ship, tổng tiền
-- Nút "Đã lấy hàng" (PICKED_UP)
-- Nút "Đã giao thành công" (DELIVERED)
-- Nút "Liên hệ khách" (gọi điện)
-
-### Database
-
-Các trường đã có sẵn:
-- `Users` với `role_id = 3` (SHIPPER)
-- `Orders.shipper_id` (FK → Users)
-- `Orders.picked_up_at` (datetime)
-- `Orders.delivered_at` (datetime)
-
-Thêm status:
-- `PICKED_UP` vào order_status (hiện đã có DELIVERING, có thể dùng DELIVERING hoặc thêm mới)
-
-Seed data shipper:
-```sql
--- Nếu chưa có shipper
-insert into Users (role_id, email, phone, password_hash, full_name, status)
-values (3, 'shipper1@fastguy.com', '0901000004', '123456', N'Phạm Văn C', 'ACTIVE');
-```
-
----
-
-## Timeline
-
-| Giai đoạn | Nội dung | Thời gian |
-|---|---|---|
-| Phase 1 | GHN Checkout (User) | Ngày 1 |
-| Phase 2 | Admin Dashboard hoàn chỉnh | Ngày 2 |
-| Phase 3 | Shipper Backend API | Ngày 3 |
-| Phase 4 | Shipper Frontend mobile | Ngày 4-5 |
-| Phase 5 | Kiểm tra toàn bộ flow + Fix bug | Ngày 6 |
 
 ## Lệnh kiểm tra
 
 ```bash
-# Backend
 cd Backend/FastGuy-FastFoodSite && mvn clean compile
-
-# Frontend
 cd Frontend && npm run build
 ```
