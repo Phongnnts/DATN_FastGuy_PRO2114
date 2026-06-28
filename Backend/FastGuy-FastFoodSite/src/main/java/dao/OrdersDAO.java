@@ -168,6 +168,46 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findByStatusAndNoShipper(String status) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.orderStatus = :status AND o.shipper IS NULL ORDER BY o.createdAt DESC",
+                    Orders.class)
+                    .setParameter("status", status)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findByShipperId(int shipperId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.shipper.userId = :sid ORDER BY o.createdAt DESC",
+                    Orders.class)
+                    .setParameter("sid", shipperId)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findByShipperIdAndStatus(int shipperId, String status) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.shipper.userId = :sid AND o.orderStatus = :status ORDER BY o.createdAt DESC",
+                    Orders.class)
+                    .setParameter("sid", shipperId)
+                    .setParameter("status", status)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public void save(Orders order) throws RuntimeException {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

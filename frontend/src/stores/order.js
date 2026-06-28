@@ -105,11 +105,17 @@ export const useOrderStore = defineStore('order', () => {
     loading.value = true;
     try {
       const data = await orderApi.create({
-        zoneId: orderData.zoneId || 1,
         address: orderData.address || '',
         phone: orderData.phone || '',
-        deliveryNote: orderData.note || '',
+        deliveryNote: orderData.deliveryNote || '',
         paymentMethod: orderData.paymentMethod || 'COD',
+        ghnProvinceId: orderData.ghnProvinceId || null,
+        ghnDistrictId: orderData.ghnDistrictId || null,
+        ghnWardCode: orderData.ghnWardCode || null,
+        toProvinceName: orderData.toProvinceName || '',
+        toDistrictName: orderData.toDistrictName || '',
+        toWardName: orderData.toWardName || '',
+        shippingFee: orderData.shippingFee || 0,
       });
       const newOrder = {
         id: data.orderId,
