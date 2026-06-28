@@ -9,11 +9,11 @@ const emit = defineEmits(['update:quantity', 'remove']);
 
 function changeQty(delta) {
   const newQty = Math.max(1, props.item.quantity + delta);
-  emit('update:quantity', props.item.productId, newQty);
+  emit('update:quantity', props.item.productId, props.item.variantId, newQty);
 }
 
 function remove() {
-  emit('remove', props.item.productId);
+  emit('remove', props.item.productId, props.item.variantId);
 }
 </script>
 
@@ -28,7 +28,7 @@ function remove() {
         {{ item.variantName }}
       </div>
       <div class="cart-item-price">
-        {{ formatPrice(item.discountPrice || item.price) }}
+        {{ formatPrice(item.price) }}
       </div>
     </div>
     <div class="cart-item-qty">
@@ -41,7 +41,7 @@ function remove() {
       </button>
     </div>
     <div class="cart-item-total">
-      {{ formatPrice((item.discountPrice || item.price) * item.quantity) }}
+      {{ formatPrice(item.price * item.quantity) }}
     </div>
     <button class="cart-item-remove" @click="remove">
       <i class="bi bi-trash3"></i>
