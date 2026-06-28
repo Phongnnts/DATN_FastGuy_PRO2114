@@ -22,10 +22,14 @@ onMounted(() => switchTab('PENDING'))
 
 async function switchTab(tab) {
   activeTab.value = tab
-  if (tab === 'PENDING') await staffStore.fetchOrders()
-  else if (tab === 'CONFIRMED') await staffStore.fetchConfirmedOrders()
-  else if (tab === 'PREPARING') await staffStore.fetchPreparingOrders()
-  else if (tab === 'READY') await staffStore.fetchReadyOrders()
+  try {
+    if (tab === 'PENDING') await staffStore.fetchOrders()
+    else if (tab === 'CONFIRMED') await staffStore.fetchConfirmedOrders()
+    else if (tab === 'PREPARING') await staffStore.fetchPreparingOrders()
+    else if (tab === 'READY') await staffStore.fetchReadyOrders()
+  } catch {
+    alert('Lỗi tải dữ liệu')
+  }
 }
 
 const filteredOrders = computed(() => {
