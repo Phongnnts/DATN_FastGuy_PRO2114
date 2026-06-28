@@ -1,6 +1,7 @@
 package servlet;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -106,18 +107,28 @@ public class OrderServlet extends HttpServlet {
             return;
         }
 
-        int zoneId = ((Number) body.get("zoneId")).intValue();
+        int zoneId = body.containsKey("zoneId") ? ((Number) body.get("zoneId")).intValue() : 0;
         String address = (String) body.get("address");
         String phone = (String) body.get("phone");
         String deliveryNote = (String) body.get("deliveryNote");
         String paymentMethod = (String) body.get("paymentMethod");
+        Integer ghnProvinceId = body.containsKey("ghnProvinceId") ? ((Number) body.get("ghnProvinceId")).intValue() : null;
+        Integer ghnDistrictId = body.containsKey("ghnDistrictId") ? ((Number) body.get("ghnDistrictId")).intValue() : null;
+        String ghnWardCode = (String) body.get("ghnWardCode");
+        String toProvinceName = (String) body.get("toProvinceName");
+        String toDistrictName = (String) body.get("toDistrictName");
+        String toWardName = (String) body.get("toWardName");
+        BigDecimal shippingFee = body.containsKey("shippingFee")
+                ? BigDecimal.valueOf(((Number) body.get("shippingFee")).doubleValue())
+                : BigDecimal.ZERO;
 
         if (address == null) {
             ApiResponse.error(resp, "Missing address", 400);
             return;
         }
 
-        Orders order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod);
+        Orders order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod,
+                ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, shippingFee);
         if (order == null) {
             ApiResponse.error(resp, "Cart is empty", 400);
             return;
