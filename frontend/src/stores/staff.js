@@ -18,7 +18,9 @@ export const useStaffStore = defineStore('staff', () => {
       status: o.orderStatus || o.status,
       items: (o.items || []).map((i) => ({
         productId: i.productId,
+        variantId: i.variantId || null,
         productName: i.productName,
+        variantName: i.variantName || '',
         price:
           typeof i.unitPrice === 'string'
             ? parseFloat(i.unitPrice)

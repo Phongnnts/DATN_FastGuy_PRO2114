@@ -1,105 +1,175 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useOrderStore } from '@/stores/order';
 import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
-import { deliveryZoneApi, userApi } from '@/api';
+import { userApi, shippingApi, deliveryZoneApi } from '@/api';
 
 const router = useRouter();
 const auth = useAuthStore();
 const cart = useCartStore();
 const orderStore = useOrderStore();
 
-const zones = ref([]);
 const savedAddresses = ref([]);
 const selectedAddressId = ref(null);
 const useNewAddress = ref(false);
-const selectedZone = ref(null);
-const houseNumber = ref('');
-const ward = ref('');
 const phone = ref('');
 const recipientName = ref('');
+const street = ref('');
 const paymentMethod = ref('COD');
 const note = ref('');
 const submitting = ref(false);
-const loadingZones = ref(true);
 
-const selectedDistrictName = computed(() => {
-  const zone = zones.value.find(z => z.zoneId === selectedZone.value);
-  return zone ? zone.districtName : '';
-});
+const provinces = ref([]);
+const districts = ref([]);
+const wards = ref([]);
+const selectedProvince = ref(null);
+const selectedDistrict = ref(null);
+const selectedWard = ref(null);
+const loadingProvinces = ref(false);
+const shippingFee = ref(null);
+const shippingProvider = ref('');
+const feeLoading = ref(false);
 
-const shippingFee = computed(() => {
-  const zone = zones.value.find(z => z.zoneId === selectedZone.value);
-  return zone ? (zone.shippingFee || 0) : 0;
-});
-const total = computed(() => cart.subtotal + shippingFee.value);
+const total = computed(() => cart.subtotal + (shippingFee.value || 0));
 
 onMounted(async () => {
   try {
-    const [zoneData, addrData] = await Promise.all([
-      deliveryZoneApi.getAll(),
+    const [provData, addrData] = await Promise.all([
+      shippingApi.getProvinces(),
       userApi.getAddresses(),
     ]);
-    zones.value = zoneData || [];
+    provinces.value = (provData || []).map(p => ({
+      id: p.ProvinceID || p.province_id || p.provinceId,
+      name: p.ProvinceName || p.province_name || p.provinceName,
+    }));
     savedAddresses.value = addrData || [];
-    if (zones.value.length > 0) selectedZone.value = zones.value[0].zoneId;
     const defaultAddr = savedAddresses.value.find(a => a.isDefault);
     if (defaultAddr) selectAddress(defaultAddr);
   } catch {
-    zones.value = [];
+    provinces.value = [];
     savedAddresses.value = [];
+  }
+});
+
+watch(selectedProvince, async (id) => {
+  districts.value = [];
+  wards.value = [];
+  selectedDistrict.value = null;
+  selectedWard.value = null;
+  shippingFee.value = null;
+  if (!id) return;
+  try {
+    const data = await shippingApi.getDistricts(id);
+    districts.value = (data || []).map(d => ({
+      id: d.DistrictID || d.district_id || d.districtId,
+      name: d.DistrictName || d.district_name || d.districtName,
+    }));
+  } catch {
+    districts.value = [];
+  }
+});
+
+watch(selectedDistrict, async (id) => {
+  wards.value = [];
+  selectedWard.value = null;
+  shippingFee.value = null;
+  if (!id) return;
+  try {
+    const data = await shippingApi.getWards(id);
+    wards.value = (data || []).map(w => ({
+      code: w.WardCode || w.ward_code || w.wardCode,
+      name: w.WardName || w.ward_name || w.wardName,
+    }));
+  } catch {
+    wards.value = [];
+  }
+});
+
+watch(selectedWard, async (code) => {
+  shippingFee.value = null;
+  if (!code || !selectedDistrict.value) return;
+  feeLoading.value = true;
+  try {
+    const result = await shippingApi.calculateFee({
+      toDistrictId: selectedDistrict.value,
+      toWardCode: code,
+      weight: 1000,
+      length: 20,
+      width: 20,
+      height: 10,
+    });
+    const fee = result.fee || result.shippingFee || 0;
+    shippingFee.value = typeof fee === 'number' ? fee : parseFloat(fee) || 0;
+    shippingProvider.value = result.shippingProvider || 'GHN';
+  } catch {
+    try {
+      const zones = await deliveryZoneApi.getAll();
+      const zone = (zones || []).find(z => z.districtName?.toLowerCase().includes(
+        (districts.value.find(d => d.id === selectedDistrict.value)?.name || '').toLowerCase()
+      ));
+      shippingFee.value = zone ? (zone.shippingFee || 15000) : 15000;
+      shippingProvider.value = 'FALLBACK_ZONE';
+    } catch {
+      shippingFee.value = 15000;
+      shippingProvider.value = 'FALLBACK_ZONE';
+    }
   } finally {
-    loadingZones.value = false;
+    feeLoading.value = false;
   }
 });
 
 function selectAddress(addr) {
   selectedAddressId.value = addr.addressId;
   useNewAddress.value = false;
-  selectedZone.value = addr.zone ? addr.zone.zoneId : null;
-  ward.value = addr.ward || '';
-  houseNumber.value = addr.street || '';
+  street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
+  if (addr.ghnDistrictId) selectedDistrict.value = addr.ghnDistrictId;
+  if (addr.ghnWardCode) selectedWard.value = addr.ghnWardCode;
 }
 
 function useManualEntry() {
   selectedAddressId.value = null;
   useNewAddress.value = true;
-  selectedZone.value = zones.value.length > 0 ? zones.value[0].zoneId : null;
-  ward.value = '';
-  houseNumber.value = '';
+  street.value = '';
   phone.value = '';
   recipientName.value = '';
 }
 
 function getFullAddress() {
-  const parts = [
+  const prov = provinces.value.find(p => p.id === selectedProvince.value);
+  const dist = districts.value.find(d => d.id === selectedDistrict.value);
+  const ward = wards.value.find(w => w.code === selectedWard.value);
+  return [
     recipientName.value.trim(),
-    houseNumber.value.trim(),
-    ward.value.trim(),
-    selectedDistrictName.value,
-  ].filter(Boolean);
-  return parts.join(', ');
+    street.value.trim(),
+    ward?.name || '',
+    dist?.name || '',
+    prov?.name || '',
+  ].filter(Boolean).join(', ');
+}
+
+function canPlaceOrder() {
+  return selectedWard.value && selectedDistrict.value && shippingFee.value !== null
+    && recipientName.value.trim() && phone.value.trim() && street.value.trim();
 }
 
 async function placeOrder() {
-  if (!selectedZone.value) return alert('Vui lòng chọn quận/huyện');
+  if (!canPlaceOrder()) return alert('Vui lòng điền đầy đủ thông tin giao hàng');
   const fullAddress = getFullAddress();
   if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
-  if (!phone.value.trim()) return alert('Vui lòng nhập số điện thoại');
   submitting.value = true;
   try {
     const order = await orderStore.createOrder({
-      zoneId: selectedZone.value,
+      zoneId: 1,
       address: fullAddress,
       phone: phone.value.trim(),
+      deliveryNote: note.value,
       paymentMethod: paymentMethod.value,
-      note: note.value,
     });
     cart.clear();
     router.push(`/account/orders/${order.id}`);
@@ -148,34 +218,50 @@ async function placeOrder() {
           <div v-if="useNewAddress || savedAddresses.length === 0">
             <div class="form-group">
               <label class="form-label">Tên người nhận</label>
-              <input v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" />
+              <input v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tỉnh / Thành phố</label>
+              <select v-model="selectedProvince" class="form-select">
+                <option :value="null">Chọn tỉnh/thành</option>
+                <option v-for="p in provinces" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
             </div>
             <div class="form-group">
               <label class="form-label">Quận / Huyện</label>
-              <select v-model="selectedZone" class="form-select" :disabled="loadingZones">
-                <option v-if="loadingZones" value="">Đang tải...</option>
-                <option v-for="z in zones" :key="z.zoneId" :value="z.zoneId">
-                  {{ z.districtName }}
-                </option>
+              <select v-model="selectedDistrict" class="form-select" :disabled="!selectedProvince">
+                <option :value="null">Chọn quận/huyện</option>
+                <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
               </select>
             </div>
             <div class="form-group">
               <label class="form-label">Phường / Xã</label>
-              <input v-model="ward" class="form-input" placeholder="VD: Phường Bến Nghé" />
+              <select v-model="selectedWard" class="form-select" :disabled="!selectedDistrict">
+                <option :value="null">Chọn phường/xã</option>
+                <option v-for="w in wards" :key="w.code" :value="w.code">{{ w.name }}</option>
+              </select>
             </div>
             <div class="form-group">
               <label class="form-label">Số nhà, tên đường</label>
-              <input v-model="houseNumber" class="form-input" placeholder="VD: 123 Nguyễn Huệ" />
+              <input v-model="street" class="form-input" placeholder="VD: 123 Nguyễn Huệ" required />
             </div>
             <div class="form-group">
               <label class="form-label">Số điện thoại</label>
-              <input v-model="phone" type="tel" class="form-input" placeholder="Số điện thoại nhận hàng" />
+              <input v-model="phone" type="tel" class="form-input" placeholder="Số điện thoại nhận hàng" required />
             </div>
           </div>
 
           <div class="preview-address" v-if="getFullAddress()">
             <i class="bi bi-geo-alt"></i>
             <span>{{ getFullAddress() }}</span>
+          </div>
+          <div v-if="feeLoading" class="fee-loading" style="margin-top:8px;font-size:13px;color:var(--text-mid)">
+            <i class="bi bi-arrow-repeat spin"></i> Đang tính phí giao hàng...
+          </div>
+          <div v-else-if="shippingFee !== null" class="fee-result" style="margin-top:8px">
+            <i class="bi bi-truck"></i>
+            Phí giao hàng: <strong>{{ formatPrice(shippingFee) }}</strong>
+            <span v-if="shippingProvider === 'FALLBACK_ZONE'" style="font-size:12px;color:var(--text-mid)"> (ước tính)</span>
           </div>
         </div>
         <div class="card mb-3">
@@ -243,7 +329,9 @@ async function placeOrder() {
               <span>Tạm tính</span><span>{{ formatPrice(cart.subtotal) }}</span>
             </div>
             <div class="summary-row">
-              <span>Phí giao hàng</span><span>{{ formatPrice(shippingFee) }}</span>
+              <span>Phí giao hàng</span>
+              <span v-if="feeLoading">Đang tính...</span>
+              <span v-else>{{ shippingFee !== null ? formatPrice(shippingFee) : '—' }}</span>
             </div>
             <div class="summary-divider"></div>
             <div class="summary-row" style="font-size: 18px; font-weight: 800">
@@ -253,7 +341,7 @@ async function placeOrder() {
           <button
             class="btn btn-lg btn-primary checkout-btn"
             @click="placeOrder"
-            :disabled="submitting"
+            :disabled="submitting || !canPlaceOrder() || feeLoading"
           >
             <i v-if="submitting" class="bi bi-arrow-repeat spin"></i>
             {{ submitting ? 'Đang xử lý...' : 'Đặt hàng' }}
@@ -435,6 +523,9 @@ async function placeOrder() {
   margin-top: 16px;
 }
 .spin {
+  animation: spin 1s linear infinite;
+}
+.fee-loading i, .spin {
   animation: spin 1s linear infinite;
 }
 @keyframes spin {
