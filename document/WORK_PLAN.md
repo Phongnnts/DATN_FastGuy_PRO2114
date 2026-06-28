@@ -1,144 +1,248 @@
-# WORK PLAN — FastGuy (Hoàn thiện)
+# WORK PLAN — FastGuy Comprehensive
 
 ## Mục tiêu
 
-Hoàn thiện 2 module:
+Hoàn thiện dự án FastGuy theo đúng thiết kế database mới. Chia làm 4 module chính:
 
-1. **Checkout GHN** — Chọn tỉnh → huyện → xã, mặc định TP.HCM, tính phí ship, lưu GHN fields
-2. **Admin Dashboard** — Thêm doughnut chart, hoàn chỉnh thống kê
-3. **Staff Dashboard** — Giữ nguyên, không cần sửa
+| Module | Nhánh | Actor | Mô tả |
+|---|---|---|---|
+| User | `module/user` | Khách hàng | Checkout GHN, chọn tỉnh/huyện/xã, tính phí ship |
+| Admin | `module/admin` | Quản trị viên | Dashboard hoàn chỉnh, quản lý hệ thống |
+| Staff | `module/staff` | Nhân viên | Xử lý đơn, dashboard chart |
+| Shipper | `module/shipper` | Tài xế giao hàng | Nhận đơn, giao hàng, mobile UI |
 
 ---
 
-## Phân công theo nhánh
+## Module User — Checkout GHN
 
-| Nhánh | Người | Việc |
+### Yêu cầu
+
+Checkout phải gửi GHN fields thay vì `zoneId` cứng. Mặc định chọn TP.HCM.
+
+### API thay đổi
+
+**POST /api/orders** — request body mới:
+
+```json
+{
+  "address": "123 Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+  "phone": "0901000006",
+  "deliveryNote": "",
+  "paymentMethod": "COD",
+  "ghnProvinceId": 202,
+  "ghnDistrictId": 1442,
+  "ghnWardCode": "20107",
+  "toProvinceName": "TP. Hồ Chí Minh",
+  "toDistrictName": "Quận 1",
+  "toWardName": "Phường Bến Nghé",
+  "shippingFee": 15000
+}
+```
+
+### File cần sửa
+
+| STT | File | Việc |
 |---|---|---|
-| `module/user` | Thành viên 1 | Checkout GHN |
-| `module/admin` | Thành viên 2 | Admin Dashboard |
-| `module/staff` | — | Giữ nguyên |
+| 1 | `OrderServlet.java` | Đọc 8 field GHN từ body |
+| 2 | `OrderService.java` | Sửa method `checkout`, set GHN fields vào Orders |
+| 3 | `frontend/views/user/CheckoutPage.vue` | Hàm `placeOrder()` gửi GHN field, mặc định TP.HCM |
+| 4 | `frontend/stores/order.js` | Đảm bảo `createOrder` pass toàn bộ data |
 
 ---
 
-## Nhánh `module/user` — Checkout GHN
+## Module Admin — Dashboard hoàn chỉnh + Quản lý
 
-### 4 file cần sửa
+### Hiện tại đã có
 
-| File | Việc |
+Backend `AdminService.getDashboard()` ✅ trả về:
+- `totalUsers`, `totalOrders`, `totalProducts`, `totalRevenue`
+- `ordersByStatus`, `ordersToday`, `revenueToday`
+- `revenueByMonth`, `topProducts`
+
+Frontend `DashboardPage.vue` ✅ có:
+- 6 stat cards (users, orders, products, revenue, ordersToday, revenueToday)
+- 2 charts (revenue by month bar, top products horizontal bar)
+
+### Cần bổ sung
+
+#### Dashboard
+
+- [ ] Thêm doughnut chart `ordersByStatus` (PENDING, CONFIRMED, PREPARING, READY, ...)
+- [ ] Thêm stat card "Chờ xác nhận" (pendingOrders)
+- [ ] Thêm stat card "Đơn hôm nay"
+
+#### Product management
+
+- [ ] Kiểm tra `ProductsPage.vue` CRUD variant hoạt động
+- [ ] Kiểm tra upload Cloudinary
+
+#### User management
+
+- [ ] `UsersPage.vue` — danh sách user, role, trạng thái
+
+#### UI improvements
+
+- [ ] Đổi `grid-2` thành `grid-3` để có 3 chart cạnh nhau
+
+### API
+
+```http
+GET /api/admin/dashboard
+Response: { totalUsers, totalOrders, totalProducts, totalRevenue,
+            ordersByStatus: { PENDING: 2, CONFIRMED: 1, ... },
+            ordersToday, revenueToday, revenueByMonth: [...], topProducts: [...] }
+```
+
+---
+
+## Module Staff — Đã hoàn thiện
+
+### Hiện tại đã có
+
+- [x] 4 tab: PENDING / CONFIRMED / PREPARING / READY
+- [x] OrderDetail: nút chuyển trạng thái + cancel modal
+- [x] Dashboard: doughnut chart + 4 stat cards
+- [x] Đã bỏ lowStockIngredients
+
+### Chỉ cần kiểm tra
+
+- [ ] Tabs fetch đúng API, không 500
+- [ ] Status buttons hoạt động đúng flow
+- [ ] Items hiển thị variantName
+
+---
+
+## Module Shipper — Tài xế giao hàng
+
+### Mô tả
+
+Shipper là actor mới (role_id = 3). Sau khi Staff chuyển đơn sang READY, shipper nhận đơn và giao cho khách.
+
+### Luồng
+
+```text
+READY → Shipper nhận đơn → PICKED_UP (đã lấy hàng) → DELIVERED (đã giao)
+READY → CANCELLED (nếu shipper hủy)
+```
+
+### Backend — File cần tạo
+
+| File | Mô tả |
 |---|---|
-| `Backend/.../servlet/OrderServlet.java` | +20 dòng đọc GHN fields từ request |
-| `Backend/.../service/OrderService.java` | +15 dòng tham số + set GHN vào Orders |
-| `frontend/src/views/user/CheckoutPage.vue` | +10 dòng sửa placeOrder, set mặc định TP.HCM |
-| `frontend/src/stores/order.js` | Kiểm tra, đảm bảo createOrder pass toàn bộ data |
+| `servlet/ShipperServlet.java` | REST API cho shipper |
+| `service/ShipperService.java` | Business logic |
+| `entity/Orders.java` | Đã có sẵn shipper_id, picked_up_at, delivered_at |
 
-### Chi tiết
+### API Endpoints
 
-#### 1. OrderServlet.java — doPost
+| Method | Path | Mô tả |
+|---|---|---|
+| GET | `/api/shipper/orders` | Danh sách đơn READY để nhận |
+| GET | `/api/shipper/orders/mine` | Đơn shipper đang giao |
+| PUT | `/api/shipper/orders/{id}/pickup` | Đã lấy hàng → PICKED_UP |
+| PUT | `/api/shipper/orders/{id}/deliver` | Đã giao → DELIVERED |
+| GET | `/api/shipper/orders/history` | Lịch sử giao hàng |
 
-Đọc thêm 6 field GHN từ body request:
-
-```
-ghnProvinceId (int, optional)
-ghnDistrictId (int, optional)
-ghnWardCode (string, optional)
-toProvinceName (string, optional)
-toDistrictName (string, optional)
-toWardName (string, optional)
-shippingFee (decimal, optional, mặc định 0)
-```
-
-Sau đó truyền vào `orderService.checkout(...)` cùng 8 tham số mới.
-
-#### 2. OrderService.java — checkout()
-
-Sửa method signature — thêm 8 tham số:
+### Backend — ShipperService.java (mẫu)
 
 ```
-Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
-String toProvinceName, String toDistrictName, String toWardName,
-BigDecimal shippingFee
+package service;
+
+public class ShipperService {
+    private OrdersDAO ordersDAO = new OrdersDAO();
+
+    // Lấy đơn READY chưa có shipper
+    public List<Orders> getAvailableOrders() {
+        return ordersDAO.findByStatus("READY");
+    }
+
+    // Lấy đơn của shipper
+    public List<Orders> getMyOrders(int shipperId) {
+        // Query orders where shipper_id = shipperId AND status IN ('PICKED_UP', 'READY')
+    }
+
+    // Nhận đơn - gán shipper_id, chuyển READY → PICKED_UP
+    public boolean pickUpOrder(int orderId, int shipperId) {
+        // Gán shipper_id, set picked_up_at, chuyển status
+    }
+
+    // Giao thành công - chuyển PICKED_UP → DELIVERED
+    public boolean deliverOrder(int orderId) {
+        // Set delivered_at, chuyển status
+    }
+}
 ```
 
-Bỏ dòng lấy `DeliveryZone` và `deliveryZoneDAO`. Set 8 field GHN vào Orders entity.
+### Frontend — Shipper mobile UI
 
-#### 3. stores/order.js
+Thiết kế mobile-first (responsive, hoặc có thể làm PWA).
 
-Kiểm tra hàm `createOrder(data)` — đảm bảo gửi toàn bộ data xuống backend API.
+#### File cần tạo
 
-#### 4. CheckoutPage.vue — placeOrder()
-
-Sửa hàm `placeOrder()`:
-
-- Bỏ gửi `zoneId: 1` cứng
-- Gửi các field GHN:
-  - `ghnProvinceId`, `ghnDistrictId`, `ghnWardCode`
-  - `toProvinceName`, `toDistrictName`, `toWardName`
-  - `shippingFee`
-
-Sau khi load provinces, tự động chọn TP.HCM làm mặc định:
-
-```
-Tìm province có tên chứa "Hồ Chí Minh"
-Nếu tìm thấy → set selectedProvince = id của nó
-```
-
-### Kiểm tra
-
-```bash
-# Backend
-cd Backend/FastGuy-FastFoodSite && mvn clean compile
-
-# Frontend
-cd Frontend && npm run build
-```
-
----
-
-## Nhánh `module/admin` — Admin Dashboard
-
-### 1 file cần sửa
-
-| File | Việc |
+| File | Mô tả |
 |---|---|
-| `frontend/src/views/admin/DashboardPage.vue` | +40 dòng thêm doughnut chart |
+| `layouts/ShipperLayout.vue` | Layout mobile cho shipper |
+| `views/shipper/DashboardPage.vue` | Trang chủ, danh sách đơn chờ |
+| `views/shipper/MyOrdersPage.vue` | Đơn đang giao + lịch sử |
+| `views/shipper/OrderDetailPage.vue` | Chi tiết đơn + nút pickup/deliver |
+| `stores/shipper.js` | Store Pinia cho shipper |
+| `api/shipper.js` | API client |
+| `router/index.js` | Thêm route cho `/shipper/*` |
 
-### Chi tiết
+#### Giao diện mobile
 
-Thêm doughnut chart hiển thị phân bố đơn hàng theo trạng thái (ordersByStatus).
+- Tối ưu cho màn hình nhỏ (dưới 768px)
+- Card thay vì table
+- Nút lớn dễ bấm
+- Tích hợp bản đồ (có thể dùng Google Maps hoặc Leaflet)
 
-Backend `AdminService.getDashboard()` đã trả về `ordersByStatus` — không cần sửa backend.
+#### Dashboard shipper
 
-#### Labels + Màu
+- Số đơn chờ nhận hôm nay
+- Số đơn đang giao
+- Danh sách đơn READY (có địa chỉ, khoảng cách)
+- Nút "Nhận đơn"
 
-```
-PENDING → 'Chờ xác nhận' → #F59E0B
-CONFIRMED → 'Đã xác nhận' → #3B82F6
-PREPARING → 'Đang chế biến' → #8B5CF6
-READY → 'Đã sẵn sàng' → #10B981
-DELIVERING → 'Đang giao' → #06B6D4
-DELIVERED → 'Đã giao' → #22C55E
-CANCELLED → 'Đã hủy' → #EF4444
-```
+#### Order detail
 
-#### Chart config
+- Thông tin khách hàng (tên, sđt, địa chỉ)
+- Sản phẩm đã đặt (productName + variantName)
+- Phí ship, tổng tiền
+- Nút "Đã lấy hàng" (PICKED_UP)
+- Nút "Đã giao thành công" (DELIVERED)
+- Nút "Liên hệ khách" (gọi điện)
 
-- Type: `doughnut`
-- Data: labels + values từ `ordersByStatus`, filter chỉ lấy status có count > 0
-- Options: responsive, legend ở bottom
+### Database
 
-#### Template
+Các trường đã có sẵn:
+- `Users` với `role_id = 3` (SHIPPER)
+- `Orders.shipper_id` (FK → Users)
+- `Orders.picked_up_at` (datetime)
+- `Orders.delivered_at` (datetime)
 
-Đổi `grid-2` thành `grid-3`. Thêm canvas ref cho status chart.
+Thêm status:
+- `PICKED_UP` vào order_status (hiện đã có DELIVERING, có thể dùng DELIVERING hoặc thêm mới)
 
-### Kiểm tra
-
-```bash
-cd Frontend && npm run build
+Seed data shipper:
+```sql
+-- Nếu chưa có shipper
+insert into Users (role_id, email, phone, password_hash, full_name, status)
+values (3, 'shipper1@fastguy.com', '0901000004', '123456', N'Phạm Văn C', 'ACTIVE');
 ```
 
 ---
 
-## Kiểm tra tổng thể
+## Timeline
+
+| Giai đoạn | Nội dung | Thời gian |
+|---|---|---|
+| Phase 1 | GHN Checkout (User) | Ngày 1 |
+| Phase 2 | Admin Dashboard hoàn chỉnh | Ngày 2 |
+| Phase 3 | Shipper Backend API | Ngày 3 |
+| Phase 4 | Shipper Frontend mobile | Ngày 4-5 |
+| Phase 5 | Kiểm tra toàn bộ flow + Fix bug | Ngày 6 |
+
+## Lệnh kiểm tra
 
 ```bash
 # Backend
