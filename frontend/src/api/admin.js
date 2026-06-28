@@ -82,16 +82,16 @@ export default {
       responseType: 'blob',
     });
   },
-  getOptions(productId) {
-    return client.get(`/admin/products/${productId}/options`);
+  getVariants(productId) {
+    return client.get(`/admin/products/${productId}/variants`);
   },
-  createOption(productId, data) {
-    return client.post(`/admin/products/${productId}/options`, data);
+  createVariant(productId, data) {
+    return client.post(`/admin/products/${productId}/variants`, data);
   },
-  updateOption(optionId, data) {
-    return client.put(`/admin/products/options/${optionId}`, data);
+  updateVariant(id, data) {
+    return client.put(`/admin/variants/${id}`, data);
   },
-  deleteOption(optionId) {
-    return client.delete(`/admin/products/options/${optionId}`);
+  deleteVariant(id) {
+    return client.delete(`/admin/variants/${id}`);
   },
 };
