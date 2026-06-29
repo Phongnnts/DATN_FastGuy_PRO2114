@@ -8,10 +8,14 @@ const router = useRouter();
 const shipperStore = useShipperStore();
 const loading = ref(true);
 
+const dashboard = computed(() => shipperStore.dashboard);
 const availableCount = computed(() => shipperStore.availableOrders.length);
 
 onMounted(async () => {
-  await shipperStore.fetchAvailableOrders();
+  await Promise.all([
+    shipperStore.fetchDashboard(),
+    shipperStore.fetchAvailableOrders(),
+  ]);
   loading.value = false;
 });
 
@@ -26,6 +30,21 @@ function goDetail(id) {
       <div class="hero-stat">
         <span class="hero-number">{{ availableCount }}</span>
         <span class="hero-label">Đơn chờ nhận</span>
+      </div>
+    </div>
+
+    <div v-if="dashboard" class="shipper-stats">
+      <div class="mini-stat">
+        <span class="mini-num">{{ dashboard.todayDelivered || 0 }}</span>
+        <span class="mini-label">Đã giao hôm nay</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ dashboard.activeCount || 0 }}</span>
+        <span class="mini-label">Đang giao</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ dashboard.totalDelivered || 0 }}</span>
+        <span class="mini-label">Tổng đã giao</span>
       </div>
     </div>
 
@@ -69,7 +88,31 @@ function goDetail(id) {
   border-radius: 16px;
   padding: 24px;
   text-align: center;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+}
+.shipper-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.mini-stat {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.mini-num {
+  font-size: 22px;
+  font-weight: 800;
+  display: block;
+  color: var(--primary);
+}
+.mini-label {
+  font-size: 11px;
+  color: var(--text-mid);
+  margin-top: 2px;
 }
 .hero-number {
   font-size: 44px;

@@ -33,6 +33,10 @@ const loadingProvinces = ref(false);
 const shippingFee = ref(null);
 const shippingProvider = ref('');
 const feeLoading = ref(false);
+const expectedDelivery = ref('');
+const services = ref([]);
+const selectedServiceId = ref(2);
+const serviceLoading = ref(false);
 
 const total = computed(() => cart.subtotal + (shippingFee.value || 0));
 
@@ -106,9 +110,17 @@ watch(selectedWard, async (code) => {
       width: 20,
       height: 10,
     });
-    const fee = result.fee || result.shippingFee || 0;
-    shippingFee.value = typeof fee === 'number' ? fee : parseFloat(fee) || 0;
+    const feeResp = result.fee || result.shippingFee || 0;
+    shippingFee.value = typeof feeResp === 'number' ? feeResp : parseFloat(feeResp) || 0;
     shippingProvider.value = result.shippingProvider || 'GHN';
+    if (result.expectedDeliveryTime) expectedDelivery.value = result.expectedDeliveryTime;
+    if (selectedDistrict.value) {
+      try {
+        const svc = await shippingApi.getServices({ toDistrictId: selectedDistrict.value });
+        services.value = Array.isArray(svc) ? svc : [];
+        if (services.value.length) selectedServiceId.value = services.value[0].service_id || 2;
+      } catch { services.value = []; }
+    }
   } catch {
     try {
       const zones = await deliveryZoneApi.getAll();
@@ -287,6 +299,9 @@ async function placeOrder() {
             <i class="bi bi-truck"></i>
             Phí giao hàng: <strong>{{ formatPrice(shippingFee) }}</strong>
             <span v-if="shippingProvider === 'FALLBACK_ZONE'" style="font-size:12px;color:var(--text-mid)"> (ước tính)</span>
+            <span v-if="expectedDelivery" style="display:block;font-size:12px;color:var(--text-mid);margin-top:4px">
+              <i class="bi bi-clock"></i> Dự kiến: {{ expectedDelivery }}
+            </span>
           </div>
         </div>
         <div class="card mb-3">

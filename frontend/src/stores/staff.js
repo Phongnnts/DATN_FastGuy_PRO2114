@@ -42,6 +42,7 @@ export const useStaffStore = defineStore('staff', () => {
       note: o.deliveryNote || '',
       createdAt: o.createdAt,
 
+      ghnOrderCode: o.ghnOrderCode || '',
       statusHistory: o.statusHistory || [
         { status: o.orderStatus || o.status, time: o.createdAt, note: '' },
       ],

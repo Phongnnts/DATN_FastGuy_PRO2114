@@ -84,6 +84,9 @@ function callCustomer() {
       <button v-if="order.customerPhone" class="btn btn-sm btn-primary call-btn" @click="callCustomer">
         <i class="bi bi-telephone"></i> Gọi điện
       </button>
+      <a :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(order.customerAddress)" target="_blank" class="btn btn-sm btn-outline map-btn">
+        <i class="bi bi-map"></i> Xem bản đồ
+      </a>
     </div>
 
     <div class="info-card" v-if="order.deliveryNote">

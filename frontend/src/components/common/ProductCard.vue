@@ -4,6 +4,7 @@ import { useCartStore } from '@/stores/cart';
 
 const props = defineProps({
   product: { type: Object, required: true },
+  listMode: { type: Boolean, default: false },
 });
 
 const cart = useCartStore();
@@ -26,10 +27,11 @@ const router = useRouter();
 </script>
 
 <template>
-  <div class="product-card" @click="goDetail">
+  <div class="product-card" :class="{ 'list-mode': listMode }" @click="goDetail">
     <div class="product-image">
       <div class="product-image-bg">
         <img :src="product.image" :alt="product.name" />
+        <div v-if="!product.inStock" class="out-of-stock-overlay">Hết hàng</div>
       </div>
     </div>
     <div class="product-info">
@@ -43,32 +45,17 @@ const router = useRouter();
       <div class="product-price-row">
         <div class="product-price">
           <template v-if="product.discountPrice">
-            <span class="price-current"
-              >{{ product.discountPrice.toLocaleString('vi-VN') }}₫</span
-            >
-            <span class="price-old"
-              >{{ product.price.toLocaleString('vi-VN') }}₫</span
-            >
+            <span class="price-current">{{ product.discountPrice.toLocaleString('vi-VN') }}₫</span>
+            <span class="price-old">{{ product.price.toLocaleString('vi-VN') }}₫</span>
           </template>
           <template v-else>
-            <span class="price-current"
-              >{{ product.price.toLocaleString('vi-VN') }}₫</span
-            >
+            <span class="price-current">{{ product.price.toLocaleString('vi-VN') }}₫</span>
           </template>
         </div>
-        <button
-          v-if="product.inStock"
-          class="btn btn-sm btn-primary"
-          @click="addToCart"
-        >
+        <button v-if="product.inStock" class="btn btn-sm btn-primary" @click="addToCart">
           <i class="bi bi-plus-lg"></i>
         </button>
-        <span
-          v-else
-          class="badge"
-          style="color: var(--text-light); font-size: 11px"
-          >Hết hàng</span
-        >
+        <span v-else class="badge" style="color: var(--text-light); font-size: 11px">Hết hàng</span>
       </div>
     </div>
   </div>
@@ -106,11 +93,18 @@ const router = useRouter();
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
+  position: relative;
 }
 .product-image-bg img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.out-of-stock-overlay {
+  position: absolute; inset: 0;
+  background: rgba(255,255,255,0.7);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--text-mid);
 }
 .product-info {
   padding: 10px 0 0;
@@ -160,4 +154,7 @@ const router = useRouter();
   color: var(--text-light);
   text-decoration: line-through;
 }
+.list-mode { display: flex; gap: 12px; }
+.list-mode .product-image { width: 120px; flex-shrink: 0; }
+.list-mode .product-info { flex: 1; padding-top: 0; display: flex; flex-direction: column; justify-content: center; }
 </style>

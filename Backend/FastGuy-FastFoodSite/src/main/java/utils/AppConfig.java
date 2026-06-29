@@ -22,4 +22,20 @@ public class AppConfig {
     public static String getGhnHost() {
         return GHN_HOST;
     }
+
+    public static String getGhnFromDistrictId() {
+        return System.getenv("GHN_FROM_DISTRICT_ID") != null ? System.getenv("GHN_FROM_DISTRICT_ID") : "1442";
+    }
+
+    public static String getGhnFromWardCode() {
+        return System.getenv("GHN_FROM_WARD_CODE") != null ? System.getenv("GHN_FROM_WARD_CODE") : "20107";
+    }
+
+    public static int getDefaultServiceTypeId() {
+        try {
+            return Integer.parseInt(System.getenv("GHN_DEFAULT_SERVICE_TYPE"));
+        } catch (Exception e) {
+            return 2;
+        }
+    }
 }
