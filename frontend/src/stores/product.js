@@ -61,7 +61,7 @@ export const useProductStore = defineStore('product', () => {
       description: p.description || '',
       rating: p.rating || 0,
       reviewCount: p.reviewCount || 0,
-      inStock: p.inStock !== undefined ? p.inStock : true,
+      inStock: p.inStock !== undefined ? p.inStock : (p.status === 'AVAILABLE'),
       featured: p.featured || false,
       galleryImages: p.galleryImages || [],
     };

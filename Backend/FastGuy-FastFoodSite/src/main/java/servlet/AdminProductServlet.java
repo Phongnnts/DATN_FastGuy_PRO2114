@@ -89,6 +89,11 @@ public class AdminProductServlet extends HttpServlet {
         m.put("galleryImages", parseGalleryImages(p));
         m.put("variants", productDAO.findVariantsByProductId(p.getProductId()).stream()
                 .map(this::toVariantMap).collect(Collectors.toList()));
+        m.put("discountPrice", null);
+        m.put("rating", 0);
+        m.put("reviewCount", 0);
+        m.put("inStock", "AVAILABLE".equals(p.getStatus()));
+        m.put("featured", false);
         return m;
     }
 

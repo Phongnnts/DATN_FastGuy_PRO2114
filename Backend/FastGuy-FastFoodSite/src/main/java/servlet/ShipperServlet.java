@@ -7,6 +7,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import dao.OrderItemDAO;
 import service.ShipperService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 @WebServlet("/api/shipper/*")
 public class ShipperServlet extends HttpServlet {
     private ShipperService shipperService = new ShipperService();
+    private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private ObjectMapper mapper = new ObjectMapper();
 
     private int getShipperId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -180,7 +182,21 @@ public class ShipperServlet extends HttpServlet {
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         data.put("pickedUpAt", o.getPickedUpAt() != null ? o.getPickedUpAt().toString() : null);
         data.put("deliveredAt", o.getDeliveredAt() != null ? o.getDeliveredAt().toString() : null);
-        data.put("items", new ArrayList<>());
+        List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
+                .stream()
+                .map(oi -> {
+                    Map<String, Object> im = new HashMap<>();
+                    im.put("productId", oi.getProduct().getProductId());
+                    im.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
+                    im.put("productName", oi.getProductName());
+                    im.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
+                    im.put("quantity", oi.getQuantity());
+                    im.put("unitPrice", oi.getUnitPrice());
+                    im.put("totalPrice", oi.getTotalPrice());
+                    return im;
+                })
+                .collect(Collectors.toList());
+        data.put("items", items);
         return data;
     }
 }

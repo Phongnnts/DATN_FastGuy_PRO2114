@@ -67,9 +67,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function updateProfile(data) {
     if (!user.value) throw new Error('Chưa đăng nhập');
-    Object.assign(user.value, data);
-    persist();
-    return user.value;
+    try {
+      await authApi.updateProfile(data);
+      Object.assign(user.value, data);
+      persist();
+      return user.value;
+    } catch {
+      throw new Error('Cập nhật thất bại');
+    }
   }
 
   async function changePassword(currentPassword, newPassword) {

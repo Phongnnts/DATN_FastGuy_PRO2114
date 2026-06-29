@@ -227,7 +227,7 @@ async function placeOrder() {
                   <span v-if="addr.isDefault" class="badge-sm">Mặc định</span>
                 </div>
                 <div class="saved-address-detail">
-                  {{ addr.street }}, {{ addr.ward }}, {{ addr.city }}
+                  {{ addr.street }}, {{ addr.wardName }}, {{ addr.districtName || addr.city }}
                 </div>
               </div>
             </div>
@@ -334,6 +334,7 @@ async function placeOrder() {
               <img :src="item.image" :alt="item.name" />
               <div class="checkout-item-info">
                 <div class="checkout-item-name">{{ item.name }}</div>
+                <div v-if="item.variantName" class="item-variant">{{ item.variantName }}</div>
                 <div class="checkout-item-qty">x{{ item.quantity }}</div>
               </div>
               <div class="checkout-item-price">
@@ -527,6 +528,10 @@ async function placeOrder() {
 .checkout-item-name {
   font-size: 13px;
   font-weight: 600;
+}
+.item-variant {
+  font-size: 11px;
+  color: var(--text-mid);
 }
 .checkout-item-qty {
   font-size: 12px;

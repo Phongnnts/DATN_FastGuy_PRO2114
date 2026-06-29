@@ -70,13 +70,9 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  function fetchById(id) {
-    const found = allOrders.value.find((o) => o.id === Number(id));
-    if (found) {
-      currentOrder.value = found;
-      return currentOrder.value;
-    }
-    fetchDetail(id);
+  async function fetchById(id) {
+    if (currentOrder.value?.id === Number(id)) return currentOrder.value;
+    await fetchDetail(id);
     return currentOrder.value;
   }
 
@@ -145,15 +141,13 @@ export const useOrderStore = defineStore('order', () => {
   }
 
   async function reviewOrder(id, data) {
-    const order = allOrders.value.find((o) => o.id === Number(id));
-    if (order) {
-      order.review = {
-        rating: data.rating,
-        content: data.content,
-        createdAt: new Date().toISOString(),
-      };
+    try {
+      await orderApi.review(id, data);
+      const order = currentOrder.value || allOrders.value.find((o) => o.id === Number(id));
+      if (order) order.review = data;
+    } catch {
+      throw new Error('Gửi đánh giá thất bại');
     }
-    return order;
   }
 
   return {
