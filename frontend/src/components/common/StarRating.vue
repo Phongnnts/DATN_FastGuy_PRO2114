@@ -22,7 +22,7 @@ function setRating(val) {
 </script>
 
 <template>
-  <div class="star-rating" :class="{ readonly }">
+  <div class="star-rating" :class="{ readonly }" style="cursor:pointer">
     <template v-for="i in stars.full" :key="'f' + i">
       <i
         class="bi bi-star-fill active"
@@ -46,3 +46,12 @@ function setRating(val) {
     </template>
   </div>
 </template>
+
+<style scoped>
+.star-rating i {
+  transition: all var(--transition-fast);
+}
+.star-rating:not(.readonly) i:hover {
+  transform: scale(1.2);
+}
+</style>

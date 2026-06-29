@@ -27,6 +27,16 @@ export const useShipperStore = defineStore('shipper', () => {
     };
   }
 
+  const dashboard = ref(null);
+
+  async function fetchDashboard() {
+    try {
+      const data = await shipperApi.getDashboard();
+      dashboard.value = data;
+      return data;
+    } catch { return null; }
+  }
+
   async function fetchAvailableOrders() {
     loading.value = true;
     try {
@@ -76,6 +86,9 @@ export const useShipperStore = defineStore('shipper', () => {
     await shipperApi.deliverOrder(id);
     const order = myOrders.value.find(o => o.id === id);
     if (order) order.status = 'DELIVERED';
+    if (dashboard.value) {
+      dashboard.value.todayDelivered = (dashboard.value.todayDelivered || 0) + 1;
+    }
   }
 
   async function cancelOrder(id, reason) {
@@ -85,10 +98,12 @@ export const useShipperStore = defineStore('shipper', () => {
   }
 
   return {
+    dashboard,
     availableOrders,
     myOrders,
     currentOrder,
     loading,
+    fetchDashboard,
     fetchAvailableOrders,
     fetchMyOrders,
     fetchOrderById,

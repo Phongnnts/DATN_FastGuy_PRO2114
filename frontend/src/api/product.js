@@ -7,8 +7,8 @@ export default {
   getById(id) {
     return client.get(`/products/${id}`);
   },
-  getByCategory(slug) {
-    return client.get('/products', { params: { category: slug } });
+  getByCategory(categoryId) {
+    return client.get('/products', { params: { categoryId } });
   },
   search(query) {
     return client.get('/products', { params: { q: query } });

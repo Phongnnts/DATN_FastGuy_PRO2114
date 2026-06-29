@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useStaffStore } from '@/stores/staff'
 import { formatPrice, formatDate } from '@/utils/format'
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue'
@@ -14,6 +14,10 @@ const historyOrders = computed(() => {
     result = result.filter(o => o.orderCode.toLowerCase().includes(q))
   }
   return result
+})
+
+onMounted(async () => {
+  await staffStore.fetchHistory()
 })
 </script>
 

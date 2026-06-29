@@ -53,6 +53,17 @@ public class UserDAO {
         }
     }
 
+    public List<User> findByRoleName(String roleName) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT u FROM User u WHERE u.role.roleName = :role ORDER BY u.fullName", User.class)
+                    .setParameter("role", roleName)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public long count() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

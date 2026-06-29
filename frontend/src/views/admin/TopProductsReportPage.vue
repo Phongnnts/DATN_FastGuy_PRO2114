@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAdminStore } from '@/stores/admin'
 import { formatPrice } from '@/utils/format'
 import { Chart, registerables } from 'chart.js'
@@ -7,7 +7,10 @@ import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
 const adminStore = useAdminStore()
-const data = adminStore.dashboard
+const data = computed(() => adminStore.dashboard || {
+  totalRevenue: 0, totalOrders: 0, revenueToday: 0, ordersToday: 0,
+  revenueByMonth: [], topProducts: [],
+})
 const chartRef = ref(null)
 let chart = null
 
@@ -15,39 +18,44 @@ function getCSSVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-onMounted(async () => {
-  await adminStore.fetchDashboard();
+function buildChart() {
   const primary = getCSSVar('--primary') || '#D4764A'
   const border = getCSSVar('--border') || '#E8E8E8'
   const textMid = getCSSVar('--text-mid') || '#6B6B6B'
   const chartFont = { family: "'Be Vietnam Pro', sans-serif", size: 12 }
-
-  if (chartRef.value) {
-    chart = new Chart(chartRef.value, {
-      type: 'bar',
-      data: {
-        labels: data.topProducts.map(p => p.name),
-        datasets: [{
-          label: 'Đã bán',
-          data: data.topProducts.map(p => p.sold),
-          backgroundColor: data.topProducts.map((_, i) => i < 3 ? primary : '#ddd'),
-          borderColor: data.topProducts.map((_, i) => i < 3 ? primary : '#ccc'),
-          borderWidth: 2,
-          borderRadius: 4
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { color: border }, ticks: { font: chartFont, color: textMid }, beginAtZero: true },
-          y: { grid: { display: false }, ticks: { font: chartFont, color: textMid } }
-        }
+  chart?.destroy()
+  if (!chartRef.value || !data.value.topProducts?.length) return
+  chart = new Chart(chartRef.value, {
+    type: 'bar',
+    data: {
+      labels: data.value.topProducts.map(p => p.name),
+      datasets: [{
+        label: 'Đã bán',
+        data: data.value.topProducts.map(p => p.sold),
+        backgroundColor: data.value.topProducts.map((_, i) => i < 3 ? primary : '#ddd'),
+        borderColor: data.value.topProducts.map((_, i) => i < 3 ? primary : '#ccc'),
+        borderWidth: 2,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: border }, ticks: { font: chartFont, color: textMid }, beginAtZero: true },
+        y: { grid: { display: false }, ticks: { font: chartFont, color: textMid } }
       }
-    })
-  }
+    }
+  })
+}
+
+onMounted(async () => {
+  await adminStore.fetchDashboard();
+  buildChart()
 })
+
+watch(() => adminStore.dashboard, buildChart, { deep: true })
 
 onUnmounted(() => chart?.destroy())
 

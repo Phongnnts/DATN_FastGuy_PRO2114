@@ -66,7 +66,7 @@ function goDetail(id) { router.push(`/staff/orders/${id}`) }
             <tr><th>Mã đơn</th><th>Khách hàng</th><th>Sản phẩm</th><th>Tổng tiền</th><th>Ngày đặt</th><th>Trạng thái</th><th></th></tr>
           </thead>
           <tbody>
-            <tr v-for="order in filteredOrders" :key="order.id" @click="goDetail(order.id)" style="cursor:pointer">
+            <tr v-for="order in filteredOrders" :key="order.id" @click="goDetail(order.id)" class="order-row">
               <td><strong>{{ order.orderCode }}</strong></td>
               <td>{{ order.customerName || 'Người dùng #' + order.userId }}</td>
               <td>{{ order.items ? order.items.length : 0 }} món</td>
@@ -81,3 +81,13 @@ function goDetail(id) { router.push(`/staff/orders/${id}`) }
     </div>
   </div>
 </template>
+
+<style scoped>
+.table tbody tr {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.table tbody tr:hover {
+  background: #f0f4f8;
+}
+</style>

@@ -63,6 +63,19 @@ public class StaffOrderServlet extends HttpServlet {
         try {
             String path = req.getPathInfo();
 
+            if ("/shippers".equals(path)) {
+                List<entity.User> shippers = staffOrderService.getAvailableShippers();
+                List<Map<String, Object>> result = shippers.stream().map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", u.getUserId());
+                    m.put("fullName", u.getFullName());
+                    m.put("phone", u.getPhone());
+                    return m;
+                }).collect(Collectors.toList());
+                ApiResponse.ok(resp, result);
+                return;
+            }
+
             if (path == null || path.equals("/")) {
                 List<Orders> orders = staffOrderService.getPendingOrders();
                 List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
@@ -81,12 +94,17 @@ public class StaffOrderServlet extends HttpServlet {
                 ApiResponse.ok(resp, result);
             } else if (path.equals("/history")) {
                 List<Orders> all = new java.util.ArrayList<>();
-                all.addAll(staffOrderService.getReadyOrders());
-                List<Orders> cancelled = ordersDAO.findByStatus("CANCELLED");
-                all.addAll(cancelled);
+                for (String s : new String[]{"READY", "DELIVERED", "CANCELLED", "CONFIRMED", "PREPARING"}) {
+                    all.addAll(ordersDAO.findByStatus(s));
+                }
                 all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
                 ApiResponse.ok(resp, all.stream().map(o -> toListItem(o)).collect(Collectors.toList()));
-            } else {
+                } else if (path.equals("/export")) {
+                    resp.setContentType("text/csv;charset=UTF-8");
+                    resp.setHeader("Content-Disposition", "attachment; filename=orders.csv");
+                    resp.getWriter().write("orderCode,status,total\n");
+                    return;
+                } else {
                 try {
                     int orderId = Integer.parseInt(path.substring(1));
                     Orders order = staffOrderService.getOrderDetail(orderId);
@@ -144,6 +162,19 @@ public class StaffOrderServlet extends HttpServlet {
                 return;
             }
             ApiResponse.ok(resp, null, "Status updated");
+        } else if ("assign-shipper".equals(action)) {
+            Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), Map.class);
+            if (body == null || !body.containsKey("shipperId")) {
+                ApiResponse.error(resp, "Missing shipperId", 400);
+                return;
+            }
+            int shipperId = ((Number) body.get("shipperId")).intValue();
+            boolean ok = staffOrderService.assignShipper(orderId, shipperId);
+            if (!ok) {
+                ApiResponse.error(resp, "Cannot assign shipper", 400);
+                return;
+            }
+            ApiResponse.ok(resp, null, "Shipper assigned");
         } else if ("assign".equals(action)) {
             ApiResponse.ok(resp, null, "Assigned");
         } else if ("export".equals(action)) {
