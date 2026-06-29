@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice } from '@/utils/format';
 import { Chart, registerables } from 'chart.js';
@@ -7,10 +7,17 @@ import { Chart, registerables } from 'chart.js';
 Chart.register(...registerables);
 
 const adminStore = useAdminStore();
-const data = adminStore.dashboard;
+const data = computed(() => adminStore.dashboard || {
+  totalRevenue: 0, totalOrders: 0, revenueToday: 0, ordersToday: 0,
+  revenueByMonth: [], topProducts: [],
+});
 const dateRange = ref('6months');
-const filteredData = ref(data.revenueByMonth);
+const filteredData = ref([]);
 const chartRef = ref(null);
+
+watch(() => data.value?.revenueByMonth, (val) => {
+  filteredData.value = val || [];
+}, { immediate: true });
 let chart = null;
 
 function getCSSVar(name) {
