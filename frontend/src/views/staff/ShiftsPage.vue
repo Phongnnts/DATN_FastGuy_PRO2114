@@ -39,7 +39,7 @@ function checkOut() { staffStore.checkOut() }
               <td>{{ s.shift }}</td>
               <td>{{ formatTime(s.checkedInAt) }}</td>
               <td>{{ formatTime(s.checkedOutAt) }}</td>
-              <td><span class="badge badge-success">{{ SCHEDULE_STATUS_LABEL.CHECKED_OUT }}</span></td>
+              <td><span class="badge" :class="'badge-' + (s.status?.toLowerCase() || 'warning')">{{ SCHEDULE_STATUS_LABEL[s.status] || s.status }}</span></td>
             </tr>
           </tbody>
         </table>
