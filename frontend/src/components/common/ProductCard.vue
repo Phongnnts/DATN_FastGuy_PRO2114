@@ -77,14 +77,21 @@ const router = useRouter();
 <style scoped>
 .product-card {
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius);
   overflow: hidden;
   cursor: pointer;
-  transition: box-shadow 0.15s;
+  transition: all var(--transition-normal);
   background: #fff;
 }
 .product-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+}
+.product-card img {
+  transition: transform var(--transition-normal);
+}
+.product-card:hover img {
+  transform: scale(1.05);
 }
 .product-image {
   padding: 0;

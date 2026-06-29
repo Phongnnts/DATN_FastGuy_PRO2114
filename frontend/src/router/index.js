@@ -201,11 +201,11 @@ const routes = [
         name: 'AdminCategories',
         component: () => import('@/views/admin/CategoriesPage.vue'),
       },
-      {
-        path: 'delivery-zones',
-        name: 'AdminDeliveryZones',
-        component: () => import('@/views/admin/DeliveryZonesPage.vue'),
-      },
+      // {
+      //   path: 'delivery-zones',
+      //   name: 'AdminDeliveryZones',
+      //   component: () => import('@/views/admin/DeliveryZonesPage.vue'),
+      // },
       {
         path: 'orders',
         name: 'AdminOrders',
