@@ -101,9 +101,27 @@ public class OrderServlet extends HttpServlet {
         int userId = getUserId(req, resp);
         if (userId < 0) return;
 
+        String path = req.getPathInfo();
         Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) {
             ApiResponse.error(resp, "Invalid data", 400);
+            return;
+        }
+
+        if (path != null && path.endsWith("/review")) {
+            String idStr = path.substring(1, path.length() - "/review".length());
+            try {
+                int orderId = Integer.parseInt(idStr);
+                Orders order = ordersDAO.findById(orderId);
+                if (order == null || order.getUser().getUserId() != userId) {
+                    ApiResponse.error(resp, "Order not found", 404);
+                    return;
+                }
+                ordersDAO.save(order);
+                ApiResponse.ok(resp, null, "Review submitted");
+            } catch (NumberFormatException e) {
+                ApiResponse.error(resp, "Invalid order ID", 400);
+            }
             return;
         }
 

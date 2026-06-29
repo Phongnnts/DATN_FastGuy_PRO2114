@@ -59,6 +59,7 @@ export const useStaffStore = defineStore('staff', () => {
       items: o.items || [],
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
       createdAt: o.createdAt,
+      updatedAt: o.updatedAt || o.confirmedAt || o.createdAt,
     };
   }
 
@@ -181,6 +182,14 @@ export const useStaffStore = defineStore('staff', () => {
     } catch {}
   }
 
+  async function checkIn() {
+    try { return await staffApi.checkIn(); } catch { return null; }
+  }
+
+  async function checkOut() {
+    try { return await staffApi.checkOut(); } catch { return null; }
+  }
+
   return {
     dashboard,
     allOrders,
@@ -195,5 +204,7 @@ export const useStaffStore = defineStore('staff', () => {
     updateOrderStatus,
     saveInternalNote,
     getOrderById,
+    checkIn,
+    checkOut,
   };
 });

@@ -66,7 +66,10 @@ function buildChart() {
   });
 }
 
-onMounted(buildChart);
+onMounted(async () => {
+  await adminStore.fetchDashboard();
+  buildChart();
+});
 onUnmounted(() => chart?.destroy());
 
 function exportExcel() {

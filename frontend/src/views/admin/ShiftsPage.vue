@@ -242,12 +242,12 @@ function saveSchedule() {
             ><select v-model="scheduleForm.userId" class="form-select">
               <option
                 v-for="u in adminStore.allUsers.filter(
-                  (u) => u.role === 'STAFF',
+                  (u) => u.roleName === 'STAFF',
                 )"
                 :key="u.id"
                 :value="u.id"
               >
-                {{ u.name }} ({{ u.role }})
+                {{ u.fullName }} ({{ u.roleName }})
               </option>
             </select>
           </div>
