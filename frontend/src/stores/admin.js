@@ -233,7 +233,7 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function createZone(data) {
     try {
-      const res = await adminApi.createZone(data);
+      const res = await adminApi.createDeliveryZone(data);
       await fetchZones();
       return res;
     } catch {
@@ -243,14 +243,14 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function updateZone(id, data) {
     try {
-      await adminApi.updateZone(id, data);
+      await adminApi.updateDeliveryZone(id, data);
       await fetchZones();
     } catch {}
   }
 
   async function deleteZone(id) {
     try {
-      await adminApi.deleteZone(id);
+      await adminApi.deleteDeliveryZone(id);
       await fetchZones();
     } catch {}
   }

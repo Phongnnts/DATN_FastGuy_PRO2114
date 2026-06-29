@@ -201,7 +201,15 @@ public class OrderServlet extends HttpServlet {
         m.put("status", o.getOrderStatus());
         m.put("finalAmount", o.getFinalAmount());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
-        m.put("items", new ArrayList<>());
+        List<Map<String, Object>> itemList = orderItemDAO.findByOrderId(o.getOrderId())
+                .stream().map(oi -> {
+                    Map<String, Object> im = new HashMap<>();
+                    im.put("productName", oi.getProductName());
+                    im.put("quantity", oi.getQuantity());
+                    im.put("image", oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+                    return im;
+                }).collect(Collectors.toList());
+        m.put("items", itemList);
         return m;
     }
 

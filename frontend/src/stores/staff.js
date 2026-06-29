@@ -183,11 +183,19 @@ export const useStaffStore = defineStore('staff', () => {
   }
 
   async function checkIn() {
-    try { return await staffApi.checkIn(); } catch { return null; }
+    try {
+      const res = await staffApi.checkIn();
+      if (res) shiftStatus.value = { current: res, history: [] };
+      return res;
+    } catch { return null; }
   }
 
   async function checkOut() {
-    try { return await staffApi.checkOut(); } catch { return null; }
+    try {
+      const res = await staffApi.checkOut();
+      if (res) shiftStatus.value = { current: null, history: res.history || [] };
+      return res;
+    } catch { return null; }
   }
 
   return {
