@@ -82,11 +82,16 @@ public class AdminUserServlet extends HttpServlet {
             ApiResponse.error(resp, "Email already exists", 400);
             return;
         }
+        String phone = (String) body.get("phone");
+        if (phone != null && userDAO.findByPhone(phone) != null) {
+            ApiResponse.error(resp, "Số điện thoại đã tồn tại", 400);
+            return;
+        }
 
         User u = new User();
         u.setFullName((String) body.get("fullName"));
         u.setEmail(email);
-        u.setPhone((String) body.get("phone"));
+        u.setPhone(phone);
         u.setPasswordHash(utils.PasswordUtil.hash((String) body.get("password")));
         u.setRole(roleDAO.findByName((String) body.getOrDefault("roleName", "USER")));
         u.setStatus("ACTIVE");
@@ -114,7 +119,14 @@ public class AdminUserServlet extends HttpServlet {
 
         if (body.containsKey("fullName")) u.setFullName((String) body.get("fullName"));
         if (body.containsKey("email")) u.setEmail((String) body.get("email"));
-        if (body.containsKey("phone")) u.setPhone((String) body.get("phone"));
+        if (body.containsKey("phone")) {
+            String newPhone = (String) body.get("phone");
+            if (!newPhone.equals(u.getPhone()) && userDAO.findByPhone(newPhone) != null) {
+                ApiResponse.error(resp, "Số điện thoại đã tồn tại", 400);
+                return;
+            }
+            u.setPhone(newPhone);
+        }
         if (body.containsKey("roleName")) {
             var role = roleDAO.findByName((String) body.get("roleName"));
             if (role != null) u.setRole(role);

@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import utils.ApiResponse;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 @WebServlet("/api/products/*")
 public class ProductServlet extends HttpServlet {
     private ProductDAO productDAO = new ProductDAO();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -100,9 +103,9 @@ public class ProductServlet extends HttpServlet {
         String gallery = p.getGalleryImages();
         List<String> galleryList = new ArrayList<>();
         if (gallery != null && !gallery.isEmpty()) {
-            if (gallery.trim().startsWith("[")) {
-                galleryList.add(gallery);
-            } else {
+            try {
+                galleryList = mapper.readValue(gallery, new TypeReference<List<String>>() {});
+            } catch (Exception e) {
                 for (String url : gallery.split(",")) {
                     String trimmed = url.trim();
                     if (!trimmed.isEmpty()) galleryList.add(trimmed);
