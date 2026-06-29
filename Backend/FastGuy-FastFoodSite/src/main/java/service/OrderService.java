@@ -6,11 +6,13 @@ import java.util.List;
 import java.util.UUID;
 
 import dao.CartDAO;
+import dao.DeliveryZoneDAO;
 import dao.OrderItemDAO;
 import dao.OrdersDAO;
 import dao.UserDAO;
 import entity.Cart;
 import entity.CartItem;
+import entity.DeliveryZone;
 import entity.OrderItem;
 import entity.Orders;
 import entity.User;
@@ -20,6 +22,7 @@ public class OrderService {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private UserDAO userDAO = new UserDAO();
+    private DeliveryZoneDAO deliveryZoneDAO = new DeliveryZoneDAO();
 
     public Orders checkout(int userId, int zoneId, String address, String phone,
                            String deliveryNote, String paymentMethod,
@@ -64,6 +67,12 @@ public class OrderService {
         order.setOrderStatus("PENDING");
         order.setDeliveryNote(deliveryNote);
         order.setCreatedAt(LocalDateTime.now());
+
+        DeliveryZone zone = zoneId > 0 ? deliveryZoneDAO.findById(zoneId) : null;
+        order.setZone(zone);
+        if (order.getShippingProvider() == null || "GHN".equals(order.getShippingProvider())) {
+            order.setShippingProvider(zone != null ? "FALLBACK_ZONE" : "GHN");
+        }
 
         ordersDAO.save(order);
 

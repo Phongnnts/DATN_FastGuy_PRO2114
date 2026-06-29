@@ -574,7 +574,7 @@ select 4, 4, variant_id, N'Crispy Chicken Burger', variant_name, 1, price, price
 -- ============================================================
 -- 12. PAYMENT
 -- ============================================================
-insert into Payment (order_id, amount, payment_method, transaction_id, status, paid_at, shipper_id, collected_at) values (1, 177000, 'CASH', null, 'COMPLETED', '2025-06-01 11:10:00', 4, '2025-06-01 11:10:00');
+insert into Payment (order_id, amount, payment_method, transaction_id, status, paid_at, shipper_id, collected_at) values (1, 186000, 'CASH', null, 'COMPLETED', '2025-06-01 11:10:00', 4, '2025-06-01 11:10:00');
 insert into Payment (order_id, amount, payment_method, transaction_id, status, paid_at, shipper_id, collected_at) values (2, 150000, 'BANKING', 'BANK-TXN-001', 'COMPLETED', '2025-06-01 12:30:00', null, null);
 
 -- ============================================================
