@@ -10,6 +10,7 @@ const showShiftForm = ref(false);
 onMounted(() => {
   adminStore.fetchShifts();
   adminStore.fetchSchedules();
+  adminStore.fetchUsers();
 });
 const showScheduleForm = ref(false);
 const shiftForm = ref({ name: '', startTime: '06:00', endTime: '14:00' });

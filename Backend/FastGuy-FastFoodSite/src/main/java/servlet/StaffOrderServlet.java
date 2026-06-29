@@ -81,12 +81,17 @@ public class StaffOrderServlet extends HttpServlet {
                 ApiResponse.ok(resp, result);
             } else if (path.equals("/history")) {
                 List<Orders> all = new java.util.ArrayList<>();
-                all.addAll(staffOrderService.getReadyOrders());
-                List<Orders> cancelled = ordersDAO.findByStatus("CANCELLED");
-                all.addAll(cancelled);
+                for (String s : new String[]{"READY", "DELIVERED", "CANCELLED", "CONFIRMED", "PREPARING"}) {
+                    all.addAll(ordersDAO.findByStatus(s));
+                }
                 all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
                 ApiResponse.ok(resp, all.stream().map(o -> toListItem(o)).collect(Collectors.toList()));
-            } else {
+                } else if (path.equals("/export")) {
+                    resp.setContentType("text/csv;charset=UTF-8");
+                    resp.setHeader("Content-Disposition", "attachment; filename=orders.csv");
+                    resp.getWriter().write("orderCode,status,total\n");
+                    return;
+                } else {
                 try {
                     int orderId = Integer.parseInt(path.substring(1));
                     Orders order = staffOrderService.getOrderDetail(orderId);

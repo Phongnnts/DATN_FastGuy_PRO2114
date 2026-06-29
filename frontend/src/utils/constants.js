@@ -90,20 +90,7 @@ export const PAYMENT_STATUS_LABEL = {
   REFUNDED: 'Đã hoàn tiền',
 };
 
-export const INGREDIENT_UNITS = [
-  'kg',
-  'g',
-  'l',
-  'ml',
-  'cái',
-  'hộp',
-  'chai',
-  'bịch',
-];
-
 export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6h)'];
-
-export const DELIVERY_ZONE_TYPES = ['Quận', 'Huyện', 'Phường', 'Xã'];
 
 export const SHIPPING_PROVIDER = {
   GHN: 'GHN',

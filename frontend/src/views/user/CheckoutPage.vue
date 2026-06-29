@@ -328,7 +328,7 @@ async function placeOrder() {
           <div class="checkout-items">
             <div
               v-for="item in cart.items"
-              :key="item.productId"
+              :key="item.key || item.productId + '_' + item.variantId"
               class="checkout-item"
             >
               <img :src="item.image" :alt="item.name" />
