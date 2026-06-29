@@ -16,6 +16,7 @@
         <class>entity.Orders</class>
         <class>entity.OrderItem</class>
         <class>entity.Payment</class>
+        <class>entity.ShippingConfig</class>
         <class>entity.WorkShift</class>
         <class>entity.Schedule</class>
         <class>entity.Review</class>

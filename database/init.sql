@@ -57,11 +57,33 @@ create table ProductVariant
     original_price     decimal(10, 2),
     sku                varchar(100),
     quantity_available int,
+    weight             decimal(10, 2) default 500,
+    length             decimal(10, 2) default 20,
+    width              decimal(10, 2) default 20,
+    height             decimal(10, 2) default 10,
     is_default         bit         default 0,
     status             varchar(20) default 'AVAILABLE',
     created_at         datetime2   default getdate(),
     updated_at         datetime2
 )
+go
+
+create table ShippingConfig
+(
+    config_id    int identity primary key,
+    config_key   varchar(100) not null unique,
+    config_value varchar(500) not null
+)
+go
+
+insert into ShippingConfig (config_key, config_value) values
+('ghn_from_district_id', '1442'),
+('ghn_from_ward_code', '20107'),
+('default_weight', '500'),
+('default_length', '20'),
+('default_width', '20'),
+('default_height', '10'),
+('default_service_type_id', '2');
 go
 
 create table Role
@@ -166,6 +188,11 @@ create table Orders
     shipping_service_id      int,
     shipping_service_type_id int,
     expected_delivery_time   datetime2,
+    ghn_order_code           varchar(50),
+    ghn_tracking_url         varchar(500),
+    ghn_status               varchar(30),
+    from_district_id         int,
+    from_ward_code           varchar(50),
     payment_method           varchar(50)    not null,
     payment_status           varchar(20)    default 'UNPAID',
     order_status             varchar(30)    default 'PENDING',
