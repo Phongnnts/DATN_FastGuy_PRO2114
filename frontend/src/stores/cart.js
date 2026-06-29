@@ -102,16 +102,20 @@ export const useCartStore = defineStore('cart', () => {
     save();
   }
 
-  function updateQuantity(productId, variantId, quantity) {
+  async function updateQuantity(productId, variantId, quantity) {
     const key = itemKey(productId, variantId);
     const item = items.value.find((i) => i.key === key);
-    if (item) {
-      if (quantity <= 0) {
-        removeItem(productId, variantId);
-        return;
-      }
-      item.quantity = quantity;
-      save();
+    if (!item) return;
+    if (quantity <= 0) {
+      removeItem(productId, variantId);
+      return;
+    }
+    item.quantity = quantity;
+    save();
+    const auth = useAuthStore();
+    if (auth.isLoggedIn && item.cartItemId) {
+      try { await cartApi.updateItem(item.cartItemId, { quantity }); }
+      catch (e) { console.error('Sync cart failed:', e); }
     }
   }
 
