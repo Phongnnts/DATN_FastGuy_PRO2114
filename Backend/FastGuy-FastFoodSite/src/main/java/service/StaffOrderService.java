@@ -7,12 +7,15 @@ import entity.Orders;
 import entity.User;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class StaffOrderService {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private UserDAO userDAO = new UserDAO();
+    private ShippingService shippingService = new ShippingService();
 
     public List<Orders> getPendingOrders() {
         return ordersDAO.findByStatus("PENDING");
@@ -32,6 +35,21 @@ public class StaffOrderService {
 
     public Orders getOrderDetail(int orderId) {
         return ordersDAO.findById(orderId);
+    }
+
+    public List<User> getAvailableShippers() {
+        return userDAO.findByRoleName("SHIPPER");
+    }
+
+    public boolean assignShipper(int orderId, int shipperId) {
+        Orders order = ordersDAO.findById(orderId);
+        if (order == null || !"READY".equals(order.getOrderStatus())) return false;
+        User shipper = userDAO.findById(shipperId);
+        if (shipper == null) return false;
+        order.setShipper(shipper);
+        order.setAssignedAt(LocalDateTime.now());
+        ordersDAO.save(order);
+        return true;
     }
 
     public boolean updateStatus(int orderId, String status, int staffId, String failureReason) {

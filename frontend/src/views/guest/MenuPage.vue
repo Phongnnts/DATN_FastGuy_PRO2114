@@ -9,6 +9,9 @@ const route = useRoute();
 const searchInput = ref('');
 const activeCategory = ref(null);
 const sortBy = ref('name');
+const viewMode = ref('grid');
+const priceRange = ref([0, 999999]);
+const inStockOnly = ref(false);
 const currentPage = ref(1);
 const pageSize = 10;
 
@@ -29,9 +32,14 @@ const filteredProducts = computed(() => {
       (p.description && p.description.toLowerCase().includes(q))
     );
   }
+  if (inStockOnly.value) {
+    result = result.filter(p => p.inStock);
+  }
+  result = result.filter(p => p.price >= priceRange.value[0] && p.price <= priceRange.value[1]);
   if (sortBy.value === 'price-asc') result.sort((a,b) => a.price - b.price);
   if (sortBy.value === 'price-desc') result.sort((a,b) => b.price - a.price);
   if (sortBy.value === 'name') result.sort((a,b) => a.name.localeCompare(b.name));
+  if (sortBy.value === 'newest') result.sort((a,b) => b.productId - a.productId);
   return result;
 });
 
@@ -84,21 +92,24 @@ function selectCategory(id) {
         <h1>Thực đơn</h1>
         <p>Khám phá các món ăn ngon tại FastGuy</p>
       </div>
-      <div class="menu-toolbar" style="display:flex;gap:12px;align-items:center">
-        <div class="search-box" style="flex:1">
+      <div class="menu-toolbar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div class="search-box" style="flex:1;min-width:200px">
           <i class="bi bi-search"></i>
-          <input
-            v-model="searchInput"
-            type="text"
-            class="form-input"
-            placeholder="Tìm món ăn..."
-          />
+          <input v-model="searchInput" type="text" class="form-input" placeholder="Tìm món ăn..." />
         </div>
         <select v-model="sortBy" class="form-select" style="width:auto">
           <option value="name">Tên A-Z</option>
           <option value="price-asc">Giá thấp→cao</option>
           <option value="price-desc">Giá cao→thấp</option>
+          <option value="newest">Mới nhất</option>
         </select>
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap">
+          <input type="checkbox" v-model="inStockOnly" /> Còn hàng
+        </label>
+        <div class="view-toggle" style="display:flex;gap:4px">
+          <button class="btn btn-sm" :class="viewMode === 'grid' ? 'btn-primary' : 'btn-outline'" @click="viewMode = 'grid'"><i class="bi bi-grid-3x3-gap"></i></button>
+          <button class="btn btn-sm" :class="viewMode === 'list' ? 'btn-primary' : 'btn-outline'" @click="viewMode = 'list'"><i class="bi bi-list"></i></button>
+        </div>
       </div>
       <div class="category-tabs">
         <button
@@ -117,11 +128,12 @@ function selectCategory(id) {
         <p>Thử tìm kiếm với từ khóa khác</p>
       </div>
       <template v-else>
-        <div class="grid-5">
+        <div :class="viewMode === 'grid' ? 'grid-5' : 'product-list'">
           <ProductCard
             v-for="product in pagedProducts"
             :key="product.productId"
             :product="product"
+            :listMode="viewMode === 'list'"
           />
         </div>
         <div class="pagination">
