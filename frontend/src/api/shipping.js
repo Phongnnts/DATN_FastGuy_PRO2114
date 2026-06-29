@@ -13,4 +13,13 @@ export default {
   calculateFee(data) {
     return client.post('/shipping/fee', data);
   },
+  getServices(params) {
+    return client.get('/shipping/services', { params });
+  },
+  createGHNOrder(data) {
+    return client.post('/shipping/create-order', data);
+  },
+  trackGHNOrder(ghnCode) {
+    return client.put(`/shipping/track/${ghnCode}`);
+  },
 };

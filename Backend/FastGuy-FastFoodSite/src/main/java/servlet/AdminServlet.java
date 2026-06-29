@@ -34,20 +34,26 @@ public class AdminServlet extends HttpServlet {
         if (!checkAuth(req, resp)) return;
 
         String path = req.getPathInfo();
+        String period = req.getParameter("period");
+
         if (path == null || path.equals("/") || path.equals("/dashboard")) {
-            var data = adminService.getDashboard();
+            var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
             ApiResponse.ok(resp, data);
         } else if (path.equals("/reports/revenue")) {
-            var data = adminService.getDashboard();
+            var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
             java.util.Map<String, Object> result = new java.util.HashMap<>();
             result.put("revenueByMonth", data.get("revenueByMonth"));
+            result.put("periodRevenue", data.get("periodRevenue"));
+            result.put("periodOrders", data.get("periodOrders"));
             result.put("totalRevenue", data.get("totalRevenue"));
             result.put("revenueToday", data.get("revenueToday"));
+            result.put("ordersToday", data.get("ordersToday"));
             ApiResponse.ok(resp, result);
         } else if (path.equals("/reports/top-products")) {
-            var data = adminService.getDashboard();
+            var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
             java.util.Map<String, Object> result = new java.util.HashMap<>();
             result.put("topProducts", data.get("topProducts"));
+            result.put("periodTopProducts", data.get("periodTopProducts"));
             ApiResponse.ok(resp, result);
         } else {
             ApiResponse.error(resp, "Not found", 404);

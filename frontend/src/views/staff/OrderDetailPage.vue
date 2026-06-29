@@ -12,9 +12,30 @@ const staffStore = useStaffStore();
 const order = ref(null);
 const showCancelModal = ref(false);
 const cancelReason = ref('');
+const selectedShipperId = ref(null);
+const shippers = ref([]);
+
+async function loadShippers() {
+  try {
+    const { staffApi } = await import('@/api');
+    const data = await staffApi.getAvailableShippers();
+    shippers.value = Array.isArray(data) ? data : [];
+  } catch { shippers.value = []; }
+}
+
+async function assignShipper() {
+  if (!selectedShipperId.value) return;
+  try {
+    const { staffApi } = await import('@/api');
+    await staffApi.assignShipper(order.value.id, selectedShipperId.value);
+    alert('Đã gán shipper thành công');
+    order.value = await staffStore.fetchOrderById(route.params.id);
+  } catch { alert('Không thể gán shipper'); }
+}
 
 onMounted(async () => {
   order.value = await staffStore.fetchOrderById(route.params.id);
+  if (order.value?.status === 'READY') loadShippers();
 });
 
 async function updateStatus(status) {
@@ -135,6 +156,24 @@ function printInvoice() {
           <span v-if="order.status === 'CANCELLED'" class="badge badge-error"
             >Đã hủy</span
           >
+        </div>
+        <div v-if="order.status === 'READY'" style="margin-top:12px">
+          <h4 style="font-size:14px;font-weight:700;margin-bottom:8px">Gán shipper</h4>
+          <div style="display:flex;gap:8px">
+            <select v-model="selectedShipperId" class="form-select" style="flex:1">
+              <option :value="null">Chọn shipper</option>
+              <option v-for="s in shippers" :key="s.id" :value="s.id">{{ s.fullName }} - {{ s.phone }}</option>
+            </select>
+            <button class="btn btn-primary btn-sm" @click="assignShipper" :disabled="!selectedShipperId">
+              <i class="bi bi-check"></i> Gán
+            </button>
+          </div>
+        </div>
+        <div v-if="order.ghnOrderCode" style="margin-top:12px;padding:10px;background:#F0FDF4;border-radius:var(--radius-sm)">
+          <p style="font-size:13px;font-weight:600;color:#065F46"><i class="bi bi-truck"></i> GHN: {{ order.ghnOrderCode }}</p>
+          <a :href="'https://donhang.ghn.vn/?order_code=' + order.ghnOrderCode" target="_blank" class="btn btn-sm btn-outline" style="margin-top:6px">
+            <i class="bi bi-box-arrow-up-right"></i> Theo dõi GHN
+          </a>
         </div>
       </div>
     </div>

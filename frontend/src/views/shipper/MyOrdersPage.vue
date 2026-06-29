@@ -7,6 +7,7 @@ import { formatPrice, formatDate } from '@/utils/format';
 const router = useRouter();
 const shipperStore = useShipperStore();
 const activeTab = ref('active');
+const searchTerm = ref('');
 
 const activeOrders = computed(() =>
   shipperStore.myOrders.filter(o => o.status === 'PICKED_UP' || o.status === 'READY')
@@ -14,6 +15,25 @@ const activeOrders = computed(() =>
 const historyOrders = computed(() =>
   shipperStore.myOrders.filter(o => o.status === 'DELIVERED' || o.status === 'CANCELLED')
 );
+
+const filteredActive = computed(() => {
+  if (!searchTerm.value) return activeOrders.value;
+  const q = searchTerm.value.toLowerCase();
+  return activeOrders.value.filter(o =>
+    o.orderCode.toLowerCase().includes(q) ||
+    o.customerName.toLowerCase().includes(q) ||
+    o.customerAddress.toLowerCase().includes(q)
+  );
+});
+
+const filteredHistory = computed(() => {
+  if (!searchTerm.value) return historyOrders.value;
+  const q = searchTerm.value.toLowerCase();
+  return historyOrders.value.filter(o =>
+    o.orderCode.toLowerCase().includes(q) ||
+    o.customerName.toLowerCase().includes(q)
+  );
+});
 
 onMounted(async () => {
   await shipperStore.fetchMyOrders();
@@ -30,6 +50,11 @@ function goDetail(id) {
       <i class="bi bi-bicycle"></i> Đơn hàng của tôi
     </h3>
 
+    <div class="search-box" style="margin-bottom:12px">
+      <i class="bi bi-search"></i>
+      <input v-model="searchTerm" class="form-input" placeholder="Tìm đơn hàng..." />
+    </div>
+
     <div class="shipper-tabs">
       <button class="tab" :class="{ active: activeTab === 'active' }" @click="activeTab = 'active'">
         Đang giao ({{ activeOrders.length }})
@@ -40,12 +65,12 @@ function goDetail(id) {
     </div>
 
     <div v-if="activeTab === 'active'" class="order-cards">
-      <div v-if="activeOrders.length === 0" class="shipper-empty">
+      <div v-if="filteredActive.length === 0" class="shipper-empty">
         <i class="bi bi-inbox"></i>
-        <p>Chưa có đơn nào đang giao</p>
+        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn nào đang giao' }}</p>
       </div>
       <div
-        v-for="order in activeOrders"
+        v-for="order in filteredActive"
         :key="order.id"
         class="order-card"
         @click="goDetail(order.id)"
@@ -66,12 +91,12 @@ function goDetail(id) {
     </div>
 
     <div v-else class="order-cards">
-      <div v-if="historyOrders.length === 0" class="shipper-empty">
+      <div v-if="filteredHistory.length === 0" class="shipper-empty">
         <i class="bi bi-clock-history"></i>
-        <p>Chưa có lịch sử giao hàng</p>
+        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có lịch sử giao hàng' }}</p>
       </div>
       <div
-        v-for="order in historyOrders"
+        v-for="order in filteredHistory"
         :key="order.id"
         class="order-card"
         @click="goDetail(order.id)"
