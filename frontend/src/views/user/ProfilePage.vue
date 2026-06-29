@@ -103,7 +103,7 @@ async function saveAddress() {
 }
 
 async function deleteAddress(addr) {
-  if (!confirm(`Xóa địa chỉ "${addr.street}, ${addr.ward}"?`)) return;
+  if (!confirm(`Xóa địa chỉ "${addr.street}, ${addr.wardName}"?`)) return;
   try {
     await userApi.deleteAddress(addr.addressId);
     await loadAddresses();
