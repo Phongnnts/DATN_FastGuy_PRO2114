@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import utils.ApiResponse;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 @WebServlet("/api/products/*")
 public class ProductServlet extends HttpServlet {
     private ProductDAO productDAO = new ProductDAO();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -44,6 +47,20 @@ public class ProductServlet extends HttpServlet {
             return;
         }
 
+        if ("/new".equals(path)) {
+            List<Map<String, Object>> products = productDAO.findAllAvailable().stream()
+                    .sorted((a, b) -> b.getProductId() - a.getProductId())
+                    .limit(8).map(this::toMap).collect(Collectors.toList());
+            ApiResponse.ok(resp, products);
+            return;
+        }
+        if ("/promotions".equals(path)) {
+            List<Map<String, Object>> products = productDAO.findAllAvailable().stream()
+                    .limit(8).map(this::toMap).collect(Collectors.toList());
+            ApiResponse.ok(resp, products);
+            return;
+        }
+
         try {
             int productId = Integer.parseInt(path.substring(1));
             Product p = productDAO.findById(productId);
@@ -51,6 +68,16 @@ public class ProductServlet extends HttpServlet {
                 ApiResponse.error(resp, "Product not found", 404);
                 return;
             }
+
+            // Related products (same category)
+            if (req.getParameter("related") != null) {
+                List<Map<String, Object>> related = productDAO.findByCategoryId(p.getCategory().getCategoryId())
+                        .stream().filter(r -> r.getProductId() != productId).limit(4)
+                        .map(this::toMap).collect(Collectors.toList());
+                ApiResponse.ok(resp, related);
+                return;
+            }
+
             ApiResponse.ok(resp, toDetailMap(p));
         } catch (NumberFormatException e) {
             resp.sendError(404);
@@ -100,9 +127,9 @@ public class ProductServlet extends HttpServlet {
         String gallery = p.getGalleryImages();
         List<String> galleryList = new ArrayList<>();
         if (gallery != null && !gallery.isEmpty()) {
-            if (gallery.trim().startsWith("[")) {
-                galleryList.add(gallery);
-            } else {
+            try {
+                galleryList = mapper.readValue(gallery, new TypeReference<List<String>>() {});
+            } catch (Exception e) {
                 for (String url : gallery.split(",")) {
                     String trimmed = url.trim();
                     if (!trimmed.isEmpty()) galleryList.add(trimmed);

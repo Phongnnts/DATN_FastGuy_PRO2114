@@ -52,6 +52,9 @@ public class ShipperServlet extends HttpServlet {
         }
 
         switch (path) {
+            case "/dashboard":
+                ApiResponse.ok(resp, shipperService.getDashboardStats(shipperId));
+                break;
             case "/orders":
                 List<Orders> available = shipperService.getAvailableOrders();
                 ApiResponse.ok(resp, available.stream().map(this::toListItem).collect(Collectors.toList()));

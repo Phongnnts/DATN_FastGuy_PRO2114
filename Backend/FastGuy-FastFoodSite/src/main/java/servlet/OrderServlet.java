@@ -43,19 +43,19 @@ public class OrderServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        int userId = getUserId(req, resp);
-        if (userId < 0) return;
-
         String path = req.getPathInfo();
 
+        // KHONG can auth
         if ("/track".equals(path)) {
             String code = req.getParameter("code");
             if (code == null) {
                 ApiResponse.error(resp, "Missing order code", 400);
                 return;
             }
-            List<Orders> orders = ordersDAO.findByUserId(userId);
-            Orders order = orders.stream().filter(o -> code.equals(o.getOrderCode())).findFirst().orElse(null);
+            List<Orders> allOrders = ordersDAO.findAll();
+            Orders order = allOrders.stream()
+                .filter(o -> code.equals(o.getOrderCode()))
+                .findFirst().orElse(null);
             if (order == null) {
                 ApiResponse.error(resp, "Order not found", 404);
                 return;
@@ -63,6 +63,10 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.ok(resp, toDetail(order));
             return;
         }
+
+        // Cac endpoint con lai can auth
+        int userId = getUserId(req, resp);
+        if (userId < 0) return;
 
         if ("/history".equals(path)) {
             List<Map<String, Object>> orders = ordersDAO.findByUserId(userId)
@@ -201,7 +205,15 @@ public class OrderServlet extends HttpServlet {
         m.put("status", o.getOrderStatus());
         m.put("finalAmount", o.getFinalAmount());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
-        m.put("items", new ArrayList<>());
+        List<Map<String, Object>> itemList = orderItemDAO.findByOrderId(o.getOrderId())
+                .stream().map(oi -> {
+                    Map<String, Object> im = new HashMap<>();
+                    im.put("productName", oi.getProductName());
+                    im.put("quantity", oi.getQuantity());
+                    im.put("image", oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+                    return im;
+                }).collect(Collectors.toList());
+        m.put("items", itemList);
         return m;
     }
 

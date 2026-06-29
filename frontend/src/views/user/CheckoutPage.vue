@@ -33,6 +33,10 @@ const loadingProvinces = ref(false);
 const shippingFee = ref(null);
 const shippingProvider = ref('');
 const feeLoading = ref(false);
+const expectedDelivery = ref('');
+const services = ref([]);
+const selectedServiceId = ref(2);
+const serviceLoading = ref(false);
 
 const total = computed(() => cart.subtotal + (shippingFee.value || 0));
 
@@ -46,6 +50,10 @@ onMounted(async () => {
       id: p.ProvinceID || p.province_id || p.provinceId,
       name: p.ProvinceName || p.province_name || p.provinceName,
     }));
+    // Auto-select TP.HCM
+    const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
+    if (hcm) selectedProvince.value = hcm.id;
+
     savedAddresses.value = addrData || [];
     const defaultAddr = savedAddresses.value.find(a => a.isDefault);
     if (defaultAddr) selectAddress(defaultAddr);
@@ -102,9 +110,17 @@ watch(selectedWard, async (code) => {
       width: 20,
       height: 10,
     });
-    const fee = result.fee || result.shippingFee || 0;
-    shippingFee.value = typeof fee === 'number' ? fee : parseFloat(fee) || 0;
+    const feeResp = result.fee || result.shippingFee || 0;
+    shippingFee.value = typeof feeResp === 'number' ? feeResp : parseFloat(feeResp) || 0;
     shippingProvider.value = result.shippingProvider || 'GHN';
+    if (result.expectedDeliveryTime) expectedDelivery.value = result.expectedDeliveryTime;
+    if (selectedDistrict.value) {
+      try {
+        const svc = await shippingApi.getServices({ toDistrictId: selectedDistrict.value });
+        services.value = Array.isArray(svc) ? svc : [];
+        if (services.value.length) selectedServiceId.value = services.value[0].service_id || 2;
+      } catch { services.value = []; }
+    }
   } catch {
     try {
       const zones = await deliveryZoneApi.getAll();
@@ -283,6 +299,9 @@ async function placeOrder() {
             <i class="bi bi-truck"></i>
             Phí giao hàng: <strong>{{ formatPrice(shippingFee) }}</strong>
             <span v-if="shippingProvider === 'FALLBACK_ZONE'" style="font-size:12px;color:var(--text-mid)"> (ước tính)</span>
+            <span v-if="expectedDelivery" style="display:block;font-size:12px;color:var(--text-mid);margin-top:4px">
+              <i class="bi bi-clock"></i> Dự kiến: {{ expectedDelivery }}
+            </span>
           </div>
         </div>
         <div class="card mb-3">
@@ -311,6 +330,13 @@ async function placeOrder() {
               ></i>
             </div>
           </div>
+          <div v-if="paymentMethod === 'BANK_TRANSFER'" class="card" style="margin-top:12px;padding:16px;background:#f8f9fa;border:1px solid var(--border);border-radius:var(--radius-sm)">
+            <p><strong>Ngân hàng:</strong> MB Bank</p>
+            <p><strong>Số tài khoản:</strong> 6513527</p>
+            <p><strong>Chủ tài khoản:</strong> FastGuy</p>
+            <p><strong>Nội dung:</strong> Mã đơn hàng + SĐT</p>
+            <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Sau khi chuyển khoản, vui lòng chờ xác nhận</p>
+          </div>
         </div>
         <div class="card mb-3">
           <h3>Ghi chú</h3>
@@ -328,7 +354,7 @@ async function placeOrder() {
           <div class="checkout-items">
             <div
               v-for="item in cart.items"
-              :key="item.productId"
+              :key="item.key || item.productId + '_' + item.variantId"
               class="checkout-item"
             >
               <img :src="item.image" :alt="item.name" />
@@ -562,9 +588,16 @@ async function placeOrder() {
     transform: rotate(360deg);
   }
 }
+.checkout-sidebar .card {
+  position: sticky;
+  top: 24px;
+}
 @media (max-width: 768px) {
   .checkout-layout {
     grid-template-columns: 1fr;
+  }
+  .checkout-sidebar .card {
+    position: static;
   }
 }
 </style>

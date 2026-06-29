@@ -42,6 +42,7 @@ export const useStaffStore = defineStore('staff', () => {
       note: o.deliveryNote || '',
       createdAt: o.createdAt,
 
+      ghnOrderCode: o.ghnOrderCode || '',
       statusHistory: o.statusHistory || [
         { status: o.orderStatus || o.status, time: o.createdAt, note: '' },
       ],
@@ -139,6 +140,16 @@ export const useStaffStore = defineStore('staff', () => {
     }
   }
 
+  async function fetchHistory() {
+    loading.value = true;
+    try {
+      const data = await staffApi.getOrderHistory();
+      allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+      return allOrders.value;
+    } catch { return []; }
+    finally { loading.value = false; }
+  }
+
   async function fetchReadyOrders() {
     const version = ++fetchVersion;
     loading.value = true;
@@ -183,11 +194,19 @@ export const useStaffStore = defineStore('staff', () => {
   }
 
   async function checkIn() {
-    try { return await staffApi.checkIn(); } catch { return null; }
+    try {
+      const res = await staffApi.checkIn();
+      if (res) shiftStatus.value = { current: res, history: [] };
+      return res;
+    } catch { return null; }
   }
 
   async function checkOut() {
-    try { return await staffApi.checkOut(); } catch { return null; }
+    try {
+      const res = await staffApi.checkOut();
+      if (res) shiftStatus.value = { current: null, history: res.history || [] };
+      return res;
+    } catch { return null; }
   }
 
   return {
@@ -200,6 +219,7 @@ export const useStaffStore = defineStore('staff', () => {
     fetchConfirmedOrders,
     fetchPreparingOrders,
     fetchReadyOrders,
+    fetchHistory,
     fetchOrderById,
     updateOrderStatus,
     saveInternalNote,

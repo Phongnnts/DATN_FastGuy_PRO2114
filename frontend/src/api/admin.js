@@ -67,6 +67,15 @@ export default {
   getSchedules(params) {
     return client.get('/admin/schedules', { params });
   },
+  createSchedule(data) {
+    return client.post('/admin/schedules', data);
+  },
+  updateSchedule(id, data) {
+    return client.put(`/admin/schedules/${id}`, data);
+  },
+  deleteSchedule(id) {
+    return client.delete(`/admin/schedules/${id}`);
+  },
   getOrders(params) {
     return client.get('/admin/orders', { params });
   },

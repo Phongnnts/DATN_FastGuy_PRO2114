@@ -22,8 +22,11 @@ export default {
   updateOrderStatus(id, status, failureReason) {
     return client.put(`/staff/orders/${id}/status`, { status, failureReason });
   },
-  assignOrder(id, staffId) {
-    return client.put(`/staff/orders/${id}/assign`, { staffId });
+  assignShipper(id, shipperId) {
+    return client.put(`/staff/orders/${id}/assign-shipper`, { shipperId });
+  },
+  getAvailableShippers() {
+    return client.get('/staff/orders/shippers');
   },
   saveInternalNote(id, note) {
     return client.post(`/staff/orders/${id}/notes`, { note });
@@ -41,6 +44,6 @@ export default {
     return client.get('/staff/orders/history', { params });
   },
   exportOrders(params) {
-    return client.get('/staff/orders/export', { params, responseType: 'blob' });
+    return client.put('/staff/orders/export', null, { params, responseType: 'blob' });
   },
 };

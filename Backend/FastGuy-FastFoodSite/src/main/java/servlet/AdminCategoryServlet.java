@@ -1,6 +1,7 @@
 package servlet;
 
 import dao.CategoryDAO;
+import dao.ProductDAO;
 import entity.Category;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 @WebServlet("/api/admin/categories/*")
 public class AdminCategoryServlet extends HttpServlet {
     private CategoryDAO categoryDAO = new CategoryDAO();
+    private ProductDAO productDAO = new ProductDAO();
 
     private boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
@@ -39,7 +41,7 @@ public class AdminCategoryServlet extends HttpServlet {
         m.put("categoryId", c.getCategoryId());
         m.put("name", c.getName());
         m.put("description", c.getDescription() != null ? c.getDescription() : "");
-        m.put("productCount", 0);
+        m.put("productCount", productDAO.findByCategoryId(c.getCategoryId()).size());
         return m;
     }
 

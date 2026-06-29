@@ -82,7 +82,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function forgotPassword(email) {
-    return { message: 'Link đặt lại mật khẩu đã được gửi đến email của bạn' };
+    try {
+      const res = await authApi.forgotPassword(email);
+      return res;
+    } catch (e) {
+      throw new Error('Không thể gửi yêu cầu đặt lại mật khẩu');
+    }
   }
 
   return {

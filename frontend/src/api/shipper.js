@@ -1,6 +1,9 @@
 import client from './client';
 
 export default {
+  getDashboard() {
+    return client.get('/shipper/dashboard');
+  },
   getAvailableOrders() {
     return client.get('/shipper/orders');
   },
