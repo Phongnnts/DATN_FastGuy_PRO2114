@@ -5,6 +5,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import utils.DatabaseUtil;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -81,11 +82,11 @@ public class OrdersDAO {
     public double sumRevenue() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            Double result = em.createQuery(
+            BigDecimal result = em.createQuery(
                     "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED'",
-                    Double.class)
+                    BigDecimal.class)
                     .getSingleResult();
-            return result != null ? result : 0;
+            return result != null ? result.doubleValue() : 0;
         } finally {
             em.close();
         }
@@ -112,13 +113,13 @@ public class OrdersDAO {
         try {
             LocalDateTime start = LocalDate.now().atStartOfDay();
             LocalDateTime end = LocalDate.now().plusDays(1).atStartOfDay();
-            Double result = em.createQuery(
+            BigDecimal result = em.createQuery(
                     "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.createdAt BETWEEN :start AND :end",
-                    Double.class)
+                    BigDecimal.class)
                     .setParameter("start", start)
                     .setParameter("end", end)
                     .getSingleResult();
-            return result != null ? result : 0;
+            return result != null ? result.doubleValue() : 0;
         } finally {
             em.close();
         }

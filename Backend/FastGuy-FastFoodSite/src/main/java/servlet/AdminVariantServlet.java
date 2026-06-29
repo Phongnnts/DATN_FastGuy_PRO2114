@@ -46,6 +46,19 @@ public class AdminVariantServlet extends HttpServlet {
             if (body.containsKey("price")) v.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
             if (body.containsKey("isDefault")) v.setIsDefault((Boolean) body.get("isDefault"));
             if (body.containsKey("status")) v.setStatus((String) body.get("status"));
+            if (body.containsKey("originalPrice"))
+                v.setOriginalPrice(BigDecimal.valueOf(((Number) body.get("originalPrice")).doubleValue()));
+            if (body.containsKey("sku")) v.setSku((String) body.get("sku"));
+            if (body.containsKey("quantityAvailable"))
+                v.setQuantityAvailable(((Number) body.get("quantityAvailable")).intValue());
+            if (body.containsKey("weight"))
+                v.setWeight(BigDecimal.valueOf(((Number) body.get("weight")).doubleValue()));
+            if (body.containsKey("length"))
+                v.setLength(BigDecimal.valueOf(((Number) body.get("length")).doubleValue()));
+            if (body.containsKey("width"))
+                v.setWidth(BigDecimal.valueOf(((Number) body.get("width")).doubleValue()));
+            if (body.containsKey("height"))
+                v.setHeight(BigDecimal.valueOf(((Number) body.get("height")).doubleValue()));
             productDAO.saveVariant(v);
             ApiResponse.ok(resp, null, "Updated");
         } catch (NumberFormatException e) {

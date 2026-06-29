@@ -46,6 +46,10 @@ onMounted(async () => {
       id: p.ProvinceID || p.province_id || p.provinceId,
       name: p.ProvinceName || p.province_name || p.provinceName,
     }));
+    // Auto-select TP.HCM
+    const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
+    if (hcm) selectedProvince.value = hcm.id;
+
     savedAddresses.value = addrData || [];
     const defaultAddr = savedAddresses.value.find(a => a.isDefault);
     if (defaultAddr) selectAddress(defaultAddr);
