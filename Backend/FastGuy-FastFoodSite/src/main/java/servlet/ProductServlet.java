@@ -39,6 +39,11 @@ public class ProductServlet extends HttpServlet {
             return;
         }
 
+        if ("/featured".equals(path)) {
+            ApiResponse.ok(resp, productDAO.findAllAvailable().stream().limit(4).map(this::toMap).collect(Collectors.toList()));
+            return;
+        }
+
         try {
             int productId = Integer.parseInt(path.substring(1));
             Product p = productDAO.findById(productId);
@@ -77,6 +82,11 @@ public class ProductServlet extends HttpServlet {
         m.put("imageUrl", p.getImageUrl() != null ? p.getImageUrl() : "");
         m.put("categoryId", p.getCategory().getCategoryId());
         m.put("categoryName", p.getCategory().getName());
+        m.put("discountPrice", null);
+        m.put("rating", 0);
+        m.put("reviewCount", 0);
+        m.put("inStock", "AVAILABLE".equals(p.getStatus()));
+        m.put("featured", false);
         return m;
     }
 
