@@ -148,6 +148,12 @@ onMounted(() => {
   padding: 24px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  transition: all var(--transition-normal);
+}
+.about-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+  border-color: var(--primary);
 }
 .about-icon {
   width: 56px;

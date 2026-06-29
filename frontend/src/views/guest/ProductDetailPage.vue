@@ -201,18 +201,23 @@ async function addToCart() {
 }
 .detail-image-bg {
   background: #f5f5f5;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 .detail-image-bg img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform var(--transition-normal);
+}
+.detail-image-bg:hover img {
+  transform: scale(1.08);
 }
 .gallery-thumbs {
   display: flex;
@@ -223,12 +228,17 @@ async function addToCart() {
 .gallery-thumb {
   width: 64px;
   height: 64px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   border: 2px solid transparent;
   cursor: pointer;
   padding: 0;
   background: #f5f5f5;
+  transition: all var(--transition-fast);
+}
+.gallery-thumb:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
 }
 .gallery-thumb.active {
   border-color: var(--primary);

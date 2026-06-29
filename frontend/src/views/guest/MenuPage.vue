@@ -8,6 +8,7 @@ const productStore = useProductStore();
 const route = useRoute();
 const searchInput = ref('');
 const activeCategory = ref(null);
+const sortBy = ref('name');
 const currentPage = ref(1);
 const pageSize = 10;
 
@@ -23,8 +24,14 @@ const filteredProducts = computed(() => {
   }
   if (searchInput.value) {
     const q = searchInput.value.toLowerCase();
-    result = result.filter((p) => p.name.toLowerCase().includes(q));
+    result = result.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      (p.description && p.description.toLowerCase().includes(q))
+    );
   }
+  if (sortBy.value === 'price-asc') result.sort((a,b) => a.price - b.price);
+  if (sortBy.value === 'price-desc') result.sort((a,b) => b.price - a.price);
+  if (sortBy.value === 'name') result.sort((a,b) => a.name.localeCompare(b.name));
   return result;
 });
 
@@ -55,11 +62,11 @@ watch([filteredProducts, activeCategory, searchInput], () => {
   currentPage.value = 1;
 });
 
-onMounted(() => {
-  if (!productStore.fetched) productStore.init();
+onMounted(async () => {
+  if (!productStore.fetched) await productStore.init();
   if (route.query.category) {
     const cat = productStore.allCategories.find(
-      (c) => c.slug === route.query.category,
+      (c) => c.id === Number(route.query.category)
     );
     if (cat) activeCategory.value = cat.id;
   }
@@ -77,8 +84,8 @@ function selectCategory(id) {
         <h1>Thực đơn</h1>
         <p>Khám phá các món ăn ngon tại FastGuy</p>
       </div>
-      <div class="menu-toolbar">
-        <div class="search-box">
+      <div class="menu-toolbar" style="display:flex;gap:12px;align-items:center">
+        <div class="search-box" style="flex:1">
           <i class="bi bi-search"></i>
           <input
             v-model="searchInput"
@@ -87,6 +94,11 @@ function selectCategory(id) {
             placeholder="Tìm món ăn..."
           />
         </div>
+        <select v-model="sortBy" class="form-select" style="width:auto">
+          <option value="name">Tên A-Z</option>
+          <option value="price-asc">Giá thấp→cao</option>
+          <option value="price-desc">Giá cao→thấp</option>
+        </select>
       </div>
       <div class="category-tabs">
         <button
