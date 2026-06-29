@@ -139,6 +139,16 @@ export const useStaffStore = defineStore('staff', () => {
     }
   }
 
+  async function fetchHistory() {
+    loading.value = true;
+    try {
+      const data = await staffApi.getOrderHistory();
+      allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+      return allOrders.value;
+    } catch { return []; }
+    finally { loading.value = false; }
+  }
+
   async function fetchReadyOrders() {
     const version = ++fetchVersion;
     loading.value = true;
@@ -208,6 +218,7 @@ export const useStaffStore = defineStore('staff', () => {
     fetchConfirmedOrders,
     fetchPreparingOrders,
     fetchReadyOrders,
+    fetchHistory,
     fetchOrderById,
     updateOrderStatus,
     saveInternalNote,
