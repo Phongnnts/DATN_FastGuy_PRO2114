@@ -79,6 +79,21 @@ public class Orders {
     @Column(name = "expected_delivery_time")
     private LocalDateTime expectedDeliveryTime;
 
+    @Column(name = "ghn_order_code")
+    private String ghnOrderCode;
+
+    @Column(name = "ghn_tracking_url")
+    private String ghnTrackingUrl;
+
+    @Column(name = "ghn_status")
+    private String ghnStatus;
+
+    @Column(name = "from_district_id")
+    private Integer fromDistrictId;
+
+    @Column(name = "from_ward_code")
+    private String fromWardCode;
+
     @Column(name = "payment_method")
     private String paymentMethod;
 
@@ -168,6 +183,16 @@ public class Orders {
     public void setShippingServiceTypeId(Integer shippingServiceTypeId) { this.shippingServiceTypeId = shippingServiceTypeId; }
     public LocalDateTime getExpectedDeliveryTime() { return expectedDeliveryTime; }
     public void setExpectedDeliveryTime(LocalDateTime expectedDeliveryTime) { this.expectedDeliveryTime = expectedDeliveryTime; }
+    public String getGhnOrderCode() { return ghnOrderCode; }
+    public void setGhnOrderCode(String ghnOrderCode) { this.ghnOrderCode = ghnOrderCode; }
+    public String getGhnTrackingUrl() { return ghnTrackingUrl; }
+    public void setGhnTrackingUrl(String ghnTrackingUrl) { this.ghnTrackingUrl = ghnTrackingUrl; }
+    public String getGhnStatus() { return ghnStatus; }
+    public void setGhnStatus(String ghnStatus) { this.ghnStatus = ghnStatus; }
+    public Integer getFromDistrictId() { return fromDistrictId; }
+    public void setFromDistrictId(Integer fromDistrictId) { this.fromDistrictId = fromDistrictId; }
+    public String getFromWardCode() { return fromWardCode; }
+    public void setFromWardCode(String fromWardCode) { this.fromWardCode = fromWardCode; }
     public String getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
     public String getPaymentStatus() { return paymentStatus; }
