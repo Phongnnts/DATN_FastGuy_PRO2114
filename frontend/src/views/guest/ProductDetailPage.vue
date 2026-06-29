@@ -11,18 +11,15 @@ const router = useRouter();
 const productStore = useProductStore();
 const cart = useCartStore();
 const quantity = ref(1);
-const selectedOption = ref(null);
+const selectedVariant = ref(null);
 const activeImageIndex = ref(0);
 
 const product = computed(() => productStore.currentProduct);
 
 const effectivePrice = computed(() => {
   if (!product.value) return 0;
-  const base = product.value.discountPrice || product.value.price;
-  if (selectedOption.value) {
-    return base + selectedOption.value.extraPrice;
-  }
-  return base;
+  if (selectedVariant.value) return selectedVariant.value.price;
+  return product.value.price;
 });
 
 const galleryImages = computed(() => {
@@ -38,27 +35,20 @@ const galleryImages = computed(() => {
 onMounted(async () => {
   if (!productStore.fetched) await productStore.init();
   await productStore.fetchById(route.params.id);
+  if (product.value?.variants?.length) {
+    const def = product.value.variants.find((v) => v.isDefault);
+    selectedVariant.value = def || product.value.variants[0];
+  }
 });
 
-function selectOption(option) {
-  selectedOption.value =
-    selectedOption.value?.optionId === option.optionId ? null : option;
-}
-
-function getOptionData() {
-  if (!selectedOption.value) return null;
-  return {
-    optionId: selectedOption.value.optionId,
-    optionName: selectedOption.value.optionName,
-    extraPrice: selectedOption.value.extraPrice,
-  };
+function selectVariant(variant) {
+  selectedVariant.value = variant;
 }
 
 async function addToCart() {
-  if (!product.value?.inStock) return;
+  if (!product.value?.inStock || !selectedVariant.value) return;
   try {
-    const optionData = getOptionData();
-    await cart.addItem(product.value.id, quantity.value, optionData);
+    await cart.addItem(product.value.productId, selectedVariant.value.variantId, quantity.value);
     router.push('/cart');
   } catch (err) {
     console.error('Add to cart failed:', err);
@@ -102,44 +92,24 @@ async function addToCart() {
             >
           </div>
           <div class="detail-price">
-            <template v-if="product.discountPrice">
-              <span class="detail-price-current">{{
-                formatPrice(effectivePrice)
-              }}</span>
-              <span class="detail-price-old">{{
-                formatPrice(product.price)
-              }}</span>
-              <span class="detail-discount"
-                >-{{
-                  Math.round((1 - product.discountPrice / product.price) * 100)
-                }}%</span
-              >
-            </template>
-            <template v-else>
-              <span class="detail-price-current">{{
-                formatPrice(effectivePrice)
-              }}</span>
-              <span v-if="selectedOption" class="detail-price-extra"
-                >(+{{ formatPrice(selectedOption.extraPrice) }})</span
-              >
-            </template>
+            <span class="detail-price-current">{{
+              formatPrice(effectivePrice)
+            }}</span>
           </div>
           <p class="detail-desc">{{ product.description }}</p>
 
-          <div v-if="product.options && product.options.length" class="detail-options">
-            <label class="option-label">Chọn tùy chọn:</label>
+          <div v-if="product.variants && product.variants.length" class="detail-options">
+            <label class="option-label">Chọn phân loại:</label>
             <div class="option-list">
               <button
-                v-for="opt in product.options"
-                :key="opt.optionId"
+                v-for="v in product.variants"
+                :key="v.variantId"
                 class="option-chip"
-                :class="{ active: selectedOption?.optionId === opt.optionId }"
-                @click="selectOption(opt)"
+                :class="{ active: selectedVariant?.variantId === v.variantId }"
+                @click="selectVariant(v)"
               >
-                <span class="option-name">{{ opt.optionName }}</span>
-                <span v-if="opt.extraPrice > 0" class="option-price"
-                  >+{{ formatPrice(opt.extraPrice) }}</span
-                >
+                <span class="option-name">{{ v.variantName }}</span>
+                <span class="option-price">+{{ formatPrice(v.price) }}</span>
               </button>
             </div>
           </div>

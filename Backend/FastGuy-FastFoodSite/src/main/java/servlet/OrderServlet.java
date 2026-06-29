@@ -1,6 +1,7 @@
 package servlet;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -100,24 +101,52 @@ public class OrderServlet extends HttpServlet {
         int userId = getUserId(req, resp);
         if (userId < 0) return;
 
+        String path = req.getPathInfo();
         Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
 
-        int zoneId = ((Number) body.get("zoneId")).intValue();
+        if (path != null && path.endsWith("/review")) {
+            String idStr = path.substring(1, path.length() - "/review".length());
+            try {
+                int orderId = Integer.parseInt(idStr);
+                Orders order = ordersDAO.findById(orderId);
+                if (order == null || order.getUser().getUserId() != userId) {
+                    ApiResponse.error(resp, "Order not found", 404);
+                    return;
+                }
+                ordersDAO.save(order);
+                ApiResponse.ok(resp, null, "Review submitted");
+            } catch (NumberFormatException e) {
+                ApiResponse.error(resp, "Invalid order ID", 400);
+            }
+            return;
+        }
+
+        int zoneId = body.containsKey("zoneId") ? ((Number) body.get("zoneId")).intValue() : 0;
         String address = (String) body.get("address");
         String phone = (String) body.get("phone");
         String deliveryNote = (String) body.get("deliveryNote");
         String paymentMethod = (String) body.get("paymentMethod");
+        Integer ghnProvinceId = body.containsKey("ghnProvinceId") ? ((Number) body.get("ghnProvinceId")).intValue() : null;
+        Integer ghnDistrictId = body.containsKey("ghnDistrictId") ? ((Number) body.get("ghnDistrictId")).intValue() : null;
+        String ghnWardCode = (String) body.get("ghnWardCode");
+        String toProvinceName = (String) body.get("toProvinceName");
+        String toDistrictName = (String) body.get("toDistrictName");
+        String toWardName = (String) body.get("toWardName");
+        BigDecimal shippingFee = body.containsKey("shippingFee")
+                ? BigDecimal.valueOf(((Number) body.get("shippingFee")).doubleValue())
+                : BigDecimal.ZERO;
 
         if (address == null) {
             ApiResponse.error(resp, "Missing address", 400);
             return;
         }
 
-        Orders order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod);
+        Orders order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod,
+                ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, shippingFee);
         if (order == null) {
             ApiResponse.error(resp, "Cart is empty", 400);
             return;
@@ -197,7 +226,9 @@ public class OrderServlet extends HttpServlet {
                 .map(oi -> {
                     Map<String, Object> m = new HashMap<>();
                     m.put("productId", oi.getProduct().getProductId());
+                    m.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
                     m.put("productName", oi.getProductName());
+                    m.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
                     m.put("quantity", oi.getQuantity());
                     m.put("unitPrice", oi.getUnitPrice());
                     m.put("totalPrice", oi.getTotalPrice());

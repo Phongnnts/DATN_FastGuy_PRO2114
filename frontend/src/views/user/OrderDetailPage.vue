@@ -20,7 +20,9 @@ onMounted(async () => {
         status: data.status,
         items: (data.items || []).map(i => ({
           productId: i.productId,
+          variantId: i.variantId || null,
           productName: i.productName,
+          variantName: i.variantName || '',
           price: i.unitPrice || 0,
           quantity: i.quantity,
           totalPrice: i.totalPrice || 0,

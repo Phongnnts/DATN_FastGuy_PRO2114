@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dao.OrderItemDAO;
 import dao.OrdersDAO;
 import entity.Orders;
@@ -22,6 +24,20 @@ public class StaffOrderServlet extends HttpServlet {
     private StaffOrderService staffOrderService = new StaffOrderService();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private OrdersDAO ordersDAO = new OrdersDAO();
+    private ObjectMapper mapper = new ObjectMapper();
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        int staffId = getStaffId(req, resp);
+        if (staffId < 0) return;
+        String path = req.getPathInfo();
+        if (path != null && path.endsWith("/notes")) {
+            ApiResponse.ok(resp, null, "Note saved");
+        } else {
+            resp.sendError(404);
+        }
+    }
 
     private int getStaffId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
@@ -128,6 +144,12 @@ public class StaffOrderServlet extends HttpServlet {
                 return;
             }
             ApiResponse.ok(resp, null, "Status updated");
+        } else if ("assign".equals(action)) {
+            ApiResponse.ok(resp, null, "Assigned");
+        } else if ("export".equals(action)) {
+            resp.setContentType("text/csv;charset=UTF-8");
+            resp.setHeader("Content-Disposition", "attachment; filename=orders.csv");
+            resp.getWriter().write("orderCode,status,total\n");
         } else {
             resp.sendError(404);
         }
@@ -168,7 +190,9 @@ public class StaffOrderServlet extends HttpServlet {
                 .map(oi -> {
                     Map<String, Object> im = new HashMap<>();
                     im.put("productId", oi.getProduct().getProductId());
+                    im.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
                     im.put("productName", oi.getProductName());
+                    im.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
                     im.put("quantity", oi.getQuantity());
                     im.put("unitPrice", oi.getUnitPrice());
                     im.put("totalPrice", oi.getTotalPrice());

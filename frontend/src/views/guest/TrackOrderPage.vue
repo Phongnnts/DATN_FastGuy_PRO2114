@@ -12,11 +12,11 @@ const trackingResult = ref(null);
 const error = ref('');
 const searched = ref(false);
 
-function track() {
+async function track() {
   if (!orderCode.value) return;
   error.value = '';
   searched.value = true;
-  const result = orderStore.trackOrder(orderCode.value);
+  const result = await orderStore.trackOrder(orderCode.value);
   if (result) {
     trackingResult.value = result;
   } else {

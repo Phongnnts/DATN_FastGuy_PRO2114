@@ -9,18 +9,20 @@ const props = defineProps({
 const cart = useCartStore();
 const router = useRouter();
 
-async function addToCart(e) {
-  e.stopPropagation();
-  try {
-    await cart.addItem(props.product.id);
-  } catch (err) {
-    console.error('Add to cart failed:', err);
+  async function addToCart(e) {
+    e.stopPropagation();
+    const variantId = props.product.defaultVariant?.variantId;
+    if (!variantId) return;
+    try {
+      await cart.addItem(props.product.productId, variantId);
+    } catch (err) {
+      console.error('Add to cart failed:', err);
+    }
   }
-}
 
-function goDetail() {
-  router.push(`/product/${props.product.id}`);
-}
+  function goDetail() {
+    router.push(`/product/${props.product.productId}`);
+  }
 </script>
 
 <template>

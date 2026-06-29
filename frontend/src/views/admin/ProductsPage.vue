@@ -19,26 +19,26 @@ const editingId = ref(null);
 const form = ref({
   name: '',
   categoryId: null,
-  price: 0,
+  basePrice: 0,
   image: '',
   description: '',
-  inStock: true,
+  status: 'AVAILABLE',
   galleryImages: [],
 });
-const productOptions = ref([]);
+const productVariants = ref([]);
 
 function openAdd() {
   editingId.value = null;
   form.value = {
     name: '',
     categoryId: adminStore.allCategories[0]?.id || null,
-    price: 0,
+    basePrice: 0,
     image: '',
     description: '',
-    inStock: true,
+    status: 'AVAILABLE',
     galleryImages: [],
   };
-  productOptions.value = [];
+  productVariants.value = [];
   showForm.value = true;
 }
 
@@ -47,13 +47,13 @@ function openEdit(p) {
   form.value = {
     name: p.name,
     categoryId: p.categoryId,
-    price: p.price,
+    basePrice: p.basePrice,
     image: p.image,
     description: p.description,
-    inStock: p.inStock,
+    status: p.status,
     galleryImages: [...(p.galleryImages || [])],
   };
-  productOptions.value = (p.options || []).map((o) => ({ ...o }));
+  productVariants.value = (p.variants || []).map((v) => ({ ...v }));
   showForm.value = true;
 }
 
@@ -107,63 +107,69 @@ async function save() {
   const payload = {
     name: form.value.name,
     categoryId: form.value.categoryId,
-    price: form.value.price,
+    basePrice: form.value.basePrice,
     imageUrl: form.value.image,
     description: form.value.description,
-    status: form.value.inStock ? 'AVAILABLE' : 'UNAVAILABLE',
+    status: form.value.status,
     galleryImages: form.value.galleryImages,
   };
   if (editingId.value) {
     await adminStore.updateProduct(editingId.value, payload);
-    await syncOptions(editingId.value);
+    await syncVariants(editingId.value);
   } else {
     const created = await adminStore.createProduct(payload);
     if (created) {
       const newId = created.productId;
-      if (newId) await syncOptions(newId);
+      if (newId) await syncVariants(newId);
     }
   }
   showForm.value = false;
 }
 
-async function syncOptions(productId) {
-  const existing = await adminStore.fetchOptions(productId);
-  const existingIds = existing.map((o) => o.optionId);
-  const keptIds = productOptions.value.filter((o) => o.optionId).map((o) => o.optionId);
+async function syncVariants(productId) {
+  const existing = await adminStore.fetchVariants(productId);
+  const existingIds = existing.map((v) => v.variantId);
+  const keptIds = productVariants.value.filter((v) => v.variantId).map((v) => v.variantId);
   for (const id of existingIds) {
     if (!keptIds.includes(id)) {
-      await adminStore.deleteOption(id);
+      await adminStore.deleteVariant(id);
     }
   }
-  for (const opt of productOptions.value) {
+  for (const v of productVariants.value) {
     const data = {
-      optionName: opt.optionName,
-      extraPrice: opt.extraPrice || 0,
-      stockControlled: !!opt.stockControlled,
-      quantityAvailable: opt.stockControlled ? (opt.quantityAvailable || 0) : null,
+      variantName: v.variantName,
+      price: v.price || 0,
+      isDefault: !!v.isDefault,
+      status: v.status || 'AVAILABLE',
     };
-    if (opt.optionId) {
-      await adminStore.updateOption(opt.optionId, data);
+    if (v.variantId) {
+      await adminStore.updateVariant(v.variantId, data);
     } else {
-      await adminStore.createOption(productId, data);
+      await adminStore.createVariant(productId, data);
     }
   }
-  const updated = await adminStore.fetchOptions(productId);
-  productOptions.value = (updated || []).map((o) => ({ ...o }));
+  const updated = await adminStore.fetchVariants(productId);
+  productVariants.value = (updated || []).map((v) => ({ ...v }));
 }
 
-function addOption() {
-  productOptions.value.push({
-    optionId: null,
-    optionName: '',
-    extraPrice: 0,
-    stockControlled: false,
-    quantityAvailable: null,
+function addVariant() {
+  productVariants.value.push({
+    variantId: null,
+    variantName: '',
+    price: 0,
+    isDefault: false,
+    status: 'AVAILABLE',
   });
 }
 
-function removeOption(idx) {
-  productOptions.value.splice(idx, 1);
+function removeVariant(idx) {
+  productVariants.value.splice(idx, 1);
+}
+
+function setDefaultVariant(idx) {
+  productVariants.value.forEach((v, i) => {
+    v.isDefault = i === idx;
+  });
 }
 
 function remove(id) {
@@ -202,9 +208,9 @@ const filtered = computed(() => {
               <th></th>
               <th>Tên</th>
               <th>Danh mục</th>
-              <th>Giá</th>
-              <th>Giá KM</th>
-              <th>Tồn</th>
+              <th>Giá gốc</th>
+              <th>Biến thể</th>
+              <th>Trạng thái</th>
               <th>Ảnh</th>
               <th></th>
             </tr>
@@ -231,21 +237,17 @@ const filtered = computed(() => {
                     ?.name || '-'
                 }}
               </td>
-              <td>{{ formatPrice(p.price) }}</td>
+              <td>{{ formatPrice(p.basePrice) }}</td>
               <td>
-                {{ p.discountPrice ? formatPrice(p.discountPrice) : '-' }}
+                <span v-if="p.variants?.length" class="badge badge-info">
+                  {{ p.variants.length }} biến thể
+                </span>
+                <span v-else class="text-muted">0</span>
               </td>
               <td>
-                <i
-                  :class="
-                    p.inStock
-                      ? 'bi bi-check-circle-fill'
-                      : 'bi bi-x-circle-fill'
-                  "
-                  :style="{
-                    color: p.inStock ? '#4CAF50' : 'var(--red-active)',
-                  }"
-                ></i>
+                <span
+                  :class="'badge badge-' + (p.status === 'AVAILABLE' ? 'success' : 'danger')"
+                >{{ p.status === 'AVAILABLE' ? 'Còn hàng' : 'Hết hàng' }}</span>
               </td>
               <td>
                 <span v-if="p.galleryImages?.length" class="badge badge-info">
@@ -298,9 +300,9 @@ const filtered = computed(() => {
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Giá</label
+              <label class="form-label">Giá gốc (basePrice)</label
               ><input
-                v-model.number="form.price"
+                v-model.number="form.basePrice"
                 type="number"
                 class="form-input"
                 required
@@ -309,9 +311,9 @@ const filtered = computed(() => {
           </div>
           <div class="form-group">
             <label class="form-label">Trạng thái</label
-            ><select v-model="form.inStock" class="form-select">
-              <option :value="true">Còn hàng</option>
-              <option :value="false">Hết hàng</option>
+            ><select v-model="form.status" class="form-select">
+              <option value="AVAILABLE">Còn hàng</option>
+              <option value="UNAVAILABLE">Hết hàng</option>
             </select>
           </div>
 
@@ -381,51 +383,43 @@ const filtered = computed(() => {
 
           <div class="form-group">
             <label class="form-label"
-              >Tùy chọn (Size, Combo...)
+              >Biến thể (Size, Combo...)
               <button
                 type="button"
                 class="btn btn-sm btn-ghost"
                 style="margin-left: 8px"
-                @click="addOption"
+                @click="addVariant"
               >
                 <i class="bi bi-plus-lg"></i> Thêm
               </button>
             </label>
             <div
-              v-for="(opt, idx) in productOptions"
+              v-for="(v, idx) in productVariants"
               :key="idx"
               class="option-row"
             >
               <input
-                v-model="opt.optionName"
+                v-model="v.variantName"
                 class="form-input"
                 placeholder="Tên (vd: Size L)"
                 style="flex: 2"
               />
               <input
-                v-model.number="opt.extraPrice"
+                v-model.number="v.price"
                 type="number"
                 class="form-input"
-                placeholder="Giá thêm"
+                placeholder="Giá"
                 style="flex: 1"
               />
               <label class="option-stock">
-                <input type="checkbox" v-model="opt.stockControlled" />
-                Kiểm kho
+                <input type="checkbox" :checked="v.isDefault" @change="setDefaultVariant(idx)" />
+                Mặc định
               </label>
-              <input
-                v-if="opt.stockControlled"
-                v-model.number="opt.quantityAvailable"
-                type="number"
-                class="form-input"
-                placeholder="SL"
-                style="width: 60px"
-              />
               <button
                 type="button"
                 class="btn btn-sm btn-ghost"
                 style="color: var(--red-active)"
-                @click="removeOption(idx)"
+                @click="removeVariant(idx)"
               >
                 <i class="bi bi-trash3"></i>
               </button>
