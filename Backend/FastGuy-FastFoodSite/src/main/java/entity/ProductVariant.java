@@ -39,6 +39,18 @@ public class ProductVariant {
     @Column(name = "quantity_available")
     private Integer quantityAvailable;
 
+    @Column(name = "weight")
+    private BigDecimal weight;
+
+    @Column(name = "length")
+    private BigDecimal length;
+
+    @Column(name = "width")
+    private BigDecimal width;
+
+    @Column(name = "height")
+    private BigDecimal height;
+
     @Column(name = "is_default")
     private Boolean isDefault;
 
@@ -67,6 +79,14 @@ public class ProductVariant {
     public void setSku(String sku) { this.sku = sku; }
     public Integer getQuantityAvailable() { return quantityAvailable; }
     public void setQuantityAvailable(Integer quantityAvailable) { this.quantityAvailable = quantityAvailable; }
+    public BigDecimal getWeight() { return weight; }
+    public void setWeight(BigDecimal weight) { this.weight = weight; }
+    public BigDecimal getLength() { return length; }
+    public void setLength(BigDecimal length) { this.length = length; }
+    public BigDecimal getWidth() { return width; }
+    public void setWidth(BigDecimal width) { this.width = width; }
+    public BigDecimal getHeight() { return height; }
+    public void setHeight(BigDecimal height) { this.height = height; }
     public Boolean getIsDefault() { return isDefault; }
     public void setIsDefault(Boolean isDefault) { this.isDefault = isDefault; }
     public String getStatus() { return status; }
