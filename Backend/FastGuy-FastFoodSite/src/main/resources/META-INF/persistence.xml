@@ -10,14 +10,13 @@
         <class>entity.DeliveryZone</class>
         <class>entity.Category</class>
         <class>entity.Product</class>
-        <class>entity.ProductOption</class>
+        <class>entity.ProductVariant</class>
         <class>entity.Cart</class>
         <class>entity.CartItem</class>
         <class>entity.Orders</class>
         <class>entity.OrderItem</class>
         <class>entity.Payment</class>
-        <class>entity.Ingredient</class>
-        <class>entity.ProductIngredient</class>
+        <class>entity.ShippingConfig</class>
         <class>entity.WorkShift</class>
         <class>entity.Schedule</class>
         <class>entity.Review</class>

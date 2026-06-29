@@ -40,6 +40,24 @@ public class Orders {
     @JoinColumn(name = "zone_id")
     private DeliveryZone zone;
 
+    @Column(name = "to_province_name")
+    private String toProvinceName;
+
+    @Column(name = "to_district_name")
+    private String toDistrictName;
+
+    @Column(name = "to_ward_name")
+    private String toWardName;
+
+    @Column(name = "ghn_province_id")
+    private Integer ghnProvinceId;
+
+    @Column(name = "ghn_district_id")
+    private Integer ghnDistrictId;
+
+    @Column(name = "ghn_ward_code")
+    private String ghnWardCode;
+
     @Column(name = "total_amount")
     private BigDecimal totalAmount;
 
@@ -48,6 +66,33 @@ public class Orders {
 
     @Column(name = "final_amount")
     private BigDecimal finalAmount;
+
+    @Column(name = "shipping_provider")
+    private String shippingProvider;
+
+    @Column(name = "shipping_service_id")
+    private Integer shippingServiceId;
+
+    @Column(name = "shipping_service_type_id")
+    private Integer shippingServiceTypeId;
+
+    @Column(name = "expected_delivery_time")
+    private LocalDateTime expectedDeliveryTime;
+
+    @Column(name = "ghn_order_code")
+    private String ghnOrderCode;
+
+    @Column(name = "ghn_tracking_url")
+    private String ghnTrackingUrl;
+
+    @Column(name = "ghn_status")
+    private String ghnStatus;
+
+    @Column(name = "from_district_id")
+    private Integer fromDistrictId;
+
+    @Column(name = "from_ward_code")
+    private String fromWardCode;
 
     @Column(name = "payment_method")
     private String paymentMethod;
@@ -112,12 +157,42 @@ public class Orders {
     public void setCustomerAddress(String customerAddress) { this.customerAddress = customerAddress; }
     public DeliveryZone getZone() { return zone; }
     public void setZone(DeliveryZone zone) { this.zone = zone; }
+    public String getToProvinceName() { return toProvinceName; }
+    public void setToProvinceName(String toProvinceName) { this.toProvinceName = toProvinceName; }
+    public String getToDistrictName() { return toDistrictName; }
+    public void setToDistrictName(String toDistrictName) { this.toDistrictName = toDistrictName; }
+    public String getToWardName() { return toWardName; }
+    public void setToWardName(String toWardName) { this.toWardName = toWardName; }
+    public Integer getGhnProvinceId() { return ghnProvinceId; }
+    public void setGhnProvinceId(Integer ghnProvinceId) { this.ghnProvinceId = ghnProvinceId; }
+    public Integer getGhnDistrictId() { return ghnDistrictId; }
+    public void setGhnDistrictId(Integer ghnDistrictId) { this.ghnDistrictId = ghnDistrictId; }
+    public String getGhnWardCode() { return ghnWardCode; }
+    public void setGhnWardCode(String ghnWardCode) { this.ghnWardCode = ghnWardCode; }
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public BigDecimal getShippingFee() { return shippingFee; }
     public void setShippingFee(BigDecimal shippingFee) { this.shippingFee = shippingFee; }
     public BigDecimal getFinalAmount() { return finalAmount; }
     public void setFinalAmount(BigDecimal finalAmount) { this.finalAmount = finalAmount; }
+    public String getShippingProvider() { return shippingProvider; }
+    public void setShippingProvider(String shippingProvider) { this.shippingProvider = shippingProvider; }
+    public Integer getShippingServiceId() { return shippingServiceId; }
+    public void setShippingServiceId(Integer shippingServiceId) { this.shippingServiceId = shippingServiceId; }
+    public Integer getShippingServiceTypeId() { return shippingServiceTypeId; }
+    public void setShippingServiceTypeId(Integer shippingServiceTypeId) { this.shippingServiceTypeId = shippingServiceTypeId; }
+    public LocalDateTime getExpectedDeliveryTime() { return expectedDeliveryTime; }
+    public void setExpectedDeliveryTime(LocalDateTime expectedDeliveryTime) { this.expectedDeliveryTime = expectedDeliveryTime; }
+    public String getGhnOrderCode() { return ghnOrderCode; }
+    public void setGhnOrderCode(String ghnOrderCode) { this.ghnOrderCode = ghnOrderCode; }
+    public String getGhnTrackingUrl() { return ghnTrackingUrl; }
+    public void setGhnTrackingUrl(String ghnTrackingUrl) { this.ghnTrackingUrl = ghnTrackingUrl; }
+    public String getGhnStatus() { return ghnStatus; }
+    public void setGhnStatus(String ghnStatus) { this.ghnStatus = ghnStatus; }
+    public Integer getFromDistrictId() { return fromDistrictId; }
+    public void setFromDistrictId(Integer fromDistrictId) { this.fromDistrictId = fromDistrictId; }
+    public String getFromWardCode() { return fromWardCode; }
+    public void setFromWardCode(String fromWardCode) { this.fromWardCode = fromWardCode; }
     public String getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
     public String getPaymentStatus() { return paymentStatus; }

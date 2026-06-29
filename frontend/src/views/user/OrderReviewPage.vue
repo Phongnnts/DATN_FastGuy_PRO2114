@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useOrderStore } from '@/stores/order'
 
@@ -7,7 +7,11 @@ const route = useRoute()
 const router = useRouter()
 const orderStore = useOrderStore()
 
-const order = computed(() => orderStore.fetchById(route.params.id))
+const order = ref(null)
+
+onMounted(async () => {
+  order.value = await orderStore.fetchById(route.params.id)
+})
 const rating = ref(5)
 const content = ref('')
 const submitted = ref(false)

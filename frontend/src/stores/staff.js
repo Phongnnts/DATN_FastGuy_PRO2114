@@ -1,18 +1,13 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { staffApi } from '@/api';
 
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
   const allOrders = ref([]);
-  const allIngredients = ref([]);
   const shiftStatus = ref({ current: null });
   const loading = ref(false);
   let fetchVersion = 0;
-
-  const lowStockIngredients = computed(() =>
-    allIngredients.value.filter((i) => i.currentStock <= i.minStock),
-  );
 
   function mapOrder(o) {
     return {
@@ -23,7 +18,9 @@ export const useStaffStore = defineStore('staff', () => {
       status: o.orderStatus || o.status,
       items: (o.items || []).map((i) => ({
         productId: i.productId,
+        variantId: i.variantId || null,
         productName: i.productName,
+        variantName: i.variantName || '',
         price:
           typeof i.unitPrice === 'string'
             ? parseFloat(i.unitPrice)
@@ -62,6 +59,7 @@ export const useStaffStore = defineStore('staff', () => {
       items: o.items || [],
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
       createdAt: o.createdAt,
+      updatedAt: o.updatedAt || o.confirmedAt || o.createdAt,
     };
   }
 
@@ -184,13 +182,19 @@ export const useStaffStore = defineStore('staff', () => {
     } catch {}
   }
 
+  async function checkIn() {
+    try { return await staffApi.checkIn(); } catch { return null; }
+  }
+
+  async function checkOut() {
+    try { return await staffApi.checkOut(); } catch { return null; }
+  }
+
   return {
     dashboard,
     allOrders,
-    allIngredients,
     shiftStatus,
     loading,
-    lowStockIngredients,
     fetchDashboard,
     fetchOrders,
     fetchConfirmedOrders,
@@ -200,5 +204,7 @@ export const useStaffStore = defineStore('staff', () => {
     updateOrderStatus,
     saveInternalNote,
     getOrderById,
+    checkIn,
+    checkOut,
   };
 });

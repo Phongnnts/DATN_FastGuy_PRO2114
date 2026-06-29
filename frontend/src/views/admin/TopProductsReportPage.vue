@@ -15,7 +15,8 @@ function getCSSVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await adminStore.fetchDashboard();
   const primary = getCSSVar('--primary') || '#D4764A'
   const border = getCSSVar('--border') || '#E8E8E8'
   const textMid = getCSSVar('--text-mid') || '#6B6B6B'

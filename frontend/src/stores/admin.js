@@ -11,7 +11,7 @@ export const useAdminStore = defineStore('admin', () => {
   const allZones = ref([]);
   const allShifts = ref([]);
   const allSchedules = ref([]);
-  const allIngredients = ref([]);
+
   const loading = ref(false);
   const error = ref('');
 
@@ -21,13 +21,14 @@ export const useAdminStore = defineStore('admin', () => {
       name: p.name,
       categoryId: p.categoryId,
       categoryName: p.categoryName || '',
+      basePrice: typeof p.basePrice === 'string' ? parseFloat(p.basePrice) : p.basePrice || 0,
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price || 0,
-      discountPrice: null,
       image: p.imageUrl || '',
       description: p.description || '',
+      status: p.status || 'AVAILABLE',
       inStock: p.status === 'AVAILABLE',
       galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
-      options: Array.isArray(p.options) ? p.options : [],
+      variants: Array.isArray(p.variants) ? p.variants.map(v => ({ ...v })) : [],
     };
   }
 
@@ -104,15 +105,6 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function fetchIngredients() {
-    try {
-      const data = await adminApi.getIngredients();
-      allIngredients.value = Array.isArray(data) ? data : [];
-      return allIngredients.value;
-    } catch {
-      return [];
-    }
-  }
 
   async function fetchShifts() {
     try {
@@ -182,34 +174,36 @@ export const useAdminStore = defineStore('admin', () => {
     } catch {}
   }
 
-  async function fetchOptions(productId) {
+  async function fetchVariants(productId) {
     try {
-      return await adminApi.getOptions(productId);
+      const data = await adminApi.getVariants(productId);
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
   }
 
-  async function createOption(productId, data) {
+  async function createVariant(productId, data) {
     try {
-      const res = await adminApi.createOption(productId, data);
+      const res = await adminApi.createVariant(productId, data);
+      await fetchProducts();
       return res;
     } catch {
       return null;
     }
   }
 
-  async function updateOption(optionId, data) {
+  async function updateVariant(id, data) {
     try {
-      return await adminApi.updateOption(optionId, data);
-    } catch {
-      return null;
-    }
+      await adminApi.updateVariant(id, data);
+      await fetchProducts();
+    } catch {}
   }
 
-  async function deleteOption(optionId) {
+  async function deleteVariant(id) {
     try {
-      await adminApi.deleteOption(optionId);
+      await adminApi.deleteVariant(id);
+      await fetchProducts();
     } catch {}
   }
 
@@ -261,29 +255,6 @@ export const useAdminStore = defineStore('admin', () => {
     } catch {}
   }
 
-  async function createIngredient(data) {
-    try {
-      const res = await adminApi.createIngredient(data);
-      await fetchIngredients();
-      return res;
-    } catch {
-      return null;
-    }
-  }
-
-  async function updateIngredient(id, data) {
-    try {
-      await adminApi.updateIngredient(id, data);
-      await fetchIngredients();
-    } catch {}
-  }
-
-  async function deleteIngredient(id) {
-    try {
-      await adminApi.deleteIngredient(id);
-      await fetchIngredients();
-    } catch {}
-  }
 
   async function createShift(data) {
     try {
@@ -344,7 +315,6 @@ export const useAdminStore = defineStore('admin', () => {
     allZones,
     allShifts,
     allSchedules,
-    allIngredients,
     loading,
     error,
     fetchDashboard,
@@ -353,7 +323,6 @@ export const useAdminStore = defineStore('admin', () => {
     fetchCategories,
     fetchOrders,
     fetchZones,
-    fetchIngredients,
     fetchShifts,
     fetchSchedules,
     createUser,
@@ -362,19 +331,16 @@ export const useAdminStore = defineStore('admin', () => {
     createProduct,
     updateProduct,
     deleteProduct,
-    fetchOptions,
-    createOption,
-    updateOption,
-    deleteOption,
+    fetchVariants,
+    createVariant,
+    updateVariant,
+    deleteVariant,
     createCategory,
     updateCategory,
     deleteCategory,
     createZone,
     updateZone,
     deleteZone,
-    createIngredient,
-    updateIngredient,
-    deleteIngredient,
     createShift,
     updateShift,
     deleteShift,

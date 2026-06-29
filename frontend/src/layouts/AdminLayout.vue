@@ -18,7 +18,6 @@ const sidebarLinks = [
   { label: 'Sản phẩm', path: '/admin/products', icon: 'bi-box-seam' },
   { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
   { label: 'Khu vực', path: '/admin/delivery-zones', icon: 'bi-geo-alt' },
-  { label: 'Nguyên liệu', path: '/admin/ingredients', icon: 'bi-basket' },
   { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
   { label: 'Ca làm việc', path: '/admin/shifts', icon: 'bi-calendar-check' },
   { label: 'Doanh thu', path: '/admin/reports/revenue', icon: 'bi-graph-up' },

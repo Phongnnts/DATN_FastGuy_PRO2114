@@ -9,8 +9,21 @@ Chart.register(...registerables);
 const adminStore = useAdminStore();
 const revenueChartRef = ref(null);
 const topChartRef = ref(null);
+const statusChartRef = ref(null);
 let revenueChart = null;
 let topChart = null;
+let statusChart = null;
+
+const orderStatusLabels = {
+  PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận',
+  PREPARING: 'Đang chế biến', READY: 'Đã sẵn sàng',
+  DELIVERING: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
+};
+
+const statusColors = {
+  PENDING: '#F59E0B', CONFIRMED: '#3B82F6', PREPARING: '#8B5CF6',
+  READY: '#10B981', DELIVERING: '#06B6D4', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
+};
 
 const data = computed(
   () =>
@@ -19,10 +32,12 @@ const data = computed(
       totalOrders: 0,
       totalProducts: 0,
       totalRevenue: 0,
+      pendingOrders: 0,
       ordersToday: 0,
       revenueToday: 0,
       revenueByMonth: [],
       topProducts: [],
+      ordersByStatus: {},
     },
 );
 
@@ -59,6 +74,7 @@ function buildCharts() {
 
   const months = d.revenueByMonth || [];
   const tops = d.topProducts || [];
+  const obs = d.ordersByStatus || {};
 
   if (revenueChartRef.value && months.length) {
     revenueChart = new Chart(revenueChartRef.value, {
@@ -119,13 +135,43 @@ function buildCharts() {
       },
     });
   }
+
+  const statusLabels = Object.keys(obs).filter((k) => obs[k] > 0);
+  const statusValues = statusLabels.map((k) => obs[k]);
+  if (statusChartRef.value && statusValues.length) {
+    statusChart = new Chart(statusChartRef.value, {
+      type: 'doughnut',
+      data: {
+        labels: statusLabels.map((k) => orderStatusLabels[k] || k),
+        datasets: [{
+          data: statusValues,
+          backgroundColor: statusLabels.map((k) => statusColors[k] || '#999'),
+          borderWidth: 2,
+          borderColor: '#fff',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              font: { family: "'Be Vietnam Pro', sans-serif", size: 11 },
+              padding: 12,
+              usePointStyle: true,
+            },
+          },
+        },
+      },
+    });
+  }
 }
 
 function destroyCharts() {
-  revenueChart?.destroy();
-  revenueChart = null;
-  topChart?.destroy();
-  topChart = null;
+  revenueChart?.destroy(); revenueChart = null;
+  topChart?.destroy(); topChart = null;
+  statusChart?.destroy(); statusChart = null;
 }
 
 onMounted(async () => {
@@ -171,8 +217,12 @@ onUnmounted(destroyCharts);
         <div class="stat-value">{{ formatPrice(data.revenueToday) }}</div>
         <div class="stat-label">Doanh thu hôm nay</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ data.pendingOrders || 0 }}</div>
+        <div class="stat-label">Chờ xác nhận</div>
+      </div>
     </div>
-    <div class="grid-2">
+    <div class="grid-3">
       <div class="chart-container">
         <h3 style="margin-bottom: 12px">Doanh thu theo tháng</h3>
         <div style="height: 260px"><canvas ref="revenueChartRef"></canvas></div>
@@ -180,6 +230,10 @@ onUnmounted(destroyCharts);
       <div class="chart-container">
         <h3 style="margin-bottom: 12px">Sản phẩm bán chạy</h3>
         <div style="height: 260px"><canvas ref="topChartRef"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <h3 style="margin-bottom: 12px">Đơn hàng theo trạng thái</h3>
+        <div style="height: 260px"><canvas ref="statusChartRef"></canvas></div>
       </div>
     </div>
   </div>

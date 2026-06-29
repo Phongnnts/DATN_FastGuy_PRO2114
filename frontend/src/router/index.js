@@ -5,7 +5,7 @@ import { ROLES } from '@/utils/constants';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import UserLayout from '@/layouts/UserLayout.vue';
 import StaffLayout from '@/layouts/StaffLayout.vue';
-
+import ShipperLayout from '@/layouts/ShipperLayout.vue';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 
 const routes = [
@@ -144,19 +144,33 @@ const routes = [
         component: () => import('@/views/staff/OrderHistoryPage.vue'),
       },
       {
-        path: 'ingredients',
-        name: 'StaffIngredients',
-        component: () => import('@/views/staff/IngredientsPage.vue'),
-      },
-      {
-        path: 'ingredients/low-stock',
-        name: 'StaffLowStock',
-        component: () => import('@/views/staff/LowStockPage.vue'),
-      },
-      {
         path: 'shifts',
         name: 'StaffShifts',
         component: () => import('@/views/staff/ShiftsPage.vue'),
+      },
+    ],
+  },
+
+  // ─── Shipper ───────────────────────────────
+  {
+    path: '/shipper',
+    component: ShipperLayout,
+    meta: { requiresAuth: true, role: ROLES.SHIPPER },
+    children: [
+      {
+        path: '',
+        name: 'ShipperDashboard',
+        component: () => import('@/views/shipper/DashboardPage.vue'),
+      },
+      {
+        path: 'orders',
+        name: 'ShipperOrders',
+        component: () => import('@/views/shipper/MyOrdersPage.vue'),
+      },
+      {
+        path: 'orders/:id',
+        name: 'ShipperOrderDetail',
+        component: () => import('@/views/shipper/OrderDetailPage.vue'),
       },
     ],
   },
@@ -191,11 +205,6 @@ const routes = [
         path: 'delivery-zones',
         name: 'AdminDeliveryZones',
         component: () => import('@/views/admin/DeliveryZonesPage.vue'),
-      },
-      {
-        path: 'ingredients',
-        name: 'AdminIngredients',
-        component: () => import('@/views/admin/IngredientsPage.vue'),
       },
       {
         path: 'orders',
@@ -247,6 +256,7 @@ router.beforeEach((to, from, next) => {
     const roleRoutes = {
       [ROLES.STAFF]: '/staff',
       [ROLES.ADMIN]: '/admin',
+      [ROLES.SHIPPER]: '/shipper',
     };
     const redirect = roleRoutes[auth.role];
     if (redirect) return next(redirect);
@@ -261,6 +271,7 @@ router.beforeEach((to, from, next) => {
       [ROLES.USER]: '/account/profile',
       [ROLES.STAFF]: '/staff',
       [ROLES.ADMIN]: '/admin',
+      [ROLES.SHIPPER]: '/shipper',
     };
     return next(
       auth.isLoggedIn ? roleRoutes[auth.role] || '/' : { name: 'Login' },

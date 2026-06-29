@@ -6,7 +6,7 @@ import dao.CategoryDAO;
 import dao.ProductDAO;
 import entity.Category;
 import entity.Product;
-import entity.ProductOption;
+import entity.ProductVariant;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -63,13 +63,16 @@ public class AdminProductServlet extends HttpServlet {
         }
     }
 
-    private Map<String, Object> toOptionMap(ProductOption o) {
+    private Map<String, Object> toVariantMap(ProductVariant v) {
         Map<String, Object> m = new HashMap<>();
-        m.put("optionId", o.getOptionId());
-        m.put("optionName", o.getOptionName());
-        m.put("extraPrice", o.getExtraPrice());
-        m.put("stockControlled", o.getStockControlled());
-        m.put("quantityAvailable", o.getQuantityAvailable());
+        m.put("variantId", v.getVariantId());
+        m.put("variantName", v.getVariantName());
+        m.put("price", v.getPrice());
+        m.put("originalPrice", v.getOriginalPrice());
+        m.put("sku", v.getSku());
+        m.put("quantityAvailable", v.getQuantityAvailable());
+        m.put("isDefault", v.getIsDefault() != null ? v.getIsDefault() : false);
+        m.put("status", v.getStatus());
         return m;
     }
 
@@ -79,19 +82,28 @@ public class AdminProductServlet extends HttpServlet {
         m.put("name", p.getName());
         m.put("categoryId", p.getCategory().getCategoryId());
         m.put("categoryName", p.getCategory().getName());
-        m.put("price", p.getPrice());
+        m.put("basePrice", p.getBasePrice());
         m.put("imageUrl", p.getImageUrl() != null ? p.getImageUrl() : "");
         m.put("description", p.getDescription() != null ? p.getDescription() : "");
         m.put("status", p.getStatus());
         m.put("galleryImages", parseGalleryImages(p));
-        m.put("options", productDAO.findOptionsByProductId(p.getProductId()).stream()
-                .map(this::toOptionMap).collect(Collectors.toList()));
+        m.put("variants", productDAO.findVariantsByProductId(p.getProductId()).stream()
+                .map(this::toVariantMap).collect(Collectors.toList()));
+        m.put("discountPrice", null);
+        m.put("rating", 0);
+        m.put("reviewCount", 0);
+        m.put("inStock", "AVAILABLE".equals(p.getStatus()));
+        m.put("featured", false);
         return m;
     }
 
     private String[] splitPath(String path) {
         if (path == null || path.equals("/")) return new String[0];
         return Arrays.stream(path.split("/")).filter(s -> !s.isEmpty()).toArray(String[]::new);
+    }
+
+    private Integer parseId(String s) {
+        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return null; }
     }
 
     @Override
@@ -108,28 +120,31 @@ public class AdminProductServlet extends HttpServlet {
         }
 
         if (segs.length == 1) {
-            try {
-                int id = Integer.parseInt(segs[0]);
-                Product p = productDAO.findById(id);
-                if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
-                ApiResponse.ok(resp, toMap(p));
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
-            }
+            Integer id = parseId(segs[0]);
+            if (id == null) { resp.sendError(404); return; }
+            Product p = productDAO.findById(id);
+            if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
+            ApiResponse.ok(resp, toMap(p));
             return;
         }
 
-        if (segs.length == 2 && "options".equals(segs[1])) {
-            try {
-                int id = Integer.parseInt(segs[0]);
-                Product p = productDAO.findById(id);
-                if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
-                List<Map<String, Object>> options = productDAO.findOptionsByProductId(id).stream()
-                        .map(this::toOptionMap).collect(Collectors.toList());
-                ApiResponse.ok(resp, options);
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
-            }
+        if (segs.length == 2 && "variants".equals(segs[1])) {
+            Integer pid = parseId(segs[0]);
+            if (pid == null) { resp.sendError(404); return; }
+            Product p = productDAO.findById(pid);
+            if (p == null) { ApiResponse.error(resp, "Product not found", 404); return; }
+            List<Map<String, Object>> variants = productDAO.findVariantsByProductId(pid).stream()
+                    .map(this::toVariantMap).collect(Collectors.toList());
+            ApiResponse.ok(resp, variants);
+            return;
+        }
+
+        if (segs.length == 2 && "variants".equals(segs[0])) {
+            Integer vid = parseId(segs[1]);
+            if (vid == null) { resp.sendError(404); return; }
+            ProductVariant v = productDAO.findVariantById(vid);
+            if (v == null) { ApiResponse.error(resp, "Not found", 404); return; }
+            ApiResponse.ok(resp, toVariantMap(v));
             return;
         }
 
@@ -142,11 +157,10 @@ public class AdminProductServlet extends HttpServlet {
         if (!checkAdmin(req, resp)) return;
 
         String[] segs = splitPath(req.getPathInfo());
+        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+        if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
 
         if (segs.length == 0) {
-            Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-            if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
-
             Integer categoryId = ((Number) body.get("categoryId")).intValue();
             Category category = categoryDAO.findById(categoryId);
             if (category == null) { ApiResponse.error(resp, "Category not found", 400); return; }
@@ -155,7 +169,9 @@ public class AdminProductServlet extends HttpServlet {
             p.setCategory(category);
             p.setName((String) body.get("name"));
             p.setDescription((String) body.get("description"));
-            p.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
+            if (body.containsKey("basePrice")) {
+                p.setBasePrice(BigDecimal.valueOf(((Number) body.get("basePrice")).doubleValue()));
+            }
             p.setImageUrl((String) body.get("imageUrl"));
             if (body.containsKey("galleryImages")) {
                 p.setGalleryImages(toGalleryJson((List<String>) body.get("galleryImages")));
@@ -169,32 +185,32 @@ public class AdminProductServlet extends HttpServlet {
             return;
         }
 
-        if (segs.length == 2 && "options".equals(segs[1])) {
-            try {
-                int productId = Integer.parseInt(segs[0]);
-                Product p = productDAO.findById(productId);
-                if (p == null) { ApiResponse.error(resp, "Product not found", 404); return; }
+        if (segs.length == 2 && "variants".equals(segs[1])) {
+            Integer productId = parseId(segs[0]);
+            if (productId == null) { resp.sendError(404); return; }
+            Product p = productDAO.findById(productId);
+            if (p == null) { ApiResponse.error(resp, "Product not found", 404); return; }
 
-                Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-                if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
-
-                ProductOption opt = new ProductOption();
-                opt.setProduct(p);
-                opt.setOptionName((String) body.get("optionName"));
-                opt.setExtraPrice(body.containsKey("extraPrice")
-                        ? BigDecimal.valueOf(((Number) body.get("extraPrice")).doubleValue())
-                        : BigDecimal.ZERO);
-                opt.setStockControlled(body.containsKey("stockControlled")
-                        ? (Boolean) body.get("stockControlled") : false);
-                opt.setQuantityAvailable(body.containsKey("quantityAvailable")
-                        ? ((Number) body.get("quantityAvailable")).intValue() : null);
-                productDAO.saveOption(opt);
-
-                resp.setStatus(201);
-                ApiResponse.ok(resp, toOptionMap(opt), "Created");
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
+            ProductVariant v = new ProductVariant();
+            v.setProduct(p);
+            v.setVariantName((String) body.get("variantName"));
+            if (body.containsKey("price")) {
+                v.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
             }
+            if (body.containsKey("originalPrice")) {
+                v.setOriginalPrice(BigDecimal.valueOf(((Number) body.get("originalPrice")).doubleValue()));
+            }
+            v.setSku((String) body.get("sku"));
+            if (body.containsKey("quantityAvailable")) {
+                v.setQuantityAvailable(((Number) body.get("quantityAvailable")).intValue());
+            }
+            v.setIsDefault(body.containsKey("isDefault") ? (Boolean) body.get("isDefault") : false);
+            v.setStatus((String) body.getOrDefault("status", "AVAILABLE"));
+            v.setCreatedAt(LocalDateTime.now());
+            productDAO.saveVariant(v);
+
+            resp.setStatus(201);
+            ApiResponse.ok(resp, toVariantMap(v), "Created");
             return;
         }
 
@@ -207,57 +223,51 @@ public class AdminProductServlet extends HttpServlet {
         if (!checkAdmin(req, resp)) return;
 
         String[] segs = splitPath(req.getPathInfo());
+        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+        if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
 
         if (segs.length == 1) {
-            try {
-                int id = Integer.parseInt(segs[0]);
-                Product p = productDAO.findById(id);
-                if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
+            Integer id = parseId(segs[0]);
+            if (id == null) { resp.sendError(404); return; }
+            Product p = productDAO.findById(id);
+            if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
 
-                Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-                if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
-
-                if (body.containsKey("categoryId")) {
-                    Category c = categoryDAO.findById(((Number) body.get("categoryId")).intValue());
-                    if (c != null) p.setCategory(c);
-                }
-                if (body.containsKey("name")) p.setName((String) body.get("name"));
-                if (body.containsKey("description")) p.setDescription((String) body.get("description"));
-                if (body.containsKey("price")) p.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
-                if (body.containsKey("imageUrl")) p.setImageUrl((String) body.get("imageUrl"));
-                if (body.containsKey("galleryImages")) {
-                    p.setGalleryImages(toGalleryJson((List<String>) body.get("galleryImages")));
-                }
-                if (body.containsKey("status")) p.setStatus((String) body.get("status"));
-                p.setUpdatedAt(LocalDateTime.now());
-                productDAO.save(p);
-
-                ApiResponse.ok(resp, toMap(p), "Updated");
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
+            if (body.containsKey("categoryId")) {
+                Category c = categoryDAO.findById(((Number) body.get("categoryId")).intValue());
+                if (c != null) p.setCategory(c);
             }
+            if (body.containsKey("name")) p.setName((String) body.get("name"));
+            if (body.containsKey("description")) p.setDescription((String) body.get("description"));
+            if (body.containsKey("basePrice")) p.setBasePrice(BigDecimal.valueOf(((Number) body.get("basePrice")).doubleValue()));
+            if (body.containsKey("imageUrl")) p.setImageUrl((String) body.get("imageUrl"));
+            if (body.containsKey("galleryImages")) {
+                p.setGalleryImages(toGalleryJson((List<String>) body.get("galleryImages")));
+            }
+            if (body.containsKey("status")) p.setStatus((String) body.get("status"));
+            p.setUpdatedAt(LocalDateTime.now());
+            productDAO.save(p);
+
+            ApiResponse.ok(resp, toMap(p), "Updated");
             return;
         }
 
-        if (segs.length == 2 && "options".equals(segs[0])) {
-            try {
-                int optionId = Integer.parseInt(segs[1]);
-                ProductOption opt = productDAO.findOptionById(optionId);
-                if (opt == null) { ApiResponse.error(resp, "Not found", 404); return; }
+        if (segs.length == 2 && "variants".equals(segs[0])) {
+            Integer vid = parseId(segs[1]);
+            if (vid == null) { resp.sendError(404); return; }
+            ProductVariant v = productDAO.findVariantById(vid);
+            if (v == null) { ApiResponse.error(resp, "Not found", 404); return; }
 
-                Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-                if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+            if (body.containsKey("variantName")) v.setVariantName((String) body.get("variantName"));
+            if (body.containsKey("price")) v.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
+            if (body.containsKey("originalPrice")) v.setOriginalPrice(BigDecimal.valueOf(((Number) body.get("originalPrice")).doubleValue()));
+            if (body.containsKey("sku")) v.setSku((String) body.get("sku"));
+            if (body.containsKey("quantityAvailable")) v.setQuantityAvailable(((Number) body.get("quantityAvailable")).intValue());
+            if (body.containsKey("isDefault")) v.setIsDefault((Boolean) body.get("isDefault"));
+            if (body.containsKey("status")) v.setStatus((String) body.get("status"));
+            v.setUpdatedAt(LocalDateTime.now());
+            productDAO.saveVariant(v);
 
-                if (body.containsKey("optionName")) opt.setOptionName((String) body.get("optionName"));
-                if (body.containsKey("extraPrice")) opt.setExtraPrice(BigDecimal.valueOf(((Number) body.get("extraPrice")).doubleValue()));
-                if (body.containsKey("stockControlled")) opt.setStockControlled((Boolean) body.get("stockControlled"));
-                if (body.containsKey("quantityAvailable")) opt.setQuantityAvailable(((Number) body.get("quantityAvailable")).intValue());
-                productDAO.saveOption(opt);
-
-                ApiResponse.ok(resp, toOptionMap(opt), "Updated");
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
-            }
+            ApiResponse.ok(resp, toVariantMap(v), "Updated");
             return;
         }
 
@@ -272,24 +282,18 @@ public class AdminProductServlet extends HttpServlet {
         String[] segs = splitPath(req.getPathInfo());
 
         if (segs.length == 1) {
-            try {
-                int id = Integer.parseInt(segs[0]);
-                productDAO.delete(id);
-                ApiResponse.ok(resp, null, "Deleted");
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
-            }
+            Integer id = parseId(segs[0]);
+            if (id == null) { resp.sendError(404); return; }
+            productDAO.delete(id);
+            ApiResponse.ok(resp, null, "Deleted");
             return;
         }
 
-        if (segs.length == 2 && "options".equals(segs[0])) {
-            try {
-                int optionId = Integer.parseInt(segs[1]);
-                productDAO.deleteOption(optionId);
-                ApiResponse.ok(resp, null, "Deleted");
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
-            }
+        if (segs.length == 2 && "variants".equals(segs[0])) {
+            Integer vid = parseId(segs[1]);
+            if (vid == null) { resp.sendError(404); return; }
+            productDAO.deleteVariant(vid);
+            ApiResponse.ok(resp, null, "Deleted");
             return;
         }
 

@@ -10,28 +10,47 @@ import service.AdminService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
-@WebServlet("/api/admin/dashboard")
+@WebServlet("/api/admin/*")
 public class AdminServlet extends HttpServlet {
     private AdminService adminService = new AdminService();
+
+    private boolean checkAuth(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        String authHeader = req.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            ApiResponse.error(resp, "Missing token", 401);
+            return false;
+        }
+        String role = JwtUtil.getRole(authHeader.substring(7));
+        if (!"ADMIN".equals(role)) {
+            ApiResponse.error(resp, "Forbidden", 403);
+            return false;
+        }
+        return true;
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
+        if (!checkAuth(req, resp)) return;
 
-        String authHeader = req.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            ApiResponse.error(resp, "Missing token", 401);
-            return;
+        String path = req.getPathInfo();
+        if (path == null || path.equals("/") || path.equals("/dashboard")) {
+            var data = adminService.getDashboard();
+            ApiResponse.ok(resp, data);
+        } else if (path.equals("/reports/revenue")) {
+            var data = adminService.getDashboard();
+            java.util.Map<String, Object> result = new java.util.HashMap<>();
+            result.put("revenueByMonth", data.get("revenueByMonth"));
+            result.put("totalRevenue", data.get("totalRevenue"));
+            result.put("revenueToday", data.get("revenueToday"));
+            ApiResponse.ok(resp, result);
+        } else if (path.equals("/reports/top-products")) {
+            var data = adminService.getDashboard();
+            java.util.Map<String, Object> result = new java.util.HashMap<>();
+            result.put("topProducts", data.get("topProducts"));
+            ApiResponse.ok(resp, result);
+        } else {
+            ApiResponse.error(resp, "Not found", 404);
         }
-
-        String token = authHeader.substring(7);
-        String role = JwtUtil.getRole(token);
-        if (!"ADMIN".equals(role)) {
-            ApiResponse.error(resp, "Forbidden", 403);
-            return;
-        }
-
-        var data = adminService.getDashboard();
-        ApiResponse.ok(resp, data);
     }
 }
