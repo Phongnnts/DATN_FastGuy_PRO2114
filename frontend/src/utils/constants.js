@@ -90,7 +90,7 @@ export const PAYMENT_STATUS_LABEL = {
   REFUNDED: 'Đã hoàn tiền',
 };
 
-export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6h)'];
+// export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6h)'];
 
 export const SHIPPING_PROVIDER = {
   GHN: 'GHN',

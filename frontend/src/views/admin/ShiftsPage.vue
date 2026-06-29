@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useAdminStore } from '@/stores/admin';
 import { formatTime } from '@/utils/format';
-import { SCHEDULE_STATUS_LABEL, SHIFT_TYPES } from '@/utils/constants';
+import { SCHEDULE_STATUS_LABEL } from '@/utils/constants';
 
 const adminStore = useAdminStore();
 const showShiftForm = ref(false);
