@@ -1,12 +1,12 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useOrderStore } from '@/stores/order';
 import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
-import { userApi, shippingApi, deliveryZoneApi } from '@/api';
+import { userApi, shippingApi, deliveryZoneApi, orderApi } from '@/api';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -37,10 +37,19 @@ const expectedDelivery = ref('');
 const services = ref([]);
 const selectedServiceId = ref(2);
 const serviceLoading = ref(false);
+const sepayQrUrl = ref('');
+const paymentConfirmed = ref(false);
+const createdOrderCode = ref('');
+let paymentPolling = null;
+
+onUnmounted(() => {
+  if (paymentPolling) clearInterval(paymentPolling);
+});
 
 const total = computed(() => cart.subtotal + (shippingFee.value || 0));
 
 onMounted(async () => {
+  loadingProvinces.value = true;
   try {
     const [provData, addrData] = await Promise.all([
       shippingApi.getProvinces(),
@@ -60,6 +69,8 @@ onMounted(async () => {
   } catch {
     provinces.value = [];
     savedAddresses.value = [];
+  } finally {
+    loadingProvinces.value = false;
   }
 });
 
@@ -195,7 +206,7 @@ async function placeOrder() {
   if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
   submitting.value = true;
   try {
-    const order = await orderStore.createOrder({
+    const result = await orderStore.createOrder({
       address: fullAddress,
       phone: phone.value.trim(),
       deliveryNote: note.value,
@@ -208,8 +219,23 @@ async function placeOrder() {
       toWardName: getWardName(),
       shippingFee: shippingFee.value,
     });
-    cart.clear();
-    router.push(`/account/orders/${order.id}`);
+    if (paymentMethod.value === 'BANK_TRANSFER' && result.sepayQrUrl) {
+      sepayQrUrl.value = result.sepayQrUrl;
+      createdOrderCode.value = result.orderCode;
+      paymentPolling = setInterval(async () => {
+        try {
+          const status = await orderApi.getPaymentStatus(result.id);
+          if (status.paymentStatus === 'PAID') {
+            paymentConfirmed.value = true;
+            clearInterval(paymentPolling);
+            paymentPolling = null;
+          }
+        } catch (e) {}
+      }, 5000);
+    } else {
+      cart.clear();
+      router.push(`/account/orders/${result.id}`);
+    }
   } catch (e) {
     alert(e.message);
   } finally {
@@ -259,7 +285,8 @@ async function placeOrder() {
             </div>
             <div class="form-group">
               <label class="form-label">Tỉnh / Thành phố</label>
-              <select v-model="selectedProvince" class="form-select">
+              <select v-if="loadingProvinces" class="form-select" disabled><option>Đang tải dữ liệu...</option></select>
+              <select v-else v-model="selectedProvince" class="form-select">
                 <option :value="null">Chọn tỉnh/thành</option>
                 <option v-for="p in provinces" :key="p.id" :value="p.id">{{ p.name }}</option>
               </select>
@@ -336,6 +363,21 @@ async function placeOrder() {
             <p><strong>Chủ tài khoản:</strong> FastGuy</p>
             <p><strong>Nội dung:</strong> Mã đơn hàng + SĐT</p>
             <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Sau khi chuyển khoản, vui lòng chờ xác nhận</p>
+          </div>
+        </div>
+        <div v-if="paymentMethod === 'BANK_TRANSFER' && sepayQrUrl" class="card mb-3">
+          <h3>Quét mã QR để thanh toán</h3>
+          <div style="text-align:center;padding:20px">
+            <img :src="sepayQrUrl" alt="QR thanh toán" style="width:250px;height:250px" />
+            <p style="font-size:24px;font-weight:800;margin:12px 0">{{ formatPrice(cart.subtotal + (shippingFee || 0)) }}</p>
+            <p style="color:var(--text-mid)">Nội dung: TT-{{ createdOrderCode }}</p>
+            <div v-if="paymentConfirmed" style="text-align:center;padding:12px">
+              <i class="bi bi-check-circle-fill" style="color:#10b981;font-size:48px"></i>
+              <p style="color:#10b981;font-weight:600">Đã thanh toán thành công!</p>
+            </div>
+            <div v-else style="text-align:center;padding:12px">
+              <i class="bi bi-arrow-repeat spin"></i> Đang chờ thanh toán...
+            </div>
           </div>
         </div>
         <div class="card mb-3">

@@ -90,6 +90,7 @@ function goReview() {
           <img :src="item.image" :alt="item.productName" class="detail-item-img" />
           <div class="detail-item-info">
             <div class="detail-item-name">{{ item.productName }}</div>
+            <div v-if="item.variantName" class="item-variant" style="font-size:12px;color:var(--text-mid)">{{ item.variantName }}</div>
             <div class="detail-item-price">{{ formatPrice(item.price) }}</div>
           </div>
           <div class="detail-item-qty">x{{ item.quantity }}</div>
