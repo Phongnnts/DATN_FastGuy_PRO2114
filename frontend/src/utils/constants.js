@@ -66,16 +66,12 @@ export const DELIVERY_STATUS_LABEL = {
 
 export const PAYMENT_METHOD = {
   COD: 'COD',
-  MOMO: 'MOMO',
   BANK_TRANSFER: 'BANK_TRANSFER',
-  VNPAY: 'VNPAY',
 };
 
 export const PAYMENT_METHOD_LABEL = {
   COD: 'Tiền mặt (COD)',
-  MOMO: 'Ví MoMo',
-  BANK_TRANSFER: 'Chuyển khoản',
-  VNPAY: 'VNPay',
+  BANK_TRANSFER: 'Chuyển khoản (QR Code)',
 };
 
 export const PAYMENT_STATUS = {

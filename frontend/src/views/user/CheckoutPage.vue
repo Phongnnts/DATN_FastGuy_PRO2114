@@ -345,9 +345,7 @@ async function placeOrder() {
                 :class="
                   key === 'COD'
                     ? 'bi bi-cash'
-                    : key === 'MOMO'
-                      ? 'bi bi-phone'
-                      : 'bi bi-credit-card'
+                    : 'bi bi-qr-code-scan'
                 "
               ></i>
               <span>{{ label }}</span>
