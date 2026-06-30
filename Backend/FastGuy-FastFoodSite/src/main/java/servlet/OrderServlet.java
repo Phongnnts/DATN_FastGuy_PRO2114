@@ -161,17 +161,34 @@ public class OrderServlet extends HttpServlet {
         String toProvinceName = (String) body.get("toProvinceName");
         String toDistrictName = (String) body.get("toDistrictName");
         String toWardName = (String) body.get("toWardName");
-        BigDecimal shippingFee = body.containsKey("shippingFee")
-                ? BigDecimal.valueOf(((Number) body.get("shippingFee")).doubleValue())
-                : BigDecimal.ZERO;
+        BigDecimal shippingFee = BigDecimal.ZERO;
+        try {
+            if (body.containsKey("shippingFee")) {
+                Object feeObj = body.get("shippingFee");
+                if (feeObj instanceof Number) {
+                    shippingFee = BigDecimal.valueOf(((Number) feeObj).doubleValue());
+                } else if (feeObj instanceof String) {
+                    shippingFee = new BigDecimal((String) feeObj);
+                }
+            }
+        } catch (Exception e) {
+            shippingFee = BigDecimal.ZERO;
+        }
 
         if (address == null) {
             ApiResponse.error(resp, "Missing address", 400);
             return;
         }
 
-        Orders order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod,
-                ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, shippingFee);
+        Orders order = null;
+        try {
+            order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod,
+                    ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, shippingFee);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ApiResponse.error(resp, "Checkout failed: " + e.getMessage(), 500);
+            return;
+        }
         if (order == null) {
             ApiResponse.error(resp, "Cart is empty", 400);
             return;
