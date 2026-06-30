@@ -246,6 +246,12 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from, next) => {
+  document.body.classList.add('page-transition');
+  setTimeout(() => document.body.classList.remove('page-transition'), 300);
+  next();
+});
+
+router.beforeEach((to, from, next) => {
   const auth = useAuthStore();
 
   if (

@@ -21,6 +21,19 @@ public class OrdersDAO {
         }
     }
 
+    public Orders findByOrderCode(String orderCode) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Orders> list = em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.orderCode = :code", Orders.class)
+                    .setParameter("code", orderCode)
+                    .getResultList();
+            return list.isEmpty() ? null : list.get(0);
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Orders> findByUserId(int userId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
