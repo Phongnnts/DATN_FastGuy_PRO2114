@@ -155,8 +155,16 @@ function selectAddress(addr) {
   street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
-  if (addr.ghnDistrictId) selectedDistrict.value = addr.ghnDistrictId;
+  if (addr.ghnDistrictId) {
+    selectedDistrict.value = addr.ghnDistrictId;
+  } else if (addr.zone?.shippingFee) {
+    shippingFee.value = addr.zone.shippingFee;
+    shippingProvider.value = 'FALLBACK_ZONE';
+  }
   if (addr.ghnWardCode) selectedWard.value = addr.ghnWardCode;
+  if (!selectedProvince.value && addr.provinceName?.includes('Hồ Chí Minh')) {
+    selectedProvince.value = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'))?.id;
+  }
 }
 
 function useManualEntry() {
@@ -181,6 +189,12 @@ function getFullAddress() {
 }
 
 function canPlaceOrder() {
+  if (shippingProvider.value === 'FALLBACK_ZONE') {
+    return shippingFee.value !== null
+      && recipientName.value.trim()
+      && phone.value.trim()
+      && street.value.trim();
+  }
   return selectedWard.value && selectedDistrict.value && shippingFee.value !== null
     && recipientName.value.trim() && phone.value.trim() && street.value.trim();
 }
