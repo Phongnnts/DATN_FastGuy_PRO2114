@@ -1,11 +1,20 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { staffApi } from '@/api';
 
 const auth = useAuthStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
+const pendingCount = ref(0);
+
+onMounted(async () => {
+  try {
+    const orders = await staffApi.getOrders();
+    pendingCount.value = Array.isArray(orders) ? orders.length : 0;
+  } catch {}
+});
 
 function logout() {
   auth.logout();
@@ -44,6 +53,7 @@ const sidebarLinks = [
         >
           <i :class="link.icon"></i>
           <span>{{ link.label }}</span>
+          <span v-if="link.path === '/staff/orders' && pendingCount > 0" class="badge badge-warning" style="margin-left:auto">{{ pendingCount }}</span>
         </router-link>
       </nav>
       <div class="sidebar-footer">
