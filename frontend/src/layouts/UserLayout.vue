@@ -8,6 +8,19 @@ const auth = useAuthStore();
 const cart = useCartStore();
 const router = useRouter();
 const mobileMenuOpen = ref(false);
+const sidebarHover = ref(false);
+let hoverTimer = null;
+
+function showSidebar() {
+  clearTimeout(hoverTimer);
+  if (window.innerWidth > 768) sidebarHover.value = true;
+}
+function hideSidebar() {
+  hoverTimer = setTimeout(() => { sidebarHover.value = false; }, 300);
+}
+function isSidebarVisible() {
+  return mobileMenuOpen.value || sidebarHover.value || window.innerWidth > 768;
+}
 
 function logout() {
   auth.logout();
@@ -58,8 +71,9 @@ const sidebarLinks = [
       </div>
     </nav>
     <div class="container">
-      <div class="layout-inner">
-        <aside class="sidebar" :class="{ open: mobileMenuOpen }">
+      <div class="layout-inner" @mouseleave="hideSidebar">
+        <div class="sidebar-trigger" @mouseenter="showSidebar"></div>
+        <aside class="sidebar" :class="{ open: mobileMenuOpen || sidebarHover }" @mouseenter="showSidebar" @mouseleave="hideSidebar">
           <div class="sidebar-user">
             <img
               :src="
