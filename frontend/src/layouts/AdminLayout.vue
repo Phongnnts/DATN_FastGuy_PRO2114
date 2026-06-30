@@ -6,6 +6,17 @@ import { ref } from 'vue';
 const auth = useAuthStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
+const sidebarHover = ref(false);
+let hoverTimer = null;
+
+function showSidebar() {
+  clearTimeout(hoverTimer);
+  sidebarHover.value = true;
+}
+function hideSidebar() {
+  hoverTimer = setTimeout(() => { sidebarHover.value = false; }, 300);
+}
+function isVisible() { return sidebarOpen.value || sidebarHover.value; }
 
 function logout() {
   auth.logout();
@@ -17,7 +28,6 @@ const sidebarLinks = [
   { label: 'Người dùng', path: '/admin/users', icon: 'bi-people' },
   { label: 'Sản phẩm', path: '/admin/products', icon: 'bi-box-seam' },
   { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
-  // { label: 'Khu vực', path: '/admin/delivery-zones', icon: 'bi-geo-alt' },
   { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
   { label: 'Ca làm việc', path: '/admin/shifts', icon: 'bi-calendar-check' },
   { label: 'Doanh thu', path: '/admin/reports/revenue', icon: 'bi-graph-up' },
@@ -26,8 +36,9 @@ const sidebarLinks = [
 </script>
 
 <template>
-  <div class="sidebar-layout">
-    <aside class="sidebar" :class="{ open: sidebarOpen }">
+  <div class="sidebar-layout" @mouseleave="hideSidebar">
+    <div class="sidebar-trigger" @mouseenter="showSidebar"></div>
+    <aside class="sidebar" :class="{ open: isVisible() }" @mouseenter="showSidebar" @mouseleave="hideSidebar">
       <div class="sidebar-brand">
         <span class="brand-text" style="font-size: 18px; font-weight: 800"
           >Fast<span style="color: var(--primary)">Guy</span></span
