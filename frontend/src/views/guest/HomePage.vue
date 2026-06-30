@@ -14,9 +14,9 @@ const previewProducts = computed(() => productStore.allProducts.slice(0, 10));
 const newProducts = computed(() => [...productStore.allProducts].sort((a,b) => b.productId - a.productId).slice(0, 8));
 
 const heroSlides = [
-  { title: 'Burger Ngon Mỗi Ngày', subtitle: 'Khám phá bộ sưu tập burger mới', cta: 'Xem thực đơn', link: '/menu' },
-  { title: 'Giảm 20% Đơn Đầu Tiên', subtitle: 'Nhập mã FASTGUY20 khi thanh toán', cta: 'Đặt ngay', link: '/menu' },
-  { title: 'Giao Hàng Siêu Tốc 30 Phút', subtitle: 'Nóng hổi từ bếp đến tay bạn', cta: 'Tìm hiểu thêm', link: '/menu' },
+  { title: 'Burger Ngon Mỗi Ngày', subtitle: 'Khám phá bộ sưu tập burger mới', cta: 'Xem thực đơn', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Burger/classic-burger.jpg' },
+  { title: 'Giảm 20% Đơn Đầu Tiên', subtitle: 'Nhập mã FASTGUY20 khi thanh toán', cta: 'Đặt ngay', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/GaRan/gran-split.jpg' },
+  { title: 'Giao Hàng Siêu Tốc 30 Phút', subtitle: 'Nóng hổi từ bếp đến tay bạn', cta: 'Tìm hiểu thêm', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Pizza/pizza-margherita.jpg' },
 ];
 
 let slideInterval;
@@ -36,7 +36,8 @@ function subscribeNewsletter() {
   <div>
     <!-- Hero Carousel -->
     <section class="hero-carousel">
-      <div v-for="(slide, i) in heroSlides" :key="i" class="hero-slide" :class="{ active: currentSlide === i }">
+      <div v-for="(slide, i) in heroSlides" :key="i" class="hero-slide" :class="{ active: currentSlide === i }" :style="{ backgroundImage: 'url(' + slide.image + ')' }">
+        <div class="hero-overlay"></div>
         <div class="container hero-content">
           <h1 class="hero-title">{{ slide.title }}</h1>
           <p class="hero-subtitle">{{ slide.subtitle }}</p>
@@ -165,10 +166,11 @@ function subscribeNewsletter() {
 .about-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
 .about-card p { font-size: 13px; color: var(--text-mid); line-height: 1.5; }
 
-.hero-carousel { position: relative; background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #fff; min-height: 320px; overflow: hidden; }
-.hero-slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; transition: opacity 0.6s ease; }
+.hero-carousel { position: relative; color: #fff; min-height: 360px; overflow: hidden; }
+.hero-slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; transition: opacity 0.6s ease; background-size: cover; background-position: center; }
 .hero-slide.active { opacity: 1; position: relative; }
-.hero-content { padding: 60px 0; text-align: center; }
+.hero-overlay { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,0,0,0.3)); }
+.hero-content { padding: 60px 0; text-align: center; position: relative; z-index: 1; }
 .hero-title { font-size: 36px; font-weight: 800; margin-bottom: 12px; }
 .hero-subtitle { font-size: 16px; opacity: 0.9; margin-bottom: 24px; }
 .carousel-dots { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }

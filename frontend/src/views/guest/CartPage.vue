@@ -33,7 +33,10 @@ function proceedCheckout() {
         <h1>Giỏ hàng</h1>
         <p v-if="cart.itemCount > 0">{{ cart.itemCount }} sản phẩm</p>
       </div>
-      <div v-if="cart.items.length === 0" class="empty-state">
+      <div v-if="!cart.isLoaded" class="skeleton-cart">
+        <div v-for="n in 3" :key="n" class="skeleton-cart-item"></div>
+      </div>
+      <div v-else-if="cart.items.length === 0" class="empty-state">
         <i class="bi bi-cart3"></i>
         <h3>Giỏ hàng trống</h3>
         <p>Hãy thêm món ăn vào giỏ hàng nhé!</p>
@@ -129,6 +132,9 @@ function proceedCheckout() {
 .continue-shopping:hover {
   color: var(--primary);
 }
+.skeleton-cart { display: flex; flex-direction: column; gap: 12px; }
+.skeleton-cart-item { height: 100px; border-radius: var(--radius); background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 @media (max-width: 768px) {
   .cart-layout {
     grid-template-columns: 1fr;

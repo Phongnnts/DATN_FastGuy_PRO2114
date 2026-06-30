@@ -189,6 +189,11 @@ watch(
 onUnmounted(destroyCharts);
 </script>
 
+<style scoped>
+@media (max-width: 1024px) { :deep(.grid-3) { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { :deep(.grid-3) { grid-template-columns: 1fr; } }
+</style>
+
 <template>
   <div>
     <div class="page-header"><h1>Tổng quan</h1></div>

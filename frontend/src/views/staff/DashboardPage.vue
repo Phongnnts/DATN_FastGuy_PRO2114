@@ -9,7 +9,9 @@ Chart.register(...registerables);
 const staffStore = useStaffStore();
 const loading = ref(true);
 const statusChartRef = ref(null);
+const revenueChartRef = ref(null);
 let statusChart = null;
+let revenueChart = null;
 
 const data = computed(() => staffStore.dashboard);
 
@@ -83,11 +85,37 @@ function buildCharts() {
       },
     });
   }
+
+  if (revenueChartRef.value && data.value?.revenueByMonth?.length) {
+    const primary = getCSSVar('--primary') || '#D4764A';
+    revenueChart = new Chart(revenueChartRef.value, {
+      type: 'bar',
+      data: {
+        labels: data.value.revenueByMonth.map(m => 'Tháng ' + m.month),
+        datasets: [{
+          label: 'Doanh thu',
+          data: data.value.revenueByMonth.map(m => m.revenue),
+          backgroundColor: primary + '33',
+          borderColor: primary,
+          borderWidth: 2,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v) => (v / 1000000).toFixed(0) + 'tr' } },
+        },
+      },
+    });
+  }
 }
 
 function destroyCharts() {
-  statusChart?.destroy();
-  statusChart = null;
+  statusChart?.destroy(); statusChart = null;
+  revenueChart?.destroy(); revenueChart = null;
 }
 
 onMounted(async () => {
@@ -134,10 +162,14 @@ onUnmounted(destroyCharts);
           <div class="stat-label">Nhân viên trực</div>
         </div>
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
         <div class="chart-container">
           <h3 style="margin-bottom: 12px">Đơn hàng theo trạng thái</h3>
           <div style="height: 260px"><canvas ref="statusChartRef"></canvas></div>
+        </div>
+        <div class="chart-container">
+          <h3 style="margin-bottom: 12px">Doanh thu theo tháng</h3>
+          <div style="height: 260px"><canvas ref="revenueChartRef"></canvas></div>
         </div>
         <div class="chart-container">
           <h3 style="margin-bottom: 12px">Thông tin ca làm việc</h3>
