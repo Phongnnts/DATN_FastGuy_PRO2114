@@ -61,6 +61,16 @@ PENDING ──→ CANCELLED
 - Code order per feature: Entity → DAO → Service → Servlet
 - No interfaces for single implementations
 
+## Git Rules
+
+- **Không push thẳng lên nhánh `main`** — chỉ merge từ `develop` khi có yêu cầu cụ thể
+- **Commit message đơn giản**, không mô tả kỹ thuật chi tiết
+  - Ví dụ: `"hoàn thiện theo yêu cầu work-plan"`
+  - Ví dụ: `"fix loi giao dien"`
+  - Ví dụ: `"bo sung tinh nang moi"`
+- **Mỗi mục trong work-plan = 1 commit riêng**
+- **Commit message bằng tiếng Việt không dấu** (để tránh lỗi encoding trên PowerShell)
+
 ## Module assignment
 
 | Person | Module | Scope |
