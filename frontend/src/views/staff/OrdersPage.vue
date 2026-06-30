@@ -90,4 +90,10 @@ function goDetail(id) { router.push(`/staff/orders/${id}`) }
 .table tbody tr:hover {
   background: #f0f4f8;
 }
+@media (max-width: 768px) {
+  .table thead { display: none; }
+  .table tbody tr { display: block; padding: 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .table tbody td { display: flex; justify-content: space-between; padding: 6px 0; border: none; font-size: 13px; }
+  .table tbody td::before { content: attr(data-label); font-weight: 600; color: var(--text-mid); }
+}
 </style>

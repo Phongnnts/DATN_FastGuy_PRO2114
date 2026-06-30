@@ -122,7 +122,10 @@ function selectCategory(id) {
           {{ cat.name }}
         </button>
       </div>
-      <div v-if="filteredProducts.length === 0" class="empty-state">
+      <div v-if="productStore.loading" class="grid-5">
+        <div v-for="n in 10" :key="n" class="skeleton-card"></div>
+      </div>
+      <div v-else-if="filteredProducts.length === 0" class="empty-state">
         <i class="bi bi-search"></i>
         <h3>Không tìm thấy món ăn</h3>
         <p>Thử tìm kiếm với từ khóa khác</p>
@@ -193,4 +196,18 @@ function selectCategory(id) {
   color: #fff;
   border-color: var(--primary);
 }
+.skeleton-card {
+  height: 280px;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@media (max-width: 1024px) { :deep(.grid-5) { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 768px) { :deep(.grid-5) { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { :deep(.grid-5) { grid-template-columns: 1fr; } }
 </style>
