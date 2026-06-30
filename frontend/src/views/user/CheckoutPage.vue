@@ -356,9 +356,9 @@ async function placeOrder() {
             </div>
           </div>
           <div v-if="paymentMethod === 'BANK_TRANSFER'" class="card" style="margin-top:12px;padding:16px;background:#f8f9fa;border:1px solid var(--border);border-radius:var(--radius-sm)">
-            <p><strong>Ngân hàng:</strong> MB Bank</p>
-            <p><strong>Số tài khoản:</strong> 6513527</p>
-            <p><strong>Chủ tài khoản:</strong> FastGuy</p>
+            <p><strong>Ngân hàng:</strong> Techcombank</p>
+            <p><strong>Số tài khoản:</strong> 19074734124014</p>
+            <p><strong>Chủ tài khoản:</strong> FASTGUY</p>
             <p><strong>Nội dung:</strong> Mã đơn hàng + SĐT</p>
             <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Sau khi chuyển khoản, vui lòng chờ xác nhận</p>
           </div>
