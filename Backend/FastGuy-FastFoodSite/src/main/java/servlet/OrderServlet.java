@@ -155,8 +155,8 @@ public class OrderServlet extends HttpServlet {
         String phone = (String) body.get("phone");
         String deliveryNote = (String) body.get("deliveryNote");
         String paymentMethod = (String) body.get("paymentMethod");
-        Integer ghnProvinceId = body.containsKey("ghnProvinceId") ? ((Number) body.get("ghnProvinceId")).intValue() : null;
-        Integer ghnDistrictId = body.containsKey("ghnDistrictId") ? ((Number) body.get("ghnDistrictId")).intValue() : null;
+        Integer ghnProvinceId = body.get("ghnProvinceId") instanceof Number ? ((Number) body.get("ghnProvinceId")).intValue() : null;
+        Integer ghnDistrictId = body.get("ghnDistrictId") instanceof Number ? ((Number) body.get("ghnDistrictId")).intValue() : null;
         String ghnWardCode = (String) body.get("ghnWardCode");
         String toProvinceName = (String) body.get("toProvinceName");
         String toDistrictName = (String) body.get("toDistrictName");
