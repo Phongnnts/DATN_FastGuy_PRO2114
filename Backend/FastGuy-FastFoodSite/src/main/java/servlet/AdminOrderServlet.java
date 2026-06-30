@@ -17,6 +17,19 @@ import utils.JwtUtil;
 public class AdminOrderServlet extends HttpServlet {
     private OrdersDAO ordersDAO = new OrdersDAO();
 
+    public List<java.util.Map<String, Object>> getOrdersData() {
+        return ordersDAO.findAll().stream().map(o -> {
+            java.util.Map<String, Object> m = new java.util.HashMap<>();
+            m.put("orderId", o.getOrderId());
+            m.put("orderCode", o.getOrderCode());
+            m.put("status", o.getOrderStatus());
+            m.put("customerName", o.getCustomerName());
+            m.put("finalAmount", o.getFinalAmount());
+            m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+            return m;
+        }).collect(Collectors.toList());
+    }
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
@@ -28,17 +41,6 @@ public class AdminOrderServlet extends HttpServlet {
         String role = JwtUtil.getRole(authHeader.substring(7));
         if (!"ADMIN".equals(role)) { ApiResponse.error(resp, "Forbidden", 403); return; }
 
-        List<Orders> orders = ordersDAO.findAll();
-        List<java.util.Map<String, Object>> result = orders.stream().map(o -> {
-            java.util.Map<String, Object> m = new java.util.HashMap<>();
-            m.put("orderId", o.getOrderId());
-            m.put("orderCode", o.getOrderCode());
-            m.put("status", o.getOrderStatus());
-            m.put("customerName", o.getCustomerName());
-            m.put("finalAmount", o.getFinalAmount());
-            m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
-            return m;
-        }).collect(Collectors.toList());
-        ApiResponse.ok(resp, result);
+        ApiResponse.ok(resp, getOrdersData());
     }
 }
