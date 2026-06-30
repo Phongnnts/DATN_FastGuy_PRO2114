@@ -32,8 +32,24 @@ public class StaffOrderServlet extends HttpServlet {
         int staffId = getStaffId(req, resp);
         if (staffId < 0) return;
         String path = req.getPathInfo();
-        if (path != null && path.endsWith("/notes")) {
-            ApiResponse.ok(resp, null, "Note saved");
+        if (path != null && path.contains("/notes")) {
+            String orderIdStr = path.substring(1, path.indexOf("/notes") - 1);
+            try {
+                int orderId = Integer.parseInt(orderIdStr);
+                java.util.Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), java.util.Map.class);
+                String note = body != null ? (String) body.get("note") : null;
+                if (note != null) {
+                    Orders order = ordersDAO.findById(orderId);
+                    if (order != null) {
+                        String existing = order.getInternalNote();
+                        order.setInternalNote(existing != null ? existing + "\n---\n" + note : note);
+                        ordersDAO.save(order);
+                    }
+                }
+                ApiResponse.ok(resp, null, "Note saved");
+            } catch (NumberFormatException e) {
+                ApiResponse.error(resp, "Invalid order ID", 400);
+            }
         } else {
             resp.sendError(404);
         }
@@ -99,12 +115,22 @@ public class StaffOrderServlet extends HttpServlet {
                 }
                 all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
                 ApiResponse.ok(resp, all.stream().map(o -> toListItem(o)).collect(Collectors.toList()));
-                } else if (path.equals("/export")) {
-                    resp.setContentType("text/csv;charset=UTF-8");
-                    resp.setHeader("Content-Disposition", "attachment; filename=orders.csv");
-                    resp.getWriter().write("orderCode,status,total\n");
-                    return;
-                } else {
+            } else if (path.equals("/export")) {
+                resp.setContentType("text/csv;charset=UTF-8");
+                resp.setHeader("Content-Disposition", "attachment; filename=orders.csv");
+                List<Orders> all = new java.util.ArrayList<>();
+                for (String s : new String[]{"PENDING","CONFIRMED","PREPARING","READY","DELIVERED","CANCELLED"}) {
+                    all.addAll(ordersDAO.findByStatus(s));
+                }
+                var writer = resp.getWriter();
+                writer.write("orderCode,status,customerName,finalAmount,createdAt\n");
+                for (Orders o : all) {
+                    writer.write(String.format("%s,%s,%s,%s,%s\n",
+                        o.getOrderCode(), o.getOrderStatus(), o.getCustomerName(),
+                        o.getFinalAmount(), o.getCreatedAt()));
+                }
+                writer.flush();
+            } else {
                 try {
                     int orderId = Integer.parseInt(path.substring(1));
                     Orders order = staffOrderService.getOrderDetail(orderId);
