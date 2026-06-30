@@ -238,37 +238,37 @@ const sidebarLinks = [
   flex: 1;
   min-width: 0;
 }
+@media (max-width: 1024px) {
+  .sidebar { width: 200px; }
+  .layout-inner { gap: 16px; }
+}
 @media (max-width: 768px) {
   .sidebar {
     display: none;
     position: fixed;
+    width: 280px;
+    background: #fff;
+    box-shadow: var(--shadow-lg);
     top: 52px;
     left: 0;
-    right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
     z-index: 99;
-    width: auto;
+    padding: 12px;
+    overflow-y: auto;
   }
   .sidebar.open {
     display: block;
   }
-  .sidebar-user,
-  .sidebar-link {
-    background: #fff;
+  .sidebar-user {
+    margin-bottom: 8px;
   }
-  .button-mobile > * {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .layout-inner {
+    flex-direction: column;
   }
   .mobile-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-  .layout-inner {
-    flex-direction: column;
   }
 }
 </style>
