@@ -22,4 +22,11 @@ export default {
   getHistory(params) {
     return client.get('/orders/history', { params });
   },
+  getPaymentStatus(id) {
+    return client.get(`/orders/${id}/payment-status`);
+  },
+  getSePayQrUrl(amount, orderCode) {
+    const description = `TT ${orderCode}`;
+    return `https://qr.sepay.vn/img?acc=6513527&bank=MB&amount=${amount}&des=${encodeURIComponent(description)}&template=compact`;
+  },
 };
