@@ -17,12 +17,14 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.OrderService;
+import service.SePayService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
 @WebServlet("/api/orders/*")
 public class OrderServlet extends HttpServlet {
     private OrderService orderService = new OrderService();
+    private SePayService sePayService = new SePayService();
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
 
@@ -67,6 +69,25 @@ public class OrderServlet extends HttpServlet {
         // Cac endpoint con lai can auth
         int userId = getUserId(req, resp);
         if (userId < 0) return;
+
+        if (path != null && path.endsWith("/payment-status")) {
+            String idStr = path.substring(1, path.length() - "/payment-status".length());
+            try {
+                int orderId = Integer.parseInt(idStr);
+                Orders order = ordersDAO.findById(orderId);
+                if (order == null || order.getUser().getUserId() != userId) {
+                    ApiResponse.error(resp, "Not found", 404);
+                    return;
+                }
+                java.util.Map<String, Object> pd = new HashMap<>();
+                pd.put("paymentStatus", order.getPaymentStatus());
+                pd.put("paidAt", order.getDeliveredAt());
+                ApiResponse.ok(resp, pd);
+            } catch (NumberFormatException e) {
+                ApiResponse.error(resp, "Invalid order ID", 400);
+            }
+            return;
+        }
 
         if ("/history".equals(path)) {
             List<Map<String, Object>> orders = ordersDAO.findByUserId(userId)
@@ -161,6 +182,15 @@ public class OrderServlet extends HttpServlet {
         data.put("orderCode", order.getOrderCode());
         data.put("status", order.getOrderStatus());
         data.put("finalAmount", order.getFinalAmount());
+
+        if ("BANK_TRANSFER".equals(paymentMethod)) {
+            String qrUrl = sePayService.generateQrUrl(
+                order.getOrderId(),
+                order.getFinalAmount().longValue(),
+                order.getOrderCode()
+            );
+            data.put("sepayQrUrl", qrUrl);
+        }
 
         resp.setStatus(201);
         ApiResponse.ok(resp, data, "Order created");
