@@ -56,31 +56,28 @@ function buildCharts() {
   const values = labels.map((k) => obs[k]);
 
   if (statusChartRef.value && values.length) {
+    const primary = getCSSVar('--primary') || '#D4764A';
     statusChart = new Chart(statusChartRef.value, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
         labels: labels.map((k) => orderStatusLabels[k] || k),
         datasets: [
           {
+            label: 'Số đơn',
             data: values,
-            backgroundColor: labels.map((k) => statusColors[k] || '#999'),
+            backgroundColor: labels.map((k) => (statusColors[k] || '#999') + '66'),
+            borderColor: labels.map((k) => statusColors[k] || '#999'),
             borderWidth: 2,
-            borderColor: '#fff',
+            borderRadius: 4,
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: { family: "'Be Vietnam Pro', sans-serif", size: 12 },
-              padding: 16,
-              usePointStyle: true,
-            },
-          },
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } },
         },
       },
     });

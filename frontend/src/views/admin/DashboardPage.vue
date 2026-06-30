@@ -140,28 +140,24 @@ function buildCharts() {
   const statusValues = statusLabels.map((k) => obs[k]);
   if (statusChartRef.value && statusValues.length) {
     statusChart = new Chart(statusChartRef.value, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
         labels: statusLabels.map((k) => orderStatusLabels[k] || k),
         datasets: [{
+          label: 'Số đơn',
           data: statusValues,
-          backgroundColor: statusLabels.map((k) => statusColors[k] || '#999'),
+          backgroundColor: statusLabels.map((k) => (statusColors[k] || '#999') + '66'),
+          borderColor: statusLabels.map((k) => statusColors[k] || '#999'),
           borderWidth: 2,
-          borderColor: '#fff',
+          borderRadius: 4,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: { family: "'Be Vietnam Pro', sans-serif", size: 11 },
-              padding: 12,
-              usePointStyle: true,
-            },
-          },
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } },
         },
       },
     });
