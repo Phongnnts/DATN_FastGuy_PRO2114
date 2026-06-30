@@ -17,7 +17,10 @@ public class SePayService {
 
     public boolean processWebhook(Map<String, Object> payload) {
         try {
-            String description = (String) payload.get("description");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> transaction = (Map<String, Object>) payload.get("transaction");
+            if (transaction == null) return false;
+            String description = (String) transaction.get("description");
             if (description == null || !description.startsWith("TT ")) return false;
             String orderCode = description.substring(3).trim();
             Orders order = ordersDAO.findByOrderCode(orderCode);
