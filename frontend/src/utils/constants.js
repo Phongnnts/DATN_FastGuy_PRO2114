@@ -11,7 +11,7 @@ export const ORDER_STATUS = {
   CONFIRMED: 'CONFIRMED',
   PREPARING: 'PREPARING',
   READY: 'READY',
-  DELIVERING: 'DELIVERING',
+  PICKED_UP: 'PICKED_UP',
   DELIVERED: 'DELIVERED',
   CANCELLED: 'CANCELLED',
 };
@@ -20,8 +20,8 @@ export const ORDER_STATUS_LABEL = {
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
   PREPARING: 'Đang chuẩn bị',
-  READY: 'Đã sẵn sàng',
-  DELIVERING: 'Đang giao',
+  READY: 'Sẵn sàng giao',
+  PICKED_UP: 'Đang giao',
   DELIVERED: 'Đã giao',
   CANCELLED: 'Đã hủy',
 };
@@ -31,7 +31,7 @@ export const ORDER_STATUS_BADGE = {
   CONFIRMED: 'info',
   PREPARING: 'primary',
   READY: 'success',
-  DELIVERING: 'info',
+  PICKED_UP: 'info',
   DELIVERED: 'success',
   CANCELLED: 'danger',
 };
@@ -52,14 +52,14 @@ export const SCHEDULE_STATUS_LABEL = {
 
 export const DELIVERY_STATUS = {
   READY: 'READY',
-  DELIVERING: 'DELIVERING',
+  PICKED_UP: 'PICKED_UP',
   DELIVERED: 'DELIVERED',
   FAILED: 'FAILED',
 };
 
 export const DELIVERY_STATUS_LABEL = {
-  READY: 'Sẵn sàng',
-  DELIVERING: 'Đang giao',
+  READY: 'Sẵn sàng giao',
+  PICKED_UP: 'Đang giao',
   DELIVERED: 'Đã giao',
   FAILED: 'Thất bại',
 };

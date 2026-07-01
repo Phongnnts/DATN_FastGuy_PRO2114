@@ -23,7 +23,7 @@ public class StaffService {
         ordersByStatus.put("CONFIRMED", ordersDAO.countByStatus("CONFIRMED"));
         ordersByStatus.put("PREPARING", ordersDAO.countByStatus("PREPARING"));
         ordersByStatus.put("READY", ordersDAO.countByStatus("READY"));
-        ordersByStatus.put("DELIVERING", ordersDAO.countByStatus("DELIVERING"));
+        ordersByStatus.put("PICKED_UP", ordersDAO.countByStatus("PICKED_UP"));
         ordersByStatus.put("DELIVERED", ordersDAO.countByStatus("DELIVERED"));
         ordersByStatus.put("CANCELLED", ordersDAO.countByStatus("CANCELLED"));
 

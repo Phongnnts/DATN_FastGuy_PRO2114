@@ -72,7 +72,7 @@ function callCustomer() {
         <span style="font-size: 13px; color: var(--text-mid);">{{ formatDate(order.createdAt) }}</span>
       </div>
       <span :class="'status-badge status-' + order.status.toLowerCase()">
-        {{ order.status === 'PICKED_UP' ? 'Đang giao' : order.status === 'DELIVERED' ? 'Đã giao' : order.status === 'READY' ? 'Sẵn sàng' : 'Đã hủy' }}
+        {{ order.status === 'PICKED_UP' ? 'Đang giao' : order.status === 'DELIVERED' ? 'Đã giao' : order.status === 'READY' ? 'Sẵn sàng giao' : 'Đã hủy' }}
       </span>
     </div>
 
