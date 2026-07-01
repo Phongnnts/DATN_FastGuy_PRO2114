@@ -16,13 +16,13 @@ let statusChart = null;
 
 const orderStatusLabels = {
   PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận',
-  PREPARING: 'Đang chế biến', READY: 'Đã sẵn sàng',
-  DELIVERING: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
+  PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao',
+  PICKED_UP: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
 };
 
 const statusColors = {
   PENDING: '#F59E0B', CONFIRMED: '#3B82F6', PREPARING: '#8B5CF6',
-  READY: '#10B981', DELIVERING: '#06B6D4', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
+  READY: '#10B981', PICKED_UP: '#06B6D4', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
 };
 
 const data = computed(

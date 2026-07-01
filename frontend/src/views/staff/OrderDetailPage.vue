@@ -151,7 +151,7 @@ function printInvoice() {
             <i class="bi bi-x-lg"></i> Hủy đơn
           </button>
           <span v-if="order.status === 'READY'" class="badge badge-success"
-            >Đã sẵn sàng</span
+            >Sẵn sàng giao</span
           >
           <span v-if="order.status === 'CANCELLED'" class="badge badge-error"
             >Đã hủy</span

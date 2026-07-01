@@ -66,7 +66,7 @@ function goDetail(id) {
       >
         <div class="card-top">
           <strong class="order-code">{{ order.orderCode }}</strong>
-          <span class="order-status pending">Sẵn sàng</span>
+          <span class="order-status pending">Sẵn sàng giao</span>
         </div>
         <div class="card-body">
           <p><i class="bi bi-person"></i> {{ order.customerName }}</p>

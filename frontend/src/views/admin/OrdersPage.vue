@@ -15,7 +15,7 @@ const statusFilters = [
   { key: 'PENDING', label: 'Chờ xác nhận' },
   { key: 'CONFIRMED', label: 'Đã xác nhận' },
   { key: 'PREPARING', label: 'Đang chế biến' },
-  { key: 'READY', label: 'Đã sẵn sàng' },
+  { key: 'READY', label: 'Sẵn sàng giao' },
   { key: 'DELIVERED', label: 'Đã giao' },
   { key: 'CANCELLED', label: 'Đã hủy' },
 ];
