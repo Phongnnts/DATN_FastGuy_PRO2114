@@ -960,3 +960,573 @@ Kiểm tra toàn bộ imports trong project, xóa file/export không dùng.
 cd Backend/FastGuy-FastFoodSite && mvn clean compile
 cd Frontend && npm run build
 ```
+
+---
+
+## Ưu tiên hiện tại — Demo luồng mua hàng COD + BANK_TRANSFER
+
+### Mục tiêu demo
+
+Hoàn thiện luồng chính:
+
+```text
+USER mua hàng
+→ STAFF xác nhận / chuẩn bị / sẵn sàng giao
+→ SHIPPER nhận đơn / giao hàng
+→ USER xem trạng thái cuối
+```
+
+Phạm vi bắt buộc:
+
+- Thanh toán COD.
+- Thanh toán BANK_TRANSFER bằng QR + webhook/check payment.
+- Đủ trạng thái từ tạo đơn tới giao thành công.
+- Staff không xử lý đơn chuyển khoản khi chưa thanh toán.
+- Shipper nhận đơn và giao đơn.
+
+Không làm trong đợt demo này:
+
+- Guest anonymous checkout.
+- GHN tạo vận đơn thật.
+- Hoàn tiền.
+- Giao thất bại chi tiết.
+- Refactor lớn ngoài luồng mua hàng.
+
+### Trạng thái chuẩn
+
+#### Order status
+
+```text
+PENDING
+→ CONFIRMED
+→ PREPARING
+→ READY
+→ PICKED_UP
+→ DELIVERED
+```
+
+Hủy đơn:
+
+```text
+PENDING | CONFIRMED | PREPARING → CANCELLED
+```
+
+#### Payment status
+
+COD:
+
+```text
+UNPAID → PAID
+```
+
+BANK_TRANSFER:
+
+```text
+PENDING → PAID
+```
+
+#### Payment rule
+
+| Payment method | Khi tạo đơn | Staff confirm khi | Khi set PAID |
+|---|---|---|---|
+| COD | `UNPAID` | Ngay | Shipper giao `DELIVERED` |
+| BANK_TRANSFER | `PENDING` | Chỉ khi `PAID` | SePay webhook/check payment |
+
+---
+
+### Phần A — Chuẩn hóa trạng thái đơn hàng
+
+**Mục tiêu:** Backend/frontend dùng cùng status, không còn lệch `DELIVERING` và `PICKED_UP`.
+
+**Files cần kiểm tra/sửa:**
+
+- `Backend/FastGuy-FastFoodSite/src/main/java/entity/Orders.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/StaffOrderService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/ShipperService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/OrderServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/StaffOrderServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/ShipperServlet.java`
+- `Frontend/src/utils/constants.js`
+- `Frontend/src/components/common/OrderStatusBadge.vue`
+- `Frontend/src/views/user/OrdersPage.vue`
+- `Frontend/src/views/user/OrderDetailPage.vue`
+- `Frontend/src/views/staff/OrdersPage.vue`
+- `Frontend/src/views/staff/OrderDetailPage.vue`
+- `Frontend/src/views/shipper/DashboardPage.vue`
+- `Frontend/src/views/shipper/MyOrdersPage.vue`
+- `Frontend/src/views/shipper/OrderDetailPage.vue`
+
+**Việc làm:**
+
+1. Chuẩn hóa status dùng chung:
+   - `PENDING`
+   - `CONFIRMED`
+   - `PREPARING`
+   - `READY`
+   - `PICKED_UP`
+   - `DELIVERED`
+   - `CANCELLED`
+2. Đổi mọi frontend `DELIVERING` thành `PICKED_UP`.
+3. Sửa `OrderStatusBadge` để label/class reactive khi status đổi.
+4. Tabs user/staff/shipper lọc đúng status mới.
+5. Text hiển thị:
+   - `PENDING`: Chờ xác nhận
+   - `CONFIRMED`: Đã xác nhận
+   - `PREPARING`: Đang chuẩn bị
+   - `READY`: Sẵn sàng giao
+   - `PICKED_UP`: Đang giao
+   - `DELIVERED`: Đã giao
+   - `CANCELLED`: Đã hủy
+
+**Kiểm tra:**
+
+- User order list lọc đúng `PICKED_UP`.
+- Staff chỉ xử lý tới `READY`.
+- Shipper thấy `READY`, `PICKED_UP`, `DELIVERED`.
+- Badge đổi đúng sau mỗi action.
+
+**Commit:** `chuan hoa trang thai don hang`
+
+---
+
+### Phần B — Fix checkout tạo đơn COD/BANK_TRANSFER
+
+**Mục tiêu:** User tạo đơn được bằng COD và BANK_TRANSFER, bank QR hiển thị đúng.
+
+**Root cause hiện tại:**
+
+- `orderStore.createOrder()` bỏ mất `sepayQrUrl`.
+- Payment status chưa thống nhất.
+- `paidAt` có nguy cơ lấy sai từ `deliveredAt`.
+- Bank config backend/frontend có thể lệch.
+
+**Files cần kiểm tra/sửa:**
+
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/OrderServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/OrderService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/SePayService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/SePayWebhookServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/utils/SePayConfig.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/entity/Orders.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/entity/Payment.java`
+- `Frontend/src/api/order.js`
+- `Frontend/src/stores/order.js`
+- `Frontend/src/views/user/CheckoutPage.vue`
+- `Frontend/src/views/user/OrderDetailPage.vue`
+
+**Việc làm backend:**
+
+1. Khi tạo COD:
+   - `paymentMethod = COD`
+   - `paymentStatus = UNPAID`
+   - `orderStatus = PENDING`
+2. Khi tạo BANK_TRANSFER:
+   - `paymentMethod = BANK_TRANSFER`
+   - `paymentStatus = PENDING`
+   - `orderStatus = PENDING`
+3. Response create order trả đủ:
+
+```json
+{
+  "orderId": 123,
+  "orderCode": "FG123",
+  "paymentMethod": "BANK_TRANSFER",
+  "paymentStatus": "PENDING",
+  "finalAmount": 150000,
+  "sepayQrUrl": "...",
+  "transferContent": "FG123"
+}
+```
+
+4. `GET /api/orders/{id}/payment-status` trả đúng:
+
+```json
+{
+  "orderId": 123,
+  "paymentStatus": "PAID",
+  "paidAt": "2026-07-01T..."
+}
+```
+
+5. Không dùng `deliveredAt` làm `paidAt`.
+6. Webhook SePay:
+   - đọc transfer content/order code
+   - tìm order
+   - check amount == `finalAmount`
+   - set `paymentStatus = PAID`
+   - set `paidAt = now`
+
+**Việc làm frontend:**
+
+1. `orderStore.createOrder()` giữ lại field backend trả:
+   - `sepayQrUrl`
+   - `transferContent`
+   - `finalAmount`
+   - `paymentStatus`
+   - `orderId`
+2. Checkout bank hiển thị:
+   - QR
+   - số tiền
+   - nội dung chuyển khoản
+   - nút “Kiểm tra thanh toán”
+3. Poll/check payment status.
+4. COD tạo xong redirect order detail.
+5. BANK_TRANSFER chỉ redirect khi `PAID`, hoặc cho user xem màn “Chờ thanh toán”.
+
+**Kiểm tra:**
+
+- Checkout COD tạo order `PENDING` + payment `UNPAID`.
+- Checkout BANK_TRANSFER hiện QR + payment `PENDING`.
+- Webhook/check payment đổi payment thành `PAID`.
+
+**Commit:** `fix thanh toan cod bank`
+
+---
+
+### Phần C — Chặn staff xử lý bank chưa thanh toán
+
+**Mục tiêu:** Staff không confirm đơn chuyển khoản khi payment chưa `PAID`.
+
+**Files cần kiểm tra/sửa:**
+
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/StaffOrderService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/StaffOrderServlet.java`
+- `Frontend/src/views/staff/OrderDetailPage.vue`
+- `Frontend/src/stores/staff.js`
+
+**Rule:**
+
+```text
+COD + UNPAID: staff confirm được
+BANK_TRANSFER + PENDING: staff không confirm
+BANK_TRANSFER + PAID: staff confirm được
+```
+
+**Việc làm:**
+
+1. Backend validate trước khi `PENDING → CONFIRMED`.
+2. Nếu bank chưa paid, trả lỗi: `Đơn chuyển khoản chưa thanh toán`.
+3. Frontend disable nút “Xác nhận đơn” nếu:
+   - `paymentMethod === BANK_TRANSFER`
+   - `paymentStatus !== PAID`
+4. Hiện cảnh báo: `Chờ khách thanh toán chuyển khoản`.
+
+**Kiểm tra:**
+
+- Bank chưa paid: staff confirm bị chặn.
+- Bank paid: staff confirm được.
+- COD unpaid: staff confirm được.
+
+**Commit:** `chan xu ly don chua thanh toan`
+
+---
+
+### Phần D — Fix staff flow tới READY và assign shipper
+
+**Mục tiêu:** Staff xử lý mượt từ `PENDING` tới `READY`, sau đó assign shipper.
+
+**Files cần kiểm tra/sửa:**
+
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/StaffOrderService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/StaffOrderServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/dao/UserDAO.java`
+- `Frontend/src/views/staff/OrdersPage.vue`
+- `Frontend/src/views/staff/OrderDetailPage.vue`
+- `Frontend/src/stores/staff.js`
+- `Frontend/src/api/staff.js`
+
+**Việc làm:**
+
+1. Backend giữ transition:
+
+```text
+PENDING → CONFIRMED
+CONFIRMED → PREPARING
+PREPARING → READY
+```
+
+2. Cancel chỉ cho:
+
+```text
+PENDING | CONFIRMED | PREPARING
+```
+
+3. Assign shipper chỉ khi:
+   - `orderStatus = READY`
+   - `shipperId = null`
+   - user được assign có role `SHIPPER`
+4. Không cho assign lại nếu đã có shipper.
+5. Staff detail trả đủ:
+   - order status
+   - payment method
+   - payment status
+   - shipper info
+   - items + variant name
+6. Frontend sau action status phải fetch lại detail.
+7. Nếu status mới là `READY`, auto load shipper list.
+8. Assign xong refresh detail.
+
+**Kiểm tra:**
+
+- Staff chuyển được `PENDING → CONFIRMED → PREPARING → READY`.
+- READY hiện dropdown shipper.
+- Assign shipper thành công.
+- Assign lại bị chặn.
+
+**Commit:** `fix luong staff ready`
+
+---
+
+### Phần E — Fix shipper nhận/giao đơn
+
+**Mục tiêu:** Shipper thấy đơn READY, nhận đơn, giao đơn.
+
+```text
+READY → PICKED_UP → DELIVERED
+```
+
+COD delivered thì payment thành `PAID`.
+
+**Files cần kiểm tra/sửa:**
+
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/ShipperServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/ShipperService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/dao/OrderDAO.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/dao/UserDAO.java`
+- `Frontend/src/router/index.js`
+- `Frontend/src/layouts/ShipperLayout.vue`
+- `Frontend/src/stores/shipper.js`
+- `Frontend/src/api/shipper.js`
+- `Frontend/src/views/shipper/DashboardPage.vue`
+- `Frontend/src/views/shipper/MyOrdersPage.vue`
+- `Frontend/src/views/shipper/OrderDetailPage.vue`
+
+**Việc làm backend:**
+
+1. `ShipperServlet` check JWT hợp lệ và role `SHIPPER`.
+2. Dashboard/list trả:
+   - đơn `READY` chưa có shipper hoặc đã assign cho shipper hiện tại
+   - đơn `PICKED_UP` của shipper hiện tại
+3. Detail cho phép xem:
+   - `READY` unassigned
+   - `READY` assigned to current shipper
+   - `PICKED_UP` current shipper
+   - `DELIVERED` current shipper
+4. Nhận đơn:
+   - order phải `READY`
+   - nếu shipper null thì set current shipper
+   - status `PICKED_UP`
+5. Giao thành công:
+   - order phải `PICKED_UP`
+   - status `DELIVERED`
+   - set `deliveredAt = now`
+   - nếu COD: `paymentStatus = PAID`, `paidAt = now`
+
+**Việc làm frontend:**
+
+1. Xử lý `/shipper/history`:
+   - Lười nhất: bỏ nav link.
+   - Nếu cần demo lịch sử: thêm route history lọc `DELIVERED`.
+2. Dashboard hiển thị đơn READY.
+3. My Orders hiển thị đơn `PICKED_UP`.
+4. Detail:
+   - Nếu `READY`: nút “Nhận đơn”
+   - Nếu `PICKED_UP`: nút “Đã giao hàng”
+   - Nếu `DELIVERED`: chỉ xem
+5. Sau action refresh detail/list.
+
+**Kiểm tra:**
+
+- User thường gọi shipper API bị 403.
+- Shipper thấy đơn READY.
+- Nhận đơn đổi status thành `PICKED_UP`.
+- Giao COD đổi status `DELIVERED`, payment `PAID`.
+- Giao bank paid giữ payment `PAID`.
+- Không còn 404 `/shipper/history`.
+
+**Commit:** `fix luong shipper giao hang`
+
+---
+
+### Phần F — Fix cart đủ cho demo
+
+**Mục tiêu:** Cart ổn khi demo add/update/remove/checkout.
+
+**Files cần kiểm tra/sửa:**
+
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/CartServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/CartService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/dao/CartDAO.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/dao/CartItemDAO.java`
+- `Frontend/src/stores/cart.js`
+- `Frontend/src/api/cart.js`
+- `Frontend/src/views/guest/CartPage.vue`
+- `Frontend/src/views/user/CheckoutPage.vue`
+
+**Việc làm:**
+
+1. Backend add cart:
+   - nếu same `cartId + productId + variantId`: tăng quantity
+   - không tạo dòng trùng
+2. Backend update:
+   - check cart item thuộc user
+   - check quantity > 0
+   - check stock
+3. Backend delete:
+   - check cart item thuộc user
+4. Frontend logged-in:
+   - remove gọi API
+   - update quantity gọi API
+   - fail thì giữ UI cũ/hiện lỗi
+5. Checkout lấy cart server mới nhất.
+
+**Kiểm tra:**
+
+- Add same variant 2 lần → 1 dòng, quantity tăng.
+- Remove rồi refresh không quay lại.
+- User không sửa được cart item user khác.
+- Checkout cart đúng.
+
+**Commit:** `fix cart cho demo`
+
+---
+
+### Phần G — Fix shipping fee tối thiểu cho checkout
+
+**Mục tiêu:** Checkout không bị phí ship sai/0 do client gửi bậy.
+
+**Scope:** Không làm GHN vận đơn thật. Chỉ tính phí hiển thị và lưu vào order.
+
+**Files cần kiểm tra/sửa:**
+
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/ShippingServlet.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/ShippingService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/utils/GhnClient.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/service/OrderService.java`
+- `Backend/FastGuy-FastFoodSite/src/main/java/servlet/OrderServlet.java`
+- `Frontend/src/api/shipping.js`
+- `Frontend/src/views/user/CheckoutPage.vue`
+
+**Việc làm:**
+
+1. Backend GHN success và fallback đều trả cùng key:
+
+```json
+{
+  "shippingFee": 30000
+}
+```
+
+2. Checkout backend không tin hoàn toàn `shippingFee` client.
+3. Nếu có đủ GHN IDs, backend tính lại fee.
+4. Nếu thiếu GHN IDs, dùng fallback `DeliveryZone`.
+5. Order lưu:
+   - `shippingFee`
+   - address snapshot
+   - GHN IDs nếu có
+
+**Kiểm tra:**
+
+- Checkout có fee.
+- Backend không nhận fee âm/0 bất hợp lý.
+- GHN fail vẫn checkout được bằng fallback.
+
+**Commit:** `fix phi ship checkout`
+
+---
+
+### Phần H — Checklist demo và verification
+
+**Commands:**
+
+```powershell
+cd Backend/FastGuy-FastFoodSite
+mvn clean compile
+```
+
+```powershell
+cd Frontend
+npm run build
+```
+
+#### Demo COD
+
+1. Login user.
+2. Vào menu.
+3. Chọn product variant.
+4. Add cart.
+5. Checkout COD.
+6. Verify order `PENDING`, payment `UNPAID`.
+7. Login staff.
+8. Chuyển `PENDING → CONFIRMED → PREPARING → READY`.
+9. Assign shipper.
+10. Login shipper.
+11. Nhận đơn: `READY → PICKED_UP`.
+12. Giao thành công: `PICKED_UP → DELIVERED`.
+13. Login user.
+14. Verify order `DELIVERED`, payment `PAID`.
+
+#### Demo BANK_TRANSFER
+
+1. Login user.
+2. Add cart.
+3. Checkout BANK_TRANSFER.
+4. Verify QR hiện, nội dung chuyển khoản hiện, order `PENDING`, payment `PENDING`.
+5. Trigger webhook/test payment.
+6. Verify payment `PAID`.
+7. Login staff.
+8. Chuyển `PENDING → CONFIRMED → PREPARING → READY`.
+9. Assign shipper.
+10. Login shipper.
+11. Nhận/giao.
+12. Login user.
+13. Verify order `DELIVERED`, payment `PAID`.
+
+**Definition of Done:**
+
+- `mvn clean compile` pass.
+- `npm run build` pass.
+- COD demo chạy đủ tới `DELIVERED + PAID`.
+- BANK_TRANSFER demo chạy đủ tới `DELIVERED + PAID`.
+- Staff không confirm bank order chưa paid.
+- User thường không gọi được shipper API.
+- Shipper nhận/giao đúng status.
+- Không còn frontend status `DELIVERING`.
+- Không còn route 404 `/shipper/history`.
+
+**Commit:** `kiem tra luong demo`
+
+---
+
+### Thứ tự làm đề xuất
+
+#### Ngày 1 — Core status + payment
+
+1. Phần A — Chuẩn hóa trạng thái đơn hàng.
+2. Phần B — Fix checkout COD/BANK_TRANSFER.
+3. Phần C — Chặn staff xử lý bank chưa thanh toán.
+4. Chạy backend compile + frontend build.
+
+#### Ngày 2 — Staff + Shipper
+
+1. Phần D — Fix staff flow tới READY và assign shipper.
+2. Phần E — Fix shipper nhận/giao đơn.
+3. Chạy backend compile + frontend build.
+4. Demo COD end-to-end.
+
+#### Ngày 3 — Cart + Shipping + hardening
+
+1. Phần F — Fix cart đủ cho demo.
+2. Phần G — Fix shipping fee tối thiểu cho checkout.
+3. Phần H — Checklist demo và verification.
+4. Demo COD + BANK_TRANSFER end-to-end.
+
+#### Ưu tiên nếu thiếu thời gian
+
+1. Bank QR hiện + payment status đúng.
+2. Status `PICKED_UP` thống nhất.
+3. Staff chặn bank chưa paid.
+4. Shipper nhận/giao + COD set paid.
+5. `/shipper/history` 404.
+6. Cart remove/update sync server.
+7. Shipping fee verify.
