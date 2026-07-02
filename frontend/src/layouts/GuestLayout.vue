@@ -23,6 +23,7 @@ function logout() {
 const navLinks = [
   { label: 'Trang chủ', path: '/' },
   { label: 'Thực đơn', path: '/menu' },
+  { label: 'Khuyến mãi', path: '/promotions' },
   { label: 'Tra cứu đơn', path: '/track-order' },
 ];
 </script>

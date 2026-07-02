@@ -7,11 +7,14 @@ import { useOrderStore } from '@/stores/order';
 import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
 import { userApi, shippingApi, deliveryZoneApi, orderApi } from '@/api';
+import couponApi from '@/api/coupon';
 
 const router = useRouter();
 const auth = useAuthStore();
 const cart = useCartStore();
 const orderStore = useOrderStore();
+
+const isGuest = computed(() => !auth.isLoggedIn);
 
 const savedAddresses = ref([]);
 const selectedAddressId = ref(null);
@@ -20,6 +23,13 @@ const phone = ref('');
 const recipientName = ref('');
 const street = ref('');
 const paymentMethod = ref('COD');
+const couponCode = ref('');
+const appliedCoupon = ref(null);
+const couponDiscount = ref(0);
+const verifyingCoupon = ref(false);
+const couponError = ref('');
+const claimedCoupons = ref([]);
+const showMyCoupons = ref(false);
 const note = ref('');
 const submitting = ref(false);
 
@@ -40,6 +50,8 @@ const serviceLoading = ref(false);
 const sepayQrUrl = ref('');
 const paymentConfirmed = ref(false);
 const createdOrderCode = ref('');
+const createdOrderId = ref(null);
+const confirming = ref(false);
 let paymentPolling = null;
 
 onUnmounted(() => {
@@ -51,10 +63,7 @@ const total = computed(() => cart.subtotal + (shippingFee.value || 0));
 onMounted(async () => {
   loadingProvinces.value = true;
   try {
-    const [provData, addrData] = await Promise.all([
-      shippingApi.getProvinces(),
-      userApi.getAddresses(),
-    ]);
+    const provData = await shippingApi.getProvinces();
     provinces.value = (provData || []).map(p => ({
       id: p.ProvinceID || p.province_id || p.provinceId,
       name: p.ProvinceName || p.province_name || p.provinceName,
@@ -63,9 +72,15 @@ onMounted(async () => {
     const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
     if (hcm) selectedProvince.value = hcm.id;
 
-    savedAddresses.value = addrData || [];
-    const defaultAddr = savedAddresses.value.find(a => a.isDefault);
-    if (defaultAddr) selectAddress(defaultAddr);
+    if (!isGuest.value) {
+      const addrData = await userApi.getAddresses();
+      savedAddresses.value = addrData || [];
+      const defaultAddr = savedAddresses.value.find(a => a.isDefault);
+      if (defaultAddr) selectAddress(defaultAddr);
+      try {
+        claimedCoupons.value = await couponApi.getClaimed() || [];
+      } catch {}
+    }
   } catch {
     provinces.value = [];
     savedAddresses.value = [];
@@ -155,8 +170,16 @@ function selectAddress(addr) {
   street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
-  if (addr.ghnDistrictId) selectedDistrict.value = addr.ghnDistrictId;
+  if (addr.ghnDistrictId) {
+    selectedDistrict.value = addr.ghnDistrictId;
+  } else if (addr.zone?.shippingFee) {
+    shippingFee.value = addr.zone.shippingFee;
+    shippingProvider.value = 'FALLBACK_ZONE';
+  }
   if (addr.ghnWardCode) selectedWard.value = addr.ghnWardCode;
+  if (!selectedProvince.value && addr.provinceName?.includes('Hồ Chí Minh')) {
+    selectedProvince.value = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'))?.id;
+  }
 }
 
 function useManualEntry() {
@@ -181,6 +204,12 @@ function getFullAddress() {
 }
 
 function canPlaceOrder() {
+  if (shippingProvider.value === 'FALLBACK_ZONE') {
+    return shippingFee.value !== null
+      && recipientName.value.trim()
+      && phone.value.trim()
+      && street.value.trim();
+  }
   return selectedWard.value && selectedDistrict.value && shippingFee.value !== null
     && recipientName.value.trim() && phone.value.trim() && street.value.trim();
 }
@@ -200,12 +229,79 @@ function getWardName() {
   return w?.name || '';
 }
 
+async function verifyCoupon() {
+  if (!couponCode.value.trim()) return;
+  verifyingCoupon.value = true;
+  couponError.value = '';
+  appliedCoupon.value = null;
+  couponDiscount.value = 0;
+  try {
+    const total = cart.items.reduce((s, i) => s + (i.price * i.quantity), 0);
+    const res = await couponApi.verify(couponCode.value, total, shippingFee.value || 0);
+    if (res.valid) {
+      appliedCoupon.value = res;
+      couponDiscount.value = res.discount;
+    } else {
+      couponError.value = res.message || 'Mã không hợp lệ';
+    }
+  } catch {
+    couponError.value = 'Lỗi kiểm tra mã';
+  } finally {
+    verifyingCoupon.value = false;
+  }
+}
+
+function cancelCoupon() {
+  couponCode.value = '';
+  appliedCoupon.value = null;
+  couponDiscount.value = 0;
+  couponError.value = '';
+  showMyCoupons.value = false;
+}
+
+function selectClaimedCoupon(c) {
+  couponCode.value = c.code;
+  appliedCoupon.value = null;
+  couponDiscount.value = 0;
+  couponError.value = '';
+  showMyCoupons.value = false;
+  verifyCoupon();
+}
+
 async function placeOrder() {
   if (!canPlaceOrder()) return alert('Vui lòng điền đầy đủ thông tin giao hàng');
   const fullAddress = getFullAddress();
   if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
   submitting.value = true;
   try {
+    if (isGuest.value) {
+      const items = cart.items.map(i => ({
+        productId: i.productId,
+        variantId: i.variantId,
+        quantity: i.quantity,
+        unitPrice: i.price,
+      }));
+      const result = await orderApi.guestCheckout({
+        customerName: recipientName.value.trim(),
+        phone: phone.value.trim(),
+        address: fullAddress,
+        deliveryNote: note.value,
+        paymentMethod: paymentMethod.value,
+        items,
+        shippingFee: shippingFee.value,
+        ghnProvinceId: selectedProvince.value,
+        ghnDistrictId: selectedDistrict.value,
+        ghnWardCode: selectedWard.value,
+        toProvinceName: getProvinceName(),
+        toDistrictName: getDistrictName(),
+        toWardName: getWardName(),
+        couponCode: appliedCoupon.value?.code || '',
+      });
+      cart.clear();
+      router.push(`/track-order?code=${result.orderCode}`);
+      return;
+    }
+
     const result = await orderStore.createOrder({
       address: fullAddress,
       phone: phone.value.trim(),
@@ -218,28 +314,53 @@ async function placeOrder() {
       toDistrictName: getDistrictName(),
       toWardName: getWardName(),
       shippingFee: shippingFee.value,
+      couponCode: appliedCoupon.value?.code || '',
     });
+    createdOrderId.value = result.id;
     if (paymentMethod.value === 'BANK_TRANSFER' && result.sepayQrUrl) {
       sepayQrUrl.value = result.sepayQrUrl;
       createdOrderCode.value = result.orderCode;
       paymentPolling = setInterval(async () => {
         try {
-          const status = await orderApi.getPaymentStatus(result.id);
-          if (status.paymentStatus === 'PAID') {
-            paymentConfirmed.value = true;
-            clearInterval(paymentPolling);
-            paymentPolling = null;
-          }
+          const status = await orderApi.getPaymentStatus(createdOrderId.value);
+            if (status.paymentStatus === 'PAID') {
+                paymentConfirmed.value = true;
+                clearInterval(paymentPolling);
+                paymentPolling = null;
+                cart.clear();
+                setTimeout(() => {
+                  router.push(`/account/orders/${createdOrderId.value}`);
+                }, 2000);
+              }
         } catch (e) {}
       }, 5000);
     } else {
       cart.clear();
-      router.push(`/account/orders/${result.id}`);
+      router.push(`/account/orders/${createdOrderId.value}`);
     }
   } catch (e) {
     alert(e.message);
   } finally {
     submitting.value = false;
+  }
+}
+
+async function handleConfirmPayment() {
+  if (confirming.value || !createdOrderId.value) return;
+  confirming.value = true;
+  try {
+    await orderApi.confirmPayment(createdOrderId.value);
+    paymentConfirmed.value = true;
+    clearInterval(paymentPolling);
+    paymentPolling = null;
+    cart.clear();
+    setTimeout(() => {
+      router.push(`/account/orders/${createdOrderId.value}`);
+    }, 2000);
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    confirming.value = false;
   }
 }
 </script>
@@ -251,7 +372,7 @@ async function placeOrder() {
         <div class="card mb-3">
           <h3>Địa chỉ giao hàng</h3>
 
-          <div v-if="savedAddresses.length > 0 && !useNewAddress" class="saved-addresses">
+          <div v-if="!isGuest && savedAddresses.length > 0 && !useNewAddress" class="saved-addresses">
             <div
               v-for="addr in savedAddresses"
               :key="addr.addressId"
@@ -345,9 +466,7 @@ async function placeOrder() {
                 :class="
                   key === 'COD'
                     ? 'bi bi-cash'
-                    : key === 'MOMO'
-                      ? 'bi bi-phone'
-                      : 'bi bi-credit-card'
+                    : 'bi bi-qr-code-scan'
                 "
               ></i>
               <span>{{ label }}</span>
@@ -358,9 +477,9 @@ async function placeOrder() {
             </div>
           </div>
           <div v-if="paymentMethod === 'BANK_TRANSFER'" class="card" style="margin-top:12px;padding:16px;background:#f8f9fa;border:1px solid var(--border);border-radius:var(--radius-sm)">
-            <p><strong>Ngân hàng:</strong> MB Bank</p>
-            <p><strong>Số tài khoản:</strong> 6513527</p>
-            <p><strong>Chủ tài khoản:</strong> FastGuy</p>
+            <p><strong>Ngân hàng:</strong> Techcombank</p>
+            <p><strong>Số tài khoản:</strong> 19074734124014</p>
+            <p><strong>Chủ tài khoản:</strong> FASTGUY</p>
             <p><strong>Nội dung:</strong> Mã đơn hàng + SĐT</p>
             <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Sau khi chuyển khoản, vui lòng chờ xác nhận</p>
           </div>
@@ -377,6 +496,9 @@ async function placeOrder() {
             </div>
             <div v-else style="text-align:center;padding:12px">
               <i class="bi bi-arrow-repeat spin"></i> Đang chờ thanh toán...
+              <button class="btn btn-primary" style="margin-top:12px;width:100%" :disabled="confirming" @click="handleConfirmPayment">
+                <i class="bi bi-check-circle"></i> {{ confirming ? 'Đang xác nhận...' : 'Tôi đã chuyển khoản' }}
+              </button>
             </div>
           </div>
         </div>
@@ -414,6 +536,31 @@ async function placeOrder() {
               </div>
             </div>
           </div>
+          <div class="checkout-coupon card mb-3">
+            <h4>Mã giảm giá</h4>
+            <div v-if="!appliedCoupon" class="coupon-input-row">
+              <input v-model="couponCode" class="form-input" placeholder="Nhập mã" @keyup.enter="verifyCoupon" :disabled="verifyingCoupon">
+              <button class="btn btn-primary btn-sm" @click="verifyCoupon" :disabled="verifyingCoupon || !couponCode.trim()">
+                {{ verifyingCoupon ? '...' : 'Áp dụng' }}
+              </button>
+            </div>
+            <div v-if="couponError" class="coupon-error">{{ couponError }}</div>
+            <div v-if="appliedCoupon" class="coupon-applied">
+              <span><i class="bi bi-check-circle-fill" style="color: var(--success)"></i> {{ appliedCoupon.description }} — <strong>{{ appliedCoupon.code }}</strong></span>
+              <button class="btn btn-sm btn-ghost" @click="cancelCoupon"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div v-if="!isGuest && claimedCoupons.length > 0 && !appliedCoupon" class="my-coupons">
+              <button class="btn btn-sm btn-outline" @click="showMyCoupons = !showMyCoupons" style="margin-top: 8px">
+                <i class="bi bi-wallet2"></i> Mã của tôi ({{ claimedCoupons.length }})
+              </button>
+              <div v-if="showMyCoupons" class="claimed-list">
+                <div v-for="c in claimedCoupons" :key="c.claimedId" class="claimed-item" @click="selectClaimedCoupon(c)">
+                  <span class="claimed-code">{{ c.code }}</span>
+                  <span class="claimed-desc">{{ c.description }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="checkout-summary">
             <div class="summary-row">
               <span>Tạm tính</span><span>{{ formatPrice(cart.subtotal) }}</span>
@@ -423,9 +570,12 @@ async function placeOrder() {
               <span v-if="feeLoading">Đang tính...</span>
               <span v-else>{{ shippingFee !== null ? formatPrice(shippingFee) : '—' }}</span>
             </div>
+            <div class="summary-row" v-if="couponDiscount > 0">
+              <span>Giảm giá</span><span style="color: var(--success)">-{{ formatPrice(couponDiscount) }}</span>
+            </div>
             <div class="summary-divider"></div>
             <div class="summary-row" style="font-size: 18px; font-weight: 800">
-              <span>Tổng cộng</span><span>{{ formatPrice(total) }}</span>
+              <span>Tổng cộng</span><span>{{ formatPrice(total - couponDiscount) }}</span>
             </div>
           </div>
           <button

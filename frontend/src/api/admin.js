@@ -52,30 +52,6 @@ export default {
   deleteDeliveryZone(id) {
     return client.delete(`/admin/delivery-zones/${id}`);
   },
-  getShifts() {
-    return client.get('/admin/shifts');
-  },
-  createShift(data) {
-    return client.post('/admin/shifts', data);
-  },
-  updateShift(id, data) {
-    return client.put(`/admin/shifts/${id}`, data);
-  },
-  deleteShift(id) {
-    return client.delete(`/admin/shifts/${id}`);
-  },
-  getSchedules(params) {
-    return client.get('/admin/schedules', { params });
-  },
-  createSchedule(data) {
-    return client.post('/admin/schedules', data);
-  },
-  updateSchedule(id, data) {
-    return client.put(`/admin/schedules/${id}`, data);
-  },
-  deleteSchedule(id) {
-    return client.delete(`/admin/schedules/${id}`);
-  },
   getOrders(params) {
     return client.get('/admin/orders', { params });
   },

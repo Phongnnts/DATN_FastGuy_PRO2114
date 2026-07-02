@@ -29,6 +29,10 @@ public class CartService {
         return cart;
     }
 
+    private Cart getCartByUser(User user) {
+        return cartDAO.findByUserId(user.getUserId());
+    }
+
     public Map<String, Object> getCart(User user) {
         Cart cart = getOrCreateCart(user);
         List<CartItem> items = cartDAO.getItems(cart.getCartId());
@@ -59,30 +63,70 @@ public class CartService {
         ProductVariant variant = productDAO.findVariantById(variantId);
         if (variant == null || variant.getProduct() == null || variant.getProduct().getProductId() != productId) return false;
         if (!"AVAILABLE".equals(variant.getStatus())) return false;
-        if (variant.getQuantityAvailable() != null && variant.getQuantityAvailable() < quantity) return false;
 
         Cart cart = getOrCreateCart(user);
-        CartItem item = new CartItem();
-        item.setCart(cart);
-        item.setProduct(product);
-        item.setVariant(variant);
-        item.setQuantity(quantity);
-        item.setUnitPrice(variant.getPrice());
-        item.setCreatedAt(LocalDateTime.now());
-        cartDAO.addItem(item);
-        return true;
-    }
+        List<CartItem> items = cartDAO.getItems(cart.getCartId());
+        CartItem existing = items.stream()
+                .filter(ci -> ci.getProduct().getProductId() == productId
+                        && (ci.getVariant() != null && ci.getVariant().getVariantId() == variantId))
+                .findFirst().orElse(null);
 
-    public boolean updateItemQuantity(int cartItemId, int quantity) {
-        if (quantity <= 0) {
-            cartDAO.removeItem(cartItemId);
+        int newQty = quantity;
+        if (existing != null) {
+            newQty = existing.getQuantity() + quantity;
+        }
+
+        if (variant.getQuantityAvailable() != null && variant.getQuantityAvailable() < newQty) return false;
+
+        if (existing != null) {
+            existing.setQuantity(newQty);
+            existing.setUnitPrice(variant.getPrice());
+            cartDAO.updateItemQuantity(existing.getCartItemId(), newQty);
         } else {
-            cartDAO.updateItemQuantity(cartItemId, quantity);
+            CartItem item = new CartItem();
+            item.setCart(cart);
+            item.setProduct(product);
+            item.setVariant(variant);
+            item.setQuantity(quantity);
+            item.setUnitPrice(variant.getPrice());
+            item.setCreatedAt(LocalDateTime.now());
+            cartDAO.addItem(item);
         }
         return true;
     }
 
-    public boolean removeItem(int cartItemId) {
+    public boolean updateItemQuantity(int cartItemId, int userId, int quantity) {
+        Cart cart = getCartByUser(new User() {{ setUserId(userId); }});
+        if (cart == null) return false;
+
+        List<CartItem> items = cartDAO.getItems(cart.getCartId());
+        CartItem item = items.stream()
+                .filter(ci -> ci.getCartItemId() == cartItemId)
+                .findFirst().orElse(null);
+        if (item == null) return false;
+
+        if (quantity <= 0) {
+            cartDAO.removeItem(cartItemId);
+            return true;
+        }
+
+        ProductVariant variant = item.getVariant();
+        if (variant != null && variant.getQuantityAvailable() != null && variant.getQuantityAvailable() < quantity) {
+            return false;
+        }
+
+        cartDAO.updateItemQuantity(cartItemId, quantity);
+        return true;
+    }
+
+    public boolean removeItem(int cartItemId, int userId) {
+        Cart cart = getCartByUser(new User() {{ setUserId(userId); }});
+        if (cart == null) return false;
+
+        List<CartItem> items = cartDAO.getItems(cart.getCartId());
+        boolean belongs = items.stream().anyMatch(ci -> ci.getCartItemId() == cartItemId);
+        if (!belongs) return false;
+
         cartDAO.removeItem(cartItemId);
         return true;
     }

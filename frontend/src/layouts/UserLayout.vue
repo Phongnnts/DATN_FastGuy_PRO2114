@@ -8,6 +8,19 @@ const auth = useAuthStore();
 const cart = useCartStore();
 const router = useRouter();
 const mobileMenuOpen = ref(false);
+const sidebarHover = ref(false);
+let hoverTimer = null;
+
+function showSidebar() {
+  clearTimeout(hoverTimer);
+  if (window.innerWidth > 768) sidebarHover.value = true;
+}
+function hideSidebar() {
+  hoverTimer = setTimeout(() => { sidebarHover.value = false; }, 300);
+}
+function isSidebarVisible() {
+  return mobileMenuOpen.value || sidebarHover.value || window.innerWidth > 768;
+}
 
 function logout() {
   auth.logout();
@@ -17,7 +30,6 @@ function logout() {
 const sidebarLinks = [
   { label: 'Thông tin cá nhân', path: '/account/profile', icon: 'bi-person' },
   { label: 'Đơn hàng', path: '/account/orders', icon: 'bi-box' },
-  { label: 'Yêu thích', path: '/account/favorites', icon: 'bi-heart' },
   { label: 'Đổi mật khẩu', path: '/account/change-password', icon: 'bi-lock' },
 ];
 </script>
@@ -58,8 +70,9 @@ const sidebarLinks = [
       </div>
     </nav>
     <div class="container">
-      <div class="layout-inner">
-        <aside class="sidebar" :class="{ open: mobileMenuOpen }">
+      <div class="layout-inner" @mouseleave="hideSidebar">
+        <div class="sidebar-trigger" @mouseenter="showSidebar"></div>
+        <aside class="sidebar" :class="{ open: mobileMenuOpen || sidebarHover }" @mouseenter="showSidebar" @mouseleave="hideSidebar">
           <div class="sidebar-user">
             <img
               :src="
@@ -238,37 +251,37 @@ const sidebarLinks = [
   flex: 1;
   min-width: 0;
 }
+@media (max-width: 1024px) {
+  .sidebar { width: 200px; }
+  .layout-inner { gap: 16px; }
+}
 @media (max-width: 768px) {
   .sidebar {
     display: none;
     position: fixed;
+    width: 280px;
+    background: #fff;
+    box-shadow: var(--shadow-lg);
     top: 52px;
     left: 0;
-    right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
     z-index: 99;
-    width: auto;
+    padding: 12px;
+    overflow-y: auto;
   }
   .sidebar.open {
     display: block;
   }
-  .sidebar-user,
-  .sidebar-link {
-    background: #fff;
+  .sidebar-user {
+    margin-bottom: 8px;
   }
-  .button-mobile > * {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .layout-inner {
+    flex-direction: column;
   }
   .mobile-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-  .layout-inner {
-    flex-direction: column;
   }
 }
 </style>

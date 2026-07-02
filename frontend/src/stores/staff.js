@@ -5,7 +5,6 @@ import { staffApi } from '@/api';
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
   const allOrders = ref([]);
-  const shiftStatus = ref({ current: null });
   const loading = ref(false);
   let fetchVersion = 0;
 
@@ -193,26 +192,9 @@ export const useStaffStore = defineStore('staff', () => {
     } catch {}
   }
 
-  async function checkIn() {
-    try {
-      const res = await staffApi.checkIn();
-      if (res) shiftStatus.value = { current: res, history: [] };
-      return res;
-    } catch { return null; }
-  }
-
-  async function checkOut() {
-    try {
-      const res = await staffApi.checkOut();
-      if (res) shiftStatus.value = { current: null, history: res.history || [] };
-      return res;
-    } catch { return null; }
-  }
-
   return {
     dashboard,
     allOrders,
-    shiftStatus,
     loading,
     fetchDashboard,
     fetchOrders,
@@ -224,7 +206,5 @@ export const useStaffStore = defineStore('staff', () => {
     updateOrderStatus,
     saveInternalNote,
     getOrderById,
-    checkIn,
-    checkOut,
   };
 });

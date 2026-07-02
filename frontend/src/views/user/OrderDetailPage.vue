@@ -38,8 +38,6 @@ onMounted(async () => {
         note: data.deliveryNote || '',
         createdAt: data.createdAt,
         statusHistory: data.statusHistory || [{ status: data.status, time: data.createdAt, note: '' }],
-        canReview: data.canReview || false,
-        review: data.review || null
       }
     }
   } catch {}
@@ -60,10 +58,6 @@ async function cancelOrder() {
   } catch (e) {
     alert(e.message || 'Không thể hủy đơn hàng');
   }
-}
-
-function goReview() {
-  router.push(`/account/orders/${order.value.id}/review`)
 }
 </script>
 
@@ -107,23 +101,10 @@ function goReview() {
         <h4>Trạng thái đơn hàng</h4>
         <OrderTimeline :history="order.statusHistory" />
       </div>
-      <div v-if="order.review" class="detail-section">
-        <h4>Đánh giá của bạn</h4>
-        <div class="review-box">
-          <div class="review-stars">
-            <i v-for="s in 5" :key="s" class="bi bi-star-fill" :class="{ active: s <= order.review.rating }"></i>
-          </div>
-          <p>{{ order.review.content }}</p>
-          <span style="font-size:12px;color:var(--text-light)">{{ formatDate(order.review.createdAt) }}</span>
-        </div>
-      </div>
       <div v-if="order.status === 'PENDING'" style="margin-top:16px">
         <button class="btn btn-outline" style="border-color:var(--red-active);color:var(--red-active)" @click="cancelOrder">
           <i class="bi bi-x-lg"></i> Hủy đơn hàng
         </button>
-      </div>
-      <div v-if="order.canReview && !order.review" style="margin-top:16px">
-        <button class="btn btn-primary" @click="goReview"><i class="bi bi-star"></i> Đánh giá đơn hàng</button>
       </div>
     </div>
   </div>

@@ -1,27 +1,20 @@
 <script setup>
 import { ref } from 'vue';
-import { useAuthStore } from '@/stores/auth';
 
-const auth = useAuthStore();
 const email = ref('');
 const message = ref('');
 const error = ref('');
 const loading = ref(false);
 const sent = ref(false);
 
-async function handleSubmit() {
+function handleSubmit() {
   error.value = '';
-  message.value = '';
   loading.value = true;
-  try {
-    const res = await auth.forgotPassword(email.value);
-    message.value = res.message;
+  setTimeout(() => {
+    message.value = 'Tính năng đặt lại mật khẩu chưa được bật. Vui lòng liên hệ quản trị viên.';
     sent.value = true;
-  } catch (e) {
-    error.value = e.message;
-  } finally {
     loading.value = false;
-  }
+  }, 300);
 }
 </script>
 

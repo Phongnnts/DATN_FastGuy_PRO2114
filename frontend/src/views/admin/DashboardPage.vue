@@ -16,13 +16,13 @@ let statusChart = null;
 
 const orderStatusLabels = {
   PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận',
-  PREPARING: 'Đang chế biến', READY: 'Đã sẵn sàng',
-  DELIVERING: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
+  PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao',
+  PICKED_UP: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
 };
 
 const statusColors = {
   PENDING: '#F59E0B', CONFIRMED: '#3B82F6', PREPARING: '#8B5CF6',
-  READY: '#10B981', DELIVERING: '#06B6D4', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
+  READY: '#10B981', PICKED_UP: '#06B6D4', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
 };
 
 const data = computed(
@@ -140,28 +140,24 @@ function buildCharts() {
   const statusValues = statusLabels.map((k) => obs[k]);
   if (statusChartRef.value && statusValues.length) {
     statusChart = new Chart(statusChartRef.value, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
         labels: statusLabels.map((k) => orderStatusLabels[k] || k),
         datasets: [{
+          label: 'Số đơn',
           data: statusValues,
-          backgroundColor: statusLabels.map((k) => statusColors[k] || '#999'),
+          backgroundColor: statusLabels.map((k) => (statusColors[k] || '#999') + '66'),
+          borderColor: statusLabels.map((k) => statusColors[k] || '#999'),
           borderWidth: 2,
-          borderColor: '#fff',
+          borderRadius: 4,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: { family: "'Be Vietnam Pro', sans-serif", size: 11 },
-              padding: 12,
-              usePointStyle: true,
-            },
-          },
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } },
         },
       },
     });
@@ -188,6 +184,11 @@ watch(
 
 onUnmounted(destroyCharts);
 </script>
+
+<style scoped>
+@media (max-width: 1024px) { :deep(.grid-3) { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { :deep(.grid-3) { grid-template-columns: 1fr; } }
+</style>
 
 <template>
   <div>

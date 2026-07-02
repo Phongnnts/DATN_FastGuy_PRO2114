@@ -69,10 +69,6 @@ public class AuthServlet extends HttpServlet {
                 handleLogin(body, resp);
             } else if (path.equals("/register")) {
                 handleRegister(body, resp);
-            } else if (path.equals("/forgot-password")) {
-                ApiResponse.ok(resp, null, "Link đặt lại mật khẩu đã được gửi đến email của bạn");
-            } else if (path.equals("/reset-password")) {
-                ApiResponse.ok(resp, null, "Mật khẩu đã được đặt lại");
             } else if (path.equals("/cart/migrate")) {
                 ApiResponse.ok(resp, null, "Cart migrated");
             } else {
@@ -95,10 +91,6 @@ public class AuthServlet extends HttpServlet {
         try {
             if (path.equals("/profile")) {
                 handleUpdateProfile(req, resp);
-            } else if (path.equals("/change-password")) {
-                Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-                if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
-                ApiResponse.ok(resp, null, "Mật khẩu đã được thay đổi");
             } else {
                 resp.sendError(404);
             }

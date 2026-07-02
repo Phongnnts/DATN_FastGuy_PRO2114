@@ -31,9 +31,15 @@ public class ShipperServlet extends HttpServlet {
             ApiResponse.error(resp, "Missing token", 401);
             return -1;
         }
-        int userId = JwtUtil.getUserId(authHeader.substring(7));
+        String token = authHeader.substring(7);
+        int userId = JwtUtil.getUserId(token);
         if (userId < 0) {
             ApiResponse.error(resp, "Invalid token", 401);
+            return -1;
+        }
+        String role = JwtUtil.getRole(token);
+        if (!"SHIPPER".equals(role)) {
+            ApiResponse.error(resp, "Forbidden", 403);
             return -1;
         }
         return userId;
@@ -77,7 +83,8 @@ public class ShipperServlet extends HttpServlet {
                         String[] segs = path.split("/");
                         if (segs.length >= 3) {
                             int orderId = Integer.parseInt(segs[2]);
-                            List<Orders> all = shipperService.getMyOrders(shipperId);
+                            List<Orders> all = new ArrayList<>(shipperService.getMyOrders(shipperId));
+                            all.addAll(shipperService.getAvailableOrders());
                             Orders order = all.stream().filter(o -> o.getOrderId() == orderId).findFirst().orElse(null);
                             if (order != null) {
                                 ApiResponse.ok(resp, toDetail(order));

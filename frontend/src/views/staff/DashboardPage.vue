@@ -9,7 +9,9 @@ Chart.register(...registerables);
 const staffStore = useStaffStore();
 const loading = ref(true);
 const statusChartRef = ref(null);
+const revenueChartRef = ref(null);
 let statusChart = null;
+let revenueChart = null;
 
 const data = computed(() => staffStore.dashboard);
 
@@ -22,8 +24,8 @@ const orderStatusLabels = {
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
   PREPARING: 'Đang chế biến',
-  READY: 'Đã sẵn sàng',
-  DELIVERING: 'Đang giao',
+  READY: 'Sẵn sàng giao',
+  PICKED_UP: 'Đang giao',
   DELIVERED: 'Đã giao',
   CANCELLED: 'Đã hủy',
 };
@@ -33,7 +35,7 @@ const statusColors = {
   CONFIRMED: '#3B82F6',
   PREPARING: '#8B5CF6',
   READY: '#10B981',
-  DELIVERING: '#06B6D4',
+  PICKED_UP: '#06B6D4',
   DELIVERED: '#22C55E',
   CANCELLED: '#EF4444',
 };
@@ -54,31 +56,54 @@ function buildCharts() {
   const values = labels.map((k) => obs[k]);
 
   if (statusChartRef.value && values.length) {
+    const primary = getCSSVar('--primary') || '#D4764A';
     statusChart = new Chart(statusChartRef.value, {
-      type: 'doughnut',
+      type: 'bar',
       data: {
         labels: labels.map((k) => orderStatusLabels[k] || k),
         datasets: [
           {
+            label: 'Số đơn',
             data: values,
-            backgroundColor: labels.map((k) => statusColors[k] || '#999'),
+            backgroundColor: labels.map((k) => (statusColors[k] || '#999') + '66'),
+            borderColor: labels.map((k) => statusColors[k] || '#999'),
             borderWidth: 2,
-            borderColor: '#fff',
+            borderRadius: 4,
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              font: { family: "'Be Vietnam Pro', sans-serif", size: 12 },
-              padding: 16,
-              usePointStyle: true,
-            },
-          },
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } },
+        },
+      },
+    });
+  }
+
+  if (revenueChartRef.value && data.value?.revenueByMonth?.length) {
+    const primary = getCSSVar('--primary') || '#D4764A';
+    revenueChart = new Chart(revenueChartRef.value, {
+      type: 'bar',
+      data: {
+        labels: data.value.revenueByMonth.map(m => 'Tháng ' + m.month),
+        datasets: [{
+          label: 'Doanh thu',
+          data: data.value.revenueByMonth.map(m => m.revenue),
+          backgroundColor: primary + '33',
+          borderColor: primary,
+          borderWidth: 2,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v) => (v / 1000000).toFixed(0) + 'tr' } },
         },
       },
     });
@@ -86,8 +111,8 @@ function buildCharts() {
 }
 
 function destroyCharts() {
-  statusChart?.destroy();
-  statusChart = null;
+  statusChart?.destroy(); statusChart = null;
+  revenueChart?.destroy(); revenueChart = null;
 }
 
 onMounted(async () => {
@@ -130,30 +155,39 @@ onUnmounted(destroyCharts);
           <div class="stat-label">Đã xác nhận</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">{{ data.todaySchedule ? 1 : 0 }}</div>
-          <div class="stat-label">Nhân viên trực</div>
+          <div class="stat-value">{{ data.ordersToday || 0 }}</div>
+          <div class="stat-label">Đơn hôm nay</div>
         </div>
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
         <div class="chart-container">
           <h3 style="margin-bottom: 12px">Đơn hàng theo trạng thái</h3>
           <div style="height: 260px"><canvas ref="statusChartRef"></canvas></div>
         </div>
         <div class="chart-container">
-          <h3 style="margin-bottom: 12px">Thông tin ca làm việc</h3>
-          <div v-if="data.todaySchedule" style="padding: 16px 0">
-            <p style="margin-bottom: 8px">
-              <strong>Ngày:</strong> {{ data.todaySchedule.workDate }}
-            </p>
-            <p>
-              <strong>Ca:</strong>
-              {{ data.todaySchedule.shift === 'MORNING' ? 'Sáng (6h-14h)' : data.todaySchedule.shift === 'AFTERNOON' ? 'Chiều (14h-22h)' : data.todaySchedule.shift }}
-            </p>
-          </div>
-          <div v-else style="padding: 16px 0; color: var(--text-mid)">
-            <p>Hôm nay chưa có ca làm việc</p>
-          </div>
+          <h3 style="margin-bottom: 12px">Doanh thu theo tháng</h3>
+          <div style="height: 260px"><canvas ref="revenueChartRef"></canvas></div>
         </div>
+          <div class="chart-container">
+            <h3 style="margin-bottom: 12px">Đơn hôm nay</h3>
+            <div v-if="data.ordersToday > 0" style="padding: 16px 0">
+              <p style="margin-bottom: 8px">
+                <strong>Đã hoàn thành:</strong>
+                {{ (data.ordersByStatus?.READY || 0) + (data.ordersByStatus?.PICKED_UP || 0) + (data.ordersByStatus?.DELIVERED || 0) }}
+              </p>
+              <p style="margin-bottom: 8px">
+                <strong>Đang xử lý:</strong>
+                {{ data.ordersByStatus?.CONFIRMED || 0 }}
+              </p>
+              <p>
+                <strong>Đang nấu:</strong>
+                {{ data.ordersByStatus?.PREPARING || 0 }}
+              </p>
+            </div>
+            <div v-else style="padding: 16px 0; color: var(--text-mid)">
+              <p>Hôm nay chưa có đơn hàng</p>
+            </div>
+          </div>
       </div>
     </template>
   </div>

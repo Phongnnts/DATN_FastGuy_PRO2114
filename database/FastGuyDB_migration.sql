@@ -196,19 +196,113 @@ if object_id('ProductOption', 'U') is not null
 go
 
 -- ============================================================
--- 8. VERIFY
+-- 9. COUPON: bảng mã giảm giá
 -- ============================================================
-select 'Product' as tbl, count(*) as cnt from Product
-union all
-select 'ProductVariant', count(*) from ProductVariant
-union all
-select 'CartItem', count(*) from CartItem
-union all
-select 'OrderItem', count(*) from OrderItem
-union all
-select 'Address', count(*) from Address
-union all
-select 'Orders', count(*) from Orders;
-
-select 'Migration complete!' as status;
+if object_id('Coupon', 'U') is null
+begin
+    create table Coupon (
+        coupon_id      int identity primary key,
+        code           varchar(50) not null unique,
+        type           varchar(20) not null,   -- PERCENT, FIXED, FREE_SHIPPING
+        value          decimal(10,2) not null,
+        min_order      decimal(10,2) default 0,
+        max_discount   decimal(10,2),
+        max_uses       int default 0,
+        used_count     int default 0,
+        expires_at     datetime2,
+        is_active      bit default 1,
+        created_at     datetime2 default getdate()
+    );
+end
 go
+
+-- ============================================================
+-- 10. COUPON_USAGE: lịch sử sử dụng mã
+-- ============================================================
+if object_id('CouponUsage', 'U') is null
+begin
+    create table CouponUsage (
+        coupon_usage_id int identity primary key,
+        coupon_id       int not null references Coupon(coupon_id),
+        user_id         int null references Users,
+        order_id        int not null references Orders,
+        discount_amount decimal(10,2) not null,
+        used_at         datetime2 default getdate()
+    );
+end
+go
+
+-- ============================================================
+-- 11. ORDERS: thêm coupon_code, discount_amount
+-- ============================================================
+if col_length('Orders', 'coupon_code') is null
+    alter table Orders add coupon_code varchar(50);
+go
+
+if col_length('Orders', 'discount_amount') is null
+    alter table Orders add discount_amount decimal(10,2) default 0;
+go
+
+-- ============================================================
+-- 12. VERIFY (bổ sung)
+-- ============================================================
+select 'Coupon' as tbl, count(*) as cnt from Coupon
+union all
+select 'CouponUsage', count(*) from CouponUsage;
+
+-- ============================================================
+-- 13. XÓA VoucherServlet cũ (in-memory) — chạy tay nếu deploy lại
+-- ============================================================
+-- Đã thay thế bằng entity Coupon + DAO.
+-- File VoucherServlet.java có thể xóa sau khi deploy.
+
+-- ============================================================
+-- 14. COUPON: thêm is_public
+-- ============================================================
+if col_length('Coupon', 'is_public') is null
+    alter table Coupon add is_public bit default 1;
+go
+
+-- ============================================================
+-- 15. BANNER: bảng quản lý banner trang chủ
+-- ============================================================
+if object_id('Banner', 'U') is null
+begin
+    create table Banner (
+        banner_id   int identity primary key,
+        title       nvarchar(255),
+        subtitle    nvarchar(500),
+        image_url   varchar(500) not null,
+        link        varchar(500),
+        sort_order  int default 0,
+        is_active   bit default 1,
+        created_at  datetime2 default getdate()
+    );
+end
+go
+
+-- ============================================================
+-- 16. CLAIMED_COUPON: mã đã claim của user
+-- ============================================================
+if object_id('ClaimedCoupon', 'U') is null
+begin
+    create table ClaimedCoupon (
+        claimed_id  int identity primary key,
+        coupon_id   int not null references Coupon(coupon_id),
+        user_id     int not null references Users,
+        claimed_at  datetime2 default getdate(),
+        used_at     datetime2 null
+    );
+end
+go
+
+-- ============================================================
+-- 17. VERIFY (bổ sung)
+-- ============================================================
+select 'Banner' as tbl, count(*) as cnt from Banner
+union all
+select 'ClaimedCoupon', count(*) from ClaimedCoupon;
+
+select 'Migration 14-16 complete!' as status;
+go
+
