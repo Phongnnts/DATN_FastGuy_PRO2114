@@ -123,6 +123,9 @@ public class Orders {
     @Column(name = "picked_up_at")
     private LocalDateTime pickedUpAt;
 
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
 
@@ -211,6 +214,8 @@ public class Orders {
     public void setReadyAt(LocalDateTime readyAt) { this.readyAt = readyAt; }
     public LocalDateTime getPickedUpAt() { return pickedUpAt; }
     public void setPickedUpAt(LocalDateTime pickedUpAt) { this.pickedUpAt = pickedUpAt; }
+    public LocalDateTime getPaidAt() { return paidAt; }
+    public void setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; }
     public LocalDateTime getDeliveredAt() { return deliveredAt; }
     public void setDeliveredAt(LocalDateTime deliveredAt) { this.deliveredAt = deliveredAt; }
     public LocalDateTime getCancelledAt() { return cancelledAt; }
