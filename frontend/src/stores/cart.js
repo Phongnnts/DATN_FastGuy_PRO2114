@@ -4,27 +4,26 @@ import { cartApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import { useProductStore } from '@/stores/product';
 
-const GUEST_SESSION_KEY = 'guest_session_id';
+const GUEST_KEY = 'cart_guest';
 
-function generateSessionId() {
-  return (
-    'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8)
-  );
+function userKey(userId) {
+  return 'cart_user_' + userId;
 }
 
-function getGuestSession() {
-  let sid = localStorage.getItem(GUEST_SESSION_KEY);
-  if (!sid) {
-    sid = generateSessionId();
-    localStorage.setItem(GUEST_SESSION_KEY, sid);
-  }
-  return sid;
+function getStorage() {
+  const auth = useAuthStore();
+  return auth.isLoggedIn ? localStorage : sessionStorage;
+}
+
+function getKey() {
+  const auth = useAuthStore();
+  if (auth.isLoggedIn && auth.user) return userKey(auth.user.id);
+  return GUEST_KEY;
 }
 
 export const useCartStore = defineStore('cart', () => {
   const items = ref([]);
   const isLoaded = ref(false);
-  const sessionId = ref(getGuestSession());
 
   const itemCount = computed(() =>
     items.value.reduce((sum, i) => sum + i.quantity, 0),
@@ -35,7 +34,7 @@ export const useCartStore = defineStore('cart', () => {
 
   function loadFromStorage() {
     try {
-      const stored = localStorage.getItem('cart_' + sessionId.value);
+      const stored = getStorage().getItem(getKey());
       items.value = stored ? JSON.parse(stored) : [];
     } catch {
       items.value = [];
@@ -44,10 +43,7 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   function save() {
-    localStorage.setItem(
-      'cart_' + sessionId.value,
-      JSON.stringify(items.value),
-    );
+    getStorage().setItem(getKey(), JSON.stringify(items.value));
   }
 
   function findProduct(productId) {
@@ -119,10 +115,17 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  function removeItem(productId, variantId) {
+  async function removeItem(productId, variantId) {
     const key = itemKey(productId, variantId);
+    const item = items.value.find((i) => i.key === key);
+    if (!item) return;
     items.value = items.value.filter((i) => i.key !== key);
     save();
+    const auth = useAuthStore();
+    if (auth.isLoggedIn && item.cartItemId) {
+      try { await cartApi.removeItem(item.cartItemId); }
+      catch (e) { console.error('Sync remove failed:', e); }
+    }
   }
 
   async function fetchCart() {
@@ -150,28 +153,32 @@ export const useCartStore = defineStore('cart', () => {
 
   function clear() {
     items.value = [];
-    save();
+    localStorage.removeItem(GUEST_KEY);
+    const auth = useAuthStore();
+    if (auth.isLoggedIn && auth.user) {
+      localStorage.removeItem(userKey(auth.user.id));
+    }
+    sessionStorage.removeItem(GUEST_KEY);
   }
 
   async function migrateToUser() {
     const auth = useAuthStore();
     if (!auth.isLoggedIn) return;
     const localItems = [...items.value];
-    sessionId.value = 'user_' + Date.now();
-    localStorage.removeItem(GUEST_SESSION_KEY);
-    items.value = [];
-    save();
-    for (const item of localItems) {
-      try {
-        await cartApi.addItem({
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-        });
-      } catch (err) {
-        console.error('Cart migration addItem failed:', err);
+    if (localItems.length > 0) {
+      for (const item of localItems) {
+        try {
+          await cartApi.addItem({
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+          });
+        } catch (err) {
+          console.error('Cart migration addItem failed:', err);
+        }
       }
     }
+    sessionStorage.removeItem(GUEST_KEY);
     await fetchCart();
   }
 
@@ -182,8 +189,6 @@ export const useCartStore = defineStore('cart', () => {
     isLoaded,
     itemCount,
     subtotal,
-    sessionId,
-    loadFromStorage,
     addItem,
     updateQuantity,
     removeItem,

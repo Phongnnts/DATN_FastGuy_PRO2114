@@ -62,6 +62,18 @@ const routes = [
         component: () => import('@/views/guest/ForgotPasswordPage.vue'),
         meta: { guest: true },
       },
+      {
+        path: 'promotions',
+        name: 'Promotions',
+        component: () => import('@/views/guest/PromotionsPage.vue'),
+        meta: { guest: true },
+      },
+      {
+        path: 'checkout',
+        name: 'Checkout',
+        component: () => import('@/views/user/CheckoutPage.vue'),
+        meta: { guest: true },
+      },
     ],
   },
 
@@ -88,35 +100,12 @@ const routes = [
         component: () => import('@/views/user/OrderDetailPage.vue'),
       },
       {
-        path: 'orders/:id/review',
-        name: 'OrderReview',
-        component: () => import('@/views/user/OrderReviewPage.vue'),
-      },
-      {
         path: 'change-password',
         name: 'ChangePassword',
         component: () => import('@/views/user/ChangePasswordPage.vue'),
       },
-      {
-        path: 'favorites',
-        name: 'Favorites',
-        component: () => import('@/views/user/FavoritesPage.vue'),
-      },
     ],
   },
-  {
-    path: '/checkout',
-    component: UserLayout,
-    meta: { requiresAuth: true, role: ROLES.USER },
-    children: [
-      {
-        path: '',
-        name: 'Checkout',
-        component: () => import('@/views/user/CheckoutPage.vue'),
-      },
-    ],
-  },
-
   // ─── Staff ─────────────────────────────────
   {
     path: '/staff',
@@ -142,11 +131,6 @@ const routes = [
         path: 'orders/history',
         name: 'StaffOrderHistory',
         component: () => import('@/views/staff/OrderHistoryPage.vue'),
-      },
-      {
-        path: 'shifts',
-        name: 'StaffShifts',
-        component: () => import('@/views/staff/ShiftsPage.vue'),
       },
     ],
   },
@@ -201,20 +185,10 @@ const routes = [
         name: 'AdminCategories',
         component: () => import('@/views/admin/CategoriesPage.vue'),
       },
-      // {
-      //   path: 'delivery-zones',
-      //   name: 'AdminDeliveryZones',
-      //   component: () => import('@/views/admin/DeliveryZonesPage.vue'),
-      // },
       {
         path: 'orders',
         name: 'AdminOrders',
         component: () => import('@/views/admin/OrdersPage.vue'),
-      },
-      {
-        path: 'shifts',
-        name: 'AdminShifts',
-        component: () => import('@/views/admin/ShiftsPage.vue'),
       },
       {
         path: 'reports/revenue',
@@ -225,6 +199,11 @@ const routes = [
         path: 'reports/top-products',
         name: 'AdminTopProducts',
         component: () => import('@/views/admin/TopProductsReportPage.vue'),
+      },
+      {
+        path: 'coupons',
+        name: 'AdminCoupons',
+        component: () => import('@/views/admin/CouponsPage.vue'),
       },
     ],
   },

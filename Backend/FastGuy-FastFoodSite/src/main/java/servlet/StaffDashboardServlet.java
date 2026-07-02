@@ -32,7 +32,7 @@ public class StaffDashboardServlet extends HttpServlet {
         }
 
         int userId = JwtUtil.getUserId(token);
-        var data = staffService.getDashboard(userId);
+        var data = staffService.getDashboard();
         ApiResponse.ok(resp, data);
     }
 }

@@ -1,11 +1,13 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
 import { ORDER_STATUS_LABEL } from '@/utils/constants';
 import { formatDate } from '@/utils/format';
 import OrderTimeline from '@/components/common/OrderTimeline.vue';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 
+const route = useRoute();
 const orderStore = useOrderStore();
 const orderCode = ref('');
 const trackingResult = ref(null);
@@ -24,6 +26,14 @@ async function track() {
     error.value = 'Không tìm thấy đơn hàng với mã này';
   }
 }
+
+onMounted(() => {
+  const code = route.query.code;
+  if (code) {
+    orderCode.value = code;
+    track();
+  }
+});
 </script>
 
 <template>

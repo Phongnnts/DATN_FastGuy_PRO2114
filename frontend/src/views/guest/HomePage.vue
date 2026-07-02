@@ -1,28 +1,35 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useProductStore } from '@/stores/product';
-import HeroBanner from '@/components/guest/HeroBanner.vue';
 import CategoryGrid from '@/components/guest/CategoryGrid.vue';
 import FeaturedProducts from '@/components/guest/FeaturedProducts.vue';
 import ProductCard from '@/components/common/ProductCard.vue';
+import bannerApi from '@/api/banner';
 
 const productStore = useProductStore();
 const newsletterEmail = ref('');
 const currentSlide = ref(0);
+const banners = ref([]);
 
 const previewProducts = computed(() => productStore.allProducts.slice(0, 10));
 const newProducts = computed(() => [...productStore.allProducts].sort((a,b) => b.productId - a.productId).slice(0, 8));
 
-const heroSlides = [
-  { title: 'Burger Ngon Mỗi Ngày', subtitle: 'Khám phá bộ sưu tập burger mới', cta: 'Xem thực đơn', link: '/menu' },
-  { title: 'Giảm 20% Đơn Đầu Tiên', subtitle: 'Nhập mã FASTGUY20 khi thanh toán', cta: 'Đặt ngay', link: '/menu' },
-  { title: 'Giao Hàng Siêu Tốc 30 Phút', subtitle: 'Nóng hổi từ bếp đến tay bạn', cta: 'Tìm hiểu thêm', link: '/menu' },
+const fallbackSlides = [
+  { title: 'Burger Ngon Mỗi Ngày', subtitle: 'Khám phá bộ sưu tập burger mới', cta: 'Xem thực đơn', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Burger/classic-burger.jpg' },
+  { title: 'Giảm 20% Đơn Đầu Tiên', subtitle: 'Nhập mã FASTGUY20 khi thanh toán', cta: 'Đặt ngay', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/GaRan/gran-split.jpg' },
+  { title: 'Giao Hàng Siêu Tốc 30 Phút', subtitle: 'Nóng hổi từ bếp đến tay bạn', cta: 'Tìm hiểu thêm', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Pizza/pizza-margherita.jpg' },
 ];
 
 let slideInterval;
-onMounted(() => {
+onMounted(async () => {
   if (!productStore.fetched) productStore.init();
-  slideInterval = setInterval(() => { currentSlide.value = (currentSlide.value + 1) % heroSlides.length; }, 5000);
+  try {
+    const data = await bannerApi.getActive();
+    banners.value = (data && data.length > 0) ? data : fallbackSlides;
+  } catch {
+    banners.value = fallbackSlides;
+  }
+  slideInterval = setInterval(() => { currentSlide.value = (currentSlide.value + 1) % banners.value.length; }, 5000);
 });
 
 function subscribeNewsletter() {
@@ -36,15 +43,16 @@ function subscribeNewsletter() {
   <div>
     <!-- Hero Carousel -->
     <section class="hero-carousel">
-      <div v-for="(slide, i) in heroSlides" :key="i" class="hero-slide" :class="{ active: currentSlide === i }">
+      <div v-for="(slide, i) in banners" :key="i" class="hero-slide" :class="{ active: currentSlide === i }" :style="{ backgroundImage: 'url(' + slide.imageUrl + ')' }">
+        <div class="hero-overlay"></div>
         <div class="container hero-content">
           <h1 class="hero-title">{{ slide.title }}</h1>
           <p class="hero-subtitle">{{ slide.subtitle }}</p>
-          <router-link :to="slide.link" class="btn btn-lg btn-primary" style="background:#fff;color:var(--primary);border:none">{{ slide.cta }}</router-link>
+          <router-link :to="slide.link || '/menu'" class="btn btn-lg btn-primary" style="background:#fff;color:var(--primary);border:none">{{ slide.cta || 'Xem thêm' }}</router-link>
         </div>
       </div>
       <div class="carousel-dots">
-        <button v-for="(_, i) in heroSlides" :key="i" class="dot" :class="{ active: currentSlide === i }" @click="currentSlide = i"></button>
+        <button v-for="(_, i) in banners" :key="i" class="dot" :class="{ active: currentSlide === i }" @click="currentSlide = i"></button>
       </div>
     </section>
     <div v-if="productStore.loading" class="loading-section">
@@ -165,10 +173,11 @@ function subscribeNewsletter() {
 .about-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
 .about-card p { font-size: 13px; color: var(--text-mid); line-height: 1.5; }
 
-.hero-carousel { position: relative; background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #fff; min-height: 320px; overflow: hidden; }
-.hero-slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; transition: opacity 0.6s ease; }
+.hero-carousel { position: relative; color: #fff; min-height: 360px; overflow: hidden; }
+.hero-slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; transition: opacity 0.6s ease; background-size: cover; background-position: center; }
 .hero-slide.active { opacity: 1; position: relative; }
-.hero-content { padding: 60px 0; text-align: center; }
+.hero-overlay { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,0,0,0.3)); }
+.hero-content { padding: 60px 0; text-align: center; position: relative; z-index: 1; }
 .hero-title { font-size: 36px; font-weight: 800; margin-bottom: 12px; }
 .hero-subtitle { font-size: 16px; opacity: 0.9; margin-bottom: 24px; }
 .carousel-dots { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }

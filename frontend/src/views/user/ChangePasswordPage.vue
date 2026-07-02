@@ -1,8 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { useAuthStore } from '@/stores/auth';
 
-const auth = useAuthStore();
 const form = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
 const error = ref('');
 const success = ref('');
@@ -16,18 +14,10 @@ async function submit() {
     return;
   }
   loading.value = true;
-  try {
-    await auth.changePassword(
-      form.value.currentPassword,
-      form.value.newPassword,
-    );
-    success.value = 'Đổi mật khẩu thành công!';
-    form.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
-  } catch (e) {
-    error.value = e.message;
-  } finally {
+  setTimeout(() => {
+    error.value = 'Tính năng đổi mật khẩu chưa được bật. Vui lòng liên hệ quản trị viên.';
     loading.value = false;
-  }
+  }, 300);
 }
 </script>
 

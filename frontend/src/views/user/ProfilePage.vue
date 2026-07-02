@@ -437,4 +437,12 @@ async function saveProfile() {
   width: 18px;
   height: 18px;
 }
+@media (max-width: 768px) {
+  .profile-avatar-section { flex-direction: column; align-items: center; text-align: center; }
+  .address-card { flex-direction: column; }
+  .address-actions { align-self: flex-end; margin-top: 8px; }
+  .modal { width: calc(100% - 16px); }
+  .modal-header, .modal-body, .modal-footer { padding-left: 16px; padding-right: 16px; }
+  .profile-page { padding: 0 4px; }
+}
 </style>

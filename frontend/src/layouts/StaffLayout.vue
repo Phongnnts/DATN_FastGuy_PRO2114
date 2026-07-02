@@ -7,6 +7,8 @@ import { staffApi } from '@/api';
 const auth = useAuthStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
+const sidebarHover = ref(false);
+let hoverTimer = null;
 const pendingCount = ref(0);
 
 onMounted(async () => {
@@ -15,6 +17,15 @@ onMounted(async () => {
     pendingCount.value = Array.isArray(orders) ? orders.length : 0;
   } catch {}
 });
+
+function showSidebar() {
+  clearTimeout(hoverTimer);
+  sidebarHover.value = true;
+}
+function hideSidebar() {
+  hoverTimer = setTimeout(() => { sidebarHover.value = false; }, 300);
+}
+function isVisible() { return sidebarOpen.value || sidebarHover.value; }
 
 function logout() {
   auth.logout();
@@ -29,13 +40,13 @@ const sidebarLinks = [
     path: '/staff/orders/history',
     icon: 'bi-clock-history',
   },
-  { label: 'Ca làm việc', path: '/staff/shifts', icon: 'bi-calendar-check' },
 ];
 </script>
 
 <template>
-  <div class="sidebar-layout">
-    <aside class="sidebar" :class="{ open: sidebarOpen }">
+  <div class="sidebar-layout" @mouseleave="hideSidebar">
+    <div class="sidebar-trigger" @mouseenter="showSidebar"></div>
+    <aside class="sidebar" :class="{ open: isVisible() }" @mouseenter="showSidebar" @mouseleave="hideSidebar">
       <div class="sidebar-brand">
         <span class="brand-text" style="font-size: 18px; font-weight: 800"
           >Fast<span style="color: var(--primary)">Guy</span></span

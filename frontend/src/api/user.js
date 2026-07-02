@@ -16,16 +16,4 @@ export default {
   setDefaultAddress(id) {
     return client.put(`/user/addresses/${id}/default`);
   },
-  getFavorites() {
-    return client.get('/user/favorites');
-  },
-  addFavorite(productId) {
-    return client.post('/user/favorites', { productId });
-  },
-  removeFavorite(productId) {
-    return client.delete(`/user/favorites/${productId}`);
-  },
-  getVouchers() {
-    return client.get('/user/vouchers');
-  },
 };

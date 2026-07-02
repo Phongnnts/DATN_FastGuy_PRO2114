@@ -55,6 +55,8 @@ public class AdminServlet extends HttpServlet {
             result.put("topProducts", data.get("topProducts"));
             result.put("periodTopProducts", data.get("periodTopProducts"));
             ApiResponse.ok(resp, result);
+        } else if (path.equals("/orders")) {
+            ApiResponse.ok(resp, new AdminOrderServlet().getOrdersData());
         } else {
             ApiResponse.error(resp, "Not found", 404);
         }

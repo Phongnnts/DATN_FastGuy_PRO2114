@@ -16,17 +16,16 @@ export default {
   trackOrder(orderCode) {
     return client.get('/orders/track', { params: { code: orderCode } });
   },
-  review(id, data) {
-    return client.post(`/orders/${id}/review`, data);
-  },
   getHistory(params) {
     return client.get('/orders/history', { params });
   },
   getPaymentStatus(id) {
     return client.get(`/orders/${id}/payment-status`);
   },
-  getSePayQrUrl(amount, orderCode) {
-    const description = `TT ${orderCode}`;
-    return `https://qr.sepay.vn/img?acc=6513527&bank=MB&amount=${amount}&des=${encodeURIComponent(description)}&template=compact`;
+  confirmPayment(id) {
+    return client.put(`/orders/${id}/confirm-payment`);
+  },
+  guestCheckout(data) {
+    return client.post('/orders/guest-checkout', data);
   },
 };

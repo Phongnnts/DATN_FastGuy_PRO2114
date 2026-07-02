@@ -123,6 +123,9 @@ public class Orders {
     @Column(name = "picked_up_at")
     private LocalDateTime pickedUpAt;
 
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
 
@@ -134,6 +137,12 @@ public class Orders {
 
     @Column(name = "internal_note")
     private String internalNote;
+
+    @Column(name = "coupon_code")
+    private String couponCode;
+
+    @Column(name = "discount_amount")
+    private BigDecimal discountAmount;
 
     @Column(name = "delivery_note")
     private String deliveryNote;
@@ -211,6 +220,8 @@ public class Orders {
     public void setReadyAt(LocalDateTime readyAt) { this.readyAt = readyAt; }
     public LocalDateTime getPickedUpAt() { return pickedUpAt; }
     public void setPickedUpAt(LocalDateTime pickedUpAt) { this.pickedUpAt = pickedUpAt; }
+    public LocalDateTime getPaidAt() { return paidAt; }
+    public void setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; }
     public LocalDateTime getDeliveredAt() { return deliveredAt; }
     public void setDeliveredAt(LocalDateTime deliveredAt) { this.deliveredAt = deliveredAt; }
     public LocalDateTime getCancelledAt() { return cancelledAt; }
@@ -221,6 +232,10 @@ public class Orders {
     public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
     public String getDeliveryNote() { return deliveryNote; }
     public void setDeliveryNote(String deliveryNote) { this.deliveryNote = deliveryNote; }
+    public String getCouponCode() { return couponCode; }
+    public void setCouponCode(String couponCode) { this.couponCode = couponCode; }
+    public BigDecimal getDiscountAmount() { return discountAmount; }
+    public void setDiscountAmount(BigDecimal discountAmount) { this.discountAmount = discountAmount; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

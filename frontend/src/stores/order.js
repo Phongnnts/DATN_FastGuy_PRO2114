@@ -45,7 +45,6 @@ export const useOrderStore = defineStore('order', () => {
       statusHistory: o.statusHistory || [
         { status: o.status, time: o.createdAt, note: '' },
       ],
-      canReview: o.canReview || false,
     };
   }
 
@@ -114,14 +113,18 @@ export const useOrderStore = defineStore('order', () => {
         toDistrictName: orderData.toDistrictName || '',
         toWardName: orderData.toWardName || '',
         shippingFee: orderData.shippingFee || 0,
+        couponCode: orderData.couponCode || '',
       });
       const newOrder = {
         id: data.orderId,
         orderCode: data.orderCode,
         status: data.status,
+        paymentStatus: data.paymentStatus,
         total: data.finalAmount ? parseFloat(data.finalAmount) : 0,
         createdAt: new Date().toISOString(),
         items: orderData.items || [],
+        sepayQrUrl: data.sepayQrUrl,
+        transferContent: data.transferContent,
       };
       allOrders.value.unshift(newOrder);
       return newOrder;
@@ -142,16 +145,6 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  async function reviewOrder(id, data) {
-    try {
-      await orderApi.review(id, data);
-      const order = currentOrder.value || allOrders.value.find((o) => o.id === Number(id));
-      if (order) order.review = data;
-    } catch {
-      throw new Error('Gửi đánh giá thất bại');
-    }
-  }
-
   return {
     allOrders,
     currentOrder,
@@ -162,6 +155,5 @@ export const useOrderStore = defineStore('order', () => {
     trackOrder,
     createOrder,
     cancelOrder,
-    reviewOrder,
   };
 });
