@@ -18,11 +18,7 @@ function removeItem(productId, variantId) {
 }
 
 function proceedCheckout() {
-  if (!auth.isLoggedIn) {
-    router.push({ path: '/login', query: { redirect: '/checkout' } });
-  } else {
-    router.push('/checkout');
-  }
+  router.push('/checkout');
 }
 </script>
 

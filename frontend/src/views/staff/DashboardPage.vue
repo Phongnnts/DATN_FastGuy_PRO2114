@@ -155,8 +155,8 @@ onUnmounted(destroyCharts);
           <div class="stat-label">Đã xác nhận</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">{{ data.todaySchedule ? 1 : 0 }}</div>
-          <div class="stat-label">Nhân viên trực</div>
+          <div class="stat-value">{{ data.ordersToday || 0 }}</div>
+          <div class="stat-label">Đơn hôm nay</div>
         </div>
       </div>
       <div class="grid-3">
@@ -168,21 +168,26 @@ onUnmounted(destroyCharts);
           <h3 style="margin-bottom: 12px">Doanh thu theo tháng</h3>
           <div style="height: 260px"><canvas ref="revenueChartRef"></canvas></div>
         </div>
-        <div class="chart-container">
-          <h3 style="margin-bottom: 12px">Thông tin ca làm việc</h3>
-          <div v-if="data.todaySchedule" style="padding: 16px 0">
-            <p style="margin-bottom: 8px">
-              <strong>Ngày:</strong> {{ data.todaySchedule.workDate }}
-            </p>
-            <p>
-              <strong>Ca:</strong>
-              {{ data.todaySchedule.shift === 'MORNING' ? 'Sáng (6h-14h)' : data.todaySchedule.shift === 'AFTERNOON' ? 'Chiều (14h-22h)' : data.todaySchedule.shift }}
-            </p>
+          <div class="chart-container">
+            <h3 style="margin-bottom: 12px">Đơn hôm nay</h3>
+            <div v-if="data.ordersToday > 0" style="padding: 16px 0">
+              <p style="margin-bottom: 8px">
+                <strong>Đã hoàn thành:</strong>
+                {{ (data.ordersByStatus?.READY || 0) + (data.ordersByStatus?.PICKED_UP || 0) + (data.ordersByStatus?.DELIVERED || 0) }}
+              </p>
+              <p style="margin-bottom: 8px">
+                <strong>Đang xử lý:</strong>
+                {{ data.ordersByStatus?.CONFIRMED || 0 }}
+              </p>
+              <p>
+                <strong>Đang nấu:</strong>
+                {{ data.ordersByStatus?.PREPARING || 0 }}
+              </p>
+            </div>
+            <div v-else style="padding: 16px 0; color: var(--text-mid)">
+              <p>Hôm nay chưa có đơn hàng</p>
+            </div>
           </div>
-          <div v-else style="padding: 16px 0; color: var(--text-mid)">
-            <p>Hôm nay chưa có ca làm việc</p>
-          </div>
-        </div>
       </div>
     </template>
   </div>

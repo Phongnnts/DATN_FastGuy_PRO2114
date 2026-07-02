@@ -8,8 +8,8 @@ export function useCart() {
 
   const isGuestCart = computed(() => !auth.isLoggedIn)
 
-  function addToCart(productId, quantity = 1) {
-    cart.addItem(productId, quantity)
+  function addToCart(productId, variantId, quantity = 1) {
+    cart.addItem(productId, variantId, quantity)
   }
 
   return { cart: computed(() => cart), isGuestCart, addToCart }

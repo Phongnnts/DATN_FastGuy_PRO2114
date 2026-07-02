@@ -30,7 +30,6 @@ function logout() {
 const sidebarLinks = [
   { label: 'Thông tin cá nhân', path: '/account/profile', icon: 'bi-person' },
   { label: 'Đơn hàng', path: '/account/orders', icon: 'bi-box' },
-  { label: 'Yêu thích', path: '/account/favorites', icon: 'bi-heart' },
   { label: 'Đổi mật khẩu', path: '/account/change-password', icon: 'bi-lock' },
 ];
 </script>

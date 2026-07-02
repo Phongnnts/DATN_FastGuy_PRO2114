@@ -9,8 +9,6 @@ export const useAdminStore = defineStore('admin', () => {
   const allCategories = ref([]);
   const allOrders = ref([]);
   const allZones = ref([]);
-  const allShifts = ref([]);
-  const allSchedules = ref([]);
 
   const loading = ref(false);
   const error = ref('');
@@ -105,26 +103,6 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-
-  async function fetchShifts() {
-    try {
-      const data = await adminApi.getShifts();
-      allShifts.value = Array.isArray(data) ? data : [];
-      return allShifts.value;
-    } catch {
-      return [];
-    }
-  }
-
-  async function fetchSchedules(params) {
-    try {
-      const data = await adminApi.getSchedules(params);
-      allSchedules.value = Array.isArray(data) ? data : [];
-      return allSchedules.value;
-    } catch {
-      return [];
-    }
-  }
 
   async function createUser(data) {
     try {
@@ -256,40 +234,6 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
 
-  async function createShift(data) {
-    try {
-      const res = await adminApi.createShift(data);
-      await fetchShifts();
-      return res;
-    } catch {
-      return null;
-    }
-  }
-
-  async function updateShift(id, data) {
-    try {
-      await adminApi.updateShift(id, data);
-      await fetchShifts();
-    } catch {}
-  }
-
-  async function deleteShift(id) {
-    try {
-      await adminApi.deleteShift(id);
-      await fetchShifts();
-    } catch {}
-  }
-
-  async function createSchedule(data) {
-    try {
-      const res = await adminApi.createSchedule(data);
-      await fetchSchedules();
-      return res;
-    } catch {
-      return null;
-    }
-  }
-
   async function getRevenueReport(params) {
     try {
       return await adminApi.getRevenueReport(params);
@@ -313,8 +257,6 @@ export const useAdminStore = defineStore('admin', () => {
     allCategories,
     allOrders,
     allZones,
-    allShifts,
-    allSchedules,
     loading,
     error,
     fetchDashboard,
@@ -323,8 +265,6 @@ export const useAdminStore = defineStore('admin', () => {
     fetchCategories,
     fetchOrders,
     fetchZones,
-    fetchShifts,
-    fetchSchedules,
     createUser,
     updateUser,
     deleteUser,
@@ -341,10 +281,6 @@ export const useAdminStore = defineStore('admin', () => {
     createZone,
     updateZone,
     deleteZone,
-    createShift,
-    updateShift,
-    deleteShift,
-    createSchedule,
     getRevenueReport,
     getTopProducts,
   };

@@ -40,7 +40,6 @@ const sidebarLinks = [
     path: '/staff/orders/history',
     icon: 'bi-clock-history',
   },
-  { label: 'Ca làm việc', path: '/staff/shifts', icon: 'bi-calendar-check' },
 ];
 </script>
 

@@ -114,6 +114,7 @@ export const useOrderStore = defineStore('order', () => {
         toDistrictName: orderData.toDistrictName || '',
         toWardName: orderData.toWardName || '',
         shippingFee: orderData.shippingFee || 0,
+        couponCode: orderData.couponCode || '',
       });
       const newOrder = {
         id: data.orderId,
@@ -145,16 +146,6 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  async function reviewOrder(id, data) {
-    try {
-      await orderApi.review(id, data);
-      const order = currentOrder.value || allOrders.value.find((o) => o.id === Number(id));
-      if (order) order.review = data;
-    } catch {
-      throw new Error('Gửi đánh giá thất bại');
-    }
-  }
-
   return {
     allOrders,
     currentOrder,
@@ -165,6 +156,5 @@ export const useOrderStore = defineStore('order', () => {
     trackOrder,
     createOrder,
     cancelOrder,
-    reviewOrder,
   };
 });

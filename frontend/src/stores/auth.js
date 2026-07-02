@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { ROLES } from '@/utils/constants';
 import { authApi } from '@/api';
+import { useCartStore } from '@/stores/cart';
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || null);
@@ -60,6 +61,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    const cart = useCartStore();
+    cart.clear();
     token.value = null;
     user.value = null;
     persist();

@@ -69,10 +69,6 @@ public class AuthServlet extends HttpServlet {
                 handleLogin(body, resp);
             } else if (path.equals("/register")) {
                 handleRegister(body, resp);
-            } else if (path.equals("/forgot-password")) {
-                ApiResponse.ok(resp, null, "Link đặt lại mật khẩu đã được gửi đến email của bạn");
-            } else if (path.equals("/reset-password")) {
-                ApiResponse.ok(resp, null, "Mật khẩu đã được đặt lại");
             } else if (path.equals("/cart/migrate")) {
                 ApiResponse.ok(resp, null, "Cart migrated");
             } else {
