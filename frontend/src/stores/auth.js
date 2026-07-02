@@ -80,19 +80,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function changePassword(currentPassword, newPassword) {
-    await authApi.changePassword({ currentPassword, newPassword });
-  }
-
-  async function forgotPassword(email) {
-    try {
-      const res = await authApi.forgotPassword(email);
-      return res;
-    } catch (e) {
-      throw new Error('Không thể gửi yêu cầu đặt lại mật khẩu');
-    }
-  }
-
   return {
     token,
     user,
@@ -106,7 +93,5 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     updateProfile,
-    changePassword,
-    forgotPassword,
   };
 });

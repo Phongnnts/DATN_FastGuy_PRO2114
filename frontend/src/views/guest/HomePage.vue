@@ -1,7 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { useProductStore } from '@/stores/product';
-import HeroBanner from '@/components/guest/HeroBanner.vue';
 import CategoryGrid from '@/components/guest/CategoryGrid.vue';
 import FeaturedProducts from '@/components/guest/FeaturedProducts.vue';
 import ProductCard from '@/components/common/ProductCard.vue';

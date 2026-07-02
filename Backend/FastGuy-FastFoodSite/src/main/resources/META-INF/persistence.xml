@@ -15,11 +15,10 @@
         <class>entity.CartItem</class>
         <class>entity.Orders</class>
         <class>entity.OrderItem</class>
-        <class>entity.Payment</class>
-        <class>entity.ShippingConfig</class>
-        <class>entity.WorkShift</class>
-        <class>entity.Schedule</class>
-        <class>entity.Review</class>
+        <class>entity.Coupon</class>
+        <class>entity.CouponUsage</class>
+        <class>entity.ClaimedCoupon</class>
+        <class>entity.Banner</class>
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
             <property name="jakarta.persistence.jdbc.url" value="jdbc:sqlserver://localhost:1433;databaseName=FastGuyDB;encrypt=false"/>

@@ -45,7 +45,6 @@ export const useOrderStore = defineStore('order', () => {
       statusHistory: o.statusHistory || [
         { status: o.status, time: o.createdAt, note: '' },
       ],
-      canReview: o.canReview || false,
     };
   }
 
