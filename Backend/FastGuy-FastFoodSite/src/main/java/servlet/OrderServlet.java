@@ -81,7 +81,7 @@ public class OrderServlet extends HttpServlet {
                 }
                 java.util.Map<String, Object> pd = new HashMap<>();
                 pd.put("paymentStatus", order.getPaymentStatus());
-                pd.put("paidAt", order.getDeliveredAt());
+                pd.put("paidAt", order.getPaidAt());
                 ApiResponse.ok(resp, pd);
             } catch (NumberFormatException e) {
                 ApiResponse.error(resp, "Invalid order ID", 400);
@@ -198,6 +198,7 @@ public class OrderServlet extends HttpServlet {
         data.put("orderId", order.getOrderId());
         data.put("orderCode", order.getOrderCode());
         data.put("status", order.getOrderStatus());
+        data.put("paymentStatus", order.getPaymentStatus());
         data.put("finalAmount", order.getFinalAmount());
 
         if ("BANK_TRANSFER".equals(paymentMethod)) {
@@ -207,6 +208,7 @@ public class OrderServlet extends HttpServlet {
                 order.getOrderCode()
             );
             data.put("sepayQrUrl", qrUrl);
+            data.put("transferContent", "TT " + order.getOrderCode());
         }
 
         resp.setStatus(201);

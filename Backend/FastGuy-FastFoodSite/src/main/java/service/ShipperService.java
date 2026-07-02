@@ -78,6 +78,10 @@ public class ShipperService {
         if (order.getShipper() == null || order.getShipper().getUserId() != shipperId) return false;
         order.setOrderStatus("DELIVERED");
         order.setDeliveredAt(LocalDateTime.now());
+        if ("COD".equals(order.getPaymentMethod())) {
+            order.setPaymentStatus("PAID");
+            order.setPaidAt(LocalDateTime.now());
+        }
         ordersDAO.save(order);
         return true;
     }

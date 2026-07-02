@@ -182,6 +182,13 @@ public class StaffOrderServlet extends HttpServlet {
                 return;
             }
             String failureReason = (String) body.get("failureReason");
+            if ("CONFIRMED".equals(status)) {
+                Orders order = staffOrderService.getOrderDetail(orderId);
+                if (order != null && "BANK_TRANSFER".equals(order.getPaymentMethod()) && !"PAID".equals(order.getPaymentStatus())) {
+                    ApiResponse.error(resp, "Đơn chuyển khoản chưa thanh toán", 400);
+                    return;
+                }
+            }
             boolean ok = staffOrderService.updateStatus(orderId, status, staffId, failureReason);
             if (!ok) {
                 ApiResponse.error(resp, "Cannot update status: invalid transition", 400);

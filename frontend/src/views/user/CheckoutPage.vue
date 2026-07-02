@@ -239,11 +239,15 @@ async function placeOrder() {
       paymentPolling = setInterval(async () => {
         try {
           const status = await orderApi.getPaymentStatus(result.id);
-          if (status.paymentStatus === 'PAID') {
-            paymentConfirmed.value = true;
-            clearInterval(paymentPolling);
-            paymentPolling = null;
-          }
+            if (status.paymentStatus === 'PAID') {
+                paymentConfirmed.value = true;
+                clearInterval(paymentPolling);
+                paymentPolling = null;
+                cart.clear();
+                setTimeout(() => {
+                  router.push(`/account/orders/${result.id}`);
+                }, 2000);
+              }
         } catch (e) {}
       }, 5000);
     } else {

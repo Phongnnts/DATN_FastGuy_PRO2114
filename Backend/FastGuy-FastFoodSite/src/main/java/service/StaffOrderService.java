@@ -44,8 +44,10 @@ public class StaffOrderService {
     public boolean assignShipper(int orderId, int shipperId) {
         Orders order = ordersDAO.findById(orderId);
         if (order == null || !"READY".equals(order.getOrderStatus())) return false;
+        if (order.getShipper() != null) return false;
         User shipper = userDAO.findById(shipperId);
         if (shipper == null) return false;
+        if (shipper.getRole() == null || !"SHIPPER".equals(shipper.getRole().getRoleName())) return false;
         order.setShipper(shipper);
         order.setAssignedAt(LocalDateTime.now());
         ordersDAO.save(order);
@@ -61,6 +63,9 @@ public class StaffOrderService {
         switch (status) {
             case "CONFIRMED":
                 if (!"PENDING".equals(current)) return false;
+                if ("BANK_TRANSFER".equals(order.getPaymentMethod()) && !"PAID".equals(order.getPaymentStatus())) {
+                    return false;
+                }
                 order.setConfirmedAt(LocalDateTime.now());
                 break;
             case "PREPARING":

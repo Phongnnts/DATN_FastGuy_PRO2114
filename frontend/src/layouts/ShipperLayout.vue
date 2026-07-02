@@ -9,7 +9,6 @@ const route = useRoute();
 const navItems = [
   { path: '/shipper', name: 'Dashboard', icon: 'bi-house-door' },
   { path: '/shipper/orders', name: 'Đang giao', icon: 'bi-bicycle' },
-  { path: '/shipper/history', name: 'Lịch sử', icon: 'bi-clock-history' },
 ];
 
 function activeClass(path) {

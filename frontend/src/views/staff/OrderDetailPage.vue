@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStaffStore } from '@/stores/staff';
 import { formatPrice, formatDate } from '@/utils/format';
@@ -14,6 +14,11 @@ const showCancelModal = ref(false);
 const cancelReason = ref('');
 const selectedShipperId = ref(null);
 const shippers = ref([]);
+
+const pendingPayment = computed(() => {
+  if (!order.value) return false;
+  return order.value.paymentMethod === 'BANK_TRANSFER' && order.value.paymentStatus !== 'PAID';
+});
 
 async function loadShippers() {
   try {
@@ -43,6 +48,7 @@ async function updateStatus(status) {
   try {
     await staffStore.updateOrderStatus(order.value.id, status);
     order.value = await staffStore.fetchOrderById(route.params.id);
+    if (order.value.status === 'READY') loadShippers();
   } catch (e) {
     alert(e.message);
   }
@@ -124,10 +130,14 @@ function printInvoice() {
           <button
             v-if="order.status === 'PENDING'"
             class="btn btn-primary"
+            :disabled="pendingPayment"
             @click="confirmOrder"
           >
             <i class="bi bi-check-lg"></i> Xác nhận
           </button>
+          <p v-if="pendingPayment" style="margin-top:8px;font-size:13px;color:var(--red-active)">
+            <i class="bi bi-exclamation-circle"></i> Chờ khách thanh toán chuyển khoản
+          </p>
           <button
             v-if="order.status === 'CONFIRMED'"
             class="btn btn-primary"
