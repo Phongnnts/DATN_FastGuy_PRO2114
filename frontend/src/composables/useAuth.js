@@ -21,7 +21,7 @@ export function useAuth() {
 
   async function handleLogin(email, password) {
     await auth.login(email, password);
-    return auth.user;
+    cart.migrateToUser();
   }
 
   async function handleRegister(data) {
@@ -30,6 +30,7 @@ export function useAuth() {
   }
 
   function handleLogout() {
+    cart.clear();
     auth.logout();
   }
 

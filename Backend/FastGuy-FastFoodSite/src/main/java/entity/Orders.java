@@ -138,6 +138,12 @@ public class Orders {
     @Column(name = "internal_note")
     private String internalNote;
 
+    @Column(name = "coupon_code")
+    private String couponCode;
+
+    @Column(name = "discount_amount")
+    private BigDecimal discountAmount;
+
     @Column(name = "delivery_note")
     private String deliveryNote;
 
@@ -226,6 +232,10 @@ public class Orders {
     public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
     public String getDeliveryNote() { return deliveryNote; }
     public void setDeliveryNote(String deliveryNote) { this.deliveryNote = deliveryNote; }
+    public String getCouponCode() { return couponCode; }
+    public void setCouponCode(String couponCode) { this.couponCode = couponCode; }
+    public BigDecimal getDiscountAmount() { return discountAmount; }
+    public void setDiscountAmount(BigDecimal discountAmount) { this.discountAmount = discountAmount; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

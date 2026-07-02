@@ -5,24 +5,32 @@ import HeroBanner from '@/components/guest/HeroBanner.vue';
 import CategoryGrid from '@/components/guest/CategoryGrid.vue';
 import FeaturedProducts from '@/components/guest/FeaturedProducts.vue';
 import ProductCard from '@/components/common/ProductCard.vue';
+import bannerApi from '@/api/banner';
 
 const productStore = useProductStore();
 const newsletterEmail = ref('');
 const currentSlide = ref(0);
+const banners = ref([]);
 
 const previewProducts = computed(() => productStore.allProducts.slice(0, 10));
 const newProducts = computed(() => [...productStore.allProducts].sort((a,b) => b.productId - a.productId).slice(0, 8));
 
-const heroSlides = [
+const fallbackSlides = [
   { title: 'Burger Ngon Mỗi Ngày', subtitle: 'Khám phá bộ sưu tập burger mới', cta: 'Xem thực đơn', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Burger/classic-burger.jpg' },
   { title: 'Giảm 20% Đơn Đầu Tiên', subtitle: 'Nhập mã FASTGUY20 khi thanh toán', cta: 'Đặt ngay', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/GaRan/gran-split.jpg' },
   { title: 'Giao Hàng Siêu Tốc 30 Phút', subtitle: 'Nóng hổi từ bếp đến tay bạn', cta: 'Tìm hiểu thêm', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Pizza/pizza-margherita.jpg' },
 ];
 
 let slideInterval;
-onMounted(() => {
+onMounted(async () => {
   if (!productStore.fetched) productStore.init();
-  slideInterval = setInterval(() => { currentSlide.value = (currentSlide.value + 1) % heroSlides.length; }, 5000);
+  try {
+    const data = await bannerApi.getActive();
+    banners.value = (data && data.length > 0) ? data : fallbackSlides;
+  } catch {
+    banners.value = fallbackSlides;
+  }
+  slideInterval = setInterval(() => { currentSlide.value = (currentSlide.value + 1) % banners.value.length; }, 5000);
 });
 
 function subscribeNewsletter() {
@@ -36,16 +44,16 @@ function subscribeNewsletter() {
   <div>
     <!-- Hero Carousel -->
     <section class="hero-carousel">
-      <div v-for="(slide, i) in heroSlides" :key="i" class="hero-slide" :class="{ active: currentSlide === i }" :style="{ backgroundImage: 'url(' + slide.image + ')' }">
+      <div v-for="(slide, i) in banners" :key="i" class="hero-slide" :class="{ active: currentSlide === i }" :style="{ backgroundImage: 'url(' + slide.imageUrl + ')' }">
         <div class="hero-overlay"></div>
         <div class="container hero-content">
           <h1 class="hero-title">{{ slide.title }}</h1>
           <p class="hero-subtitle">{{ slide.subtitle }}</p>
-          <router-link :to="slide.link" class="btn btn-lg btn-primary" style="background:#fff;color:var(--primary);border:none">{{ slide.cta }}</router-link>
+          <router-link :to="slide.link || '/menu'" class="btn btn-lg btn-primary" style="background:#fff;color:var(--primary);border:none">{{ slide.cta || 'Xem thêm' }}</router-link>
         </div>
       </div>
       <div class="carousel-dots">
-        <button v-for="(_, i) in heroSlides" :key="i" class="dot" :class="{ active: currentSlide === i }" @click="currentSlide = i"></button>
+        <button v-for="(_, i) in banners" :key="i" class="dot" :class="{ active: currentSlide === i }" @click="currentSlide = i"></button>
       </div>
     </section>
     <div v-if="productStore.loading" class="loading-section">

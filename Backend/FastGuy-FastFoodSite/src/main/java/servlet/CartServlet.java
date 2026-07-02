@@ -81,7 +81,11 @@ public class CartServlet extends HttpServlet {
         int cartItemId = ((Number) body.get("cartItemId")).intValue();
         int quantity = ((Number) body.get("quantity")).intValue();
 
-        cartService.updateItemQuantity(cartItemId, quantity);
+        boolean ok = cartService.updateItemQuantity(cartItemId, userId, quantity);
+        if (!ok) {
+            ApiResponse.error(resp, "Cannot update: item not found or insufficient stock", 400);
+            return;
+        }
         ApiResponse.ok(resp, null, "Updated");
     }
 
@@ -98,7 +102,11 @@ public class CartServlet extends HttpServlet {
         }
 
         int cartItemId = Integer.parseInt(path.substring(1));
-        cartService.removeItem(cartItemId);
+        boolean ok = cartService.removeItem(cartItemId, userId);
+        if (!ok) {
+            ApiResponse.error(resp, "Item not found", 404);
+            return;
+        }
         ApiResponse.ok(resp, null, "Removed");
     }
 }

@@ -29,9 +29,9 @@ const sidebarLinks = [
   { label: 'Sản phẩm', path: '/admin/products', icon: 'bi-box-seam' },
   { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
   { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
-  { label: 'Ca làm việc', path: '/admin/shifts', icon: 'bi-calendar-check' },
   { label: 'Doanh thu', path: '/admin/reports/revenue', icon: 'bi-graph-up' },
   { label: 'Bán chạy', path: '/admin/reports/top-products', icon: 'bi-trophy' },
+  { label: 'Mã giảm giá', path: '/admin/coupons', icon: 'bi-ticket-perforated' },
 ];
 </script>
 
