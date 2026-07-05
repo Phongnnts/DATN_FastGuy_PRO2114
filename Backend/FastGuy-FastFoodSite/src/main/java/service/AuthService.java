@@ -19,6 +19,10 @@ public class AuthService {
         }
         if (user != null && PasswordUtil.check(password, user.getPasswordHash())) {
             if ("ACTIVE".equals(user.getStatus())) {
+                if (!PasswordUtil.isHashed(user.getPasswordHash())) {
+                    user.setPasswordHash(PasswordUtil.hash(password));
+                    userDAO.save(user);
+                }
                 return user;
             }
         }

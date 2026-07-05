@@ -22,9 +22,6 @@ export default {
   getPaymentStatus(id) {
     return client.get(`/orders/${id}/payment-status`);
   },
-  confirmPayment(id) {
-    return client.put(`/orders/${id}/confirm-payment`);
-  },
   guestCheckout(data) {
     return client.post('/orders/guest-checkout', data);
   },

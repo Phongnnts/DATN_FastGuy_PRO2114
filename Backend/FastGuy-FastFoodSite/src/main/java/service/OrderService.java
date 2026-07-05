@@ -37,6 +37,7 @@ public class OrderService {
                            BigDecimal shippingFee, String couponCode) {
         User user = userDAO.findById(userId);
         if (user == null) return null;
+        if (!isValidAddress(address) || !isValidPhone(phone != null ? phone : user.getPhone())) return null;
 
         Cart cart = cartDAO.findByUserId(userId);
         if (cart == null) return null;
@@ -132,9 +133,10 @@ public class OrderService {
                                 Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
                                 String toProvinceName, String toDistrictName, String toWardName,
                                 String couponCode) {
-        if (customerName == null || phone == null || address == null || itemsData == null || itemsData.isEmpty()) {
+        if (customerName == null || customerName.trim().length() < 2 || phone == null || address == null || itemsData == null || itemsData.isEmpty()) {
             return null;
         }
+        if (!isValidPhone(phone) || !isValidAddress(address)) return null;
 
         if (shippingFee == null || shippingFee.compareTo(BigDecimal.ZERO) < 0) {
             shippingFee = BigDecimal.ZERO;
@@ -145,15 +147,17 @@ public class OrderService {
             int productId = ((Number) itemData.get("productId")).intValue();
             int variantId = ((Number) itemData.get("variantId")).intValue();
             int qty = ((Number) itemData.get("quantity")).intValue();
-            BigDecimal unitPrice = itemData.get("unitPrice") instanceof Number
-                    ? BigDecimal.valueOf(((Number) itemData.get("unitPrice")).doubleValue())
-                    : new BigDecimal(itemData.get("unitPrice").toString());
+            if (qty <= 0) return null;
 
             Product product = productDAO.findById(productId);
-            if (product == null) return null;
+            if (product == null || !"AVAILABLE".equals(product.getStatus())) return null;
             ProductVariant variant = productDAO.findVariantById(variantId);
-            if (variant == null) return null;
+            if (variant == null || variant.getProduct() == null || variant.getProduct().getProductId() != productId) return null;
+            if (!"AVAILABLE".equals(variant.getStatus())) return null;
+            if (variant.getQuantityAvailable() != null && variant.getQuantityAvailable() < qty) return null;
 
+            BigDecimal unitPrice = variant.getPrice() != null ? variant.getPrice() : product.getBasePrice();
+            if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) < 0) return null;
             totalAmount = totalAmount.add(unitPrice.multiply(BigDecimal.valueOf(qty)));
         }
 
@@ -202,12 +206,9 @@ public class OrderService {
             int productId = ((Number) itemData.get("productId")).intValue();
             int variantId = ((Number) itemData.get("variantId")).intValue();
             int qty = ((Number) itemData.get("quantity")).intValue();
-            BigDecimal unitPrice = itemData.get("unitPrice") instanceof Number
-                    ? BigDecimal.valueOf(((Number) itemData.get("unitPrice")).doubleValue())
-                    : new BigDecimal(itemData.get("unitPrice").toString());
-
             Product product = productDAO.findById(productId);
             ProductVariant variant = productDAO.findVariantById(variantId);
+            BigDecimal unitPrice = variant.getPrice() != null ? variant.getPrice() : product.getBasePrice();
 
             OrderItem oi = new OrderItem();
             oi.setOrder(order);
@@ -222,5 +223,14 @@ public class OrderService {
         }
 
         return order;
+    }
+
+    private boolean isValidPhone(String phone) {
+        return phone != null && phone.trim().matches("^(0|\\+84)(3|5|7|8|9)[0-9]{8}$");
+    }
+
+    private boolean isValidAddress(String address) {
+        String value = address == null ? "" : address.trim();
+        return value.length() >= 5 && value.length() <= 500;
     }
 }
