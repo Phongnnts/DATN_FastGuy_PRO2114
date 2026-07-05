@@ -51,7 +51,6 @@ const sepayQrUrl = ref('');
 const paymentConfirmed = ref(false);
 const createdOrderCode = ref('');
 const createdOrderId = ref(null);
-const confirming = ref(false);
 let paymentPolling = null;
 
 onUnmounted(() => {
@@ -203,15 +202,19 @@ function getFullAddress() {
   ].filter(Boolean).join(', ');
 }
 
+function isValidPhone(value) {
+  return /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(value.trim());
+}
+
 function canPlaceOrder() {
   if (shippingProvider.value === 'FALLBACK_ZONE') {
     return shippingFee.value !== null
-      && recipientName.value.trim()
-      && phone.value.trim()
-      && street.value.trim();
+      && recipientName.value.trim().length >= 2
+      && isValidPhone(phone.value)
+      && street.value.trim().length >= 5;
   }
   return selectedWard.value && selectedDistrict.value && shippingFee.value !== null
-    && recipientName.value.trim() && phone.value.trim() && street.value.trim();
+    && recipientName.value.trim().length >= 2 && isValidPhone(phone.value) && street.value.trim().length >= 5;
 }
 
 function getProvinceName() {
@@ -279,7 +282,6 @@ async function placeOrder() {
         productId: i.productId,
         variantId: i.variantId,
         quantity: i.quantity,
-        unitPrice: i.price,
       }));
       const result = await orderApi.guestCheckout({
         customerName: recipientName.value.trim(),
@@ -345,24 +347,6 @@ async function placeOrder() {
   }
 }
 
-async function handleConfirmPayment() {
-  if (confirming.value || !createdOrderId.value) return;
-  confirming.value = true;
-  try {
-    await orderApi.confirmPayment(createdOrderId.value);
-    paymentConfirmed.value = true;
-    clearInterval(paymentPolling);
-    paymentPolling = null;
-    cart.clear();
-    setTimeout(() => {
-      router.push(`/account/orders/${createdOrderId.value}`);
-    }, 2000);
-  } catch (e) {
-    alert(e.message);
-  } finally {
-    confirming.value = false;
-  }
-}
 </script>
 
 <template>
@@ -402,7 +386,7 @@ async function handleConfirmPayment() {
           <div v-if="useNewAddress || savedAddresses.length === 0">
             <div class="form-group">
               <label class="form-label">Tên người nhận</label>
-              <input v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" required />
+              <input v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" minlength="2" maxlength="100" required />
             </div>
             <div class="form-group">
               <label class="form-label">Tỉnh / Thành phố</label>
@@ -428,11 +412,11 @@ async function handleConfirmPayment() {
             </div>
             <div class="form-group">
               <label class="form-label">Số nhà, tên đường</label>
-              <input v-model="street" class="form-input" placeholder="VD: 123 Nguyễn Huệ" required />
+              <input v-model="street" class="form-input" placeholder="VD: 123 Nguyễn Huệ" minlength="5" maxlength="255" required />
             </div>
             <div class="form-group">
               <label class="form-label">Số điện thoại</label>
-              <input v-model="phone" type="tel" class="form-input" placeholder="Số điện thoại nhận hàng" required />
+              <input v-model="phone" type="tel" class="form-input" placeholder="Số điện thoại nhận hàng" pattern="^(0|\+84)(3|5|7|8|9)[0-9]{8}$" required />
             </div>
           </div>
 
@@ -495,10 +479,7 @@ async function handleConfirmPayment() {
               <p style="color:#10b981;font-weight:600">Đã thanh toán thành công!</p>
             </div>
             <div v-else style="text-align:center;padding:12px">
-              <i class="bi bi-arrow-repeat spin"></i> Đang chờ thanh toán...
-              <button class="btn btn-primary" style="margin-top:12px;width:100%" :disabled="confirming" @click="handleConfirmPayment">
-                <i class="bi bi-check-circle"></i> {{ confirming ? 'Đang xác nhận...' : 'Tôi đã chuyển khoản' }}
-              </button>
+              <i class="bi bi-arrow-repeat spin"></i> Đang chờ cổng thanh toán xác nhận...
             </div>
           </div>
         </div>

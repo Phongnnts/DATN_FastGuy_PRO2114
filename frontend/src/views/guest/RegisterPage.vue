@@ -18,6 +18,19 @@ const loading = ref(false);
 
 async function handleRegister() {
   error.value = '';
+  const phonePattern = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+  if (form.value.name.trim().length < 2) {
+    error.value = 'Họ tên phải từ 2 ký tự';
+    return;
+  }
+  if (!phonePattern.test(form.value.phone.trim())) {
+    error.value = 'Số điện thoại không hợp lệ';
+    return;
+  }
+  if (form.value.password.length < 6) {
+    error.value = 'Mật khẩu phải từ 6 ký tự';
+    return;
+  }
   if (form.value.password !== form.value.confirmPassword) {
     error.value = 'Mật khẩu không khớp';
     return;
@@ -25,9 +38,9 @@ async function handleRegister() {
   loading.value = true;
   try {
     await auth.register({
-      fullName: form.value.name,
-      email: form.value.email,
-      phone: form.value.phone,
+      fullName: form.value.name.trim(),
+      email: form.value.email.trim(),
+      phone: form.value.phone.trim(),
       password: form.value.password,
     });
     router.push('/');
@@ -55,6 +68,8 @@ async function handleRegister() {
               type="text"
               class="form-input"
               placeholder="Nguyễn Văn A"
+              minlength="2"
+              maxlength="100"
               required
             />
           </div>
@@ -75,6 +90,7 @@ async function handleRegister() {
               type="tel"
               class="form-input"
               placeholder="0912345678"
+              pattern="^(0|\+84)(3|5|7|8|9)[0-9]{8}$"
               required
             />
           </div>
@@ -85,6 +101,8 @@ async function handleRegister() {
               type="password"
               class="form-input"
               placeholder="••••••"
+              minlength="6"
+              maxlength="72"
               required
             />
           </div>
@@ -95,6 +113,8 @@ async function handleRegister() {
               type="password"
               class="form-input"
               placeholder="••••••"
+              minlength="6"
+              maxlength="72"
               required
             />
           </div>

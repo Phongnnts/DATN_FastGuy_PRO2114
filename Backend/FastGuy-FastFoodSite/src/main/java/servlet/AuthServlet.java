@@ -3,6 +3,7 @@ package servlet;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import entity.User;
 import jakarta.servlet.ServletException;
@@ -17,6 +18,8 @@ import utils.JwtUtil;
 
 @WebServlet("/api/auth/*")
 public class AuthServlet extends HttpServlet {
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^(0|\\+84)(3|5|7|8|9)[0-9]{8}$");
     private AuthService authService = new AuthService();
 
     @Override
@@ -101,7 +104,7 @@ public class AuthServlet extends HttpServlet {
     }
 
     private void handleLogin(Map<String, Object> body, HttpServletResponse resp) throws IOException {
-        String login = (String) body.get("login");
+        String login = trim((String) body.get("login"));
         String password = (String) body.get("password");
 
         if (login == null || password == null) {
@@ -128,13 +131,14 @@ public class AuthServlet extends HttpServlet {
     }
 
     private void handleRegister(Map<String, Object> body, HttpServletResponse resp) throws IOException {
-        String fullName = (String) body.get("fullName");
-        String phone = (String) body.get("phone");
-        String email = (String) body.get("email");
+        String fullName = trim((String) body.get("fullName"));
+        String phone = trim((String) body.get("phone"));
+        String email = trim((String) body.get("email"));
         String password = (String) body.get("password");
 
-        if (fullName == null || phone == null || password == null) {
-            JsonUtil.write(resp, ApiResponse.error("Vui lòng nhập đầy đủ thông tin"));
+        String validationError = validateAccount(fullName, phone, email, password, true);
+        if (validationError != null) {
+            JsonUtil.write(resp, ApiResponse.error(validationError));
             return;
         }
 
@@ -199,6 +203,18 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
+        String fullName = trim((String) body.get("fullName"));
+        String phone = trim((String) body.get("phone"));
+        String email = trim((String) body.get("email"));
+        String validationError = validateAccount(fullName, phone, email, null, false);
+        if (validationError != null) {
+            JsonUtil.write(resp, ApiResponse.error(validationError));
+            return;
+        }
+        body.put("fullName", fullName);
+        body.put("phone", phone);
+        body.put("email", email);
+
         User user = authService.updateProfile(userId, body);
         if (user == null) {
             JsonUtil.write(resp, ApiResponse.error("Số điện thoại hoặc email đã tồn tại"));
@@ -213,6 +229,18 @@ public class AuthServlet extends HttpServlet {
         data.put("avatarUrl", user.getAvatarUrl());
 
         JsonUtil.write(resp, ApiResponse.ok(data, "Cập nhật thành công"));
+    }
+
+    private String validateAccount(String fullName, String phone, String email, String password, boolean requirePassword) {
+        if (fullName == null || fullName.length() < 2 || fullName.length() > 100) return "Họ tên phải từ 2 đến 100 ký tự";
+        if (phone == null || !PHONE_PATTERN.matcher(phone).matches()) return "Số điện thoại không hợp lệ";
+        if (email != null && !email.isEmpty() && !EMAIL_PATTERN.matcher(email).matches()) return "Email không hợp lệ";
+        if (requirePassword && (password == null || password.length() < 6 || password.length() > 72)) return "Mật khẩu phải từ 6 đến 72 ký tự";
+        return null;
+    }
+
+    private String trim(String value) {
+        return value == null ? null : value.trim();
     }
 
     private int getUserIdFromToken(HttpServletRequest req) {
