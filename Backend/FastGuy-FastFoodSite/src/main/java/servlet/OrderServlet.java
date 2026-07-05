@@ -240,27 +240,7 @@ public class OrderServlet extends HttpServlet {
         }
 
         if (path.endsWith("/confirm-payment")) {
-            String orderIdStr = path.substring(1, path.length() - "/confirm-payment".length());
-            int orderId = Integer.parseInt(orderIdStr);
-
-            Orders order = ordersDAO.findById(orderId);
-            if (order == null || order.getUser().getUserId() != userId) {
-                ApiResponse.error(resp, "Order not found", 404);
-                return;
-            }
-            if (!"BANK_TRANSFER".equals(order.getPaymentMethod())) {
-                ApiResponse.error(resp, "Not a bank transfer order", 400);
-                return;
-            }
-            if ("PAID".equals(order.getPaymentStatus())) {
-                ApiResponse.error(resp, "Already paid", 400);
-                return;
-            }
-
-            order.setPaymentStatus("PAID");
-            order.setPaidAt(LocalDateTime.now());
-            ordersDAO.save(order);
-            ApiResponse.ok(resp, null, "Payment confirmed");
+            ApiResponse.error(resp, "Payment must be confirmed by payment gateway", 403);
             return;
         }
 
