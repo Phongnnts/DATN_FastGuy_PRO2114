@@ -35,6 +35,33 @@ public class AdminCouponServlet extends HttpServlet {
         return true;
     }
 
+    private String validateCoupon(Map<String, Object> body, boolean create) {
+        if (create && !(body.get("code") instanceof String)) return "Code is required";
+        if (body.containsKey("code")) {
+            String code = ((String) body.get("code")).trim().toUpperCase();
+            if (!code.matches("^[A-Z0-9_-]{3,30}$")) return "Code is invalid";
+        }
+        String type = body.containsKey("type") ? (String) body.get("type") : null;
+        if (create && type == null) return "Type is required";
+        if (type != null && !List.of("PERCENT", "FIXED", "FREE_SHIPPING").contains(type)) return "Type is invalid";
+        if (body.containsKey("value")) {
+            if (!(body.get("value") instanceof Number)) return "Value is invalid";
+            double value = ((Number) body.get("value")).doubleValue();
+            String currentType = type != null ? type : "PERCENT";
+            if ("PERCENT".equals(currentType) && (value <= 0 || value > 100)) return "Percent value must be 1-100";
+            if ("FIXED".equals(currentType) && value <= 0) return "Fixed value must be greater than 0";
+            if (value < 0) return "Value cannot be negative";
+        }
+        if (isNegative(body.get("minOrder"))) return "Min order cannot be negative";
+        if (isNegative(body.get("maxDiscount"))) return "Max discount cannot be negative";
+        if (isNegative(body.get("maxUses"))) return "Max uses cannot be negative";
+        return null;
+    }
+
+    private boolean isNegative(Object value) {
+        return value instanceof Number && ((Number) value).doubleValue() < 0;
+    }
+
     private Map<String, Object> toMap(Coupon c) {
         Map<String, Object> m = new HashMap<>();
         m.put("couponId", c.getCouponId());
@@ -81,13 +108,15 @@ public class AdminCouponServlet extends HttpServlet {
 
         Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+        String validationError = validateCoupon(body, true);
+        if (validationError != null) { ApiResponse.error(resp, validationError, 400); return; }
 
         Coupon c = new Coupon();
         c.setCode(((String) body.get("code")).toUpperCase().trim());
         c.setType((String) body.get("type"));
         if (body.containsKey("value")) c.setValue(BigDecimal.valueOf(((Number) body.get("value")).doubleValue()));
         if (body.containsKey("minOrder")) c.setMinOrder(BigDecimal.valueOf(((Number) body.get("minOrder")).doubleValue()));
-        if (body.containsKey("maxDiscount")) c.setMaxDiscount(BigDecimal.valueOf(((Number) body.get("maxDiscount")).doubleValue()));
+        if (body.containsKey("maxDiscount") && body.get("maxDiscount") instanceof Number) c.setMaxDiscount(BigDecimal.valueOf(((Number) body.get("maxDiscount")).doubleValue()));
         if (body.containsKey("maxUses")) c.setMaxUses(((Number) body.get("maxUses")).intValue());
         if (body.containsKey("expiresAt")) {
             try { c.setExpiresAt(LocalDateTime.parse((String) body.get("expiresAt"), DateTimeFormatter.ISO_LOCAL_DATE_TIME)); } catch (Exception e) {}
@@ -116,12 +145,14 @@ public class AdminCouponServlet extends HttpServlet {
 
             Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
             if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+            String validationError = validateCoupon(body, false);
+            if (validationError != null) { ApiResponse.error(resp, validationError, 400); return; }
 
             if (body.containsKey("code")) c.setCode(((String) body.get("code")).toUpperCase().trim());
             if (body.containsKey("type")) c.setType((String) body.get("type"));
             if (body.containsKey("value")) c.setValue(BigDecimal.valueOf(((Number) body.get("value")).doubleValue()));
             if (body.containsKey("minOrder")) c.setMinOrder(BigDecimal.valueOf(((Number) body.get("minOrder")).doubleValue()));
-            if (body.containsKey("maxDiscount")) c.setMaxDiscount(BigDecimal.valueOf(((Number) body.get("maxDiscount")).doubleValue()));
+            if (body.containsKey("maxDiscount") && body.get("maxDiscount") instanceof Number) c.setMaxDiscount(BigDecimal.valueOf(((Number) body.get("maxDiscount")).doubleValue()));
             if (body.containsKey("maxUses")) c.setMaxUses(((Number) body.get("maxUses")).intValue());
             if (body.containsKey("expiresAt")) {
                 try { c.setExpiresAt(LocalDateTime.parse((String) body.get("expiresAt"), DateTimeFormatter.ISO_LOCAL_DATE_TIME)); } catch (Exception e) {}

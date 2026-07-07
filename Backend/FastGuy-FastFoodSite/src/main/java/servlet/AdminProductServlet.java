@@ -63,6 +63,40 @@ public class AdminProductServlet extends HttpServlet {
         }
     }
 
+    private String validateProduct(Map<String, Object> body, boolean create) {
+        if (create && !(body.get("categoryId") instanceof Number)) return "Category is required";
+        if (body.containsKey("categoryId") && !(body.get("categoryId") instanceof Number)) return "Category is invalid";
+        if (create && !(body.get("name") instanceof String)) return "Name is required";
+        if (body.containsKey("name")) {
+            String name = ((String) body.get("name")).trim();
+            if (name.length() < 2 || name.length() > 150) return "Name must be 2-150 characters";
+        }
+        if (body.containsKey("basePrice")) {
+            if (!(body.get("basePrice") instanceof Number)) return "Base price is invalid";
+            if (((Number) body.get("basePrice")).doubleValue() < 0) return "Base price cannot be negative";
+        }
+        if (body.containsKey("status") && !List.of("AVAILABLE", "UNAVAILABLE").contains(body.get("status"))) return "Status is invalid";
+        return null;
+    }
+
+    private String validateVariant(Map<String, Object> body, boolean create) {
+        if (create && !(body.get("variantName") instanceof String)) return "Variant name is required";
+        if (body.containsKey("variantName")) {
+            String name = ((String) body.get("variantName")).trim();
+            if (name.length() < 1 || name.length() > 100) return "Variant name is invalid";
+        }
+        if (body.containsKey("price")) {
+            if (!(body.get("price") instanceof Number)) return "Variant price is invalid";
+            if (((Number) body.get("price")).doubleValue() < 0) return "Variant price cannot be negative";
+        }
+        if (body.containsKey("quantityAvailable")) {
+            if (!(body.get("quantityAvailable") instanceof Number)) return "Quantity is invalid";
+            if (((Number) body.get("quantityAvailable")).intValue() < 0) return "Quantity cannot be negative";
+        }
+        if (body.containsKey("status") && !List.of("AVAILABLE", "UNAVAILABLE").contains(body.get("status"))) return "Status is invalid";
+        return null;
+    }
+
     private Map<String, Object> toVariantMap(ProductVariant v) {
         Map<String, Object> m = new HashMap<>();
         m.put("variantId", v.getVariantId());
@@ -161,13 +195,15 @@ public class AdminProductServlet extends HttpServlet {
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
 
         if (segs.length == 0) {
+            String validationError = validateProduct(body, true);
+            if (validationError != null) { ApiResponse.error(resp, validationError, 400); return; }
             Integer categoryId = ((Number) body.get("categoryId")).intValue();
             Category category = categoryDAO.findById(categoryId);
             if (category == null) { ApiResponse.error(resp, "Category not found", 400); return; }
 
             Product p = new Product();
             p.setCategory(category);
-            p.setName((String) body.get("name"));
+            p.setName(((String) body.get("name")).trim());
             p.setDescription((String) body.get("description"));
             if (body.containsKey("basePrice")) {
                 p.setBasePrice(BigDecimal.valueOf(((Number) body.get("basePrice")).doubleValue()));
@@ -191,9 +227,11 @@ public class AdminProductServlet extends HttpServlet {
             Product p = productDAO.findById(productId);
             if (p == null) { ApiResponse.error(resp, "Product not found", 404); return; }
 
+            String validationError = validateVariant(body, true);
+            if (validationError != null) { ApiResponse.error(resp, validationError, 400); return; }
             ProductVariant v = new ProductVariant();
             v.setProduct(p);
-            v.setVariantName((String) body.get("variantName"));
+            v.setVariantName(((String) body.get("variantName")).trim());
             if (body.containsKey("price")) {
                 v.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
             }
@@ -231,12 +269,14 @@ public class AdminProductServlet extends HttpServlet {
             if (id == null) { resp.sendError(404); return; }
             Product p = productDAO.findById(id);
             if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
+            String validationError = validateProduct(body, false);
+            if (validationError != null) { ApiResponse.error(resp, validationError, 400); return; }
 
             if (body.containsKey("categoryId")) {
                 Category c = categoryDAO.findById(((Number) body.get("categoryId")).intValue());
                 if (c != null) p.setCategory(c);
             }
-            if (body.containsKey("name")) p.setName((String) body.get("name"));
+            if (body.containsKey("name")) p.setName(((String) body.get("name")).trim());
             if (body.containsKey("description")) p.setDescription((String) body.get("description"));
             if (body.containsKey("basePrice")) p.setBasePrice(BigDecimal.valueOf(((Number) body.get("basePrice")).doubleValue()));
             if (body.containsKey("imageUrl")) p.setImageUrl((String) body.get("imageUrl"));
@@ -256,8 +296,10 @@ public class AdminProductServlet extends HttpServlet {
             if (vid == null) { resp.sendError(404); return; }
             ProductVariant v = productDAO.findVariantById(vid);
             if (v == null) { ApiResponse.error(resp, "Not found", 404); return; }
+            String validationError = validateVariant(body, false);
+            if (validationError != null) { ApiResponse.error(resp, validationError, 400); return; }
 
-            if (body.containsKey("variantName")) v.setVariantName((String) body.get("variantName"));
+            if (body.containsKey("variantName")) v.setVariantName(((String) body.get("variantName")).trim());
             if (body.containsKey("price")) v.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
             if (body.containsKey("originalPrice")) v.setOriginalPrice(BigDecimal.valueOf(((Number) body.get("originalPrice")).doubleValue()));
             if (body.containsKey("sku")) v.setSku((String) body.get("sku"));

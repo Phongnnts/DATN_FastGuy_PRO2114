@@ -13,6 +13,7 @@ const cart = useCartStore();
 const quantity = ref(1);
 const selectedVariant = ref(null);
 const activeImageIndex = ref(0);
+const loading = ref(true);
 
 const product = computed(() => productStore.currentProduct);
 
@@ -33,11 +34,16 @@ const galleryImages = computed(() => {
 });
 
 onMounted(async () => {
-  if (!productStore.fetched) await productStore.init();
-  await productStore.fetchById(route.params.id);
-  if (product.value?.variants?.length) {
-    const def = product.value.variants.find((v) => v.isDefault);
-    selectedVariant.value = def || product.value.variants[0];
+  loading.value = true;
+  try {
+    if (!productStore.fetched) await productStore.init();
+    await productStore.fetchById(route.params.id);
+    if (product.value?.variants?.length) {
+      const def = product.value.variants.find((v) => v.isDefault);
+      selectedVariant.value = def || product.value.variants[0];
+    }
+  } finally {
+    loading.value = false;
   }
 });
 
@@ -57,7 +63,13 @@ async function addToCart() {
 </script>
 
 <template>
-  <div class="page" v-if="product">
+  <div v-if="loading" class="container" style="padding: 60px 0">
+    <div class="empty-state">
+      <i class="bi bi-arrow-repeat spin"></i>
+      <h3>Đang tải sản phẩm...</h3>
+    </div>
+  </div>
+  <div class="page" v-else-if="product">
     <div class="container">
       <div class="breadcrumb">
         <router-link to="/">Trang chủ</router-link>
@@ -415,6 +427,13 @@ async function addToCart() {
   color: var(--text-light);
   font-size: 14px;
   padding: 20px 0;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 @media (max-width: 768px) {
   .detail-layout {

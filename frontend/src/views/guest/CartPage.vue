@@ -56,7 +56,7 @@ function proceedCheckout() {
             <span>Tạm tính</span><span>{{ formatPrice(cart.subtotal) }}</span>
           </div>
           <div class="summary-row">
-            <span>Phí giao hàng</span><span class="text-primary">Miễn phí</span>
+            <span>Phí giao hàng</span><span class="text-primary">Tính ở bước thanh toán</span>
           </div>
           <div class="summary-divider"></div>
           <div class="summary-row summary-total">

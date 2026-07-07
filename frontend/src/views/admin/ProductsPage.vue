@@ -8,6 +8,8 @@ const adminStore = useAdminStore();
 const searchTerm = ref('');
 const uploading = ref(false);
 const uploadingGallery = ref(false);
+const submitting = ref(false);
+const formError = ref('');
 
 onMounted(() => {
   adminStore.fetchProducts();
@@ -29,6 +31,7 @@ const productVariants = ref([]);
 
 function openAdd() {
   editingId.value = null;
+  formError.value = '';
   form.value = {
     name: '',
     categoryId: adminStore.allCategories[0]?.id || null,
@@ -44,6 +47,7 @@ function openAdd() {
 
 function openEdit(p) {
   editingId.value = p.id;
+  formError.value = '';
   form.value = {
     name: p.name,
     categoryId: p.categoryId,
@@ -104,26 +108,46 @@ function removeGallery(idx) {
 }
 
 async function save() {
-  const payload = {
-    name: form.value.name,
-    categoryId: form.value.categoryId,
-    basePrice: form.value.basePrice,
-    imageUrl: form.value.image,
-    description: form.value.description,
-    status: form.value.status,
-    galleryImages: form.value.galleryImages,
-  };
-  if (editingId.value) {
-    await adminStore.updateProduct(editingId.value, payload);
-    await syncVariants(editingId.value);
-  } else {
-    const created = await adminStore.createProduct(payload);
-    if (created) {
-      const newId = created.productId;
-      if (newId) await syncVariants(newId);
+  formError.value = validateForm();
+  if (formError.value) return;
+  submitting.value = true;
+  try {
+    const payload = {
+      name: form.value.name.trim(),
+      categoryId: form.value.categoryId,
+      basePrice: Number(form.value.basePrice),
+      imageUrl: form.value.image,
+      description: form.value.description,
+      status: form.value.status,
+      galleryImages: form.value.galleryImages,
+    };
+    if (editingId.value) {
+      await adminStore.updateProduct(editingId.value, payload);
+      await syncVariants(editingId.value);
+    } else {
+      const created = await adminStore.createProduct(payload);
+      if (created) {
+        const newId = created.productId;
+        if (newId) await syncVariants(newId);
+      }
     }
+    showForm.value = false;
+  } catch (e) {
+    formError.value = e.message || 'Lưu sản phẩm thất bại';
+  } finally {
+    submitting.value = false;
   }
-  showForm.value = false;
+}
+
+function validateForm() {
+  if (form.value.name.trim().length < 2) return 'Tên sản phẩm phải từ 2 ký tự';
+  if (!form.value.categoryId) return 'Vui lòng chọn danh mục';
+  if (Number(form.value.basePrice) < 0) return 'Giá gốc không được âm';
+  for (const v of productVariants.value) {
+    if (!v.variantName?.trim()) return 'Tên biến thể không được trống';
+    if (Number(v.price) < 0) return 'Giá biến thể không được âm';
+  }
+  return '';
 }
 
 async function syncVariants(productId) {
@@ -201,7 +225,19 @@ const filtered = computed(() => {
           placeholder="Tìm sản phẩm..."
         />
       </div>
-      <div class="table-wrapper">
+      <div v-if="adminStore.error" class="empty-state">
+        <i class="bi bi-exclamation-triangle"></i>
+        <h3>{{ adminStore.error }}</h3>
+      </div>
+      <div v-else-if="adminStore.loading" class="empty-state">
+        <i class="bi bi-arrow-repeat spin"></i>
+        <h3>Đang tải sản phẩm...</h3>
+      </div>
+      <div v-else-if="filtered.length === 0" class="empty-state">
+        <i class="bi bi-box"></i>
+        <h3>Chưa có sản phẩm</h3>
+      </div>
+      <div v-else class="table-wrapper">
         <table class="table">
           <thead>
             <tr>
@@ -282,14 +318,15 @@ const filtered = computed(() => {
           </button>
         </div>
         <form @submit.prevent="save">
+          <p v-if="formError" class="form-error">{{ formError }}</p>
           <div class="form-group">
             <label class="form-label">Tên</label
-            ><input v-model="form.name" class="form-input" required />
+            ><input v-model="form.name" class="form-input" minlength="2" maxlength="150" required />
           </div>
           <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Danh mục</label
-              ><select v-model="form.categoryId" class="form-select">
+              ><select v-model="form.categoryId" class="form-select" required>
                 <option
                   v-for="c in adminStore.allCategories"
                   :key="c.id"
@@ -305,6 +342,7 @@ const filtered = computed(() => {
                 v-model.number="form.basePrice"
                 type="number"
                 class="form-input"
+                min="0"
                 required
               />
             </div>
@@ -403,6 +441,7 @@ const filtered = computed(() => {
                 class="form-input"
                 placeholder="Tên (vd: Size L)"
                 style="flex: 2"
+                required
               />
               <input
                 v-model.number="v.price"
@@ -410,6 +449,7 @@ const filtered = computed(() => {
                 class="form-input"
                 placeholder="Giá"
                 style="flex: 1"
+                min="0"
               />
               <label class="option-stock">
                 <input type="checkbox" :checked="v.isDefault" @change="setDefaultVariant(idx)" />
@@ -441,8 +481,8 @@ const filtered = computed(() => {
               @click="showForm = false"
             >
               Hủy</button
-            ><button type="submit" class="btn btn-primary">
-              {{ editingId ? 'Cập nhật' : 'Thêm mới' }}
+            ><button type="submit" class="btn btn-primary" :disabled="submitting">
+              {{ submitting ? 'Đang lưu...' : editingId ? 'Cập nhật' : 'Thêm mới' }}
             </button>
           </div>
         </form>
@@ -565,5 +605,17 @@ const filtered = computed(() => {
   font-size: 13px;
   white-space: nowrap;
   cursor: pointer;
+}
+.empty-state {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--text-mid);
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
