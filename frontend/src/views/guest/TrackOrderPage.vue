@@ -13,17 +13,25 @@ const orderCode = ref('');
 const trackingResult = ref(null);
 const error = ref('');
 const searched = ref(false);
+const loading = ref(false);
 
 async function track() {
-  if (!orderCode.value) return;
+  const code = orderCode.value.trim().toUpperCase();
+  if (!code || loading.value) return;
+  orderCode.value = code;
   error.value = '';
   searched.value = true;
-  const result = await orderStore.trackOrder(orderCode.value);
-  if (result) {
-    trackingResult.value = result;
-  } else {
-    trackingResult.value = null;
-    error.value = 'Không tìm thấy đơn hàng với mã này';
+  loading.value = true;
+  try {
+    const result = await orderStore.trackOrder(code);
+    if (result) {
+      trackingResult.value = result;
+    } else {
+      trackingResult.value = null;
+      error.value = 'Không tìm thấy đơn hàng với mã này';
+    }
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -49,12 +57,14 @@ onMounted(() => {
             v-model="orderCode"
             type="text"
             class="form-input"
-            placeholder="VD: FG-20240201-001"
+            placeholder="VD: ORD-ABC12345"
+            maxlength="20"
             @keyup.enter="track"
             style="flex: 1"
           />
-          <button class="btn btn-primary" @click="track">
-            <i class="bi bi-search"></i>
+          <button class="btn btn-primary" :disabled="loading || !orderCode.trim()" @click="track">
+            <i v-if="loading" class="bi bi-arrow-repeat spin"></i>
+            <i v-else class="bi bi-search"></i>
           </button>
         </div>
       </div>
@@ -134,5 +144,12 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 16px;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

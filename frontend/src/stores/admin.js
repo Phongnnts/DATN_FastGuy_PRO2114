@@ -64,12 +64,17 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchProducts() {
+    loading.value = true;
+    error.value = '';
     try {
       const data = await adminApi.getProducts();
       allProducts.value = Array.isArray(data) ? data.map(mapProduct) : [];
       return allProducts.value;
-    } catch {
+    } catch (e) {
+      error.value = e.message || 'Lỗi tải sản phẩm';
       return [];
+    } finally {
+      loading.value = false;
     }
   }
 
@@ -133,8 +138,9 @@ export const useAdminStore = defineStore('admin', () => {
       const res = await adminApi.createProduct(data);
       await fetchProducts();
       return res;
-    } catch {
-      return null;
+    } catch (e) {
+      error.value = e.message || 'Lỗi tạo sản phẩm';
+      throw e;
     }
   }
 
@@ -142,14 +148,20 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       await adminApi.updateProduct(id, data);
       await fetchProducts();
-    } catch {}
+    } catch (e) {
+      error.value = e.message || 'Lỗi cập nhật sản phẩm';
+      throw e;
+    }
   }
 
   async function deleteProduct(id) {
     try {
       await adminApi.deleteProduct(id);
       await fetchProducts();
-    } catch {}
+    } catch (e) {
+      error.value = e.message || 'Lỗi xoá sản phẩm';
+      throw e;
+    }
   }
 
   async function fetchVariants(productId) {
@@ -166,8 +178,9 @@ export const useAdminStore = defineStore('admin', () => {
       const res = await adminApi.createVariant(productId, data);
       await fetchProducts();
       return res;
-    } catch {
-      return null;
+    } catch (e) {
+      error.value = e.message || 'Lỗi tạo biến thể';
+      throw e;
     }
   }
 
@@ -175,14 +188,20 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       await adminApi.updateVariant(id, data);
       await fetchProducts();
-    } catch {}
+    } catch (e) {
+      error.value = e.message || 'Lỗi cập nhật biến thể';
+      throw e;
+    }
   }
 
   async function deleteVariant(id) {
     try {
       await adminApi.deleteVariant(id);
       await fetchProducts();
-    } catch {}
+    } catch (e) {
+      error.value = e.message || 'Lỗi xoá biến thể';
+      throw e;
+    }
   }
 
   async function createCategory(data) {

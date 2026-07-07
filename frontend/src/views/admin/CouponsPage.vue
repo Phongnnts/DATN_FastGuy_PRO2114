@@ -8,6 +8,7 @@ const showModal = ref(false);
 const editing = ref(null);
 const form = ref({ code: '', type: 'PERCENT', value: 0, minOrder: 0, maxDiscount: null, maxUses: 0, expiresAt: '', isPublic: true });
 const submitting = ref(false);
+const formError = ref('');
 
 async function load() {
   loading.value = true;
@@ -17,12 +18,14 @@ async function load() {
 
 function openCreate() {
   editing.value = null;
+  formError.value = '';
   form.value = { code: '', type: 'PERCENT', value: 0, minOrder: 0, maxDiscount: null, maxUses: 0, expiresAt: '' };
   showModal.value = true;
 }
 
 function openEdit(c) {
   editing.value = c;
+  formError.value = '';
   form.value = {
     code: c.code,
     type: c.type,
@@ -37,10 +40,11 @@ function openEdit(c) {
 }
 
 async function save() {
-  if (!form.value.code) return alert('Nhập mã giảm giá');
+  formError.value = validateForm();
+  if (formError.value) return;
   submitting.value = true;
   try {
-    const payload = { ...form.value, value: Number(form.value.value) };
+    const payload = { ...form.value, code: form.value.code.trim().toUpperCase(), value: Number(form.value.value) };
     if (editing.value) {
       await couponApi.update(editing.value.couponId, payload);
     } else {
@@ -49,10 +53,23 @@ async function save() {
     showModal.value = false;
     await load();
   } catch (e) {
-    alert(e.response?.data?.message || e.message);
+    formError.value = e.response?.data?.message || e.message || 'Lưu mã giảm giá thất bại';
   } finally {
     submitting.value = false;
   }
+}
+
+function validateForm() {
+  const code = form.value.code.trim();
+  if (!/^[A-Z0-9_-]{3,30}$/.test(code)) return 'Mã chỉ gồm chữ hoa, số, _ hoặc -, dài 3-30 ký tự';
+  if (!['PERCENT', 'FIXED', 'FREE_SHIPPING'].includes(form.value.type)) return 'Loại mã không hợp lệ';
+  if (form.value.type === 'PERCENT' && (Number(form.value.value) <= 0 || Number(form.value.value) > 100)) return 'Phần trăm giảm phải từ 1 đến 100';
+  if (form.value.type === 'FIXED' && Number(form.value.value) <= 0) return 'Số tiền giảm phải lớn hơn 0';
+  if (form.value.type === 'FREE_SHIPPING') form.value.value = 0;
+  if (Number(form.value.minOrder) < 0) return 'Đơn tối thiểu không được âm';
+  if (form.value.maxDiscount !== null && form.value.maxDiscount !== '' && Number(form.value.maxDiscount) < 0) return 'Giảm tối đa không được âm';
+  if (Number(form.value.maxUses) < 0) return 'Số lần dùng không được âm';
+  return '';
 }
 
 async function remove(id) {
@@ -140,9 +157,10 @@ onMounted(load);
           <button class="btn btn-ghost" @click="showModal = false"><i class="bi bi-x-lg"></i></button>
         </div>
         <div class="modal-body">
+          <p v-if="formError" class="form-error">{{ formError }}</p>
           <div class="form-group">
             <label>Mã *</label>
-            <input v-model="form.code" class="form-input" placeholder="VD: GIAM10" @input="form.code = form.code.toUpperCase()">
+            <input v-model="form.code" class="form-input" placeholder="VD: GIAM10" maxlength="30" required @input="form.code = form.code.toUpperCase()">
           </div>
           <div class="form-group">
             <label>Loại</label>

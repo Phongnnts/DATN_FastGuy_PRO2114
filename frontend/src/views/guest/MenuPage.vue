@@ -21,7 +21,7 @@ const categories = computed(() => [
 ]);
 
 const filteredProducts = computed(() => {
-  let result = productStore.allProducts;
+  let result = [...productStore.allProducts];
   if (activeCategory.value) {
     result = result.filter((p) => p.categoryId === activeCategory.value);
   }
