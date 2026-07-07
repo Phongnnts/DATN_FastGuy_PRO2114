@@ -29,6 +29,7 @@ public class OrderService {
     private ProductDAO productDAO = new ProductDAO();
     private DeliveryZoneDAO deliveryZoneDAO = new DeliveryZoneDAO();
     private CouponService couponService = new CouponService();
+    private ShippingService shippingService = new ShippingService();
 
     public Orders checkout(int userId, int zoneId, String address, String phone,
                            String deliveryNote, String paymentMethod,
@@ -45,9 +46,7 @@ public class OrderService {
         List<CartItem> cartItems = cartDAO.getItems(cart.getCartId());
         if (cartItems.isEmpty()) return null;
 
-        if (shippingFee == null || shippingFee.compareTo(BigDecimal.ZERO) < 0) {
-            shippingFee = BigDecimal.ZERO;
-        }
+        shippingFee = normalizeShippingFee(shippingFee, ghnDistrictId, ghnWardCode);
 
         DeliveryZone zone = zoneId > 0 ? deliveryZoneDAO.findById(zoneId) : null;
         if (zone != null && zone.getShippingFee() != null
@@ -57,7 +56,16 @@ public class OrderService {
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (CartItem ci : cartItems) {
-            totalAmount = totalAmount.add(ci.getUnitPrice().multiply(BigDecimal.valueOf(ci.getQuantity())));
+            if (ci.getQuantity() <= 0) return null;
+            Product product = ci.getProduct();
+            ProductVariant variant = ci.getVariant();
+            if (product == null || !"AVAILABLE".equals(product.getStatus())) return null;
+            if (variant == null || variant.getProduct() == null || variant.getProduct().getProductId() != product.getProductId()) return null;
+            if (!"AVAILABLE".equals(variant.getStatus())) return null;
+            if (variant.getQuantityAvailable() != null && variant.getQuantityAvailable() < ci.getQuantity()) return null;
+            BigDecimal unitPrice = variant.getPrice() != null ? variant.getPrice() : product.getBasePrice();
+            if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) < 0) return null;
+            totalAmount = totalAmount.add(unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity())));
         }
 
         BigDecimal discountAmount = BigDecimal.ZERO;
@@ -67,6 +75,8 @@ public class OrderService {
             if (Boolean.TRUE.equals(vr.get("valid"))) {
                 discountAmount = (BigDecimal) vr.get("discount");
                 couponId = (int) vr.get("couponId");
+            } else {
+                throw new IllegalArgumentException(String.valueOf(vr.get("message")));
             }
         }
         BigDecimal finalAmount = totalAmount.add(shippingFee).subtract(discountAmount);
@@ -108,6 +118,7 @@ public class OrderService {
         }
 
         for (CartItem ci : cartItems) {
+            BigDecimal unitPrice = ci.getVariant().getPrice() != null ? ci.getVariant().getPrice() : ci.getProduct().getBasePrice();
             OrderItem oi = new OrderItem();
             oi.setOrder(order);
             oi.setProduct(ci.getProduct());
@@ -115,8 +126,8 @@ public class OrderService {
             oi.setProductName(ci.getProduct().getName());
             oi.setVariantName(ci.getVariant() != null ? ci.getVariant().getVariantName() : "");
             oi.setQuantity(ci.getQuantity());
-            oi.setUnitPrice(ci.getUnitPrice());
-            oi.setTotalPrice(ci.getUnitPrice().multiply(BigDecimal.valueOf(ci.getQuantity())));
+            oi.setUnitPrice(unitPrice);
+            oi.setTotalPrice(unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity())));
             orderItemDAO.save(oi);
         }
 
@@ -138,9 +149,7 @@ public class OrderService {
         }
         if (!isValidPhone(phone) || !isValidAddress(address)) return null;
 
-        if (shippingFee == null || shippingFee.compareTo(BigDecimal.ZERO) < 0) {
-            shippingFee = BigDecimal.ZERO;
-        }
+        shippingFee = normalizeShippingFee(shippingFee, ghnDistrictId, ghnWardCode);
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (Map<String, Object> itemData : itemsData) {
@@ -168,6 +177,8 @@ public class OrderService {
             if (Boolean.TRUE.equals(vr.get("valid"))) {
                 discountAmount = (BigDecimal) vr.get("discount");
                 couponId = (int) vr.get("couponId");
+            } else {
+                throw new IllegalArgumentException(String.valueOf(vr.get("message")));
             }
         }
         BigDecimal finalAmount = totalAmount.add(shippingFee).subtract(discountAmount);
@@ -223,6 +234,17 @@ public class OrderService {
         }
 
         return order;
+    }
+
+    private BigDecimal normalizeShippingFee(BigDecimal shippingFee, Integer ghnDistrictId, String ghnWardCode) {
+        if (ghnDistrictId != null && ghnWardCode != null && !ghnWardCode.trim().isEmpty()) {
+            Map<String, Object> fee = shippingService.calculateFee(ghnDistrictId, ghnWardCode, 1000, 20, 20, 10);
+            Object value = fee.get("fee") != null ? fee.get("fee") : fee.get("shippingFee");
+            if (value instanceof Number) return BigDecimal.valueOf(((Number) value).doubleValue());
+            if (value instanceof String) return new BigDecimal((String) value);
+        }
+        if (shippingFee == null || shippingFee.compareTo(BigDecimal.ZERO) < 0) return BigDecimal.ZERO;
+        return shippingFee;
     }
 
     private boolean isValidPhone(String phone) {

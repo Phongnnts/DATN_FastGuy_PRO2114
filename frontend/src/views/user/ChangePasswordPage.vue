@@ -1,6 +1,8 @@
 <script setup>
 import { ref } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 
+const auth = useAuthStore();
 const form = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
 const error = ref('');
 const success = ref('');
@@ -9,15 +11,31 @@ const loading = ref(false);
 async function submit() {
   error.value = '';
   success.value = '';
+  if (form.value.newPassword.length < 6 || form.value.newPassword.length > 72) {
+    error.value = 'Mật khẩu mới phải từ 6 đến 72 ký tự';
+    return;
+  }
   if (form.value.newPassword !== form.value.confirmPassword) {
     error.value = 'Mật khẩu mới không khớp';
     return;
   }
+  if (form.value.currentPassword === form.value.newPassword) {
+    error.value = 'Mật khẩu mới phải khác mật khẩu hiện tại';
+    return;
+  }
   loading.value = true;
-  setTimeout(() => {
-    error.value = 'Tính năng đổi mật khẩu chưa được bật. Vui lòng liên hệ quản trị viên.';
+  try {
+    await auth.changePassword({
+      currentPassword: form.value.currentPassword,
+      newPassword: form.value.newPassword,
+    });
+    form.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
+    success.value = 'Đổi mật khẩu thành công';
+  } catch (e) {
+    error.value = e.message || 'Đổi mật khẩu thất bại';
+  } finally {
     loading.value = false;
-  }, 300);
+  }
 }
 </script>
 
@@ -37,6 +55,8 @@ async function submit() {
             v-model="form.currentPassword"
             type="password"
             class="form-input"
+            minlength="6"
+            maxlength="72"
             required
           />
         </div>
@@ -46,6 +66,8 @@ async function submit() {
             v-model="form.newPassword"
             type="password"
             class="form-input"
+            minlength="6"
+            maxlength="72"
             required
           />
         </div>
@@ -55,6 +77,8 @@ async function submit() {
             v-model="form.confirmPassword"
             type="password"
             class="form-input"
+            minlength="6"
+            maxlength="72"
             required
           />
         </div>

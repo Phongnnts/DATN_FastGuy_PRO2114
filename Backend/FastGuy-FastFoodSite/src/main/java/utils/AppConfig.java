@@ -38,4 +38,8 @@ public class AppConfig {
             return 2;
         }
     }
+
+    public static String getSePayWebhookSecret() {
+        return System.getenv("SEPAY_WEBHOOK_SECRET");
+    }
 }

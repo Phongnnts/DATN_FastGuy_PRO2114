@@ -58,6 +58,15 @@ public class AuthService {
         return userDAO.findById(userId);
     }
 
+    public boolean changePassword(int userId, String currentPassword, String newPassword) {
+        User user = userDAO.findById(userId);
+        if (user == null) return false;
+        if (!PasswordUtil.check(currentPassword, user.getPasswordHash())) return false;
+        user.setPasswordHash(PasswordUtil.hash(newPassword));
+        userDAO.save(user);
+        return true;
+    }
+
     public User updateProfile(int userId, Map<String, Object> data) {
         User user = userDAO.findById(userId);
         if (user == null) return null;
