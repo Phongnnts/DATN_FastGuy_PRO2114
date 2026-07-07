@@ -174,6 +174,9 @@ public class OrderServlet extends HttpServlet {
         try {
             order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod,
                     ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, shippingFee, couponCode);
+        } catch (IllegalArgumentException e) {
+            ApiResponse.error(resp, e.getMessage(), 400);
+            return;
         } catch (Exception e) {
             e.printStackTrace();
             ApiResponse.error(resp, "Checkout failed: " + e.getMessage(), 500);
@@ -371,6 +374,9 @@ public class OrderServlet extends HttpServlet {
             order = orderService.guestCheckout(customerName, phone, address, deliveryNote, paymentMethod,
                     itemsData, shippingFee, ghnProvinceId, ghnDistrictId, ghnWardCode,
                     toProvinceName, toDistrictName, toWardName, couponCode);
+        } catch (IllegalArgumentException e) {
+            ApiResponse.error(resp, e.getMessage(), 400);
+            return;
         } catch (Exception e) {
             e.printStackTrace();
             ApiResponse.error(resp, "Checkout failed: " + e.getMessage(), 500);

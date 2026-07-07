@@ -16,4 +16,7 @@ export default {
   updateProfile(data) {
     return client.put('/auth/profile', data);
   },
+  changePassword(data) {
+    return client.put('/auth/change-password', data);
+  },
 };

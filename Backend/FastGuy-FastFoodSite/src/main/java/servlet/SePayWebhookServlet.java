@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.SePayService;
 import utils.ApiResponse;
+import utils.AppConfig;
 import utils.JsonUtil;
 
 import java.io.IOException;
@@ -18,6 +19,15 @@ public class SePayWebhookServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
+
+        String secret = AppConfig.getSePayWebhookSecret();
+        if (secret != null && !secret.isBlank()) {
+            String provided = req.getHeader("X-SePay-Webhook-Secret");
+            if (provided == null || !secret.equals(provided)) {
+                ApiResponse.error(resp, "Invalid webhook secret", 401);
+                return;
+            }
+        }
 
         Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) {
