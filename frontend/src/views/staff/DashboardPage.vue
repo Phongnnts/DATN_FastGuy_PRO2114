@@ -143,18 +143,22 @@ onUnmounted(destroyCharts);
     <template v-else-if="data">
       <div class="stat-grid">
         <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#34d399)"><i class="bi bi-cart-check"></i></div>
           <div class="stat-value">{{ totalOrdersToday.toLocaleString() }}</div>
           <div class="stat-label">Tổng đơn hôm nay</div>
         </div>
         <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#ef4444,#f87171)"><i class="bi bi-clock-history"></i></div>
           <div class="stat-value">{{ data.pendingOrders || 0 }}</div>
           <div class="stat-label">Chờ xác nhận</div>
         </div>
         <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#3b82f6,#60a5fa)"><i class="bi bi-check-circle"></i></div>
           <div class="stat-value">{{ data.confirmedOrders || 0 }}</div>
           <div class="stat-label">Đã xác nhận</div>
         </div>
         <div class="stat-card">
+          <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)"><i class="bi bi-receipt"></i></div>
           <div class="stat-value">{{ data.ordersToday || 0 }}</div>
           <div class="stat-label">Đơn hôm nay</div>
         </div>

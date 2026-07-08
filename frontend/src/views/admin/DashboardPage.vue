@@ -195,30 +195,37 @@ onUnmounted(destroyCharts);
     <div class="page-header"><h1>Tổng quan</h1></div>
     <div class="stat-grid">
       <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#3b82f6,#60a5fa)"><i class="bi bi-people"></i></div>
         <div class="stat-value">{{ data.totalUsers.toLocaleString() }}</div>
         <div class="stat-label">Người dùng</div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)"><i class="bi bi-receipt"></i></div>
         <div class="stat-value">{{ data.totalOrders.toLocaleString() }}</div>
         <div class="stat-label">Đơn hàng</div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#34d399)"><i class="bi bi-graph-up-arrow"></i></div>
         <div class="stat-value">{{ formatPrice(data.totalRevenue) }}</div>
         <div class="stat-label">Doanh thu</div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa)"><i class="bi bi-box-seam"></i></div>
         <div class="stat-value">{{ data.totalProducts }}</div>
         <div class="stat-label">Sản phẩm</div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#06b6d4,#22d3ee)"><i class="bi bi-cart-check"></i></div>
         <div class="stat-value">{{ data.ordersToday }}</div>
         <div class="stat-label">Đơn hôm nay</div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#ec4899,#f472b6)"><i class="bi bi-cash-coin"></i></div>
         <div class="stat-value">{{ formatPrice(data.revenueToday) }}</div>
         <div class="stat-label">Doanh thu hôm nay</div>
       </div>
       <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#ef4444,#f87171)"><i class="bi bi-clock-history"></i></div>
         <div class="stat-value">{{ data.pendingOrders || 0 }}</div>
         <div class="stat-label">Chờ xác nhận</div>
       </div>
