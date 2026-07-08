@@ -6,17 +6,6 @@ import { ref } from 'vue';
 const auth = useAuthStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
-const sidebarHover = ref(false);
-let hoverTimer = null;
-
-function showSidebar() {
-  clearTimeout(hoverTimer);
-  sidebarHover.value = true;
-}
-function hideSidebar() {
-  hoverTimer = setTimeout(() => { sidebarHover.value = false; }, 300);
-}
-function isVisible() { return sidebarOpen.value || sidebarHover.value; }
 
 function logout() {
   auth.logout();
@@ -36,16 +25,11 @@ const sidebarLinks = [
 </script>
 
 <template>
-  <div class="sidebar-layout" @mouseleave="hideSidebar">
-    <div class="sidebar-trigger" @mouseenter="showSidebar"></div>
-    <aside class="sidebar" :class="{ open: isVisible() }" @mouseenter="showSidebar" @mouseleave="hideSidebar">
+  <div class="sidebar-layout">
+    <aside class="sidebar" :class="{ open: sidebarOpen }">
       <div class="sidebar-brand">
-        <span class="brand-text" style="font-size: 18px; font-weight: 800"
-          >Fast<span style="color: var(--primary)">Guy</span></span
-        >
-        <div style="font-size: 11px; color: var(--text-mid); margin-top: 1px">
-          Admin
-        </div>
+        <span class="sidebar-brand-title">Fast<span class="sidebar-brand-highlight">Guy</span></span>
+        <span class="sidebar-brand-subtitle">Admin</span>
       </div>
       <nav class="sidebar-nav">
         <router-link
@@ -75,18 +59,17 @@ const sidebarLinks = [
       <div class="topbar">
         <div class="topbar-left">
           <button
-            class="btn btn-ghost"
+            class="mobile-toggle-sidebar"
             @click="sidebarOpen = !sidebarOpen"
-            style="font-size: 18px; padding: 4px"
           >
             <i class="bi bi-list"></i>
           </button>
           <h2>Admin Panel</h2>
         </div>
         <div class="topbar-right">
-          <router-link to="/" class="btn btn-sm"
-            ><i class="bi bi-house"></i> Website</router-link
-          >
+          <router-link to="/" class="btn btn-sm btn-ghost">
+            <i class="bi bi-house"></i> Website
+          </router-link>
           <button class="btn btn-sm btn-ghost" @click="logout">
             <i class="bi bi-box-arrow-right"></i> Đăng xuất
           </button>
@@ -96,5 +79,33 @@ const sidebarLinks = [
         <router-view />
       </div>
     </div>
+    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
   </div>
 </template>
+
+<style scoped>
+.mobile-toggle-sidebar {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 20px;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-dark);
+}
+@media (max-width: 768px) {
+  .mobile-toggle-sidebar { display: block; }
+}
+.sidebar-overlay {
+  display: none;
+}
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 99;
+  }
+}
+</style>
