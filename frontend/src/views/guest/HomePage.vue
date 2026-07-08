@@ -44,15 +44,25 @@ function subscribeNewsletter() {
     <!-- Hero Carousel -->
     <section class="hero-carousel">
       <div v-for="(slide, i) in banners" :key="i" class="hero-slide" :class="{ active: currentSlide === i }" :style="{ backgroundImage: 'url(' + slide.imageUrl + ')' }">
-        <div class="hero-overlay"></div>
+        <div class="hero-overlay">
+          <div class="hero-overlay-shine"></div>
+        </div>
         <div class="container hero-content">
+          <span class="hero-badge">FastGuy</span>
           <h1 class="hero-title">{{ slide.title }}</h1>
           <p class="hero-subtitle">{{ slide.subtitle }}</p>
-          <router-link :to="slide.link || '/menu'" class="btn btn-lg btn-primary" style="background:#fff;color:var(--primary);border:none">{{ slide.cta || 'Xem thêm' }}</router-link>
+          <router-link :to="slide.link || '/menu'" class="hero-cta">{{ slide.cta || 'Xem thực đơn' }} <i class="bi bi-arrow-right"></i></router-link>
         </div>
       </div>
-      <div class="carousel-dots">
-        <button v-for="(_, i) in banners" :key="i" class="dot" :class="{ active: currentSlide === i }" @click="currentSlide = i"></button>
+      <div class="carousel-controls">
+        <button class="carousel-arrow prev" @click="currentSlide = (currentSlide - 1 + banners.length) % banners.length"><i class="bi bi-chevron-left"></i></button>
+        <button class="carousel-arrow next" @click="currentSlide = (currentSlide + 1) % banners.length"><i class="bi bi-chevron-right"></i></button>
+      </div>
+      <div class="carousel-footer">
+        <div class="carousel-dots">
+          <button v-for="(_, i) in banners" :key="i" class="dot" :class="{ active: currentSlide === i }" @click="currentSlide = i"><span></span></button>
+        </div>
+        <span class="carousel-counter">{{ String(currentSlide + 1).padStart(2, '0') }}/{{ String(banners.length).padStart(2, '0') }}</span>
       </div>
     </section>
     <div v-if="productStore.loading" class="loading-section">
@@ -173,16 +183,63 @@ function subscribeNewsletter() {
 .about-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
 .about-card p { font-size: 13px; color: var(--text-mid); line-height: 1.5; }
 
-.hero-carousel { position: relative; color: #fff; min-height: 360px; overflow: hidden; }
-.hero-slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; transition: opacity 0.6s ease; background-size: cover; background-position: center; }
-.hero-slide.active { opacity: 1; position: relative; }
-.hero-overlay { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,0,0,0.3)); }
+.hero-carousel { position: relative; color: #fff; min-height: 420px; overflow: hidden; background: #1a1a2e; }
+.hero-slide { position: absolute; inset: 0; display: flex; align-items: center; opacity: 0; transition: opacity 0.6s ease, transform 0.6s ease; background-size: cover; background-position: center; transform: scale(1.05); }
+.hero-slide.active { opacity: 1; position: relative; transform: scale(1); }
+.hero-overlay { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%); overflow: hidden; }
+.hero-overlay-shine {
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.04) 45%, transparent 50%);
+  animation: shine 8s ease-in-out infinite;
+}
+@keyframes shine {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+}
 .hero-content { padding: 60px 0; text-align: center; position: relative; z-index: 1; }
-.hero-title { font-size: 36px; font-weight: 800; margin-bottom: 12px; }
-.hero-subtitle { font-size: 16px; opacity: 0.9; margin-bottom: 24px; }
-.carousel-dots { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
-.dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); background: transparent; cursor: pointer; }
-.dot.active { background: #fff; border-color: #fff; }
+.hero-badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+  padding: 4px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.hero-title { font-size: 42px; font-weight: 900; margin-bottom: 12px; line-height: 1.15; }
+.hero-subtitle { font-size: 16px; opacity: 0.85; margin-bottom: 28px; max-width: 500px; margin-left: auto; margin-right: auto; }
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 32px;
+  background: #fff;
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: all 0.25s;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+.hero-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+  color: var(--primary-dark);
+}
+.carousel-controls { position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%); z-index: 2; display: flex; justify-content: space-between; padding: 0 16px; pointer-events: none; }
+.carousel-arrow { width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,0.15); backdrop-filter: blur(4px); color: #fff; font-size: 18px; cursor: pointer; transition: all 0.2s; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+.carousel-arrow:hover { background: rgba(255,255,255,0.3); transform: scale(1.1); }
+.carousel-footer { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 2; display: flex; align-items: center; gap: 16px; }
+.carousel-dots { display: flex; gap: 8px; }
+.dot { width: 24px; height: 4px; border-radius: 2px; border: none; background: rgba(255,255,255,0.4); cursor: pointer; padding: 0; transition: all 0.3s; overflow: hidden; }
+.dot span { display: block; height: 100%; width: 0; background: #fff; border-radius: 2px; transition: width 0.3s; }
+.dot.active { width: 36px; }
+.dot.active span { width: 100%; }
+.carousel-counter { font-size: 12px; font-weight: 600; opacity: 0.6; letter-spacing: 1px; }
 .new-section { padding: 40px 0; background: #FFFBF5; }
 .newsletter-section { padding: 60px 0; }
 .newsletter-box { background: var(--primary-light); border-radius: var(--radius-lg); padding: 40px; text-align: center; }
