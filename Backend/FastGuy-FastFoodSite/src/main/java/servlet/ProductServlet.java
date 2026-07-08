@@ -7,6 +7,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.ReviewService;
 import utils.ApiResponse;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 @WebServlet("/api/products/*")
 public class ProductServlet extends HttpServlet {
     private ProductDAO productDAO = new ProductDAO();
+    private ReviewService reviewService = new ReviewService();
     private static final ObjectMapper mapper = new ObjectMapper();
 
     @Override
@@ -110,8 +112,9 @@ public class ProductServlet extends HttpServlet {
         m.put("categoryId", p.getCategory().getCategoryId());
         m.put("categoryName", p.getCategory().getName());
         m.put("discountPrice", null);
-        m.put("rating", 0);
-        m.put("reviewCount", 0);
+        Map<String, Object> stats = reviewService.getStats(p.getProductId());
+        m.put("rating", stats.get("rating"));
+        m.put("reviewCount", stats.get("reviewCount"));
         m.put("inStock", "AVAILABLE".equals(p.getStatus()));
         m.put("featured", false);
         return m;

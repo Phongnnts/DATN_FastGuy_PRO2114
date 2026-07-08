@@ -106,6 +106,16 @@ const routes = [
         component: () => import('@/views/user/OrderDetailPage.vue'),
       },
       {
+        path: 'favorites',
+        name: 'UserFavorites',
+        component: () => import('@/views/user/FavoritesPage.vue'),
+      },
+      {
+        path: 'history',
+        name: 'UserPurchaseHistory',
+        component: () => import('@/views/user/PurchaseHistoryPage.vue'),
+      },
+      {
         path: 'change-password',
         name: 'ChangePassword',
         component: () => import('@/views/user/ChangePasswordPage.vue'),
@@ -228,12 +238,6 @@ const router = createRouter({
   scrollBehavior() {
     return { top: 0 };
   },
-});
-
-router.beforeEach((to, from, next) => {
-  document.body.classList.add('page-transition');
-  setTimeout(() => document.body.classList.remove('page-transition'), 300);
-  next();
 });
 
 router.beforeEach((to, from, next) => {

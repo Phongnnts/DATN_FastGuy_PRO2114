@@ -3,17 +3,23 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useProductStore } from '@/stores/product';
 import { useCartStore } from '@/stores/cart';
-import { formatPrice } from '@/utils/format';
+import { useAuthStore } from '@/stores/auth';
+import { useFavoriteStore } from '@/stores/favorite';
+import { formatDate, formatPrice } from '@/utils/format';
+import { reviewApi } from '@/api';
 import StarRating from '@/components/common/StarRating.vue';
 
 const route = useRoute();
 const router = useRouter();
 const productStore = useProductStore();
 const cart = useCartStore();
+const auth = useAuthStore();
+const favoriteStore = useFavoriteStore();
 const quantity = ref(1);
 const selectedVariant = ref(null);
 const activeImageIndex = ref(0);
 const loading = ref(true);
+const reviews = ref([]);
 
 const product = computed(() => productStore.currentProduct);
 
@@ -42,6 +48,8 @@ onMounted(async () => {
       const def = product.value.variants.find((v) => v.isDefault);
       selectedVariant.value = def || product.value.variants[0];
     }
+    await loadReviews();
+    if (auth.isLoggedIn && product.value?.productId) await favoriteStore.check(product.value.productId);
   } finally {
     loading.value = false;
   }
@@ -51,10 +59,27 @@ function selectVariant(variant) {
   selectedVariant.value = variant;
 }
 
+async function loadReviews() {
+  if (!product.value?.productId) return;
+  reviews.value = await reviewApi.getByProduct(product.value.productId);
+}
+
+async function toggleFavorite() {
+  if (!auth.isLoggedIn) {
+    router.push('/login');
+    return;
+  }
+  await favoriteStore.toggle(product.value);
+}
+
 async function addToCart() {
   if (!product.value?.inStock || !selectedVariant.value) return;
   try {
-    await cart.addItem(product.value.productId, selectedVariant.value.variantId, quantity.value);
+    await cart.addItem(
+      product.value.productId,
+      selectedVariant.value.variantId,
+      quantity.value,
+    );
     router.push('/cart');
   } catch (err) {
     console.error('Add to cart failed:', err);
@@ -81,7 +106,10 @@ async function addToCart() {
       <div class="detail-layout">
         <div class="detail-image">
           <div class="detail-image-bg">
-            <img :src="galleryImages[activeImageIndex] || product.image" :alt="product.name" />
+            <img
+              :src="galleryImages[activeImageIndex] || product.image"
+              :alt="product.name"
+            />
           </div>
           <div v-if="galleryImages.length > 1" class="gallery-thumbs">
             <button
@@ -110,7 +138,10 @@ async function addToCart() {
           </div>
           <p class="detail-desc">{{ product.description }}</p>
 
-          <div v-if="product.variants && product.variants.length" class="detail-options">
+          <div
+            v-if="product.variants && product.variants.length"
+            class="detail-options"
+          >
             <label class="option-label">Chọn phân loại:</label>
             <div class="option-list">
               <button
@@ -159,11 +190,32 @@ async function addToCart() {
             >
               <i class="bi bi-cart-plus"></i> Thêm vào giỏ
             </button>
+            <button class="btn btn-lg btn-outline favorite-detail-btn" type="button" @click="toggleFavorite">
+              <i :class="favoriteStore.isFavorite(product.productId) ? 'bi bi-heart-fill' : 'bi bi-heart'"></i>
+              {{ favoriteStore.isFavorite(product.productId) ? 'Đã thích' : 'Thích món' }}
+            </button>
           </div>
 
           <div class="detail-review-placeholder">
-            <h3>Đánh giá sản phẩm</h3>
-            <p class="review-empty">Chưa có đánh giá nào.</p>
+            <div class="review-header">
+              <h3>Đánh giá sản phẩm</h3>
+              <span>{{ reviews.length }} đánh giá</span>
+            </div>
+
+            <div v-if="reviews.length" class="review-list">
+              <div v-for="review in reviews" :key="review.reviewId" class="review-item">
+                <img :src="review.avatarUrl || 'https://i.pravatar.cc/80?u=fastguy'" :alt="review.userName">
+                <div>
+                  <div class="review-item-head">
+                    <strong>{{ review.userName }}</strong>
+                    <span>{{ formatDate(review.createdAt) }}</span>
+                  </div>
+                  <StarRating :modelValue="review.rating" readonly :size="14" />
+                  <p>{{ review.comment || 'Ngon, sẽ ủng hộ tiếp.' }}</p>
+                </div>
+              </div>
+            </div>
+            <p v-else class="review-empty">Chưa có đánh giá nào.</p>
           </div>
         </div>
       </div>
@@ -414,14 +466,92 @@ async function addToCart() {
 .qty-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
 }
+.favorite-detail-btn i {
+  color: #ef4444;
+}
 .detail-review-placeholder {
   border-top: 1px solid var(--border);
   padding-top: 24px;
 }
-.detail-review-placeholder h3 {
+.review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.review-header h3 {
   font-size: 18px;
+  font-weight: 800;
+}
+.review-header span {
+  color: var(--text-mid);
+  font-size: 13px;
   font-weight: 700;
-  margin-bottom: 12px;
+}
+.review-form {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fffaf1;
+  margin-bottom: 18px;
+}
+.review-form-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.review-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.review-help,
+.review-message {
+  color: var(--text-mid);
+  font-size: 12px;
+}
+.review-message {
+  margin-top: 8px;
+  font-weight: 700;
+}
+.review-list {
+  display: grid;
+  gap: 12px;
+}
+.review-item {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.review-item img {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+.review-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.review-item-head span {
+  color: var(--text-light);
+  font-size: 12px;
+}
+.review-item p {
+  color: var(--text-mid);
+  font-size: 13px;
+  margin-top: 4px;
 }
 .review-empty {
   color: var(--text-light);
@@ -451,6 +581,13 @@ async function addToCart() {
   }
   .detail-price-current {
     font-size: 26px;
+  }
+  .detail-actions,
+  .review-form-actions,
+  .review-form-top {
+    align-items: stretch;
+    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 }
 </style>

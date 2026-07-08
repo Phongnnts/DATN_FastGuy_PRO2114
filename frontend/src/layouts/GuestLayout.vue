@@ -1,11 +1,13 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
+import { useFavoriteStore } from '@/stores/favorite';
 import { useRouter } from 'vue-router';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
 const auth = useAuthStore();
 const cart = useCartStore();
+const favoriteStore = useFavoriteStore();
 const router = useRouter();
 const mobileMenuOpen = ref(false);
 
@@ -16,6 +18,7 @@ function goLogin() {
   router.push('/login');
 }
 function logout() {
+  favoriteStore.clear();
   auth.logout();
   router.push('/');
 }
@@ -26,6 +29,10 @@ const navLinks = [
   { label: 'Khuyến mãi', path: '/promotions' },
   { label: 'Tra cứu đơn', path: '/track-order' },
 ];
+
+onMounted(() => {
+  if (auth.isLoggedIn) favoriteStore.fetchFavorites();
+});
 </script>
 
 <template>
@@ -49,7 +56,7 @@ const navLinks = [
             >
           </div>
           <div class="nav-actions">
-            <button class="nav-icon-btn" @click="goCart" title="Giỏ hàng">
+            <button class="nav-icon-btn" type="button" aria-label="Mở giỏ hàng" @click="goCart" title="Giỏ hàng">
               <i class="bi bi-cart3"></i>
               <span v-if="cart.itemCount > 0" class="cart-badge">{{
                 cart.itemCount
@@ -75,7 +82,7 @@ const navLinks = [
                 class="btn btn-sm"
                 >Admin</router-link
               >
-              <button class="btn btn-sm btn-ghost" @click="logout">
+              <button class="btn btn-sm btn-ghost" type="button" aria-label="Đăng xuất" @click="logout">
                 <i class="bi bi-box-arrow-right"></i>
               </button>
             </template>
@@ -86,6 +93,8 @@ const navLinks = [
             </template>
             <button
               class="mobile-toggle"
+              type="button"
+              aria-label="Mở menu"
               @click="mobileMenuOpen = !mobileMenuOpen"
             >
               <i :class="mobileMenuOpen ? 'bi bi-x-lg' : 'bi bi-list'"></i>
