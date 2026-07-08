@@ -1,14 +1,21 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatPrice, formatDate } from '@/utils/format'
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue'
 import OrderTimeline from '@/components/common/OrderTimeline.vue'
-import { orderApi } from '@/api'
+import StarRating from '@/components/common/StarRating.vue'
+import { orderApi, reviewApi } from '@/api'
 
 const route = useRoute()
 const router = useRouter()
 const order = ref(null)
+const orderReview = ref(null)
+const reviewForm = ref({ rating: 5, comment: '' })
+const submitting = ref(false)
+const showReviewForm = ref(false)
+
+const isDelivered = computed(() => order.value?.status === 'DELIVERED')
 
 onMounted(async () => {
   try {
@@ -40,8 +47,36 @@ onMounted(async () => {
         statusHistory: data.statusHistory || [{ status: data.status, time: data.createdAt, note: '' }],
       }
     }
+    if (data && data.status === 'DELIVERED') {
+      await loadReview(data.orderId)
+    }
   } catch {}
 })
+
+async function loadReview(orderId) {
+  try {
+    const data = await reviewApi.getByOrder(orderId)
+    orderReview.value = data
+  } catch {}
+}
+
+async function submitReview() {
+  if (!order.value) return
+  submitting.value = true
+  try {
+    await reviewApi.create({
+      orderId: order.value.id,
+      rating: Number(reviewForm.value.rating),
+      comment: reviewForm.value.comment || '',
+    })
+    await loadReview(order.value.id)
+    showReviewForm.value = false
+  } catch (e) {
+    alert(e.message || 'Không thể gửi đánh giá')
+  } finally {
+    submitting.value = false
+  }
+}
 
 async function cancelOrder() {
   if (!confirm('Bạn có chắc muốn hủy đơn hàng này?')) return;
@@ -101,6 +136,31 @@ async function cancelOrder() {
         <h4>Trạng thái đơn hàng</h4>
         <OrderTimeline :history="order.statusHistory" />
       </div>
+
+      <div v-if="isDelivered" class="detail-section">
+        <h4>Đánh giá đơn hàng</h4>
+        <div v-if="orderReview" class="review-done">
+          <StarRating :modelValue="orderReview.rating" readonly :size="18" />
+          <p class="review-done-comment">{{ orderReview.comment || 'Ngon, sẽ ủng hộ tiếp.' }}</p>
+          <span class="badge badge-success">Đã đánh giá</span>
+        </div>
+        <div v-else-if="showReviewForm" class="review-form-block">
+          <StarRating v-model="reviewForm.rating" :size="24" />
+          <textarea v-model="reviewForm.comment" class="form-textarea" rows="3" maxlength="1000" placeholder="Chia sẻ cảm nhận về đơn hàng..."></textarea>
+          <div class="review-form-actions">
+            <button class="btn btn-sm btn-ghost" @click="showReviewForm = false">Hủy</button>
+            <button class="btn btn-sm btn-primary" :disabled="submitting" @click="submitReview">
+              {{ submitting ? 'Đang gửi...' : 'Gửi đánh giá' }}
+            </button>
+          </div>
+        </div>
+        <div v-else>
+          <button class="btn btn-outline" @click="showReviewForm = true">
+            <i class="bi bi-star"></i> Đánh giá đơn hàng
+          </button>
+        </div>
+      </div>
+
       <div v-if="order.status === 'PENDING'" style="margin-top:16px">
         <button class="btn btn-outline" style="border-color:var(--red-active);color:var(--red-active)" @click="cancelOrder">
           <i class="bi bi-x-lg"></i> Hủy đơn hàng
@@ -131,7 +191,8 @@ async function cancelOrder() {
 .detail-summary { border-top: 1px solid var(--border); padding: 20px 0; }
 .detail-summary-row { display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; }
 .detail-total { font-size: 18px; font-weight: 800; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 8px; }
-.review-box { background: var(--bg); padding: 16px; border-radius: var(--radius-sm); }
-.review-stars i { color: #ddd; margin-right: 2px; }
-.review-stars i.active { color: #f5a623; }
+.review-done { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.review-done-comment { font-size: 14px; color: var(--text-mid); margin: 0; }
+.review-form-block { display: flex; flex-direction: column; gap: 10px; }
+.review-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>

@@ -10,3 +10,5 @@ export { default as adminApi } from './admin';
 export { default as deliveryZoneApi } from './deliveryZone';
 export { default as shippingApi } from './shipping';
 export { default as shipperApi } from './shipper';
+export { default as reviewApi } from './review';
+export { default as favoriteApi } from './favorite';

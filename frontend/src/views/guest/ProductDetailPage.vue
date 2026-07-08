@@ -3,16 +3,20 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useProductStore } from '@/stores/product';
 import { useCartStore } from '@/stores/cart';
+import { useAuthStore } from '@/stores/auth';
+import { useFavoriteStore } from '@/stores/favorite';
 import { formatPrice } from '@/utils/format';
-import StarRating from '@/components/common/StarRating.vue';
 
 const route = useRoute();
 const router = useRouter();
 const productStore = useProductStore();
 const cart = useCartStore();
+const auth = useAuthStore();
+const favoriteStore = useFavoriteStore();
 const quantity = ref(1);
 const selectedVariant = ref(null);
 const activeImageIndex = ref(0);
+const loading = ref(true);
 
 const product = computed(() => productStore.currentProduct);
 
@@ -33,11 +37,18 @@ const galleryImages = computed(() => {
 });
 
 onMounted(async () => {
-  if (!productStore.fetched) await productStore.init();
-  await productStore.fetchById(route.params.id);
-  if (product.value?.variants?.length) {
-    const def = product.value.variants.find((v) => v.isDefault);
-    selectedVariant.value = def || product.value.variants[0];
+  loading.value = true;
+  try {
+    if (!productStore.fetched) await productStore.init();
+    await productStore.fetchById(route.params.id);
+    if (product.value?.variants?.length) {
+      const def = product.value.variants.find((v) => v.isDefault);
+      selectedVariant.value = def || product.value.variants[0];
+    }
+    await loadReviews();
+    if (auth.isLoggedIn && product.value?.productId) await favoriteStore.check(product.value.productId);
+  } finally {
+    loading.value = false;
   }
 });
 
@@ -45,10 +56,22 @@ function selectVariant(variant) {
   selectedVariant.value = variant;
 }
 
+async function toggleFavorite() {
+  if (!auth.isLoggedIn) {
+    router.push('/login');
+    return;
+  }
+  await favoriteStore.toggle(product.value);
+}
+
 async function addToCart() {
   if (!product.value?.inStock || !selectedVariant.value) return;
   try {
-    await cart.addItem(product.value.productId, selectedVariant.value.variantId, quantity.value);
+    await cart.addItem(
+      product.value.productId,
+      selectedVariant.value.variantId,
+      quantity.value,
+    );
     router.push('/cart');
   } catch (err) {
     console.error('Add to cart failed:', err);
@@ -57,7 +80,13 @@ async function addToCart() {
 </script>
 
 <template>
-  <div class="page" v-if="product">
+  <div v-if="loading" class="container" style="padding: 60px 0">
+    <div class="empty-state">
+      <i class="bi bi-arrow-repeat spin"></i>
+      <h3>Đang tải sản phẩm...</h3>
+    </div>
+  </div>
+  <div class="page" v-else-if="product">
     <div class="container">
       <div class="breadcrumb">
         <router-link to="/">Trang chủ</router-link>
@@ -69,7 +98,10 @@ async function addToCart() {
       <div class="detail-layout">
         <div class="detail-image">
           <div class="detail-image-bg">
-            <img :src="galleryImages[activeImageIndex] || product.image" :alt="product.name" />
+            <img
+              :src="galleryImages[activeImageIndex] || product.image"
+              :alt="product.name"
+            />
           </div>
           <div v-if="galleryImages.length > 1" class="gallery-thumbs">
             <button
@@ -98,7 +130,10 @@ async function addToCart() {
           </div>
           <p class="detail-desc">{{ product.description }}</p>
 
-          <div v-if="product.variants && product.variants.length" class="detail-options">
+          <div
+            v-if="product.variants && product.variants.length"
+            class="detail-options"
+          >
             <label class="option-label">Chọn phân loại:</label>
             <div class="option-list">
               <button
@@ -147,11 +182,10 @@ async function addToCart() {
             >
               <i class="bi bi-cart-plus"></i> Thêm vào giỏ
             </button>
-          </div>
-
-          <div class="detail-review-placeholder">
-            <h3>Đánh giá sản phẩm</h3>
-            <p class="review-empty">Chưa có đánh giá nào.</p>
+            <button class="btn btn-lg btn-outline favorite-detail-btn" type="button" @click="toggleFavorite">
+              <i :class="favoriteStore.isFavorite(product.productId) ? 'bi bi-heart-fill' : 'bi bi-heart'"></i>
+              {{ favoriteStore.isFavorite(product.productId) ? 'Đã thích' : 'Thích món' }}
+            </button>
           </div>
         </div>
       </div>
@@ -402,19 +436,15 @@ async function addToCart() {
 .qty-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
 }
-.detail-review-placeholder {
-  border-top: 1px solid var(--border);
-  padding-top: 24px;
+.favorite-detail-btn i {
+  color: #ef4444;
 }
-.detail-review-placeholder h3 {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 12px;
+.spin {
+  animation: spin 1s linear infinite;
 }
-.review-empty {
-  color: var(--text-light);
-  font-size: 14px;
-  padding: 20px 0;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 @media (max-width: 768px) {
   .detail-layout {
@@ -432,6 +462,9 @@ async function addToCart() {
   }
   .detail-price-current {
     font-size: 26px;
+  }
+  .detail-actions {
+    flex-direction: column;
   }
 }
 </style>
