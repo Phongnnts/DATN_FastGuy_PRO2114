@@ -17,14 +17,14 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.OrderService;
-import service.SePayService;
+import service.PayOSService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
 @WebServlet("/api/orders/*")
 public class OrderServlet extends HttpServlet {
     private OrderService orderService = new OrderService();
-    private SePayService sePayService = new SePayService();
+    private PayOSService payOSService = new PayOSService();
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
 
@@ -196,13 +196,15 @@ public class OrderServlet extends HttpServlet {
         data.put("discountAmount", order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO);
 
         if ("BANK_TRANSFER".equals(paymentMethod)) {
-            String qrUrl = sePayService.generateQrUrl(
-                order.getOrderId(),
-                order.getFinalAmount().longValue(),
-                order.getOrderCode()
-            );
-            data.put("sepayQrUrl", qrUrl);
-            data.put("transferContent", "TT " + order.getOrderCode());
+            try {
+                Map<String, Object> payosData = payOSService.createPayment(order);
+                data.put("payosCheckoutUrl", payosData.get("checkoutUrl"));
+                data.put("payosQrCode", payosData.get("qrCode"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                ApiResponse.error(resp, "PayOS error: " + e.getMessage(), 500);
+                return;
+            }
         }
 
         resp.setStatus(201);
@@ -394,6 +396,18 @@ public class OrderServlet extends HttpServlet {
         data.put("paymentStatus", order.getPaymentStatus());
         data.put("finalAmount", order.getFinalAmount());
         data.put("discountAmount", order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO);
+
+        if ("BANK_TRANSFER".equals(paymentMethod)) {
+            try {
+                Map<String, Object> payosData = payOSService.createPayment(order);
+                data.put("payosCheckoutUrl", payosData.get("checkoutUrl"));
+                data.put("payosQrCode", payosData.get("qrCode"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                ApiResponse.error(resp, "PayOS error: " + e.getMessage(), 500);
+                return;
+            }
+        }
 
         resp.setStatus(201);
         ApiResponse.ok(resp, data, "Order created");
