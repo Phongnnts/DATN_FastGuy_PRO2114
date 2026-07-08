@@ -517,29 +517,56 @@ async function placeOrder() {
               </div>
             </div>
           </div>
-          <div class="checkout-coupon card mb-3">
-            <h4>Mã giảm giá</h4>
-            <div v-if="!appliedCoupon" class="coupon-input-row">
-              <input v-model="couponCode" class="form-input" placeholder="Nhập mã" @keyup.enter="verifyCoupon" :disabled="verifyingCoupon">
-              <button class="btn btn-primary btn-sm" @click="verifyCoupon" :disabled="verifyingCoupon || !couponCode.trim()">
-                {{ verifyingCoupon ? '...' : 'Áp dụng' }}
-              </button>
+          <div class="checkout-coupon">
+            <div class="coupon-header">
+              <i class="bi bi-tag"></i>
+              <span>Mã giảm giá</span>
             </div>
-            <div v-if="couponError" class="coupon-error">{{ couponError }}</div>
+
+            <div v-if="!appliedCoupon" class="coupon-body">
+              <div class="coupon-input-group">
+                <input v-model="couponCode" class="coupon-input" placeholder="Nhập mã giảm giá" @keyup.enter="verifyCoupon" :disabled="verifyingCoupon">
+                <button class="coupon-btn" @click="verifyCoupon" :disabled="verifyingCoupon || !couponCode.trim()">
+                  <span v-if="verifyingCoupon" class="spinner-sm"></span>
+                  <span v-else>Áp dụng</span>
+                </button>
+              </div>
+              <div v-if="couponError" class="coupon-msg error">
+                <i class="bi bi-exclamation-circle"></i> {{ couponError }}
+              </div>
+            </div>
+
             <div v-if="appliedCoupon" class="coupon-applied">
-              <span><i class="bi bi-check-circle-fill" style="color: var(--success)"></i> {{ appliedCoupon.description }} — <strong>{{ appliedCoupon.code }}</strong></span>
-              <button class="btn btn-sm btn-ghost" @click="cancelCoupon"><i class="bi bi-x-lg"></i></button>
-            </div>
-            <div v-if="!isGuest && claimedCoupons.length > 0 && !appliedCoupon" class="my-coupons">
-              <button class="btn btn-sm btn-outline" @click="showMyCoupons = !showMyCoupons" style="margin-top: 8px">
-                <i class="bi bi-wallet2"></i> Mã của tôi ({{ claimedCoupons.length }})
-              </button>
-              <div v-if="showMyCoupons" class="claimed-list">
-                <div v-for="c in claimedCoupons" :key="c.claimedId" class="claimed-item" @click="selectClaimedCoupon(c)">
-                  <span class="claimed-code">{{ c.code }}</span>
-                  <span class="claimed-desc">{{ c.description }}</span>
+              <div class="applied-left">
+                <i class="bi bi-check-circle-fill"></i>
+                <div>
+                  <div class="applied-code">{{ appliedCoupon.code }}</div>
+                  <div class="applied-desc">{{ appliedCoupon.description || 'Giảm giá đơn hàng' }}</div>
                 </div>
               </div>
+              <div class="applied-right">
+                <span class="applied-discount">-{{ formatPrice(couponDiscount) }}</span>
+                <button class="applied-remove" @click="cancelCoupon" title="Xoá mã"><i class="bi bi-x-lg"></i></button>
+              </div>
+            </div>
+
+            <div v-if="!isGuest && claimedCoupons.length > 0 && !appliedCoupon" class="my-coupons">
+              <button class="my-coupons-toggle" @click="showMyCoupons = !showMyCoupons">
+                <i class="bi bi-wallet2"></i> Mã của tôi
+                <span class="my-count">{{ claimedCoupons.length }}</span>
+                <i :class="showMyCoupons ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+              </button>
+              <transition name="slide">
+                <div v-if="showMyCoupons" class="claimed-list">
+                  <div v-for="c in claimedCoupons" :key="c.claimedId" class="claimed-item" @click="selectClaimedCoupon(c)">
+                    <div class="claimed-left">
+                      <span class="claimed-code">{{ c.code }}</span>
+                      <span class="claimed-desc">{{ c.description }}</span>
+                    </div>
+                    <i class="bi bi-chevron-right"></i>
+                  </div>
+                </div>
+              </transition>
             </div>
           </div>
           <div class="checkout-summary">
@@ -773,4 +800,151 @@ async function placeOrder() {
     position: static;
   }
 }
+.checkout-coupon {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  margin-bottom: 16px;
+}
+.coupon-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dark);
+}
+.coupon-header i { color: var(--primary); font-size: 16px; }
+.coupon-body { padding: 14px 16px; }
+.coupon-input-group { display: flex; gap: 8px; }
+.coupon-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.coupon-input:focus { border-color: var(--primary); }
+.coupon-input:disabled { background: var(--bg); }
+.coupon-btn {
+  padding: 10px 20px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.coupon-btn:hover { background: var(--primary-hover); }
+.coupon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+.coupon-msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.coupon-msg.error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.coupon-msg.success {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+.coupon-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f0fdf4;
+  border-radius: 0 0 var(--radius) var(--radius);
+  gap: 12px;
+}
+.applied-left { display: flex; align-items: center; gap: 10px; flex: 1; }
+.applied-left i { color: #16a34a; font-size: 20px; flex-shrink: 0; }
+.applied-code { font-size: 14px; font-weight: 700; text-transform: uppercase; }
+.applied-desc { font-size: 12px; color: var(--text-mid); margin-top: 1px; }
+.applied-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.applied-discount { font-size: 15px; font-weight: 800; color: #16a34a; }
+.applied-remove {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-light);
+  transition: all 0.15s;
+}
+.applied-remove:hover { border-color: #dc2626; color: #dc2626; }
+.my-coupons { border-top: 1px solid var(--border); }
+.my-coupons-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-mid);
+  transition: color 0.15s;
+}
+.my-coupons-toggle:hover { color: var(--primary); }
+.my-coupons-toggle i:first-child { color: var(--primary); }
+.my-count {
+  margin-left: auto;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.claimed-list { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.claimed-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.claimed-item:hover { border-color: var(--primary); background: var(--primary-light); }
+.claimed-left { flex: 1; }
+.claimed-code { font-size: 13px; font-weight: 700; text-transform: uppercase; display: block; }
+.claimed-desc { font-size: 12px; color: var(--text-mid); margin-top: 1px; }
+.claimed-item i { color: var(--text-light); font-size: 12px; }
+.slide-enter-active,
+.slide-leave-active { transition: all 0.2s ease; }
+.slide-enter-from,
+.slide-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>
