@@ -63,6 +63,12 @@ const routes = [
         meta: { guest: true },
       },
       {
+        path: 'payment-return',
+        name: 'PaymentReturn',
+        component: () => import('@/views/user/PaymentReturnPage.vue'),
+        meta: { guest: true },
+      },
+      {
         path: 'promotions',
         name: 'Promotions',
         component: () => import('@/views/guest/PromotionsPage.vue'),

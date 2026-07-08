@@ -47,15 +47,7 @@ const expectedDelivery = ref('');
 const services = ref([]);
 const selectedServiceId = ref(2);
 const serviceLoading = ref(false);
-const sepayQrUrl = ref('');
-const paymentConfirmed = ref(false);
-const createdOrderCode = ref('');
 const createdOrderId = ref(null);
-let paymentPolling = null;
-
-onUnmounted(() => {
-  if (paymentPolling) clearInterval(paymentPolling);
-});
 
 const total = computed(() => cart.subtotal + (shippingFee.value || 0));
 
@@ -319,23 +311,12 @@ async function placeOrder() {
       couponCode: appliedCoupon.value?.code || '',
     });
     createdOrderId.value = result.id;
-    if (paymentMethod.value === 'BANK_TRANSFER' && result.sepayQrUrl) {
-      sepayQrUrl.value = result.sepayQrUrl;
-      createdOrderCode.value = result.orderCode;
-      paymentPolling = setInterval(async () => {
-        try {
-          const status = await orderApi.getPaymentStatus(createdOrderId.value);
-            if (status.paymentStatus === 'PAID') {
-                paymentConfirmed.value = true;
-                clearInterval(paymentPolling);
-                paymentPolling = null;
-                cart.clear();
-                setTimeout(() => {
-                  router.push(`/account/orders/${createdOrderId.value}`);
-                }, 2000);
-              }
-        } catch (e) {}
-      }, 5000);
+    if (paymentMethod.value === 'BANK_TRANSFER' && result.payosCheckoutUrl) {
+      sessionStorage.setItem('payos_order', JSON.stringify({
+        orderId: result.id,
+        orderCode: result.orderCode,
+      }));
+      window.location.href = result.payosCheckoutUrl;
     } else {
       cart.clear();
       router.push(`/account/orders/${createdOrderId.value}`);
@@ -461,26 +442,8 @@ async function placeOrder() {
             </div>
           </div>
           <div v-if="paymentMethod === 'BANK_TRANSFER'" class="card" style="margin-top:12px;padding:16px;background:#f8f9fa;border:1px solid var(--border);border-radius:var(--radius-sm)">
-            <p><strong>Ngân hàng:</strong> Techcombank</p>
-            <p><strong>Số tài khoản:</strong> 19074734124014</p>
-            <p><strong>Chủ tài khoản:</strong> FASTGUY</p>
-            <p><strong>Nội dung:</strong> Mã đơn hàng + SĐT</p>
-            <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Sau khi chuyển khoản, vui lòng chờ xác nhận</p>
-          </div>
-        </div>
-        <div v-if="paymentMethod === 'BANK_TRANSFER' && sepayQrUrl" class="card mb-3">
-          <h3>Quét mã QR để thanh toán</h3>
-          <div style="text-align:center;padding:20px">
-            <img :src="sepayQrUrl" alt="QR thanh toán" style="width:250px;height:250px" />
-            <p style="font-size:24px;font-weight:800;margin:12px 0">{{ formatPrice(cart.subtotal + (shippingFee || 0)) }}</p>
-            <p style="color:var(--text-mid)">Nội dung: TT-{{ createdOrderCode }}</p>
-            <div v-if="paymentConfirmed" style="text-align:center;padding:12px">
-              <i class="bi bi-check-circle-fill" style="color:#10b981;font-size:48px"></i>
-              <p style="color:#10b981;font-weight:600">Đã thanh toán thành công!</p>
-            </div>
-            <div v-else style="text-align:center;padding:12px">
-              <i class="bi bi-arrow-repeat spin"></i> Đang chờ cổng thanh toán xác nhận...
-            </div>
+            <p>Bạn sẽ được chuyển đến cổng thanh toán <strong>PayOS</strong> để quét mã VietQR và hoàn tất thanh toán.</p>
+            <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Sau khi thanh toán, bạn sẽ được đưa trở lại trang xác nhận.</p>
           </div>
         </div>
         <div class="card mb-3">

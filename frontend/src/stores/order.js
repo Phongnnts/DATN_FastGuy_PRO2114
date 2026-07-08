@@ -123,8 +123,8 @@ export const useOrderStore = defineStore('order', () => {
         total: data.finalAmount ? parseFloat(data.finalAmount) : 0,
         createdAt: new Date().toISOString(),
         items: orderData.items || [],
-        sepayQrUrl: data.sepayQrUrl,
-        transferContent: data.transferContent,
+        payosCheckoutUrl: data.payosCheckoutUrl,
+        payosQrCode: data.payosQrCode,
       };
       allOrders.value.unshift(newOrder);
       return newOrder;
