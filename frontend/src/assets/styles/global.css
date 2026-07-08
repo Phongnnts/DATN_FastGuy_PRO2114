@@ -177,13 +177,20 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: var(--radius-sm);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   border: 1px solid var(--border);
   background: var(--bg);
+  color: var(--text-mid);
 }
+.badge-warning { background: #FEF3C7; color: #92400E; border-color: #FDE68A; }
+.badge-info { background: #DBEAFE; color: #1E40AF; border-color: #93C5FD; }
+.badge-primary { background: #FFF3ED; color: #C2410C; border-color: #FDBA74; }
+.badge-success { background: #D1FAE5; color: #065F46; border-color: #6EE7B7; }
+.badge-danger { background: #FEE2E2; color: #991B1B; border-color: #FCA5A5; }
+.badge-secondary { background: #F3F4F6; color: #374151; border-color: #D1D5DB; }
 
 .table-wrapper {
   overflow-x: auto;

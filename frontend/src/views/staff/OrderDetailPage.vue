@@ -163,7 +163,7 @@ function printInvoice() {
           <span v-if="order.status === 'READY'" class="badge badge-success"
             >Sẵn sàng giao</span
           >
-          <span v-if="order.status === 'CANCELLED'" class="badge badge-error"
+          <span v-if="order.status === 'CANCELLED'" class="badge badge-danger"
             >Đã hủy</span
           >
         </div>
@@ -282,22 +282,6 @@ function printInvoice() {
   font-weight: 600;
   text-align: right;
   max-width: 60%;
-}
-.badge-success {
-  background: #e8f5e9;
-  color: #2e7d32;
-  padding: 4px 12px;
-  border-radius: 99px;
-  font-size: 13px;
-  font-weight: 600;
-}
-.badge-error {
-  background: #ffebee;
-  color: #c62828;
-  padding: 4px 12px;
-  border-radius: 99px;
-  font-size: 13px;
-  font-weight: 600;
 }
 .btn-success {
   background: #10b981;
