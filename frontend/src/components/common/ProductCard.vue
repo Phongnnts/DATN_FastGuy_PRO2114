@@ -1,6 +1,8 @@
 <script setup>
 import { useRouter } from 'vue-router';
 import { useCartStore } from '@/stores/cart';
+import { useAuthStore } from '@/stores/auth';
+import { useFavoriteStore } from '@/stores/favorite';
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -8,6 +10,8 @@ const props = defineProps({
 });
 
 const cart = useCartStore();
+const auth = useAuthStore();
+const favoriteStore = useFavoriteStore();
 const router = useRouter();
 
   async function addToCart(e) {
@@ -21,16 +25,47 @@ const router = useRouter();
     }
   }
 
+  async function toggleFavorite(e) {
+    e.stopPropagation();
+    if (!auth.isLoggedIn) {
+      router.push('/login');
+      return;
+    }
+    try {
+      await favoriteStore.toggle(props.product);
+    } catch (err) {
+      console.error('Toggle favorite failed:', err);
+    }
+  }
+
   function goDetail() {
     router.push(`/product/${props.product.productId}`);
   }
 </script>
 
 <template>
-  <div class="product-card" :class="{ 'list-mode': listMode }" @click="goDetail">
+  <article
+    class="product-card"
+    :class="{ 'list-mode': listMode }"
+    role="link"
+    tabindex="0"
+    :aria-label="`Xem chi tiết ${product.name}`"
+    @click="goDetail"
+    @keydown.enter.prevent="goDetail"
+    @keydown.space.prevent="goDetail"
+  >
     <div class="product-image">
       <div class="product-image-bg">
         <img :src="product.image" :alt="product.name" />
+        <button
+          class="favorite-btn"
+          type="button"
+          :class="{ active: favoriteStore.isFavorite(product.productId) }"
+          :aria-label="favoriteStore.isFavorite(product.productId) ? 'Bỏ thích món' : 'Thích món'"
+          @click="toggleFavorite"
+        >
+          <i :class="favoriteStore.isFavorite(product.productId) ? 'bi bi-heart-fill' : 'bi bi-heart'"></i>
+        </button>
         <div v-if="!product.inStock" class="out-of-stock-overlay">Hết hàng</div>
       </div>
     </div>
@@ -52,13 +87,13 @@ const router = useRouter();
             <span class="price-current">{{ product.price.toLocaleString('vi-VN') }}₫</span>
           </template>
         </div>
-        <button v-if="product.inStock" class="btn btn-sm btn-primary" @click="addToCart">
+        <button v-if="product.inStock" class="btn btn-sm btn-primary" type="button" :aria-label="`Thêm ${product.name} vào giỏ`" @click="addToCart">
           <i class="bi bi-plus-lg"></i>
         </button>
         <span v-else class="badge" style="color: var(--text-light); font-size: 11px">Hết hàng</span>
       </div>
     </div>
-  </div>
+  </article>
 </template>
 
 <style scoped>
@@ -70,9 +105,9 @@ const router = useRouter();
   transition: all var(--transition-normal);
   background: #fff;
 }
-.product-card:hover {
+.product-card:hover,
+.product-card:focus-visible {
   box-shadow: var(--shadow-lg);
-  transform: translateY(-4px);
 }
 .product-card img {
   transition: transform var(--transition-normal);
@@ -99,6 +134,26 @@ const router = useRouter();
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.favorite-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255,255,255,0.7);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.9);
+  color: var(--text-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  z-index: 2;
+}
+.favorite-btn.active {
+  color: #ef4444;
+  background: #fff;
 }
 .out-of-stock-overlay {
   position: absolute; inset: 0;
