@@ -154,7 +154,7 @@ onMounted(load);
 
 /* ── Hero ── */
 .promo-hero {
-  background: linear-gradient(135deg, var(--primary) 0%, #c0562e 100%);
+  background: linear-gradient(145deg, var(--primary-dark) 0%, var(--primary) 50%, #c9653a 100%);
   padding: 52px 0 48px;
   position: relative;
   overflow: hidden;
@@ -164,26 +164,36 @@ onMounted(load);
   inset: 0;
   pointer-events: none;
 }
+.promo-hero-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 28px,
+    rgba(255,255,255,0.03) 28px,
+    rgba(255,255,255,0.03) 56px
+  );
+}
 .promo-circle {
   position: absolute;
   border-radius: 50%;
-  opacity: 0.12;
 }
 .promo-circle.c1 {
-  width: 280px; height: 280px;
-  background: #fff;
-  top: -80px; right: -60px;
+  width: 200px; height: 200px;
+  background: rgba(255,255,255,0.06);
+  top: -60px; right: -40px;
 }
 .promo-circle.c2 {
-  width: 160px; height: 160px;
-  background: #fff;
-  bottom: -40px; left: -40px;
+  width: 120px; height: 120px;
+  background: rgba(255,255,255,0.08);
+  bottom: -30px; left: 10%;
 }
 .promo-circle.c3 {
-  width: 100px; height: 100px;
-  background: rgba(255,255,255,0.08);
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+  width: 60px; height: 60px;
+  background: rgba(255,255,255,0.1);
+  top: 20%; left: 60%;
 }
 .promo-hero-inner {
   position: relative;
@@ -195,13 +205,14 @@ onMounted(load);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255,255,255,0.2);
-  backdrop-filter: blur(6px);
-  padding: 5px 16px;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(8px);
+  padding: 6px 18px;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 14px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 .promo-title {
   font-size: 34px;
@@ -303,7 +314,7 @@ onMounted(load);
 .promo-card:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-3px);
-  border-color: var(--primary);
+  border-color: var(--primary-dark);
 }
 .promo-card.claimed {
   opacity: 0.65;
@@ -323,7 +334,7 @@ onMounted(load);
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: linear-gradient(135deg, var(--primary) 0%, #c0562e 100%);
+  background: linear-gradient(145deg, var(--primary-dark) 0%, var(--primary) 100%);
   color: #fff;
   position: relative;
   padding: 14px 0;
@@ -408,13 +419,13 @@ onMounted(load);
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
-  background: linear-gradient(135deg, var(--primary) 0%, #c0562e 100%);
+  background: linear-gradient(145deg, var(--primary-dark) 0%, var(--primary) 100%);
   color: #fff;
   margin-top: 2px;
 }
 .promo-action:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(212,118,74,0.35);
+  box-shadow: 0 4px 16px rgba(212,118,74,0.4);
 }
 .promo-action:disabled {
   opacity: 0.5;
