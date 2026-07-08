@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useFavoriteStore } from '@/stores/favorite';
 import { useRouter } from 'vue-router';
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 
 const auth = useAuthStore();
 const cart = useCartStore();
@@ -23,12 +23,18 @@ function logout() {
   router.push('/');
 }
 
-const navLinks = [
-  { label: 'Trang chủ', path: '/' },
-  { label: 'Thực đơn', path: '/menu' },
-  { label: 'Khuyến mãi', path: '/promotions' },
-  { label: 'Tra cứu đơn', path: '/track-order' },
-];
+const navLinks = computed(() => {
+  const links = [
+    { label: 'Trang chủ', path: '/' },
+    { label: 'Thực đơn', path: '/menu' },
+    { label: 'Khuyến mãi', path: '/promotions' },
+    { label: 'Tra cứu đơn', path: '/track-order' },
+  ];
+  if (auth.isLoggedIn) {
+    links.push({ label: 'Lịch sử mua', path: '/account/history' });
+  }
+  return links;
+});
 
 onMounted(() => {
   if (auth.isLoggedIn) favoriteStore.fetchFavorites();
