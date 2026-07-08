@@ -33,14 +33,16 @@ async function handleClaim(couponId) {
   }
 }
 
-function typeLabel(t) {
-  return { PERCENT: '%', FIXED: 'đ', FREE_SHIPPING: 'Free ship' }[t] || t;
-}
-
 function typeDesc(c) {
   if (c.type === 'PERCENT') return `Giảm ${c.value}%`;
   if (c.type === 'FIXED') return `Giảm ${c.value?.toLocaleString()}đ`;
   return 'Miễn phí vận chuyển';
+}
+
+function typeIcon(c) {
+  if (c.type === 'PERCENT') return 'bi-percent';
+  if (c.type === 'FIXED') return 'bi-cash-stack';
+  return 'bi-truck';
 }
 
 onMounted(load);
@@ -49,57 +51,91 @@ onMounted(load);
 <template>
   <div class="promo-page">
     <section class="promo-hero">
-      <div class="container">
-        <div class="promo-hero-content">
-          <span class="promo-hero-badge">Ưu đãi hot</span>
-          <h1>Khuyến mãi</h1>
-          <p>Nhận mã giảm giá và ưu đãi hấp dẫn mỗi ngày</p>
-        </div>
+      <div class="promo-hero-bg">
+        <div class="promo-circle c1"></div>
+        <div class="promo-circle c2"></div>
+        <div class="promo-circle c3"></div>
+      </div>
+      <div class="container promo-hero-inner">
+        <span class="promo-chip">🎉 Khuyến mãi</span>
+        <h1 class="promo-title">Ưu đãi dành cho bạn</h1>
+        <p class="promo-desc">Nhận mã giảm giá và khuyến mãi hấp dẫn</p>
       </div>
     </section>
 
     <section class="promo-body">
       <div class="container">
         <div v-if="loading" class="promo-loading">
-          <div class="spinner"></div>
+          <div class="skeleton-grid">
+            <div v-for="i in 3" :key="i" class="skeleton-card">
+              <div class="skeleton-left skeleton-shine"></div>
+              <div class="skeleton-right">
+                <div class="skeleton-line w-60 skeleton-shine"></div>
+                <div class="skeleton-line w-80 skeleton-shine"></div>
+                <div class="skeleton-line w-40 skeleton-shine"></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="coupons.length === 0" class="promo-empty">
-          <div class="promo-empty-icon"><i class="bi bi-gift"></i></div>
+          <div class="empty-illustration">
+            <span class="empty-emoji">🎁</span>
+          </div>
           <h3>Hiện chưa có khuyến mãi</h3>
           <p>Quay lại sau để không bỏ lỡ ưu đãi nhé!</p>
         </div>
 
         <div v-else class="promo-grid">
-          <div v-for="c in coupons" :key="c.couponId" class="promo-card" :class="{ claimed: c.isClaimed }">
-            <div class="promo-card-badge">
-              <span class="promo-card-value">{{ c.type === 'PERCENT' ? c.value + '%' : c.value?.toLocaleString() + (c.type === 'FIXED' ? 'đ' : '') }}</span>
-              <span class="promo-card-label">{{ typeLabel(c.type) }}</span>
-            </div>
-            <div class="promo-card-body">
-              <h4 class="promo-card-title">{{ typeDesc(c) }}</h4>
-              <div class="promo-card-meta">
-                <span v-if="c.minOrder > 0"><i class="bi bi-cart3"></i> Đơn từ {{ c.minOrder?.toLocaleString() }}đ</span>
-                <span v-if="c.maxDiscount"><i class="bi bi-tag"></i> Tối đa {{ c.maxDiscount?.toLocaleString() }}đ</span>
-                <span v-if="c.expiresAt"><i class="bi bi-clock"></i> {{ new Date(c.expiresAt).toLocaleDateString('vi') }}</span>
+          <div
+            v-for="c in coupons"
+            :key="c.couponId"
+            class="promo-card"
+            :class="{ claimed: c.isClaimed }"
+          >
+            <div class="promo-badge">
+              <div class="promo-badge-icon">
+                <i :class="'bi ' + typeIcon(c)"></i>
               </div>
+              <span class="promo-badge-value">
+                {{ c.type === 'PERCENT' ? c.value + '%' : c.value?.toLocaleString() + (c.type === 'FIXED' ? 'đ' : '') }}
+              </span>
             </div>
-            <div class="promo-card-action">
+
+            <div class="promo-divider"></div>
+
+            <div class="promo-info">
+              <h4 class="promo-name">{{ typeDesc(c) }}</h4>
+              <div class="promo-terms">
+                <span v-if="c.minOrder > 0">
+                  <i class="bi bi-cart3"></i> Đơn từ {{ c.minOrder?.toLocaleString() }}đ
+                </span>
+                <span v-if="c.maxDiscount">
+                  <i class="bi bi-tag"></i> Giảm tối đa {{ c.maxDiscount?.toLocaleString() }}đ
+                </span>
+                <span v-if="c.expiresAt">
+                  <i class="bi bi-clock"></i> HSD: {{ new Date(c.expiresAt).toLocaleDateString('vi-VN') }}
+                </span>
+              </div>
               <button
                 v-if="c.isClaimed"
-                class="promo-btn claimed"
+                class="promo-action claimed"
                 disabled
               >
                 <i class="bi bi-check-lg"></i> Đã nhận
               </button>
               <button
                 v-else
-                class="promo-btn"
+                class="promo-action"
                 :disabled="claiming[c.couponId]"
                 @click="handleClaim(c.couponId)"
               >
-                <span v-if="claiming[c.couponId]" class="spinner-sm"></span>
-                <span v-else><i class="bi bi-ticket-perforated"></i> Nhận ngay</span>
+                <template v-if="claiming[c.couponId]">
+                  <span class="promo-spinner"></span> Đang nhận...
+                </template>
+                <template v-else>
+                  Nhận ngay <i class="bi bi-arrow-right"></i>
+                </template>
               </button>
             </div>
           </div>
@@ -110,71 +146,129 @@ onMounted(load);
 </template>
 
 <style scoped>
+/* ── Page ── */
 .promo-page {
   background: var(--bg);
   min-height: 100vh;
 }
+
+/* ── Hero ── */
 .promo-hero {
-  background: linear-gradient(135deg, var(--primary) 0%, #e8632a 50%, #d4764a 100%);
-  padding: 48px 0 40px;
+  background: linear-gradient(135deg, var(--primary) 0%, #c0562e 100%);
+  padding: 52px 0 48px;
   position: relative;
   overflow: hidden;
 }
-.promo-hero::before {
-  content: '';
+.promo-hero-bg {
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 20px,
-    rgba(255,255,255,0.03) 20px,
-    rgba(255,255,255,0.03) 40px
-  );
+  pointer-events: none;
 }
-.promo-hero-content {
+.promo-circle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.12;
+}
+.promo-circle.c1 {
+  width: 280px; height: 280px;
+  background: #fff;
+  top: -80px; right: -60px;
+}
+.promo-circle.c2 {
+  width: 160px; height: 160px;
+  background: #fff;
+  bottom: -40px; left: -40px;
+}
+.promo-circle.c3 {
+  width: 100px; height: 100px;
+  background: rgba(255,255,255,0.08);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.promo-hero-inner {
   position: relative;
   z-index: 1;
   text-align: center;
   color: #fff;
 }
-.promo-hero-badge {
-  display: inline-block;
+.promo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: rgba(255,255,255,0.2);
-  backdrop-filter: blur(4px);
-  padding: 4px 14px;
+  backdrop-filter: blur(6px);
+  padding: 5px 16px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
-.promo-hero-content h1 {
-  font-size: 32px;
+.promo-title {
+  font-size: 34px;
   font-weight: 900;
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  line-height: 1.15;
 }
-.promo-hero-content p {
+.promo-desc {
   font-size: 15px;
   opacity: 0.85;
   margin: 0;
 }
+
+/* ── Body ── */
 .promo-body {
-  padding: 32px 0 48px;
+  padding: 36px 0 56px;
 }
+
+/* ── Loading ── */
 .promo-loading {
-  text-align: center;
-  padding: 60px 0;
+  max-width: 800px;
+  margin: 0 auto;
 }
+.skeleton-grid { display: flex; flex-direction: column; gap: 14px; }
+.skeleton-card {
+  display: flex;
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.skeleton-left {
+  width: 110px;
+  min-height: 120px;
+  background: #eee;
+}
+.skeleton-right { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.skeleton-line { height: 14px; border-radius: 4px; background: #eee; }
+.skeleton-line.w-60 { width: 60%; }
+.skeleton-line.w-80 { width: 80%; }
+.skeleton-line.w-40 { width: 40%; }
+.skeleton-shine {
+  background: linear-gradient(90deg, #eeeeee 25%, #f5f5f5 50%, #eeeeee 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Empty ── */
 .promo-empty {
   text-align: center;
-  padding: 60px 0;
-  color: var(--text-mid);
+  padding: 56px 0;
 }
-.promo-empty-icon i {
-  font-size: 56px;
-  color: var(--primary-light);
-  margin-bottom: 16px;
+.empty-illustration {
+  width: 80px; height: 80px;
+  margin: 0 auto 16px;
+  background: var(--primary-light);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+.empty-emoji { font-size: 36px; }
 .promo-empty h3 {
   font-size: 18px;
   font-weight: 700;
@@ -183,132 +277,164 @@ onMounted(load);
 }
 .promo-empty p {
   font-size: 14px;
+  color: var(--text-mid);
   margin: 0;
 }
+
+/* ── Card grid ── */
 .promo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 16px;
-  max-width: 900px;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 18px;
+  max-width: 820px;
   margin: 0 auto;
 }
+
+/* ── Card ── */
 .promo-card {
   display: flex;
-  align-items: center;
   background: #fff;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
-  padding: 0;
+  overflow: hidden;
   transition: all 0.25s;
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  gap: 0;
 }
 .promo-card:hover {
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-md);
   transform: translateY(-3px);
+  border-color: var(--primary);
 }
 .promo-card.claimed {
-  opacity: 0.7;
+  opacity: 0.65;
 }
-.promo-card-badge {
-  background: linear-gradient(135deg, var(--primary) 0%, #e8632a 100%);
-  color: #fff;
-  padding: 16px 14px;
-  text-align: center;
-  min-width: 90px;
+.promo-card.claimed:hover {
+  border-color: var(--border);
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Badge ── */
+.promo-badge {
+  width: 110px;
+  min-width: 110px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--primary) 0%, #c0562e 100%);
+  color: #fff;
   position: relative;
-  align-self: stretch;
+  padding: 14px 0;
 }
-.promo-card-badge::after {
-  content: '';
-  position: absolute;
-  right: -8px;
-  top: 0;
-  bottom: 0;
-  width: 16px;
-  background: radial-gradient(circle at 0 50%, transparent 5px, #fff 5.5px);
-  background-size: 16px 16px;
-  background-repeat: repeat-y;
+.promo-badge-icon {
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
 }
-.promo-card-value {
-  font-size: 22px;
+.promo-badge-value {
+  font-size: 20px;
   font-weight: 800;
   line-height: 1.1;
+  letter-spacing: -0.3px;
 }
-.promo-card-label {
-  font-size: 11px;
-  opacity: 0.85;
-  margin-top: 2px;
+
+/* ── Divider (ticket cut-out) ── */
+.promo-divider {
+  position: relative;
+  width: 14px;
+  min-width: 14px;
+  background: #fff;
+  overflow: hidden;
 }
-.promo-card-body {
+.promo-divider::before,
+.promo-divider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  background: var(--bg);
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+.promo-divider::before { top: -9px; }
+.promo-divider::after { bottom: -9px; }
+
+/* ── Info ── */
+.promo-info {
   flex: 1;
-  padding: 14px 18px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   min-width: 0;
 }
-.promo-card-title {
-  font-size: 15px;
+.promo-name {
+  font-size: 16px;
   font-weight: 700;
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--text-dark);
 }
-.promo-card-meta {
+.promo-terms {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.promo-card-meta span {
+.promo-terms span {
   font-size: 12px;
   color: var(--text-mid);
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
-.promo-card-meta i {
-  font-size: 12px;
-}
-.promo-card-action {
-  padding: 14px 16px 14px 8px;
-  flex-shrink: 0;
-}
-.promo-btn {
+.promo-terms i { font-size: 12px; }
+
+/* ── Action ── */
+.promo-action {
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 20px;
+  padding: 9px 22px;
   border: none;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
-  background: linear-gradient(135deg, var(--primary) 0%, #e8632a 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, #c0562e 100%);
   color: #fff;
-  white-space: nowrap;
+  margin-top: 2px;
 }
-.promo-btn:hover {
+.promo-action:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(212, 118, 74, 0.35);
+  box-shadow: 0 4px 14px rgba(212,118,74,0.35);
 }
-.promo-btn:disabled {
-  opacity: 0.6;
+.promo-action:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
-.promo-btn.claimed {
+.promo-action.claimed {
   background: var(--bg);
   color: var(--text-mid);
   border: 1px solid var(--border);
+  box-shadow: none;
 }
-.spinner-sm {
+.promo-action.claimed:hover {
+  transform: none;
+  box-shadow: none;
+}
+.promo-spinner {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 14px; height: 14px;
   border: 2px solid #fff;
   border-top-color: transparent;
   border-radius: 50%;
@@ -318,16 +444,21 @@ onMounted(load);
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 600px) {
-  .promo-hero { padding: 36px 0 28px; }
-  .promo-hero-content h1 { font-size: 26px; }
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .promo-hero { padding: 36px 0 32px; }
+  .promo-title { font-size: 26px; }
   .promo-grid { grid-template-columns: 1fr; }
   .promo-card { flex-wrap: wrap; }
-  .promo-card-badge { min-width: 80px; padding: 12px 10px; }
-  .promo-card-badge::after { display: none; }
-  .promo-card-value { font-size: 18px; }
-  .promo-card-body { padding: 12px 14px; }
-  .promo-card-action { padding: 0 14px 14px; width: 100%; }
-  .promo-btn { width: 100%; justify-content: center; }
+  .promo-badge {
+    width: 100%;
+    min-width: unset;
+    flex-direction: row;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+  .promo-divider { display: none; }
+  .promo-info { padding: 14px 16px; }
+  .promo-action { width: 100%; justify-content: center; }
 }
 </style>
