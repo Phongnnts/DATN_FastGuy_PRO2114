@@ -20,19 +20,19 @@ public class ReviewServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         String path = req.getPathInfo();
-        if (path != null && path.startsWith("/product/")) {
-            int productId = Integer.parseInt(path.substring("/product/".length()));
-            ApiResponse.ok(resp, reviewService.getByProductId(productId));
+        int userId = getUserId(req);
+        if (userId <= 0) {
+            ApiResponse.error(resp, "Unauthorized", 401);
             return;
         }
         if (path != null && path.startsWith("/order/")) {
-            int userId = getUserId(req);
-            if (userId <= 0) {
-                ApiResponse.error(resp, "Unauthorized", 401);
-                return;
-            }
             int orderId = Integer.parseInt(path.substring("/order/".length()));
-            ApiResponse.ok(resp, reviewService.getByOrderId(orderId));
+            Map<String, Object> review = reviewService.getByOrderId(orderId);
+            if (review == null) {
+                ApiResponse.ok(resp, java.util.Collections.emptyMap());
+            } else {
+                ApiResponse.ok(resp, review);
+            }
             return;
         }
         ApiResponse.error(resp, "Not found", 404);
@@ -55,10 +55,9 @@ public class ReviewServlet extends HttpServlet {
 
         try {
             int orderId = ((Number) body.get("orderId")).intValue();
-            int productId = ((Number) body.get("productId")).intValue();
             int rating = ((Number) body.get("rating")).intValue();
             String comment = body.get("comment") != null ? body.get("comment").toString() : "";
-            ApiResponse.ok(resp, reviewService.create(userId, orderId, productId, rating, comment), "Reviewed");
+            ApiResponse.ok(resp, reviewService.create(userId, orderId, rating, comment), "Reviewed");
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         } catch (Exception e) {

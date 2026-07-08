@@ -10,9 +10,10 @@ import { orderApi, reviewApi } from '@/api'
 const route = useRoute()
 const router = useRouter()
 const order = ref(null)
-const reviewsByProduct = ref({})
-const reviewForms = ref({})
+const orderReview = ref(null)
+const reviewForm = ref({ rating: 5, comment: '' })
 const submitting = ref(false)
+const showReviewForm = ref(false)
 
 const isDelivered = computed(() => order.value?.status === 'DELIVERED')
 
@@ -47,42 +48,29 @@ onMounted(async () => {
       }
     }
     if (data && data.status === 'DELIVERED') {
-      await loadOrderReviews(data.orderId)
+      await loadReview(data.orderId)
     }
   } catch {}
 })
 
-async function loadOrderReviews(orderId) {
+async function loadReview(orderId) {
   try {
-    const list = await reviewApi.getByOrder(orderId)
-    const map = {}
-    for (const r of list) {
-      map[r.productId] = r
-    }
-    reviewsByProduct.value = map
+    const data = await reviewApi.getByOrder(orderId)
+    orderReview.value = data
   } catch {}
 }
 
-function getReviewForm(productId) {
-  if (!reviewForms.value[productId]) {
-    reviewForms.value = { ...reviewForms.value, [productId]: { rating: 5, comment: '' } }
-  }
-  return reviewForms.value[productId]
-}
-
-async function submitReview(item) {
+async function submitReview() {
+  if (!order.value) return
   submitting.value = true
-  const form = reviewForms.value[item.productId]
-  if (!form) return
   try {
     await reviewApi.create({
       orderId: order.value.id,
-      productId: item.productId,
-      rating: Number(form.rating),
-      comment: form.comment || '',
+      rating: Number(reviewForm.value.rating),
+      comment: reviewForm.value.comment || '',
     })
-    await loadOrderReviews(order.value.id)
-    reviewForms.value = { ...reviewForms.value, [item.productId]: { rating: 5, comment: '' } }
+    await loadReview(order.value.id)
+    showReviewForm.value = false
   } catch (e) {
     alert(e.message || 'Không thể gửi đánh giá')
   } finally {
@@ -138,31 +126,6 @@ async function cancelOrder() {
           <div class="detail-item-total">{{ formatPrice(item.price * item.quantity) }}</div>
         </div>
       </div>
-      <div v-if="isDelivered" class="detail-section">
-        <h4>Đánh giá sản phẩm</h4>
-        <div v-for="item in order.items" :key="item.productId" class="review-item-block">
-          <div class="review-item-header">
-            <img :src="item.image" :alt="item.productName" class="review-item-img" />
-            <span class="review-item-name">{{ item.productName }}</span>
-          </div>
-          <template v-if="reviewsByProduct[item.productId]">
-            <div class="review-done">
-              <StarRating :modelValue="reviewsByProduct[item.productId].rating" readonly :size="16" />
-              <p class="review-done-comment">{{ reviewsByProduct[item.productId].comment || 'Ngon, sẽ ủng hộ tiếp.' }}</p>
-              <span class="badge badge-success">Đã đánh giá</span>
-            </div>
-          </template>
-          <template v-else>
-            <div class="review-form-inline">
-              <StarRating v-model="getReviewForm(item.productId).rating" :size="20" />
-              <textarea v-model="getReviewForm(item.productId).comment" class="form-textarea" rows="2" maxlength="1000" placeholder="Chia sẻ cảm nhận..."></textarea>
-              <button class="btn btn-sm btn-primary" :disabled="submitting" @click="submitReview(item)">
-                {{ submitting ? 'Đang gửi...' : 'Gửi đánh giá' }}
-              </button>
-            </div>
-          </template>
-        </div>
-      </div>
       <div class="detail-summary">
         <div class="detail-summary-row"><span>Tạm tính</span><span>{{ formatPrice(order.subtotal) }}</span></div>
         <div class="detail-summary-row"><span>Phí giao hàng</span><span>{{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</span></div>
@@ -173,6 +136,31 @@ async function cancelOrder() {
         <h4>Trạng thái đơn hàng</h4>
         <OrderTimeline :history="order.statusHistory" />
       </div>
+
+      <div v-if="isDelivered" class="detail-section">
+        <h4>Đánh giá đơn hàng</h4>
+        <div v-if="orderReview" class="review-done">
+          <StarRating :modelValue="orderReview.rating" readonly :size="18" />
+          <p class="review-done-comment">{{ orderReview.comment || 'Ngon, sẽ ủng hộ tiếp.' }}</p>
+          <span class="badge badge-success">Đã đánh giá</span>
+        </div>
+        <div v-else-if="showReviewForm" class="review-form-block">
+          <StarRating v-model="reviewForm.rating" :size="24" />
+          <textarea v-model="reviewForm.comment" class="form-textarea" rows="3" maxlength="1000" placeholder="Chia sẻ cảm nhận về đơn hàng..."></textarea>
+          <div class="review-form-actions">
+            <button class="btn btn-sm btn-ghost" @click="showReviewForm = false">Hủy</button>
+            <button class="btn btn-sm btn-primary" :disabled="submitting" @click="submitReview">
+              {{ submitting ? 'Đang gửi...' : 'Gửi đánh giá' }}
+            </button>
+          </div>
+        </div>
+        <div v-else>
+          <button class="btn btn-outline" @click="showReviewForm = true">
+            <i class="bi bi-star"></i> Đánh giá đơn hàng
+          </button>
+        </div>
+      </div>
+
       <div v-if="order.status === 'PENDING'" style="margin-top:16px">
         <button class="btn btn-outline" style="border-color:var(--red-active);color:var(--red-active)" @click="cancelOrder">
           <i class="bi bi-x-lg"></i> Hủy đơn hàng
@@ -203,14 +191,8 @@ async function cancelOrder() {
 .detail-summary { border-top: 1px solid var(--border); padding: 20px 0; }
 .detail-summary-row { display: flex; justify-content: space-between; font-size: 14px; padding: 6px 0; }
 .detail-total { font-size: 18px; font-weight: 800; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 8px; }
-.review-box { background: var(--bg); padding: 16px; border-radius: var(--radius-sm); }
-.review-stars i { color: #ddd; margin-right: 2px; }
-.review-stars i.active { color: #f5a623; }
-.review-item-block { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 12px; }
-.review-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.review-item-img { width: 40px; height: 40px; border-radius: var(--radius-sm); object-fit: cover; }
-.review-item-name { font-size: 14px; font-weight: 600; }
-.review-form-inline { display: flex; flex-direction: column; gap: 8px; }
 .review-done { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.review-done-comment { font-size: 13px; color: var(--text-mid); margin: 0; }
+.review-done-comment { font-size: 14px; color: var(--text-mid); margin: 0; }
+.review-form-block { display: flex; flex-direction: column; gap: 10px; }
+.review-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>

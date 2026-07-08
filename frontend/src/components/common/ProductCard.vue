@@ -71,12 +71,6 @@ const router = useRouter();
     </div>
     <div class="product-info">
       <h3 class="product-name">{{ product.name }}</h3>
-      <div class="product-meta">
-        <span class="product-rating">
-          <i class="bi bi-star-fill"></i> {{ product.rating }}
-        </span>
-        <span class="product-reviews">({{ product.reviewCount }})</span>
-      </div>
       <div class="product-price-row">
         <div class="product-price">
           <template v-if="product.discountPrice">
@@ -172,21 +166,6 @@ const router = useRouter();
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.product-meta {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-mid);
-  margin-bottom: 6px;
-}
-.product-meta i {
-  color: var(--primary);
-  font-size: 12px;
-}
-.product-reviews {
-  color: var(--text-light);
 }
 .product-price-row {
   display: flex;

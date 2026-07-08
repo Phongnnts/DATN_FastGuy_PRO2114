@@ -9,8 +9,9 @@ import StarRating from '@/components/common/StarRating.vue';
 const router = useRouter();
 const orderStore = useOrderStore();
 const reviewsMap = ref({});
-const reviewForms = ref({});
-const submitting = ref({});
+const reviewForm = ref({ rating: 5, comment: '' });
+const submitting = ref(false);
+const editingOrderId = ref(null);
 const loading = ref(true);
 
 const deliveredOrders = computed(() =>
@@ -19,65 +20,55 @@ const deliveredOrders = computed(() =>
 
 onMounted(async () => {
   await orderStore.fetchOrders();
-  await loadReviewsForDelivered();
+  await loadReviews();
   loading.value = false;
 });
 
-async function loadReviewsForDelivered() {
+async function loadReviews() {
   const promises = orderStore.userOrders
     .filter(o => o.status === 'DELIVERED')
     .map(async (order) => {
       try {
-        const list = await reviewApi.getByOrder(order.id);
-        return { orderId: order.id, reviews: list };
+        const data = await reviewApi.getByOrder(order.id);
+        return { orderId: order.id, review: data };
       } catch {
-        return { orderId: order.id, reviews: [] };
+        return { orderId: order.id, review: null };
       }
     });
   const results = await Promise.all(promises);
   const map = {};
   for (const r of results) {
-    for (const rev of r.reviews) {
-      map[`${r.orderId}-${rev.productId}`] = rev;
-    }
+    if (r.review) map[r.orderId] = r.review;
   }
   reviewsMap.value = map;
 }
 
-function getReviewKey(orderId, productId) {
-  return `${orderId}-${productId}`;
+function startReview(orderId) {
+  editingOrderId.value = orderId;
+  reviewForm.value = { rating: 5, comment: '' };
 }
 
-function getForm(orderId, productId) {
-  const key = `${orderId}-${productId}`;
-  if (!reviewForms.value[key]) {
-    reviewForms.value = { ...reviewForms.value, [key]: { rating: 5, comment: '' } };
-  }
-  return reviewForms.value[key];
-}
-
-async function submitReview(orderId, productId) {
-  const key = getReviewKey(orderId, productId);
-  const form = reviewForms.value[key];
-  if (!form) return;
-  submitting.value = { ...submitting.value, [key]: true };
+async function submitReview(orderId) {
+  submitting.value = true;
   try {
     await reviewApi.create({
       orderId,
-      productId,
-      rating: Number(form.rating),
-      comment: form.comment || '',
+      rating: Number(reviewForm.value.rating),
+      comment: reviewForm.value.comment || '',
     });
-    const list = await reviewApi.getByOrder(orderId);
-    for (const rev of list) {
-      reviewsMap.value = { ...reviewsMap.value, [getReviewKey(orderId, rev.productId)]: rev };
-    }
-    reviewForms.value = { ...reviewForms.value, [key]: { rating: 5, comment: '' } };
+    const data = await reviewApi.getByOrder(orderId);
+    reviewsMap.value = { ...reviewsMap.value, [orderId]: data };
+    editingOrderId.value = null;
+    reviewForm.value = { rating: 5, comment: '' };
   } catch (e) {
     alert(e.message || 'Không thể gửi đánh giá');
   } finally {
-    submitting.value = { ...submitting.value, [key]: false };
+    submitting.value = false;
   }
+}
+
+function cancelReview() {
+  editingOrderId.value = null;
 }
 
 function goDetail(id) {
@@ -89,7 +80,7 @@ function goDetail(id) {
   <div class="history-page">
     <div class="card">
       <h3 class="page-title">Lịch sử mua hàng</h3>
-      <p class="page-desc">Các đơn đã giao thành công. Bạn có thể đánh giá từng món bên dưới.</p>
+      <p class="page-desc">Các đơn đã giao thành công.</p>
 
       <div v-if="loading" class="empty-state" style="padding:60px 0">
         <i class="bi bi-arrow-repeat spin"></i>
@@ -112,30 +103,37 @@ function goDetail(id) {
             <span class="order-total">{{ formatPrice(order.total) }}</span>
           </div>
 
-          <div class="item-reviews">
-            <div v-for="item in order.items" :key="item.productId" class="item-review-row">
-              <div class="item-info">
-                <img :src="item.image" :alt="item.productName" class="item-img" />
-                <div>
-                  <div class="item-name">{{ item.productName }}</div>
-                  <div v-if="item.variantName" class="item-variant">{{ item.variantName }}</div>
-                </div>
-              </div>
-
-              <div v-if="reviewsMap[getReviewKey(order.id, item.productId)]" class="review-done">
-                <StarRating :modelValue="reviewsMap[getReviewKey(order.id, item.productId)].rating" readonly :size="14" />
-                <span class="done-comment">{{ reviewsMap[getReviewKey(order.id, item.productId)].comment || 'Ngon, sẽ ủng hộ tiếp.' }}</span>
-                <span class="badge badge-success">Đã đánh giá</span>
-              </div>
-
-              <div v-else class="review-form-inline">
-                <StarRating v-model="getForm(order.id, item.productId).rating" :size="18" />
-                <textarea v-model="getForm(order.id, item.productId).comment" class="form-textarea" rows="2" maxlength="1000" placeholder="Chia sẻ cảm nhận..."></textarea>
-                <button class="btn btn-sm btn-primary" :disabled="submitting[getReviewKey(order.id, item.productId)]" @click="submitReview(order.id, item.productId)">
-                  {{ submitting[getReviewKey(order.id, item.productId)] ? 'Đang gửi...' : 'Gửi đánh giá' }}
-                </button>
+          <div class="items-preview">
+            <div v-for="item in order.items" :key="item.productId" class="item-chip">
+              <img :src="item.image" :alt="item.productName" class="item-img" />
+              <div>
+                <div class="item-name">{{ item.productName }}</div>
+                <div v-if="item.variantName" class="item-variant">{{ item.variantName }}</div>
               </div>
             </div>
+          </div>
+
+          <div v-if="reviewsMap[order.id]" class="review-done">
+            <div class="review-done-inner">
+              <StarRating :modelValue="reviewsMap[order.id].rating" readonly :size="16" />
+              <span class="done-comment">{{ reviewsMap[order.id].comment || 'Ngon, sẽ ủng hộ tiếp.' }}</span>
+              <span class="badge badge-success">Đã đánh giá</span>
+            </div>
+          </div>
+          <div v-else-if="editingOrderId === order.id" class="review-edit">
+            <StarRating v-model="reviewForm.rating" :size="22" />
+            <textarea v-model="reviewForm.comment" class="form-textarea" rows="2" maxlength="1000" placeholder="Chia sẻ cảm nhận về đơn hàng..."></textarea>
+            <div class="review-edit-actions">
+              <button class="btn btn-sm btn-ghost" @click="cancelReview">Hủy</button>
+              <button class="btn btn-sm btn-primary" :disabled="submitting" @click="submitReview(order.id)">
+                {{ submitting ? 'Đang gửi...' : 'Gửi đánh giá' }}
+              </button>
+            </div>
+          </div>
+          <div v-else>
+            <button class="btn btn-sm btn-outline" @click="startReview(order.id)">
+              <i class="bi bi-star"></i> Đánh giá
+            </button>
           </div>
         </div>
       </div>
@@ -155,13 +153,13 @@ function goDetail(id) {
 .order-code { font-size: 14px; font-weight: 700; display: block; }
 .order-date { font-size: 12px; color: var(--text-light); }
 .order-total { font-size: 16px; font-weight: 800; }
-.item-reviews { display: flex; flex-direction: column; gap: 12px; }
-.item-review-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; }
-.item-info { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.item-img { width: 40px; height: 40px; border-radius: var(--radius-sm); object-fit: cover; }
-.item-name { font-size: 14px; font-weight: 600; }
-.item-variant { font-size: 12px; color: var(--text-mid); }
-.review-form-inline { display: flex; flex-direction: column; gap: 8px; }
-.review-done { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.items-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.item-chip { display: flex; align-items: center; gap: 8px; background: var(--bg); padding: 6px 10px; border-radius: var(--radius-sm); }
+.item-img { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; }
+.item-name { font-size: 13px; font-weight: 600; }
+.item-variant { font-size: 11px; color: var(--text-mid); }
+.review-done-inner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border); }
 .done-comment { font-size: 13px; color: var(--text-mid); }
+.review-edit { border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.review-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
