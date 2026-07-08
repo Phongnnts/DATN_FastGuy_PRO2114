@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 public class FavoriteProductService {
     private FavoriteProductDAO favoriteDAO = new FavoriteProductDAO();
     private ProductDAO productDAO = new ProductDAO();
-    private ReviewService reviewService = new ReviewService();
 
     public List<Map<String, Object>> getByUserId(int userId) {
         return favoriteDAO.findByUserId(userId).stream()
@@ -58,9 +57,6 @@ public class FavoriteProductService {
         data.put("categoryId", product.getCategory() != null ? product.getCategory().getCategoryId() : null);
         data.put("categoryName", product.getCategory() != null ? product.getCategory().getName() : "");
         data.put("discountPrice", null);
-        Map<String, Object> stats = reviewService.getStats(product.getProductId());
-        data.put("rating", stats.get("rating"));
-        data.put("reviewCount", stats.get("reviewCount"));
         data.put("inStock", "AVAILABLE".equals(product.getStatus()));
         data.put("featured", false);
         return data;

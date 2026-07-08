@@ -5,9 +5,7 @@ import { useProductStore } from '@/stores/product';
 import { useCartStore } from '@/stores/cart';
 import { useAuthStore } from '@/stores/auth';
 import { useFavoriteStore } from '@/stores/favorite';
-import { formatDate, formatPrice } from '@/utils/format';
-import { reviewApi } from '@/api';
-import StarRating from '@/components/common/StarRating.vue';
+import { formatPrice } from '@/utils/format';
 
 const route = useRoute();
 const router = useRouter();
@@ -19,7 +17,6 @@ const quantity = ref(1);
 const selectedVariant = ref(null);
 const activeImageIndex = ref(0);
 const loading = ref(true);
-const reviews = ref([]);
 
 const product = computed(() => productStore.currentProduct);
 
@@ -57,11 +54,6 @@ onMounted(async () => {
 
 function selectVariant(variant) {
   selectedVariant.value = variant;
-}
-
-async function loadReviews() {
-  if (!product.value?.productId) return;
-  reviews.value = await reviewApi.getByProduct(product.value.productId);
 }
 
 async function toggleFavorite() {
@@ -194,28 +186,6 @@ async function addToCart() {
               <i :class="favoriteStore.isFavorite(product.productId) ? 'bi bi-heart-fill' : 'bi bi-heart'"></i>
               {{ favoriteStore.isFavorite(product.productId) ? 'Đã thích' : 'Thích món' }}
             </button>
-          </div>
-
-          <div class="detail-review-placeholder">
-            <div class="review-header">
-              <h3>Đánh giá sản phẩm</h3>
-              <span>{{ reviews.length }} đánh giá</span>
-            </div>
-
-            <div v-if="reviews.length" class="review-list">
-              <div v-for="review in reviews" :key="review.reviewId" class="review-item">
-                <img :src="review.avatarUrl || 'https://i.pravatar.cc/80?u=fastguy'" :alt="review.userName">
-                <div>
-                  <div class="review-item-head">
-                    <strong>{{ review.userName }}</strong>
-                    <span>{{ formatDate(review.createdAt) }}</span>
-                  </div>
-                  <StarRating :modelValue="review.rating" readonly :size="14" />
-                  <p>{{ review.comment || 'Ngon, sẽ ủng hộ tiếp.' }}</p>
-                </div>
-              </div>
-            </div>
-            <p v-else class="review-empty">Chưa có đánh giá nào.</p>
           </div>
         </div>
       </div>
@@ -469,95 +439,6 @@ async function addToCart() {
 .favorite-detail-btn i {
   color: #ef4444;
 }
-.detail-review-placeholder {
-  border-top: 1px solid var(--border);
-  padding-top: 24px;
-}
-.review-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.review-header h3 {
-  font-size: 18px;
-  font-weight: 800;
-}
-.review-header span {
-  color: var(--text-mid);
-  font-size: 13px;
-  font-weight: 700;
-}
-.review-form {
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #fffaf1;
-  margin-bottom: 18px;
-}
-.review-form-top {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.review-form-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-}
-.review-help,
-.review-message {
-  color: var(--text-mid);
-  font-size: 12px;
-}
-.review-message {
-  margin-top: 8px;
-  font-weight: 700;
-}
-.review-list {
-  display: grid;
-  gap: 12px;
-}
-.review-item {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #fff;
-}
-.review-item img {
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  object-fit: cover;
-}
-.review-item-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 2px;
-}
-.review-item-head span {
-  color: var(--text-light);
-  font-size: 12px;
-}
-.review-item p {
-  color: var(--text-mid);
-  font-size: 13px;
-  margin-top: 4px;
-}
-.review-empty {
-  color: var(--text-light);
-  font-size: 14px;
-  padding: 20px 0;
-}
 .spin {
   animation: spin 1s linear infinite;
 }
@@ -582,12 +463,8 @@ async function addToCart() {
   .detail-price-current {
     font-size: 26px;
   }
-  .detail-actions,
-  .review-form-actions,
-  .review-form-top {
-    align-items: stretch;
+  .detail-actions {
     flex-direction: column;
-    grid-template-columns: 1fr;
   }
 }
 </style>
