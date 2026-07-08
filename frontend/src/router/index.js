@@ -63,6 +63,12 @@ const routes = [
         meta: { guest: true },
       },
       {
+        path: 'payment-return',
+        name: 'PaymentReturn',
+        component: () => import('@/views/user/PaymentReturnPage.vue'),
+        meta: { guest: true },
+      },
+      {
         path: 'promotions',
         name: 'Promotions',
         component: () => import('@/views/guest/PromotionsPage.vue'),
@@ -98,6 +104,16 @@ const routes = [
         path: 'orders/:id',
         name: 'UserOrderDetail',
         component: () => import('@/views/user/OrderDetailPage.vue'),
+      },
+      {
+        path: 'favorites',
+        name: 'UserFavorites',
+        component: () => import('@/views/user/FavoritesPage.vue'),
+      },
+      {
+        path: 'history',
+        name: 'UserPurchaseHistory',
+        component: () => import('@/views/user/PurchaseHistoryPage.vue'),
       },
       {
         path: 'change-password',
@@ -222,12 +238,6 @@ const router = createRouter({
   scrollBehavior() {
     return { top: 0 };
   },
-});
-
-router.beforeEach((to, from, next) => {
-  document.body.classList.add('page-transition');
-  setTimeout(() => document.body.classList.remove('page-transition'), 300);
-  next();
 });
 
 router.beforeEach((to, from, next) => {

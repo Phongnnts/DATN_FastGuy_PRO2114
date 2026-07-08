@@ -110,8 +110,6 @@ public class ProductServlet extends HttpServlet {
         m.put("categoryId", p.getCategory().getCategoryId());
         m.put("categoryName", p.getCategory().getName());
         m.put("discountPrice", null);
-        m.put("rating", 0);
-        m.put("reviewCount", 0);
         m.put("inStock", "AVAILABLE".equals(p.getStatus()));
         m.put("featured", false);
         return m;

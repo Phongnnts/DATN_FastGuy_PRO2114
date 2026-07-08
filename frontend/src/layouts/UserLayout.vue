@@ -1,11 +1,13 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
+import { useFavoriteStore } from '@/stores/favorite';
 import { useRouter } from 'vue-router';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 
 const auth = useAuthStore();
 const cart = useCartStore();
+const favoriteStore = useFavoriteStore();
 const router = useRouter();
 const mobileMenuOpen = ref(false);
 const sidebarHover = ref(false);
@@ -23,6 +25,7 @@ function isSidebarVisible() {
 }
 
 function logout() {
+  favoriteStore.clear();
   auth.logout();
   router.push('/');
 }
@@ -30,8 +33,12 @@ function logout() {
 const sidebarLinks = [
   { label: 'Thông tin cá nhân', path: '/account/profile', icon: 'bi-person' },
   { label: 'Đơn hàng', path: '/account/orders', icon: 'bi-box' },
+  { label: 'Lịch sử mua', path: '/account/history', icon: 'bi-clock-history' },
+  { label: 'Món yêu thích', path: '/account/favorites', icon: 'bi-heart' },
   { label: 'Đổi mật khẩu', path: '/account/change-password', icon: 'bi-lock' },
 ];
+
+onMounted(() => favoriteStore.fetchFavorites());
 </script>
 
 <template>
@@ -48,6 +55,8 @@ const sidebarLinks = [
             <router-link to="/menu" class="top-bar-link">Thực đơn</router-link>
             <button
               class="top-bar-btn"
+              type="button"
+              aria-label="Mở giỏ hàng"
               @click="router.push('/cart')"
               title="Giỏ hàng"
             >
@@ -56,11 +65,13 @@ const sidebarLinks = [
                 cart.itemCount
               }}</span>
             </button>
-            <button class="top-bar-btn" @click="logout" title="Đăng xuất">
+            <button class="top-bar-btn" type="button" aria-label="Đăng xuất" @click="logout" title="Đăng xuất">
               <i class="bi bi-box-arrow-right"></i>
             </button>
             <button
               class="mobile-toggle"
+              type="button"
+              aria-label="Mở menu tài khoản"
               @click="mobileMenuOpen = !mobileMenuOpen"
             >
               <i :class="mobileMenuOpen ? 'bi bi-x-lg' : 'bi bi-list'"></i>
@@ -79,6 +90,7 @@ const sidebarLinks = [
                 auth.user?.avatarUrl || 'https://i.pravatar.cc/150?u=default'
               "
               class="sidebar-avatar"
+              alt="Avatar người dùng"
             />
             <div>
               <div class="sidebar-name">{{ auth.user?.fullName }}</div>
