@@ -94,8 +94,6 @@ public class AuthServlet extends HttpServlet {
         try {
             if (path.equals("/profile")) {
                 handleUpdateProfile(req, resp);
-            } else if (path.equals("/change-password")) {
-                handleChangePassword(req, resp);
             } else {
                 resp.sendError(404);
             }
@@ -187,6 +185,7 @@ public class AuthServlet extends HttpServlet {
         data.put("avatarUrl", user.getAvatarUrl());
         data.put("role", user.getRole().getRoleName());
         data.put("status", user.getStatus());
+        data.put("loyaltyPoints", user.getLoyaltyPoints());
         data.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
 
         JsonUtil.write(resp, ApiResponse.ok(data));
@@ -231,42 +230,6 @@ public class AuthServlet extends HttpServlet {
         data.put("avatarUrl", user.getAvatarUrl());
 
         JsonUtil.write(resp, ApiResponse.ok(data, "Cập nhật thành công"));
-    }
-
-    private void handleChangePassword(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        int userId = getUserIdFromToken(req);
-        if (userId == -1) {
-            ApiResponse.error(resp, "Unauthorized", 401);
-            return;
-        }
-
-        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-        if (body == null) {
-            JsonUtil.write(resp, ApiResponse.error("Dữ liệu không hợp lệ"));
-            return;
-        }
-
-        String currentPassword = (String) body.get("currentPassword");
-        String newPassword = (String) body.get("newPassword");
-        if (currentPassword == null || newPassword == null) {
-            JsonUtil.write(resp, ApiResponse.error("Vui lòng nhập đầy đủ mật khẩu"));
-            return;
-        }
-        if (newPassword.length() < 6 || newPassword.length() > 72) {
-            JsonUtil.write(resp, ApiResponse.error("Mật khẩu mới phải từ 6 đến 72 ký tự"));
-            return;
-        }
-        if (currentPassword.equals(newPassword)) {
-            JsonUtil.write(resp, ApiResponse.error("Mật khẩu mới phải khác mật khẩu hiện tại"));
-            return;
-        }
-
-        if (!authService.changePassword(userId, currentPassword, newPassword)) {
-            JsonUtil.write(resp, ApiResponse.error("Mật khẩu hiện tại không đúng"));
-            return;
-        }
-
-        JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đổi mật khẩu thành công"));
     }
 
     private String validateAccount(String fullName, String phone, String email, String password, boolean requirePassword) {

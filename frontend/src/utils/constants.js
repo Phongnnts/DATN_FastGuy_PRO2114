@@ -7,6 +7,7 @@ export const ROLES = {
 };
 
 export const ORDER_STATUS = {
+  WAITING_STOCK_CONFIRM: 'WAITING_STOCK_CONFIRM',
   PENDING: 'PENDING',
   CONFIRMED: 'CONFIRMED',
   PREPARING: 'PREPARING',
@@ -17,6 +18,7 @@ export const ORDER_STATUS = {
 };
 
 export const ORDER_STATUS_LABEL = {
+  WAITING_STOCK_CONFIRM: 'Chờ xác nhận tồn kho',
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
   PREPARING: 'Đang chuẩn bị',
@@ -27,6 +29,7 @@ export const ORDER_STATUS_LABEL = {
 };
 
 export const ORDER_STATUS_BADGE = {
+  WAITING_STOCK_CONFIRM: 'info',
   PENDING: 'warning',
   CONFIRMED: 'info',
   PREPARING: 'primary',
@@ -88,10 +91,7 @@ export const PAYMENT_STATUS_LABEL = {
 
 // export const SHIFT_TYPES = ['Sáng (6h-14h)', 'Chiều (14h-22h)', 'Tối (22h-6h)'];
 
-export const SHIPPING_PROVIDER = {
-  GHN: 'GHN',
-  FALLBACK_ZONE: 'Giao hàng nội bộ',
-};
+
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 

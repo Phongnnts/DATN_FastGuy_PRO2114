@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
 import { ORDER_STATUS_LABEL } from '@/utils/constants';
@@ -13,34 +13,59 @@ const orderCode = ref('');
 const trackingResult = ref(null);
 const error = ref('');
 const searched = ref(false);
-const loading = ref(false);
+const justCreated = ref(route.query.created === '1');
+let paymentPolling = null;
 
 async function track() {
-  const code = orderCode.value.trim().toUpperCase();
-  if (!code || loading.value) return;
-  orderCode.value = code;
+  if (!orderCode.value) return;
   error.value = '';
   searched.value = true;
-  loading.value = true;
   try {
-    const result = await orderStore.trackOrder(code);
-    if (result) {
-      trackingResult.value = result;
-    } else {
+    const result = await orderStore.trackOrder(orderCode.value);
+    if (!result) {
       trackingResult.value = null;
       error.value = 'Không tìm thấy đơn hàng với mã này';
+      return;
     }
-  } finally {
-    loading.value = false;
+    trackingResult.value = result;
+    if (result.checkoutUrl && result.paymentStatus === 'UNPAID') window.location.assign(result.checkoutUrl);
+    if (result.paymentMethod === 'BANK_TRANSFER' && result.paymentStatus === 'UNPAID') startPaymentPolling();
+  } catch (e) {
+    trackingResult.value = null;
+    error.value = e.message || 'Không thể tra cứu đơn hàng';
   }
 }
 
-onMounted(() => {
+function startPaymentPolling() {
+  if (paymentPolling || !trackingResult.value?.id) return;
+  paymentPolling = setInterval(async () => {
+    try {
+      const result = await orderStore.trackOrder(orderCode.value);
+      if (!result) return;
+       trackingResult.value = result;
+       if (result.checkoutUrl && result.paymentStatus === 'UNPAID') {
+         window.location.assign(result.checkoutUrl);
+         return;
+       }
+       if (result.paymentStatus === 'PAID' || result.status === 'CANCELLED') {
+        clearInterval(paymentPolling);
+        paymentPolling = null;
+      }
+    } catch {}
+  }, 5000);
+}
+
+onMounted(async () => {
   const code = route.query.code;
   if (code) {
     orderCode.value = code;
-    track();
+    await track();
+    startPaymentPolling();
   }
+});
+
+onUnmounted(() => {
+  if (paymentPolling) clearInterval(paymentPolling);
 });
 </script>
 
@@ -57,14 +82,12 @@ onMounted(() => {
             v-model="orderCode"
             type="text"
             class="form-input"
-            placeholder="VD: ORD-ABC12345"
-            maxlength="20"
+            placeholder="VD: FG-20240201-001"
             @keyup.enter="track"
             style="flex: 1"
           />
-          <button class="btn btn-primary" :disabled="loading || !orderCode.trim()" @click="track">
-            <i v-if="loading" class="bi bi-arrow-repeat spin"></i>
-            <i v-else class="bi bi-search"></i>
+          <button class="btn btn-primary" @click="track">
+            <i class="bi bi-search"></i>
           </button>
         </div>
       </div>
@@ -77,6 +100,9 @@ onMounted(() => {
         class="track-result card"
         style="max-width: 600px; margin: 24px auto 0"
       >
+        <div v-if="justCreated" class="track-success">
+          <i class="bi bi-check-circle-fill"></i> Đặt đơn thành công. Hãy lưu lại mã đơn hàng để theo dõi.
+        </div>
         <div class="track-header">
           <div>
             <h3>Đơn hàng {{ trackingResult.orderCode }}</h3>
@@ -100,6 +126,10 @@ onMounted(() => {
               </div>
             </div>
           </div>
+        </div>
+        <div v-if="trackingResult.paymentMethod === 'BANK_TRANSFER' && trackingResult.paymentStatus === 'UNPAID' && trackingResult.checkoutUrl" class="payment-card">
+          <h4>Thanh toán PayOS</h4>
+          <a :href="trackingResult.checkoutUrl" class="btn btn-primary">Mở trang thanh toán</a>
         </div>
         <div class="track-timeline">
           <h4>Trạng thái đơn hàng</h4>
@@ -127,6 +157,7 @@ onMounted(() => {
 .track-items {
   margin-bottom: 20px;
 }
+.track-success { margin-bottom: 16px; padding: 10px 12px; border-radius: var(--radius-sm); background: #ecfdf5; color: #047857; font-size: 13px; font-weight: 600; }
 .track-item {
   display: flex;
   align-items: center;
@@ -140,16 +171,19 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   object-fit: cover;
 }
+.payment-card {
+  margin: 20px 0;
+  padding: 16px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.payment-card h4 { font-size: 16px; margin-bottom: 12px; }
+.payment-card img { width: 220px; height: 220px; }
+.payment-card p { margin-top: 8px; color: var(--text-mid); }
 .track-timeline h4 {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 16px;
-}
-.spin {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 </style>

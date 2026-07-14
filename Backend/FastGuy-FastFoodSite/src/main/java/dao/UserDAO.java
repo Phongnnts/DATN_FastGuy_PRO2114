@@ -84,9 +84,9 @@ public class UserDAO {
                 em.merge(user);
             }
             em.getTransaction().commit();
-        } catch (Exception e) {
-            em.getTransaction().rollback();
-            e.printStackTrace();
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
         } finally {
             em.close();
         }
@@ -99,9 +99,9 @@ public class UserDAO {
             User u = em.find(User.class, id);
             if (u != null) em.remove(u);
             em.getTransaction().commit();
-        } catch (Exception e) {
-            em.getTransaction().rollback();
-            e.printStackTrace();
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
         } finally {
             em.close();
         }

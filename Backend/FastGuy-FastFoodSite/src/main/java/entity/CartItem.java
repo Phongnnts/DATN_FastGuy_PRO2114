@@ -38,6 +38,9 @@ public class CartItem {
     @Column(name = "unit_price")
     private BigDecimal unitPrice;
 
+    @Column(name = "selected_modifier_option_ids")
+    private String selectedModifierOptionIds;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -55,6 +58,8 @@ public class CartItem {
     public void setQuantity(int quantity) { this.quantity = quantity; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+    public String getSelectedModifierOptionIds() { return selectedModifierOptionIds; }
+    public void setSelectedModifierOptionIds(String selectedModifierOptionIds) { this.selectedModifierOptionIds = selectedModifierOptionIds; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

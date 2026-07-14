@@ -1,83 +1,112 @@
 package service;
 
-import dao.OrdersDAO;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import entity.Orders;
-import utils.PayOSClient;
-import utils.PayOSConfig;
+import utils.AppConfig;
 
-import java.time.LocalDateTime;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.Duration;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 
 public class PayOSService {
-    private OrdersDAO ordersDAO = new OrdersDAO();
+    private static final String API_URL = "https://api-merchant.payos.vn/v2/payment-requests";
+    private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    public Map<String, Object> createPayment(Orders order) throws Exception {
-        if (!PayOSConfig.isConfigured()) {
-            throw new IllegalStateException("PayOS chưa được cấu hình. Vui lòng thêm biến môi trường PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY");
+    public Map<String, Object> createPaymentLink(Orders order) {
+        if (!isConfigured()) return Map.of("error", "PayOS chưa được cấu hình");
+        if (order.getFinalAmount() == null || order.getFinalAmount().signum() <= 0) return Map.of("error", "Số tiền thanh toán không hợp lệ");
+
+        try {
+            long amount = order.getFinalAmount().longValueExact();
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("orderCode", order.getOrderId());
+            payload.put("amount", amount);
+            payload.put("description", "FG" + order.getOrderId());
+            payload.put("buyerName", order.getCustomerName());
+            payload.put("buyerAddress", order.getCustomerAddress());
+            payload.put("buyerPhone", order.getCustomerPhone());
+            String returnUrl = AppConfig.getAppWebUrl() + "/payment-return?orderId=" + order.getOrderId() + "&orderCode=" + order.getOrderCode();
+            payload.put("returnUrl", returnUrl);
+            payload.put("cancelUrl", returnUrl);
+            payload.put("expiredAt", Instant.now().plusSeconds(15 * 60).getEpochSecond());
+            payload.put("signature", signature(Map.of(
+                    "amount", amount,
+                    "cancelUrl", AppConfig.getAppWebUrl() + "/payment-return?orderId=" + order.getOrderId() + "&orderCode=" + order.getOrderCode(),
+                    "description", payload.get("description"),
+                    "orderCode", order.getOrderId(),
+                    "returnUrl", AppConfig.getAppWebUrl() + "/payment-return?orderId=" + order.getOrderId() + "&orderCode=" + order.getOrderCode()
+            )));
+
+            HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Content-Type", "application/json")
+                    .header("x-client-id", AppConfig.getPayosClientId())
+                    .header("x-api-key", AppConfig.getPayosApiKey())
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload)))
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            Map<String, Object> body = mapper.readValue(response.body(), new TypeReference<Map<String, Object>>() {});
+            if (response.statusCode() / 100 != 2 || !"00".equals(String.valueOf(body.get("code")))) {
+                return Map.of("error", String.valueOf(body.getOrDefault("desc", "Không thể tạo link PayOS")));
+            }
+            Object data = body.get("data");
+            if (!(data instanceof Map<?, ?> result)) return Map.of("error", "PayOS không trả link thanh toán");
+            Object checkoutUrl = result.get("checkoutUrl");
+            Object paymentLinkId = result.get("paymentLinkId");
+            if (checkoutUrl == null || paymentLinkId == null) return Map.of("error", "PayOS không trả link thanh toán");
+            return Map.of("checkoutUrl", String.valueOf(checkoutUrl), "paymentLinkId", String.valueOf(paymentLinkId));
+        } catch (Exception e) {
+            return Map.of("error", "Không thể kết nối PayOS");
         }
-        PayOSClient client = new PayOSClient(
-            PayOSConfig.getClientId(),
-            PayOSConfig.getApiKey(),
-            PayOSConfig.getChecksumKey()
-        );
-
-        long amount = order.getFinalAmount().longValueExact();
-        String description = "TT " + order.getOrderCode();
-        if (description.length() > 25) {
-            description = description.substring(0, 25);
-        }
-
-        Map<String, Object> result = client.createPaymentLink(
-            order.getOrderId(),
-            amount,
-            description,
-            PayOSConfig.getReturnUrl(),
-            PayOSConfig.getReturnUrl()
-        );
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) result.get("data");
-        return data;
     }
 
-    public boolean handleWebhook(Map<String, Object> payload) {
+    public boolean isValidWebhook(Map<String, Object> data, String receivedSignature) {
+        if (!isConfigured() || data == null || receivedSignature == null) return false;
+        return constantTimeEquals(signature(data), receivedSignature);
+    }
+
+    public boolean isConfigured() {
+        return !AppConfig.getPayosClientId().isBlank() && !AppConfig.getPayosApiKey().isBlank() && !AppConfig.getPayosChecksumKey().isBlank();
+    }
+
+
+    private String signature(Map<String, Object> data) {
+        String payload = data.entrySet().stream()
+                .sorted(Comparator.comparing(Map.Entry::getKey))
+                .map(entry -> entry.getKey() + "=" + value(entry.getValue()))
+                .reduce((left, right) -> left + "&" + right)
+                .orElse("");
         try {
-            if (!PayOSConfig.isConfigured()) return false;
-
-            String code = (String) payload.get("code");
-            if (!"00".equals(code)) return false;
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> data = (Map<String, Object>) payload.get("data");
-            if (data == null) return false;
-
-            String signature = (String) payload.get("signature");
-            if (signature == null) return false;
-
-            boolean valid = PayOSClient.verifyWebhookData(data, signature, PayOSConfig.getChecksumKey());
-            if (!valid) return false;
-
-            Object orderCodeObj = data.get("orderCode");
-            if (orderCodeObj == null) return false;
-
-            int orderId;
-            if (orderCodeObj instanceof Number) {
-                orderId = ((Number) orderCodeObj).intValue();
-            } else {
-                orderId = Integer.parseInt(orderCodeObj.toString());
-            }
-
-            Orders order = ordersDAO.findById(orderId);
-            if (order == null) return false;
-            if ("PAID".equals(order.getPaymentStatus())) return false;
-
-            order.setPaymentStatus("PAID");
-            order.setPaidAt(LocalDateTime.now());
-            ordersDAO.save(order);
-            return true;
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(AppConfig.getPayosChecksumKey().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] bytes = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(bytes.length * 2);
+            for (byte value : bytes) hex.append(String.format("%02x", value));
+            return hex.toString();
         } catch (Exception e) {
-            e.printStackTrace();
-            return false;
+            throw new IllegalStateException("Không thể tạo chữ ký PayOS", e);
         }
+    }
+
+    private String value(Object value) {
+        return value == null || "null".equals(value) || "undefined".equals(value) ? "" : String.valueOf(value);
+    }
+
+    private boolean constantTimeEquals(String expected, String actual) {
+        if (expected.length() != actual.length()) return false;
+        int diff = 0;
+        for (int i = 0; i < expected.length(); i++) diff |= expected.charAt(i) ^ actual.charAt(i);
+        return diff == 0;
     }
 }

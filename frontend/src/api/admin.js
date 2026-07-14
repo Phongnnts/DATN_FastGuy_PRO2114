@@ -40,18 +40,6 @@ export default {
   deleteCategory(id) {
     return client.delete(`/admin/categories/${id}`);
   },
-  getDeliveryZones() {
-    return client.get('/admin/delivery-zones');
-  },
-  createDeliveryZone(data) {
-    return client.post('/admin/delivery-zones', data);
-  },
-  updateDeliveryZone(id, data) {
-    return client.put(`/admin/delivery-zones/${id}`, data);
-  },
-  deleteDeliveryZone(id) {
-    return client.delete(`/admin/delivery-zones/${id}`);
-  },
   getOrders(params) {
     return client.get('/admin/orders', { params });
   },
@@ -78,5 +66,44 @@ export default {
   },
   deleteVariant(id) {
     return client.delete(`/admin/variants/${id}`);
+  },
+  getModifierGroups(productId) {
+    return client.get(`/admin/products/${productId}/modifier-groups`);
+  },
+  createModifierGroup(productId, data) {
+    return client.post(`/admin/products/${productId}/modifier-groups`, data);
+  },
+  createModifierOption(groupId, data) {
+    return client.post(`/admin/products/${groupId}/modifier-groups/options`, data);
+  },
+  getCombo(productId) {
+    return client.get(`/admin/products/${productId}/combo`);
+  },
+  saveCombo(productId, data) {
+    return client.post(`/admin/products/${productId}/combo`, data);
+  },
+  createComboItem(productId, data) {
+    return client.post(`/admin/products/${productId}/combo/items`, data);
+  },
+  getSettings() {
+    return client.get('/admin/settings');
+  },
+  updateSettings(data) {
+    return client.put('/admin/settings', data);
+  },
+  getShifts() {
+    return client.get('/admin/shifts');
+  },
+  createShift(data) {
+    return client.post('/admin/shifts', data);
+  },
+  updateShift(id, data) {
+    return client.put(`/admin/shifts/${id}`, data);
+  },
+  deleteShift(id) {
+    return client.delete(`/admin/shifts/${id}`);
+  },
+  updateRefund(orderId, data) {
+    return client.put(`/admin/refunds/${orderId}`, data);
   },
 };

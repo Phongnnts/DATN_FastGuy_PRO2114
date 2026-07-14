@@ -14,6 +14,9 @@ public class DeliveryZone {
     @Column(name = "district_name")
     private String districtName;
 
+    @Column(name = "ward_name")
+    private String wardName;
+
     @Column(name = "shipping_fee")
     private BigDecimal shippingFee;
 
@@ -26,6 +29,8 @@ public class DeliveryZone {
     public void setZoneId(int zoneId) { this.zoneId = zoneId; }
     public String getDistrictName() { return districtName; }
     public void setDistrictName(String districtName) { this.districtName = districtName; }
+    public String getWardName() { return wardName; }
+    public void setWardName(String wardName) { this.wardName = wardName; }
     public BigDecimal getShippingFee() { return shippingFee; }
     public void setShippingFee(BigDecimal shippingFee) { this.shippingFee = shippingFee; }
     public Boolean getIsActive() { return isActive; }

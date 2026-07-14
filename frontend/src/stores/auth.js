@@ -80,11 +80,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function changePassword(data) {
-    if (!user.value) throw new Error('Chưa đăng nhập');
-    await authApi.changePassword(data);
-  }
-
   return {
     token,
     user,
@@ -98,6 +93,5 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     updateProfile,
-    changePassword,
   };
 });

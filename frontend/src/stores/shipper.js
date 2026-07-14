@@ -19,6 +19,9 @@ export const useShipperStore = defineStore('shipper', () => {
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
       shippingFee: o.shippingFee ? parseFloat(o.shippingFee) : 0,
       paymentMethod: o.paymentMethod,
+      paymentStatus: o.paymentStatus,
+      codCollectedAmount: o.codCollectedAmount != null ? parseFloat(o.codCollectedAmount) : null,
+      codCollectedAt: o.codCollectedAt || null,
       deliveryNote: o.deliveryNote || '',
       createdAt: o.createdAt,
       pickedUpAt: o.pickedUpAt || null,
@@ -82,8 +85,8 @@ export const useShipperStore = defineStore('shipper', () => {
     availableOrders.value = availableOrders.value.filter(o => o.id !== id);
   }
 
-  async function deliverOrder(id) {
-    await shipperApi.deliverOrder(id);
+  async function deliverOrder(id, collectedAmount) {
+    await shipperApi.deliverOrder(id, collectedAmount);
     const order = myOrders.value.find(o => o.id === id);
     if (order) order.status = 'DELIVERED';
     if (dashboard.value) {

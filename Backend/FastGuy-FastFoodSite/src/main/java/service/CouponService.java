@@ -5,7 +5,6 @@ import dao.CouponDAO;
 import dao.CouponUsageDAO;
 import entity.ClaimedCoupon;
 import entity.Coupon;
-import entity.CouponUsage;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -58,12 +57,20 @@ public class CouponService {
             return result;
         }
 
-        if (userId != null && userId > 0) {
-            if (couponUsageDAO.hasUserUsed(coupon.getCouponId(), userId)) {
-                result.put("valid", false);
-                result.put("message", "Bạn đã sử dụng mã này rồi");
-                return result;
-            }
+        if (userId == null || userId <= 0) {
+            result.put("valid", false);
+            result.put("message", "Vui lòng đăng nhập và nhận mã trước khi sử dụng");
+            return result;
+        }
+        if (!claimedCouponDAO.hasUnused(coupon.getCouponId(), userId)) {
+            result.put("valid", false);
+            result.put("message", "Mã không có trong ví hoặc đã được sử dụng");
+            return result;
+        }
+        if (couponUsageDAO.hasUserUsed(coupon.getCouponId(), userId)) {
+            result.put("valid", false);
+            result.put("message", "Bạn đã sử dụng mã này rồi");
+            return result;
         }
 
         BigDecimal discount = calculateDiscount(coupon, totalAmount, shippingFee);
@@ -76,16 +83,6 @@ public class CouponService {
         return result;
     }
 
-    public void apply(int couponId, int orderId, Integer userId, BigDecimal discountAmount) {
-        CouponUsage usage = new CouponUsage();
-        usage.setCouponId(couponId);
-        usage.setOrderId(orderId);
-        usage.setUserId(userId);
-        usage.setDiscountAmount(discountAmount);
-        usage.setUsedAt(LocalDateTime.now());
-        couponUsageDAO.save(usage);
-        couponDAO.incrementUsedCount(couponId);
-    }
 
     public BigDecimal calculateDiscount(Coupon coupon, BigDecimal totalAmount, BigDecimal shippingFee) {
         switch (coupon.getType()) {

@@ -11,9 +11,18 @@ const order = ref(null);
 const loading = ref(true);
 const showCancelModal = ref(false);
 const cancelReason = ref('');
+const collectedAmount = ref('');
+
+function paymentState(order) {
+  if (order.paymentMethod !== 'COD') return order.paymentStatus === 'PAID' ? 'Đã thanh toán online' : order.paymentStatus || 'Chưa có trạng thái thanh toán';
+  if (order.paymentStatus === 'PAID') return 'COD đã thu';
+  if (order.paymentStatus === 'UNPAID') return 'Cần thu COD khi giao';
+  return order.paymentStatus || 'COD';
+}
 
 onMounted(async () => {
   order.value = await shipperStore.fetchOrderById(route.params.id);
+  if (order.value?.paymentMethod === 'COD') collectedAmount.value = String(order.value.total);
   loading.value = false;
 });
 
@@ -30,8 +39,13 @@ async function pickUp() {
 async function deliver() {
   if (!confirm('Xác nhận đã giao hàng thành công?')) return;
   try {
-    await shipperStore.deliverOrder(order.value.id);
+    await shipperStore.deliverOrder(order.value.id, order.value.paymentMethod === 'COD' ? collectedAmount.value : undefined);
     order.value.status = 'DELIVERED';
+    if (order.value.paymentMethod === 'COD') {
+      order.value.codCollectedAmount = Number(collectedAmount.value);
+      order.value.codCollectedAt = new Date().toISOString();
+      order.value.paymentStatus = 'PAID';
+    }
   } catch (e) {
     alert(e.message);
   }
@@ -107,8 +121,18 @@ function callCustomer() {
       <div class="summary-row"><span>Phí ship</span><span>{{ formatPrice(order.shippingFee) }}</span></div>
       <div class="summary-row total"><span>Tổng cộng</span><span>{{ formatPrice(order.total) }}</span></div>
       <p style="font-size:13px;color:var(--text-mid);margin-top:8px;">
-        {{ order.paymentMethod === 'COD' ? 'Thanh toán khi nhận hàng' : 'Đã thanh toán online' }}
+        {{ paymentState(order) }}
       </p>
+      <template v-if="order.paymentMethod === 'COD' && order.status === 'DELIVERED' && order.codCollectedAmount != null">
+        <div class="summary-row"><span>Đã thu COD</span><span>{{ formatPrice(order.codCollectedAmount) }}</span></div>
+        <p style="font-size:13px;color:var(--text-mid);margin-top:8px;">{{ formatDate(order.codCollectedAt) }}</p>
+      </template>
+    </div>
+
+    <div v-if="order.paymentMethod === 'COD' && order.status === 'PICKED_UP'" class="info-card">
+      <h4>Thu COD</h4>
+      <label class="form-label">Số tiền đã thu</label>
+      <input v-model="collectedAmount" class="form-input" type="number" min="0" step="0.01" required />
     </div>
 
     <div class="action-bar">
@@ -147,11 +171,7 @@ function callCustomer() {
 </template>
 
 <style scoped>
-.shipper-empty {
-  text-align: center;
-  padding: 60px 0;
-  color: var(--text-mid);
-}
+.shipper-empty { text-align: center; padding: 60px 0; color: var(--text-mid); }
 .detail-header {
   display: flex;
   justify-content: space-between;
@@ -160,27 +180,28 @@ function callCustomer() {
 }
 .status-badge {
   padding: 4px 12px;
-  border-radius: 99px;
+  border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
 }
-.status-ready { background: #FEF3C7; color: #92400E; }
-.status-picked_up { background: #DBEAFE; color: #1E40AF; }
-.status-delivered { background: #D1FAE5; color: #065F46; }
-.status-cancelled { background: #FEE2E2; color: #991B1B; }
+.status-ready { background: #fef3c7; color: #92400e; }
+.status-picked_up { background: #dbeafe; color: #1e40af; }
+.status-delivered { background: #dcfce7; color: #166534; }
+.status-cancelled { background: #fee2e2; color: #991b1b; }
 .info-card {
   background: #fff;
-  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
   padding: 14px;
   margin-bottom: 10px;
 }
 .info-card h4 {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-mid);
   margin-bottom: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.06em;
 }
 .info-card p {
   font-size: 14px;
@@ -189,93 +210,25 @@ function callCustomer() {
   align-items: center;
   gap: 6px;
 }
-.call-btn {
-  margin-top: 8px;
-  width: 100%;
-}
+.call-btn, .map-btn { margin-top: 8px; width: 100%; }
+.map-btn { margin-top: 6px; }
 .item-row {
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   font-size: 14px;
-  padding: 6px 0;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
 }
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-  padding: 4px 0;
-}
+.summary-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
 .summary-row.total {
   font-size: 17px;
   font-weight: 800;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-light);
   padding-top: 8px;
   margin-top: 4px;
 }
-.action-bar {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.action-btn {
-  width: 100%;
-  padding: 14px;
-  font-size: 16px;
-  border-radius: 12px;
-}
-.btn-success {
-  background: #10B981;
-  color: #fff;
-  border: none;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btn-success:hover { background: #059669; }
-.cancel-btn {
-  width: 100%;
-  border-color: var(--red-active);
-  color: var(--red-active);
-  font-weight: 600;
-}
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal {
-  background: #fff;
-  border-radius: 16px;
-  width: 360px;
-  max-width: 90vw;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 20px 0;
-}
-.modal-header h3 { font-size: 17px; font-weight: 700; }
-.modal-body { padding: 16px 20px; }
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 12px 20px 20px;
-}
-.btn-danger {
-  background: #EF4444;
-  color: #fff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 10px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-danger:disabled { opacity: 0.5; }
+.action-bar { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+.action-btn { width: 100%; padding: 14px; font-size: 16px; border-radius: var(--radius); }
+.cancel-btn { width: 100%; border-color: var(--red-active); color: var(--red-active); font-weight: 600; }
 </style>

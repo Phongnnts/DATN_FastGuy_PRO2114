@@ -1,15 +1,24 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
-import { userApi, deliveryZoneApi } from '@/api';
+import { userApi, loyaltyApi } from '@/api';
+import { formatDate } from '@/utils/format';
 
 const auth = useAuthStore();
 const form = ref({ fullName: '', email: '', phone: '' });
 const editMode = ref(false);
 const success = ref('');
+const loyalty = ref(null);
+const loyaltyThresholds = { Bronze: 0, Silver: 500, Gold: 2000 };
+const nextTier = computed(() => loyalty.value?.tier === 'Bronze' ? 'Silver' : loyalty.value?.tier === 'Silver' ? 'Gold' : null);
+const loyaltyProgress = computed(() => {
+  if (!loyalty.value || !nextTier.value) return 100;
+  const start = loyaltyThresholds[loyalty.value.tier] || 0;
+  const end = loyaltyThresholds[nextTier.value];
+  return Math.min(100, Math.max(0, ((loyalty.value.points - start) / (end - start)) * 100));
+});
 
 const addresses = ref([]);
-const zones = ref([]);
 const showAddressForm = ref(false);
 const editingAddress = ref(null);
 const addressForm = ref({
@@ -30,7 +39,7 @@ onMounted(async () => {
       phone: auth.user.phone || '',
     };
   }
-  await Promise.all([loadAddresses(), loadZones()]);
+  await Promise.all([loadAddresses(), loadLoyalty()]);
 });
 
 async function loadAddresses() {
@@ -41,11 +50,11 @@ async function loadAddresses() {
   }
 }
 
-async function loadZones() {
+async function loadLoyalty() {
   try {
-    zones.value = await deliveryZoneApi.getAll();
+    loyalty.value = await loyaltyApi.getMe();
   } catch {
-    zones.value = [];
+    loyalty.value = null;
   }
 }
 
@@ -193,6 +202,21 @@ async function saveProfile() {
       </form>
     </div>
 
+    <div v-if="loyalty" class="card mt-3 loyalty-card">
+      <div class="card-header"><h3><i class="bi bi-award"></i> Thành viên {{ loyalty.tier }}</h3><strong>{{ loyalty.points }} điểm</strong></div>
+      <div class="tier-list"><span v-for="tier in ['Bronze', 'Silver', 'Gold']" :key="tier" :class="{ active: loyalty.tier === tier }">{{ tier }}<small>{{ loyaltyThresholds[tier] }} điểm</small></span></div>
+      <div class="loyalty-progress"><div :style="{ width: loyaltyProgress + '%' }"></div></div>
+      <p v-if="nextTier" class="loyalty-next">Còn {{ loyaltyThresholds[nextTier] - loyalty.points }} điểm để đạt {{ nextTier }}</p>
+      <p v-else class="loyalty-next">Bạn đã đạt hạng Gold</p>
+      <div v-if="loyalty.history?.length" class="loyalty-history">
+        <strong>Giao dịch gần đây</strong>
+        <div v-for="item in loyalty.history.slice(0, 5)" :key="item.transactionId" class="loyalty-transaction">
+          <span>{{ item.type === 'EARN' ? 'Đơn ' + item.orderCode : 'Hoàn điểm đơn ' + item.orderCode }}<small>{{ formatDate(item.createdAt) }}</small></span>
+          <b :class="{ negative: item.points < 0 }">{{ item.points > 0 ? '+' : '' }}{{ item.points }} điểm</b>
+        </div>
+      </div>
+    </div>
+
     <div class="card mt-3">
       <div class="card-header">
         <h3>Địa chỉ giao hàng</h3>
@@ -292,70 +316,78 @@ async function saveProfile() {
 </template>
 
 <style scoped>
+.profile-page { padding: 32px 0; }
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 24px;
 }
-.card-header h3 {
-  font-size: 18px;
-  font-weight: 700;
-}
+.card-header h3 { font-size: 18px; font-weight: 700; }
 .profile-avatar-section {
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 24px;
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
 }
 .profile-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 25px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
   object-fit: cover;
 }
-.profile-name {
-  font-size: 18px;
-  font-weight: 700;
-}
-.profile-role {
-  font-size: 13px;
-  color: var(--text-mid);
-}
+.profile-name { font-size: 18px; font-weight: 700; }
+.profile-role { font-size: 13px; color: var(--text-mid); }
 .form-actions {
   display: flex;
   gap: 12px;
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-light);
 }
+.loyalty-card { overflow: hidden; }
+.loyalty-card .card-header h3 { display: flex; align-items: center; gap: 8px; }
+.loyalty-card .card-header h3 i { color: #b7791f; }
+.tier-list { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--text-light); }
+.tier-list span { display: flex; flex-direction: column; gap: 2px; }
+.tier-list span:nth-child(2) { text-align: center; }
+.tier-list span:last-child { text-align: right; }
+.tier-list .active { color: var(--primary-dark); }
+.tier-list small, .loyalty-next, .loyalty-transaction small { font-size: 11px; font-weight: 400; color: var(--text-mid); }
+.loyalty-progress { height: 8px; overflow: hidden; border-radius: var(--radius-full); background: var(--border-light); margin: 10px 0 6px; }
+.loyalty-progress div { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #cd7f32, #d4af37); }
+.loyalty-next { margin: 0; }
+.loyalty-history { border-top: 1px solid var(--border-light); margin-top: 16px; padding-top: 14px; font-size: 14px; }
+.loyalty-transaction { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-light); }
+.loyalty-transaction span { display: flex; flex-direction: column; }
+.loyalty-transaction b { color: var(--success); white-space: nowrap; }
+.loyalty-transaction b.negative { color: var(--red-active); }
 .alert-success {
-  background: #d4edda;
-  color: #155724;
+  background: #dcfce7;
+  color: #166534;
   padding: 12px 16px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   margin-bottom: 16px;
   font-size: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.address-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+.address-list { display: flex; flex-direction: column; gap: 10px; }
 .address-card {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   padding: 16px;
-  border: 2px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius);
   gap: 12px;
+  background: #fff;
+  transition: border-color var(--transition-fast);
 }
+.address-card:hover { border-color: var(--primary-100); }
 .address-name {
   display: flex;
   align-items: center;
@@ -363,68 +395,16 @@ async function saveProfile() {
   margin-bottom: 4px;
   flex-wrap: wrap;
 }
-.address-phone {
-  font-size: 13px;
-  color: var(--text-mid);
-}
-.address-detail {
-  font-size: 14px;
-  color: var(--text-mid);
-}
-.address-zone {
-  font-size: 13px;
-  color: var(--text-light);
-  margin-top: 2px;
-}
-.address-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
+.address-phone { font-size: 13px; color: var(--text-mid); }
+.address-detail { font-size: 14px; color: var(--text-mid); }
+.address-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .badge-primary {
-  background: var(--primary-light, #e3f2fd);
-  color: var(--primary, #2563eb);
-  padding: 2px 8px;
-  border-radius: 99px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 600;
-}
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal {
-  background: #fff;
-  border-radius: var(--radius);
-  width: 480px;
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px 0;
-}
-.modal-header h3 {
-  font-size: 18px;
-  font-weight: 700;
-}
-.modal-body {
-  padding: 20px 24px;
-}
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
 }
 .form-checkbox {
   display: flex;
@@ -433,16 +413,10 @@ async function saveProfile() {
   font-size: 14px;
   cursor: pointer;
 }
-.form-checkbox input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-}
+.form-checkbox input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
 @media (max-width: 768px) {
   .profile-avatar-section { flex-direction: column; align-items: center; text-align: center; }
   .address-card { flex-direction: column; }
   .address-actions { align-self: flex-end; margin-top: 8px; }
-  .modal { width: calc(100% - 16px); }
-  .modal-header, .modal-body, .modal-footer { padding-left: 16px; padding-right: 16px; }
-  .profile-page { padding: 0 4px; }
 }
 </style>

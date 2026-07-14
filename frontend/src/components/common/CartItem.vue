@@ -8,43 +8,46 @@ const props = defineProps({
 const emit = defineEmits(['update:quantity', 'remove']);
 
 function changeQty(delta) {
-  const newQty = Math.max(1, props.item.quantity + delta);
-  emit('update:quantity', props.item.productId, props.item.variantId, newQty);
+  const stock = props.item.quantityAvailable === null || props.item.quantityAvailable === undefined ? null : Number(props.item.quantityAvailable);
+  const nextQty = props.item.quantity + delta;
+  const newQty = Math.max(1, stock === null ? nextQty : Math.min(stock, nextQty));
+  emit('update:quantity', props.item.productId, props.item.variantId, newQty, (props.item.modifiers || []).map((m) => m.modifierOptionId));
 }
 
 function remove() {
-  emit('remove', props.item.productId, props.item.variantId);
+  emit('remove', props.item.productId, props.item.variantId, (props.item.modifiers || []).map((m) => m.modifierOptionId));
 }
 </script>
 
 <template>
   <div class="cart-item">
-    <div class="cart-item-img-wrap">
-      <img :src="item.image" :alt="item.name" class="cart-item-img" />
+    <div class="cart-img">
+      <img :src="item.image" :alt="item.name" />
     </div>
-    <div class="cart-item-info">
-      <h4>{{ item.name }}</h4>
-      <div v-if="item.variantName" class="cart-item-option">
-        {{ item.variantName }}
+    <div class="cart-info">
+      <h4 class="cart-name">{{ item.name }}</h4>
+      <span v-if="item.variantName" class="cart-variant">{{ item.variantName }}</span>
+      <span v-for="modifier in item.modifiers" :key="modifier.modifierOptionId" class="cart-variant">{{ modifier.groupName }}: {{ modifier.name }}</span>
+      <div class="cart-stock-warning" v-if="item.variantStatus && item.variantStatus !== 'AVAILABLE' || (item.quantityAvailable != null && Number(item.quantityAvailable) <= 0)">
+        Hết hàng
       </div>
-      <div class="cart-item-price">
-        {{ formatPrice(item.price) }}
+      <div class="cart-stock-warning" v-else-if="item.quantityAvailable != null && item.quantity > Number(item.quantityAvailable)">
+        Chỉ còn {{ item.quantityAvailable }} phần
       </div>
+      <div class="cart-price">{{ formatPrice(item.price) }}</div>
     </div>
-    <div class="cart-item-qty">
+    <div class="cart-qty">
       <button class="qty-btn" @click="changeQty(-1)">
         <i class="bi bi-dash"></i>
       </button>
-      <span class="qty-value">{{ item.quantity }}</span>
-      <button class="qty-btn" @click="changeQty(1)">
+      <span class="qty-val">{{ item.quantity }}</span>
+      <button class="qty-btn" :disabled="item.quantityAvailable != null && item.quantity >= Number(item.quantityAvailable)" @click="changeQty(1)">
         <i class="bi bi-plus"></i>
       </button>
     </div>
-    <div class="cart-item-total">
-      {{ formatPrice(item.price * item.quantity) }}
-    </div>
-    <button class="cart-item-remove" @click="remove">
-      <i class="bi bi-trash3"></i>
+    <div class="cart-total">{{ formatPrice(item.price * item.quantity) }}</div>
+    <button class="cart-remove" @click="remove">
+      <i class="bi bi-x-lg"></i>
     </button>
   </div>
 </template>
@@ -55,109 +58,106 @@ function remove() {
   align-items: center;
   gap: 16px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
 }
-.cart-item:last-child {
-  border-bottom: none;
-}
-.cart-item-img-wrap {
-  width: 72px;
-  height: 72px;
-  background: #f9f9f9;
+.cart-item:last-child { border-bottom: none; }
+.cart-img {
+  width: 64px;
+  height: 64px;
   border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
+  overflow: hidden;
   flex-shrink: 0;
+  background: var(--surface);
 }
-.cart-item-img {
+.cart-img img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  padding: 8px;
+  object-fit: cover;
 }
-.cart-item-info {
+.cart-info {
   flex: 1;
   min-width: 0;
 }
-.cart-item-info h4 {
-  font-size: 15px;
+.cart-name {
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 4px;
-}
-.cart-item-option {
-  font-size: 12px;
-  color: var(--text-mid);
   margin-bottom: 2px;
 }
-.cart-item-price {
-  font-size: 14px;
-  color: var(--red-active);
-  font-weight: 600;
+.cart-variant {
+  font-size: 12px;
+  color: var(--text-mid);
+  display: block;
+  margin-bottom: 2px;
 }
-.cart-item-qty {
+.cart-stock-warning {
+  font-size: 12px;
+  color: var(--red-active);
+  font-weight: 500;
+}
+.cart-price {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.cart-qty {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 .qty-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-mid);
+  transition: all var(--transition-fast);
 }
 .qty-btn:hover {
   border-color: var(--primary);
   color: var(--primary);
+  background: var(--primary-50);
 }
-.qty-value {
-  font-size: 16px;
+.qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.qty-val {
+  font-size: 14px;
   font-weight: 700;
-  min-width: 24px;
+  min-width: 28px;
   text-align: center;
 }
-.cart-item-total {
-  font-size: 16px;
+.cart-total {
+  font-size: 15px;
   font-weight: 700;
   min-width: 80px;
   text-align: right;
+  color: var(--text-dark);
 }
-.cart-item-remove {
-  width: 36px;
-  height: 36px;
-  border: 1px solid transparent;
+.cart-remove {
+  width: 32px;
+  height: 32px;
+  border: none;
   border-radius: var(--radius-sm);
-  background: none;
-  font-size: 16px;
+  background: transparent;
+  font-size: 13px;
   color: var(--text-light);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.15s;
+  transition: all var(--transition-fast);
 }
-.cart-item-remove:hover {
-  border-color: var(--red-active);
+.cart-remove:hover {
+  background: #fee2e2;
   color: var(--red-active);
 }
 @media (max-width: 600px) {
-  .cart-item {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .cart-item-img-wrap {
-    width: 56px;
-    height: 56px;
-  }
-  .cart-item-total {
-    min-width: auto;
-  }
+  .cart-item { flex-wrap: wrap; gap: 10px; }
+  .cart-img { width: 52px; height: 52px; }
+  .cart-total { min-width: auto; }
 }
 </style>

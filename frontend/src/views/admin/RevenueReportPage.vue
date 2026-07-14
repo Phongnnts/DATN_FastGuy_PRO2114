@@ -1,23 +1,35 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useAdminStore } from '@/stores/admin';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { adminApi } from '@/api';
 import { formatPrice } from '@/utils/format';
 import { Chart, registerables } from 'chart.js';
 
 Chart.register(...registerables);
 
-const adminStore = useAdminStore();
-const data = computed(() => adminStore.dashboard || {
-  totalRevenue: 0, totalOrders: 0, revenueToday: 0, ordersToday: 0,
-  revenueByMonth: [], topProducts: [],
-});
-const dateRange = ref('6months');
+const data = ref({ totalRevenue: 0, periodRevenue: 0, periodOrders: 0, revenueToday: 0, ordersToday: 0, revenueByMonth: [] });
+const dateRange = ref('6m');
 const filteredData = ref([]);
 const chartRef = ref(null);
+const loading = ref(true);
+const error = ref('');
 
-watch(() => data.value?.revenueByMonth, (val) => {
+watch(() => data.value.revenueByMonth, (val) => {
   filteredData.value = val || [];
 }, { immediate: true });
+
+async function load() {
+  loading.value = true;
+  error.value = '';
+  try {
+    data.value = await adminApi.getRevenueReport({ period: dateRange.value });
+    buildChart();
+  } catch (e) {
+    error.value = e.message || 'Không thể tải báo cáo';
+  } finally {
+    loading.value = false;
+  }
+}
+watch(dateRange, load);
 let chart = null;
 
 function getCSSVar(name) {
@@ -73,18 +85,8 @@ function buildChart() {
   });
 }
 
-onMounted(async () => {
-  await adminStore.fetchDashboard();
-  buildChart();
-});
+onMounted(load);
 onUnmounted(() => chart?.destroy());
-
-function exportExcel() {
-  alert('Xuất Excel thành công!');
-}
-function exportPDF() {
-  alert('Xuất PDF thành công!');
-}
 </script>
 
 <template>
@@ -93,31 +95,28 @@ function exportPDF() {
       <h1>Báo cáo doanh thu</h1>
       <div style="display: flex; gap: 8px; align-items: center">
         <select v-model="dateRange" class="form-select" style="width: auto">
-          <option value="7days">7 ngày</option>
-          <option value="30days">30 ngày</option>
-          <option value="6months">6 tháng</option>
-          <option value="1year">1 năm</option>
+          <option value="7d">7 ngày</option>
+          <option value="30d">30 ngày</option>
+          <option value="6m">6 tháng</option>
+          <option value="1y">1 năm</option>
         </select>
-        <button class="btn btn-sm btn-outline" @click="exportExcel">
-          <i class="bi bi-file-earmark-excel"></i> Excel
-        </button>
-        <button class="btn btn-sm btn-outline" @click="exportPDF">
-          <i class="bi bi-file-earmark-pdf"></i> PDF
-        </button>
       </div>
     </div>
+    <div v-if="loading" class="admin-state"><span class="spinner"></span> Đang tải báo cáo...</div>
+    <div v-else-if="error" class="admin-state admin-error"><span>{{ error }}</span><button class="btn btn-sm btn-outline" @click="load">Thử lại</button></div>
+    <template v-else>
     <div class="stat-grid">
       <div class="stat-card">
         <div class="stat-value" style="color: var(--primary)">
-          {{ formatPrice(data.totalRevenue) }}
+          {{ formatPrice(data.periodRevenue ?? data.totalRevenue) }}
         </div>
-        <div class="stat-label">Tổng doanh thu</div>
+        <div class="stat-label">Doanh thu kỳ chọn</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" style="color: var(--primary)">
-          {{ data.totalOrders.toLocaleString() }}
+          {{ Number(data.periodOrders || 0).toLocaleString() }}
         </div>
-        <div class="stat-label">Tổng đơn hàng</div>
+        <div class="stat-label">Đơn đã giao kỳ chọn</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" style="color: var(--primary)">
@@ -136,5 +135,6 @@ function exportPDF() {
       <h3 style="margin-bottom: 12px">Doanh thu theo tháng</h3>
       <div style="height: 300px"><canvas ref="chartRef"></canvas></div>
     </div>
+    </template>
   </div>
 </template>
