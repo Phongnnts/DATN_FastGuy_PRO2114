@@ -46,7 +46,18 @@ export const useProductStore = defineStore('product', () => {
     allProducts.value.filter((p) => p.inStock),
   );
 
+  function mapVariant(v) {
+    return {
+      ...v,
+      price: parsePrice(v.price) || 0,
+      quantityAvailable: v.quantityAvailable === null || v.quantityAvailable === undefined ? null : Number(v.quantityAvailable),
+      status: v.status || 'UNAVAILABLE',
+    };
+  }
+
   function mapProduct(p) {
+    const variants = Array.isArray(p.variants) ? p.variants.map(mapVariant) : [];
+    const defaultVariant = p.defaultVariant ? mapVariant(p.defaultVariant) : null;
     return {
       productId: p.productId,
       name: p.name,
@@ -54,17 +65,22 @@ export const useProductStore = defineStore('product', () => {
       categoryName: p.categoryName || '',
       basePrice: parsePrice(p.basePrice),
       price: parsePrice(p.price),
-      discountPrice: p.discountPrice || null,
-      defaultVariant: p.defaultVariant || null,
-      variants: p.variants || [],
+      discountPrice: parsePrice(p.discountPrice) || null,
+      defaultVariant,
+      variants,
       image: ensureImage(p.imageUrl),
       description: p.description || '',
       rating: p.rating || 0,
       reviewCount: p.reviewCount || 0,
-      inStock: p.inStock !== undefined ? p.inStock : (p.status === 'AVAILABLE'),
-      featured: p.featured || false,
-      galleryImages: p.galleryImages || [],
-    };
+       availableFrom: p.availableFrom || '',
+       availableTo: p.availableTo || '',
+       isAvailableNow: p.isAvailableNow !== undefined ? p.isAvailableNow : true,
+       inStock: p.inStock !== undefined ? p.inStock : variants.some(v => v.status === 'AVAILABLE' && (v.quantityAvailable === null || v.quantityAvailable > 0)),
+       featured: p.featured || false,
+       galleryImages: p.galleryImages || [],
+       modifierGroups: Array.isArray(p.modifierGroups) ? p.modifierGroups.map(group => ({ ...group, options: (group.options || []).map(option => ({ ...option, price: parsePrice(option.price) || 0 })) })) : [],
+       combo: p.combo ? { ...p.combo, items: p.combo.items || [] } : null,
+     };
   }
 
   function mapCategory(c) {

@@ -2,6 +2,7 @@ package entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,6 +43,12 @@ public class Product {
     @Column(name = "status")
     private String status;
 
+    @Column(name = "available_from")
+    private LocalTime availableFrom;
+
+    @Column(name = "available_to")
+    private LocalTime availableTo;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -66,6 +73,10 @@ public class Product {
     public void setGalleryImages(String galleryImages) { this.galleryImages = galleryImages; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public LocalTime getAvailableFrom() { return availableFrom; }
+    public void setAvailableFrom(LocalTime availableFrom) { this.availableFrom = availableFrom; }
+    public LocalTime getAvailableTo() { return availableTo; }
+    public void setAvailableTo(LocalTime availableTo) { this.availableTo = availableTo; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

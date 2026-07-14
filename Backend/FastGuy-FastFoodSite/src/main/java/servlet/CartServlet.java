@@ -9,6 +9,7 @@ import utils.ApiResponse;
 import utils.JwtUtil;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 @WebServlet("/api/cart/*")
@@ -54,10 +55,17 @@ public class CartServlet extends HttpServlet {
         int productId = ((Number) body.get("productId")).intValue();
         int variantId = ((Number) body.get("variantId")).intValue();
         int quantity = body.containsKey("quantity") ? ((Number) body.get("quantity")).intValue() : 1;
+        List<Integer> modifierOptionIds;
+        try {
+            modifierOptionIds = body.containsKey("modifierOptionIds") ? ((List<?>) body.get("modifierOptionIds")).stream().map(v -> ((Number) v).intValue()).toList() : List.of();
+        } catch (Exception e) {
+            ApiResponse.error(resp, "Invalid modifier options", 400);
+            return;
+        }
 
         boolean ok = cartService.addItem(
                 new entity.User() {{ setUserId(userId); }},
-                productId, variantId, quantity);
+                productId, variantId, quantity, modifierOptionIds);
         if (!ok) {
             ApiResponse.error(resp, "Cannot add to cart: invalid product/variant or insufficient stock", 400);
             return;

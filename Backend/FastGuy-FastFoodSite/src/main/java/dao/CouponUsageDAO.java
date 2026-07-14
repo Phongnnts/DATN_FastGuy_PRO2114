@@ -31,4 +31,30 @@ public class CouponUsageDAO {
             em.close();
         }
     }
+
+    public CouponUsage findByOrderId(int orderId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<CouponUsage> list = em.createQuery(
+                    "from CouponUsage where orderId = :orderId", CouponUsage.class)
+                    .setParameter("orderId", orderId)
+                    .getResultList();
+            return list.isEmpty() ? null : list.get(0);
+        } finally {
+            em.close();
+        }
+    }
+
+    public void deleteByOrderId(int orderId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            em.createQuery("DELETE FROM CouponUsage cu WHERE cu.orderId = :orderId")
+                    .setParameter("orderId", orderId)
+                    .executeUpdate();
+            em.getTransaction().commit();
+        } finally {
+            em.close();
+        }
+    }
 }

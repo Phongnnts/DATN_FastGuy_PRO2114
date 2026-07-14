@@ -10,8 +10,8 @@ export default {
   create(data) {
     return client.post('/orders', data);
   },
-  cancel(id) {
-    return client.put(`/orders/${id}/cancel`);
+  cancel(id, data) {
+    return client.put(`/orders/${id}/cancel`, data || {});
   },
   trackOrder(orderCode) {
     return client.get('/orders/track', { params: { code: orderCode } });

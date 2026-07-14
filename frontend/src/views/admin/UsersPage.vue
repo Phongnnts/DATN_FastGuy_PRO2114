@@ -8,8 +8,15 @@ const showForm = ref(false);
 const editingId = ref(null);
 const form = ref({ fullName: '', email: '', phone: '', password: '', roleName: 'USER' });
 const success = ref('');
+const loadError = ref('');
 
-onMounted(() => adminStore.fetchUsers());
+async function load() {
+  loadError.value = '';
+  try { await adminStore.fetchUsers(); }
+  catch (e) { loadError.value = e.message || 'Không thể tải người dùng'; }
+}
+
+onMounted(load);
 
 const filtered = computed(() => {
   if (!searchTerm.value) return adminStore.allUsers;
@@ -70,7 +77,8 @@ async function deleteUser(u) {
       <button class="btn btn-sm btn-primary" @click="openAdd"><i class="bi bi-plus-lg"></i> Thêm</button>
     </div>
     <div v-if="success" class="alert alert-success" style="margin-bottom:12px">{{ success }}</div>
-    <div class="card card-flat">
+    <div v-if="loadError" class="admin-error"><span>{{ loadError }}</span><button class="btn btn-sm btn-outline" @click="load">Thử lại</button></div>
+    <div v-else class="card card-flat">
       <div class="search-box" style="margin-bottom:16px;max-width:320px">
         <i class="bi bi-search"></i>
         <input v-model="searchTerm" class="form-input" placeholder="Tìm tên hoặc email..." />
@@ -145,3 +153,7 @@ async function deleteUser(u) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.admin-error { display:flex; align-items:center; gap:10px; padding:14px; border:1px solid #fecaca; border-radius:var(--radius); color:var(--red-active); background:#fef2f2; }
+</style>

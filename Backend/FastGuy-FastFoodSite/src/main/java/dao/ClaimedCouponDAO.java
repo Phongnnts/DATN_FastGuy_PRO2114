@@ -55,4 +55,19 @@ public class ClaimedCouponDAO {
             em.close();
         }
     }
+
+    public boolean hasUnused(int couponId, int userId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return !em.createQuery(
+                    "from ClaimedCoupon where couponId = :couponId and userId = :userId and usedAt is null", ClaimedCoupon.class)
+                    .setParameter("couponId", couponId)
+                    .setParameter("userId", userId)
+                    .setMaxResults(1)
+                    .getResultList()
+                    .isEmpty();
+        } finally {
+            em.close();
+        }
+    }
 }

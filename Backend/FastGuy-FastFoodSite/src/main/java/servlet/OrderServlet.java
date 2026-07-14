@@ -2,7 +2,6 @@ package servlet;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -17,16 +16,17 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.OrderService;
-import service.PayOSService;
+import service.PayOSPaymentService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
 @WebServlet("/api/orders/*")
 public class OrderServlet extends HttpServlet {
     private OrderService orderService = new OrderService();
-    private PayOSService payOSService = new PayOSService();
+    private PayOSPaymentService payOSPaymentService = new PayOSPaymentService();
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
+    private service.OrderStatusHistoryService orderStatusHistoryService = new service.OrderStatusHistoryService();
 
     private int getUserId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
@@ -139,7 +139,7 @@ public class OrderServlet extends HttpServlet {
             return;
         }
 
-        int zoneId = body.containsKey("zoneId") ? ((Number) body.get("zoneId")).intValue() : 0;
+        String customerName = (String) body.get("customerName");
         String address = (String) body.get("address");
         String phone = (String) body.get("phone");
         String deliveryNote = (String) body.get("deliveryNote");
@@ -151,20 +151,6 @@ public class OrderServlet extends HttpServlet {
         String toDistrictName = (String) body.get("toDistrictName");
         String toWardName = (String) body.get("toWardName");
         String couponCode = (String) body.get("couponCode");
-        BigDecimal shippingFee = BigDecimal.ZERO;
-        try {
-            if (body.containsKey("shippingFee")) {
-                Object feeObj = body.get("shippingFee");
-                if (feeObj instanceof Number) {
-                    shippingFee = BigDecimal.valueOf(((Number) feeObj).doubleValue());
-                } else if (feeObj instanceof String) {
-                    shippingFee = new BigDecimal((String) feeObj);
-                }
-            }
-        } catch (Exception e) {
-            shippingFee = BigDecimal.ZERO;
-        }
-
         if (address == null) {
             ApiResponse.error(resp, "Missing address", 400);
             return;
@@ -172,8 +158,8 @@ public class OrderServlet extends HttpServlet {
 
         Orders order = null;
         try {
-            order = orderService.checkout(userId, zoneId, address, phone, deliveryNote, paymentMethod,
-                    ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, shippingFee, couponCode);
+            order = orderService.checkout(userId, customerName, address, phone, deliveryNote, paymentMethod,
+                    ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, couponCode);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
             return;
@@ -186,6 +172,15 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Cart is empty", 400);
             return;
         }
+        if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
+            if (payOSPaymentService.createPaymentLink(order.getOrderId()) == null) {
+                orderService.cancelOrder(order.getOrderId(), null, null, "Không thể tạo link PayOS", false);
+                ApiResponse.error(resp, "Không thể tạo link PayOS", 502);
+                return;
+            }
+            order = ordersDAO.findById(order.getOrderId());
+            orderService.clearCart(userId);
+        }
 
         Map<String, Object> data = new HashMap<>();
         data.put("orderId", order.getOrderId());
@@ -193,19 +188,10 @@ public class OrderServlet extends HttpServlet {
         data.put("status", order.getOrderStatus());
         data.put("paymentStatus", order.getPaymentStatus());
         data.put("finalAmount", order.getFinalAmount());
+        data.put("shippingFee", order.getShippingFee());
+        data.put("serviceFee", order.getServiceFee());
         data.put("discountAmount", order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO);
-
-        if ("BANK_TRANSFER".equals(paymentMethod)) {
-            try {
-                Map<String, Object> payosData = payOSService.createPayment(order);
-                data.put("payosCheckoutUrl", payosData.get("checkoutUrl"));
-                data.put("payosQrCode", payosData.get("qrCode"));
-            } catch (Exception e) {
-                e.printStackTrace();
-                ApiResponse.error(resp, "PayOS error: " + e.getMessage(), 500);
-                return;
-            }
-        }
+        addTransferData(data, order);
 
         resp.setStatus(201);
         ApiResponse.ok(resp, data, "Order created");
@@ -232,14 +218,18 @@ public class OrderServlet extends HttpServlet {
                 ApiResponse.error(resp, "Order not found", 404);
                 return;
             }
-            if (!"PENDING".equals(order.getOrderStatus())) {
+            if (!"PENDING".equals(order.getOrderStatus()) && !"WAITING_STOCK_CONFIRM".equals(order.getOrderStatus())) {
                 ApiResponse.error(resp, "Cannot cancel order in current status", 400);
                 return;
             }
 
-            order.setOrderStatus("CANCELLED");
-            order.setCancelledAt(LocalDateTime.now());
-            ordersDAO.save(order);
+            Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), Map.class);
+            String reason = body != null ? (String) body.get("reason") : null;
+            boolean ok = orderService.cancelOrder(orderId, userId, null, reason, true);
+            if (!ok) {
+                ApiResponse.error(resp, "Cannot cancel order in current status", 400);
+                return;
+            }
             ApiResponse.ok(resp, null, "Order cancelled");
             return;
         }
@@ -257,7 +247,15 @@ public class OrderServlet extends HttpServlet {
         m.put("orderId", o.getOrderId());
         m.put("orderCode", o.getOrderCode());
         m.put("status", o.getOrderStatus());
+        m.put("totalAmount", o.getTotalAmount());
+        m.put("shippingFee", o.getShippingFee());
+        m.put("serviceFee", o.getServiceFee());
+        m.put("discountAmount", o.getDiscountAmount() != null ? o.getDiscountAmount() : BigDecimal.ZERO);
         m.put("finalAmount", o.getFinalAmount());
+        m.put("paymentMethod", o.getPaymentMethod());
+        m.put("paymentStatus", o.getPaymentStatus());
+        m.put("refundAmount", o.getRefundAmount());
+        m.put("refundedAt", o.getRefundedAt());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         List<Map<String, Object>> itemList = orderItemDAO.findByOrderId(o.getOrderId())
                 .stream().map(oi -> {
@@ -279,15 +277,25 @@ public class OrderServlet extends HttpServlet {
         data.put("status", o.getOrderStatus());
         data.put("totalAmount", o.getTotalAmount());
         data.put("shippingFee", o.getShippingFee());
+        data.put("serviceFee", o.getServiceFee());
         data.put("finalAmount", o.getFinalAmount());
+        data.put("codCollectedAmount", o.getCodCollectedAmount());
+        data.put("codCollectedAt", o.getCodCollectedAt() != null ? o.getCodCollectedAt().toString() : null);
         data.put("paymentMethod", o.getPaymentMethod());
         data.put("paymentStatus", o.getPaymentStatus());
         data.put("couponCode", o.getCouponCode());
         data.put("discountAmount", o.getDiscountAmount() != null ? o.getDiscountAmount() : BigDecimal.ZERO);
+        data.put("cancelledBy", o.getCancelledBy());
+        data.put("refundStatus", o.getRefundStatus());
+        data.put("refundAmount", o.getRefundAmount());
+        data.put("refundedAt", o.getRefundedAt());
+        data.put("refundNote", o.getRefundNote());
+        data.put("failureReason", o.getFailureReason());
         data.put("customerAddress", o.getCustomerAddress());
         data.put("deliveryNote", o.getDeliveryNote());
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         data.put("updatedAt", o.getConfirmedAt() != null ? o.getConfirmedAt().toString() : o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+        addTransferData(data, o);
 
         List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
                 .stream()
@@ -323,7 +331,8 @@ public class OrderServlet extends HttpServlet {
             String reason = o.getFailureReason() != null ? o.getFailureReason() : "";
             history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", reason));
         }
-        data.put("statusHistory", history);
+        var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
+        data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
 
         return data;
     }
@@ -349,20 +358,6 @@ public class OrderServlet extends HttpServlet {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> itemsData = (List<Map<String, Object>>) rawItems;
 
-        BigDecimal shippingFee = BigDecimal.ZERO;
-        try {
-            if (body.containsKey("shippingFee")) {
-                Object feeObj = body.get("shippingFee");
-                if (feeObj instanceof Number) {
-                    shippingFee = BigDecimal.valueOf(((Number) feeObj).doubleValue());
-                } else if (feeObj instanceof String) {
-                    shippingFee = new BigDecimal((String) feeObj);
-                }
-            }
-        } catch (Exception e) {
-            shippingFee = BigDecimal.ZERO;
-        }
-
         Integer ghnProvinceId = body.get("ghnProvinceId") instanceof Number ? ((Number) body.get("ghnProvinceId")).intValue() : null;
         Integer ghnDistrictId = body.get("ghnDistrictId") instanceof Number ? ((Number) body.get("ghnDistrictId")).intValue() : null;
         String ghnWardCode = (String) body.get("ghnWardCode");
@@ -374,7 +369,7 @@ public class OrderServlet extends HttpServlet {
         Orders order;
         try {
             order = orderService.guestCheckout(customerName, phone, address, deliveryNote, paymentMethod,
-                    itemsData, shippingFee, ghnProvinceId, ghnDistrictId, ghnWardCode,
+                    itemsData, ghnProvinceId, ghnDistrictId, ghnWardCode,
                     toProvinceName, toDistrictName, toWardName, couponCode);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
@@ -388,6 +383,14 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
+        if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
+            if (payOSPaymentService.createPaymentLink(order.getOrderId()) == null) {
+                orderService.cancelOrder(order.getOrderId(), null, null, "Không thể tạo link PayOS", false);
+                ApiResponse.error(resp, "Không thể tạo link PayOS", 502);
+                return;
+            }
+            order = ordersDAO.findById(order.getOrderId());
+        }
 
         Map<String, Object> data = new HashMap<>();
         data.put("orderId", order.getOrderId());
@@ -395,21 +398,18 @@ public class OrderServlet extends HttpServlet {
         data.put("status", order.getOrderStatus());
         data.put("paymentStatus", order.getPaymentStatus());
         data.put("finalAmount", order.getFinalAmount());
+        data.put("shippingFee", order.getShippingFee());
+        data.put("serviceFee", order.getServiceFee());
         data.put("discountAmount", order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO);
-
-        if ("BANK_TRANSFER".equals(paymentMethod)) {
-            try {
-                Map<String, Object> payosData = payOSService.createPayment(order);
-                data.put("payosCheckoutUrl", payosData.get("checkoutUrl"));
-                data.put("payosQrCode", payosData.get("qrCode"));
-            } catch (Exception e) {
-                e.printStackTrace();
-                ApiResponse.error(resp, "PayOS error: " + e.getMessage(), 500);
-                return;
-            }
-        }
+        addTransferData(data, order);
 
         resp.setStatus(201);
         ApiResponse.ok(resp, data, "Order created");
+    }
+
+    private void addTransferData(Map<String, Object> data, Orders order) {
+        if (!"BANK_TRANSFER".equals(order.getPaymentMethod()) || !"PENDING".equals(order.getOrderStatus())) return;
+        String checkoutUrl = order.getPayosCheckoutUrl();
+        if (checkoutUrl != null && !checkoutUrl.isBlank()) data.put("checkoutUrl", checkoutUrl);
     }
 }

@@ -8,7 +8,6 @@ export const useAdminStore = defineStore('admin', () => {
   const allProducts = ref([]);
   const allCategories = ref([]);
   const allOrders = ref([]);
-  const allZones = ref([]);
 
   const loading = ref(false);
   const error = ref('');
@@ -23,11 +22,15 @@ export const useAdminStore = defineStore('admin', () => {
       price: typeof p.price === 'string' ? parseFloat(p.price) : p.price || 0,
       image: p.imageUrl || '',
       description: p.description || '',
-      status: p.status || 'AVAILABLE',
-      inStock: p.status === 'AVAILABLE',
+       status: p.status || 'AVAILABLE',
+       availableFrom: p.availableFrom || '',
+       availableTo: p.availableTo || '',
+       inStock: p.status === 'AVAILABLE',
       galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
-      variants: Array.isArray(p.variants) ? p.variants.map(v => ({ ...v })) : [],
-    };
+       variants: Array.isArray(p.variants) ? p.variants.map(v => ({ ...v })) : [],
+       modifierGroups: Array.isArray(p.modifierGroups) ? p.modifierGroups.map(group => ({ ...group, options: [...(group.options || [])] })) : [],
+       combo: p.combo ? { ...p.combo, items: [...(p.combo.items || [])] } : null,
+     };
   }
 
   function mapCategory(c) {
@@ -54,38 +57,21 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchUsers() {
-    try {
-      const data = await adminApi.getUsers();
-      allUsers.value = Array.isArray(data) ? data : [];
-      return allUsers.value;
-    } catch {
-      return [];
-    }
+    const data = await adminApi.getUsers();
+    allUsers.value = Array.isArray(data) ? data : [];
+    return allUsers.value;
   }
 
   async function fetchProducts() {
-    loading.value = true;
-    error.value = '';
-    try {
-      const data = await adminApi.getProducts();
-      allProducts.value = Array.isArray(data) ? data.map(mapProduct) : [];
-      return allProducts.value;
-    } catch (e) {
-      error.value = e.message || 'Lỗi tải sản phẩm';
-      return [];
-    } finally {
-      loading.value = false;
-    }
+    const data = await adminApi.getProducts();
+    allProducts.value = Array.isArray(data) ? data.map(mapProduct) : [];
+    return allProducts.value;
   }
 
   async function fetchCategories() {
-    try {
-      const data = await adminApi.getCategories();
-      allCategories.value = Array.isArray(data) ? data.map(mapCategory) : [];
-      return allCategories.value;
-    } catch {
-      return [];
-    }
+    const data = await adminApi.getCategories();
+    allCategories.value = Array.isArray(data) ? data.map(mapCategory) : [];
+    return allCategories.value;
   }
 
   async function fetchOrders() {
@@ -98,70 +84,37 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function fetchZones() {
-    try {
-      const data = await adminApi.getDeliveryZones();
-      allZones.value = Array.isArray(data) ? data : [];
-      return allZones.value;
-    } catch {
-      return [];
-    }
-  }
-
 
   async function createUser(data) {
-    try {
-      const res = await adminApi.createUser(data);
-      await fetchUsers();
-      return res;
-    } catch {
-      return null;
-    }
+    const res = await adminApi.createUser(data);
+    await fetchUsers();
+    return res;
   }
 
   async function updateUser(id, data) {
-    try {
-      await adminApi.updateUser(id, data);
-      await fetchUsers();
-    } catch {}
+    await adminApi.updateUser(id, data);
+    await fetchUsers();
   }
 
   async function deleteUser(id) {
-    try {
-      await adminApi.deleteUser(id);
-      await fetchUsers();
-    } catch {}
+    await adminApi.deleteUser(id);
+    await fetchUsers();
   }
 
   async function createProduct(data) {
-    try {
-      const res = await adminApi.createProduct(data);
-      await fetchProducts();
-      return res;
-    } catch (e) {
-      error.value = e.message || 'Lỗi tạo sản phẩm';
-      throw e;
-    }
+    const res = await adminApi.createProduct(data);
+    await fetchProducts();
+    return res;
   }
 
   async function updateProduct(id, data) {
-    try {
-      await adminApi.updateProduct(id, data);
-      await fetchProducts();
-    } catch (e) {
-      error.value = e.message || 'Lỗi cập nhật sản phẩm';
-      throw e;
-    }
+    await adminApi.updateProduct(id, data);
+    await fetchProducts();
   }
 
   async function deleteProduct(id) {
-    try {
-      await adminApi.deleteProduct(id);
-      await fetchProducts();
-    } catch (e) {
-      error.value = e.message || 'Lỗi xoá sản phẩm';
-      throw e;
-    }
+    await adminApi.deleteProduct(id);
+    await fetchProducts();
   }
 
   async function fetchVariants(productId) {
@@ -174,84 +127,52 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function createVariant(productId, data) {
-    try {
-      const res = await adminApi.createVariant(productId, data);
-      await fetchProducts();
-      return res;
-    } catch (e) {
-      error.value = e.message || 'Lỗi tạo biến thể';
-      throw e;
-    }
+    const res = await adminApi.createVariant(productId, data);
+    await fetchProducts();
+    return res;
   }
 
   async function updateVariant(id, data) {
-    try {
-      await adminApi.updateVariant(id, data);
-      await fetchProducts();
-    } catch (e) {
-      error.value = e.message || 'Lỗi cập nhật biến thể';
-      throw e;
-    }
+    await adminApi.updateVariant(id, data);
+    await fetchProducts();
   }
 
   async function deleteVariant(id) {
-    try {
-      await adminApi.deleteVariant(id);
-      await fetchProducts();
-    } catch (e) {
-      error.value = e.message || 'Lỗi xoá biến thể';
-      throw e;
-    }
+    await adminApi.deleteVariant(id);
+    await fetchProducts();
   }
 
+   async function createModifierGroup(productId, data) {
+     return adminApi.createModifierGroup(productId, data);
+   }
+
+   async function createModifierOption(groupId, data) {
+     return adminApi.createModifierOption(groupId, data);
+   }
+
+   async function saveCombo(productId, data) {
+     return adminApi.saveCombo(productId, data);
+   }
+
+   async function createComboItem(productId, data) {
+     return adminApi.createComboItem(productId, data);
+   }
+
   async function createCategory(data) {
-    try {
-      const res = await adminApi.createCategory(data);
-      await fetchCategories();
-      return res;
-    } catch {
-      return null;
-    }
+    const res = await adminApi.createCategory(data);
+    await fetchCategories();
+    return res;
   }
 
   async function updateCategory(id, data) {
-    try {
-      await adminApi.updateCategory(id, data);
-      await fetchCategories();
-    } catch {}
+    await adminApi.updateCategory(id, data);
+    await fetchCategories();
   }
 
   async function deleteCategory(id) {
-    try {
-      await adminApi.deleteCategory(id);
-      await fetchCategories();
-    } catch {}
+    await adminApi.deleteCategory(id);
+    await fetchCategories();
   }
-
-  async function createZone(data) {
-    try {
-      const res = await adminApi.createDeliveryZone(data);
-      await fetchZones();
-      return res;
-    } catch {
-      return null;
-    }
-  }
-
-  async function updateZone(id, data) {
-    try {
-      await adminApi.updateDeliveryZone(id, data);
-      await fetchZones();
-    } catch {}
-  }
-
-  async function deleteZone(id) {
-    try {
-      await adminApi.deleteDeliveryZone(id);
-      await fetchZones();
-    } catch {}
-  }
-
 
   async function getRevenueReport(params) {
     try {
@@ -275,7 +196,6 @@ export const useAdminStore = defineStore('admin', () => {
     allProducts,
     allCategories,
     allOrders,
-    allZones,
     loading,
     error,
     fetchDashboard,
@@ -283,7 +203,6 @@ export const useAdminStore = defineStore('admin', () => {
     fetchProducts,
     fetchCategories,
     fetchOrders,
-    fetchZones,
     createUser,
     updateUser,
     deleteUser,
@@ -293,13 +212,14 @@ export const useAdminStore = defineStore('admin', () => {
     fetchVariants,
     createVariant,
     updateVariant,
-    deleteVariant,
-    createCategory,
+     deleteVariant,
+     createModifierGroup,
+     createModifierOption,
+     saveCombo,
+     createComboItem,
+     createCategory,
     updateCategory,
     deleteCategory,
-    createZone,
-    updateZone,
-    deleteZone,
     getRevenueReport,
     getTopProducts,
   };

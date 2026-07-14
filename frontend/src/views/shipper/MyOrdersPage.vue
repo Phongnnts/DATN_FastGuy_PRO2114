@@ -129,73 +129,45 @@ function goDetail(id) {
 .shipper-tabs .tab {
   flex: 1;
   padding: 10px;
-  border: none;
+  border: 1px solid var(--border-light);
   background: #fff;
-  border-radius: 10px;
+  border-radius: var(--radius);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   color: var(--text-mid);
+  transition: all var(--transition-fast);
 }
 .shipper-tabs .tab.active {
   background: var(--primary);
   color: #fff;
+  border-color: var(--primary);
 }
-.shipper-empty {
-  text-align: center;
-  padding: 40px 0;
-  color: var(--text-mid);
-}
-.shipper-empty i {
-  font-size: 32px;
-  display: block;
-  margin-bottom: 8px;
-}
-.order-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+.shipper-empty { text-align: center; padding: 40px 0; color: var(--text-mid); }
+.shipper-empty i { font-size: 32px; display: block; margin-bottom: 8px; color: var(--border); }
+.order-cards { display: flex; flex-direction: column; gap: 10px; }
 .order-card {
   background: #fff;
-  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
   padding: 14px;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  transition: all var(--transition-fast);
 }
-.card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.order-code {
-  font-size: 14px;
-}
-.active-badge {
-  background: #DBEAFE;
-  color: #1E40AF;
-  padding: 2px 10px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.status-delivered {
-  background: #D1FAE5;
-  color: #065F46;
-  padding: 2px 10px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 600;
-}
+.order-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.order-code { font-size: 14px; }
+.active-badge,
+.status-delivered,
 .status-cancelled {
-  background: #FEE2E2;
-  color: #991B1B;
-  padding: 2px 10px;
-  border-radius: 99px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 600;
 }
+.active-badge { background: #dbeafe; color: #1e40af; }
+.status-delivered { background: #dcfce7; color: #166534; }
+.status-cancelled { background: #fee2e2; color: #991b1b; }
 .card-body p {
   font-size: 13px;
   color: var(--text-mid);
@@ -210,14 +182,8 @@ function goDetail(id) {
   align-items: center;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-light);
 }
-.order-total {
-  font-size: 17px;
-  font-weight: 800;
-}
-.order-time {
-  font-size: 12px;
-  color: var(--text-light);
-}
+.order-total { font-size: 17px; font-weight: 800; }
+.order-time { font-size: 12px; color: var(--text-light); }
 </style>

@@ -51,29 +51,39 @@ export const useCartStore = defineStore('cart', () => {
     return productStore.allProducts.find((p) => p.productId === Number(productId));
   }
 
-  function itemKey(productId, variantId) {
-    return productId + '_' + variantId;
+  function itemKey(productId, variantId, modifierOptionIds = []) {
+    return productId + '_' + variantId + '_' + [...modifierOptionIds].sort((a, b) => a - b).join(',');
   }
 
-  async function addItem(productId, variantId, quantity = 1) {
+  function managedStock(value) {
+    return value === null || value === undefined ? null : Number(value);
+  }
+
+  function stockLabel(stock) {
+    return stock === null ? 'không giới hạn' : stock;
+  }
+
+  async function addItem(productId, variantId, quantity = 1, modifiers = []) {
+    const modifierOptionIds = modifiers.map((m) => Number(m.modifierOptionId));
     const auth = useAuthStore();
     if (auth.isLoggedIn) {
       try {
-        await cartApi.addItem({ productId, variantId, quantity });
+        await cartApi.addItem({ productId, variantId, quantity, modifierOptionIds });
         await fetchCart();
       } catch (err) {
-        console.error('Cart API addItem failed, falling back to local:', err);
-        addLocalItem(productId, variantId, quantity);
+        throw err;
       }
     } else {
-      addLocalItem(productId, variantId, quantity);
+      addLocalItem(productId, variantId, quantity, modifiers);
     }
   }
 
-  function addLocalItem(productId, variantId, quantity) {
-    const key = itemKey(productId, variantId);
+  function addLocalItem(productId, variantId, quantity, modifiers = []) {
+    const key = itemKey(productId, variantId, modifiers.map((m) => m.modifierOptionId));
     const existing = items.value.find((i) => i.key === key);
     if (existing) {
+      const stock = managedStock(existing.quantityAvailable);
+      if (stock !== null && existing.quantity + quantity > stock) throw new Error(`Chỉ còn ${stockLabel(stock)} phần`);
       existing.quantity += quantity;
     } else {
       const productStore = useProductStore();
@@ -83,6 +93,8 @@ export const useCartStore = defineStore('cart', () => {
       const variant = (product.variants || []).find((v) => v.variantId === Number(variantId))
         || product.defaultVariant;
       if (!variant) return;
+      const stock = managedStock(variant.quantityAvailable);
+      if (variant.status !== 'AVAILABLE' || (stock !== null && quantity > stock)) throw new Error(`Chỉ còn ${stockLabel(stock)} phần`);
       items.value.push({
         cartItemId: null,
         productId: Number(productId),
@@ -90,33 +102,44 @@ export const useCartStore = defineStore('cart', () => {
         key,
         name: product.name,
         variantName: variant.variantName,
-        price: variant.price,
-        image: product.image,
-        quantity,
-      });
+          price: Number(variant.price) + modifiers.reduce((sum, m) => sum + Number(m.price || 0), 0),
+          modifiers,
+          image: product.image,
+          quantity,
+          quantityAvailable: managedStock(variant.quantityAvailable),
+          variantStatus: variant.status || 'UNAVAILABLE',
+          productStatus: product.inStock ? 'AVAILABLE' : 'UNAVAILABLE',
+        });
     }
     save();
   }
 
-  async function updateQuantity(productId, variantId, quantity) {
-    const key = itemKey(productId, variantId);
+  async function updateQuantity(productId, variantId, quantity, modifierOptionIds = []) {
+    const key = itemKey(productId, variantId, modifierOptionIds);
     const item = items.value.find((i) => i.key === key);
     if (!item) return;
     if (quantity <= 0) {
       removeItem(productId, variantId);
       return;
     }
+    const stock = managedStock(item.quantityAvailable);
+    if (stock !== null && quantity > stock) throw new Error(`Chỉ còn ${stock} phần`);
+    const oldQuantity = item.quantity;
     item.quantity = quantity;
     save();
     const auth = useAuthStore();
     if (auth.isLoggedIn && item.cartItemId) {
       try { await cartApi.updateItem(item.cartItemId, { quantity }); }
-      catch (e) { console.error('Sync cart failed:', e); }
+      catch (e) {
+        item.quantity = oldQuantity;
+        save();
+        throw e;
+      }
     }
   }
 
-  async function removeItem(productId, variantId) {
-    const key = itemKey(productId, variantId);
+  async function removeItem(productId, variantId, modifierOptionIds = []) {
+    const key = itemKey(productId, variantId, modifierOptionIds);
     const item = items.value.find((i) => i.key === key);
     if (!item) return;
     items.value = items.value.filter((i) => i.key !== key);
@@ -136,12 +159,16 @@ export const useCartStore = defineStore('cart', () => {
           cartItemId: ci.cartItemId,
           productId: ci.productId,
           variantId: ci.variantId,
-          key: itemKey(ci.productId, ci.variantId),
-          name: ci.productName || '',
+           key: itemKey(ci.productId, ci.variantId, (ci.modifiers || []).map((m) => m.modifierOptionId)),
+           name: ci.productName || '',
           variantName: ci.variantName || '',
-          price: ci.unitPrice ? parseFloat(ci.unitPrice) : 0,
-          image: ci.imageUrl || '',
+           price: ci.unitPrice ? parseFloat(ci.unitPrice) : 0,
+           modifiers: ci.modifiers || [],
+           image: ci.imageUrl || '',
           quantity: ci.quantity,
+          quantityAvailable: managedStock(ci.quantityAvailable),
+          variantStatus: ci.variantStatus || 'UNAVAILABLE',
+          productStatus: ci.productStatus || 'UNAVAILABLE',
         }));
         save();
       }
