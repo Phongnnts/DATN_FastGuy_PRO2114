@@ -19,6 +19,7 @@ create table Category (
 create table DeliveryZone (
     zone_id int identity primary key,
     district_name nvarchar(100) not null,
+    ward_name nvarchar(100),
     shipping_fee decimal(10,2) default 0,
     is_active bit default 1
 );
@@ -32,8 +33,37 @@ create table Product (
     image_url varchar(500),
     gallery_images nvarchar(max),
     status varchar(20) default 'AVAILABLE',
+    available_from time,
+    available_to time,
     created_at datetime2 default getdate(),
     updated_at datetime2
+);
+
+create table ProductModifierGroup (
+    modifier_group_id int identity primary key,
+    product_id int not null references Product(product_id),
+    name nvarchar(255) not null,
+    min_selections int not null default 0,
+    max_selections int not null default 1,
+    is_active bit not null default 1,
+    sort_order int not null default 0,
+    constraint CK_ProductModifierGroup_Selections check (min_selections >= 0 and max_selections >= min_selections)
+);
+
+create table ProductModifierOption (
+    modifier_option_id int identity primary key,
+    modifier_group_id int not null references ProductModifierGroup(modifier_group_id),
+    name nvarchar(255) not null,
+    price decimal(10,2) not null default 0,
+    is_active bit not null default 1,
+    sort_order int not null default 0,
+    constraint CK_ProductModifierOption_Price check (price >= 0)
+);
+
+create table ProductCombo (
+    combo_id int identity primary key,
+    product_id int not null unique references Product(product_id),
+    is_active bit not null default 1
 );
 
 create table ProductVariant (
@@ -54,6 +84,18 @@ create table ProductVariant (
     updated_at datetime2
 );
 create unique index idx_variant_sku on ProductVariant(sku) where sku is not null;
+alter table ProductVariant add constraint CK_ProductVariant_QuantityAvailable check (quantity_available is null or quantity_available >= 0);
+
+create table ProductComboItem (
+    combo_item_id int identity primary key,
+    combo_id int not null references ProductCombo(combo_id),
+    product_id int not null references Product(product_id),
+    variant_id int not null references ProductVariant(variant_id),
+    quantity int not null default 1,
+    sort_order int not null default 0,
+    constraint CK_ProductComboItem_Quantity check (quantity > 0)
+);
+
 
 create table ShippingConfig (
     config_id int identity primary key,
@@ -77,6 +119,7 @@ create table Users (
     full_name nvarchar(255) not null,
     avatar_url varchar(500),
     status varchar(20) default 'ACTIVE',
+    loyalty_points int not null default 0,
     created_at datetime2 default getdate()
 );
 create unique index UQ__Users__AB6E6164B24E18DD on Users(email) where email is not null;
@@ -125,9 +168,12 @@ create table CartItem (
     variant_id int not null references ProductVariant(variant_id),
     quantity int not null,
     unit_price decimal(10,2) not null,
+    selected_modifier_option_ids varchar(500),
     created_at datetime2 default getdate()
 );
-create unique index idx_cartitem_variant on CartItem(cart_id, variant_id);
+create unique index idx_cartitem_variant on CartItem(cart_id, variant_id, selected_modifier_option_ids);
+alter table CartItem add constraint CK_CartItem_Quantity check (quantity > 0);
+
 
 create table Coupon (
     coupon_id int identity primary key,
@@ -154,15 +200,6 @@ create table ClaimedCoupon (
 );
 create unique index idx_claimedcoupon_user_coupon on ClaimedCoupon(user_id, coupon_id);
 
-create table CouponUsage (
-    coupon_usage_id int identity primary key,
-    coupon_id int not null references Coupon(coupon_id),
-    user_id int references Users(user_id),
-    order_id int not null references Orders(order_id),
-    discount_amount decimal(10,2) not null,
-    used_at datetime2 default getdate()
-);
-create unique index idx_couponusage_order on CouponUsage(order_id);
 
 create table Orders (
     order_id int identity primary key,
@@ -180,7 +217,10 @@ create table Orders (
     ghn_ward_code varchar(50),
     total_amount decimal(10,2) not null,
     shipping_fee decimal(10,2) default 0,
+    service_fee decimal(10,2) default 0,
     final_amount decimal(10,2) not null,
+    cod_collected_amount decimal(10,2),
+    cod_collected_at datetime2,
     shipping_provider varchar(30) default 'GHN',
     shipping_service_id int,
     shipping_service_type_id int,
@@ -192,6 +232,8 @@ create table Orders (
     from_ward_code varchar(50),
     payment_method varchar(50) not null,
     payment_status varchar(20) default 'UNPAID',
+    payos_payment_link_id varchar(100),
+    payos_checkout_url varchar(500),
     order_status varchar(30) default 'PENDING',
     staff_id int references Users(user_id),
     shipper_id int references Users(user_id),
@@ -205,11 +247,51 @@ create table Orders (
     coupon_code varchar(50),
     discount_amount decimal(10,2) default 0,
     failure_reason nvarchar(500),
+    cancelled_by varchar(20),
+    refund_status varchar(20),
+    refund_amount decimal(10,2),
+    refunded_at datetime2,
+    refund_note nvarchar(500),
     internal_note nvarchar(1000),
     delivery_note nvarchar(500),
     created_at datetime2 default getdate()
 );
 create unique index UQ__Orders__99D12D3FCA6940DB on Orders(order_code);
+
+create table LoyaltyTransaction (
+    loyalty_transaction_id int identity primary key,
+    user_id int not null references Users(user_id),
+    order_id int not null references Orders(order_id),
+    transaction_type varchar(20) not null,
+    points int not null,
+    created_at datetime2 default getdate()
+);
+create unique index UQ_LoyaltyTransaction_Order_Type on LoyaltyTransaction(order_id, transaction_type);
+create index IX_LoyaltyTransaction_User_Created on LoyaltyTransaction(user_id, created_at);
+
+create table WorkShift (
+    shift_id int identity primary key,
+    user_id int not null references Users(user_id),
+    shift_date date not null,
+    start_time time not null,
+    end_time time not null,
+    check_in_at datetime2,
+    check_out_at datetime2,
+    status varchar(20) default 'SCHEDULED',
+    created_at datetime2 default getdate()
+);
+create index IX_WorkShift_User_Date on WorkShift(user_id, shift_date);
+create index IX_WorkShift_Date on WorkShift(shift_date);
+
+create table CouponUsage (
+    coupon_usage_id int identity primary key,
+    coupon_id int not null references Coupon(coupon_id),
+    user_id int references Users(user_id),
+    order_id int not null references Orders(order_id),
+    discount_amount decimal(10,2) not null,
+    used_at datetime2 default getdate()
+);
+create unique index idx_couponusage_order on CouponUsage(order_id);
 
 create table OrderItem (
     order_item_id int identity primary key,
@@ -220,8 +302,23 @@ create table OrderItem (
     variant_name nvarchar(255),
     quantity int not null,
     unit_price decimal(10,2) not null,
-    total_price decimal(10,2) not null
+    total_price decimal(10,2) not null,
+    constraint CK_OrderItem_Quantity check (quantity > 0),
+    constraint CK_OrderItem_Amount check (unit_price >= 0 and total_price >= 0)
 );
+create index IX_OrderItem_Order on OrderItem(order_id);
+create index IX_OrderItem_Variant on OrderItem(variant_id);
+
+create table OrderItemModifier (
+    order_item_modifier_id int identity primary key,
+    order_item_id int not null references OrderItem(order_item_id),
+    modifier_option_id int references ProductModifierOption(modifier_option_id),
+    group_name nvarchar(255) not null,
+    option_name nvarchar(255) not null,
+    price decimal(10,2) not null,
+    constraint CK_OrderItemModifier_Price check (price >= 0)
+);
+create index IX_OrderItemModifier_OrderItem on OrderItemModifier(order_item_id);
 
 create table Review (
     review_id int identity primary key,
@@ -232,6 +329,50 @@ create table Review (
     created_at datetime2 default getdate()
 );
 create unique index UQ_Review_User_Order on Review(user_id, order_id);
+
+create table SupportTicket (
+    ticket_id int identity primary key,
+    user_id int references Users(user_id),
+    order_id int references Orders(order_id),
+    subject nvarchar(255) not null,
+    category varchar(30) not null,
+    description nvarchar(2000) not null,
+    status varchar(20) not null default 'OPEN',
+    staff_id int references Users(user_id),
+    resolution nvarchar(2000),
+    created_at datetime2 default getdate(),
+    resolved_at datetime2,
+    constraint CK_SupportTicket_Category check (category in ('MISSING_ITEM', 'COLD_FOOD', 'WRONG_ITEM', 'LATE_DELIVERY', 'OTHER')),
+    constraint CK_SupportTicket_Status check (status in ('OPEN', 'PROCESSING', 'RESOLVED'))
+);
+create index IX_SupportTicket_User on SupportTicket(user_id, created_at);
+create index IX_SupportTicket_Status on SupportTicket(status, created_at);
+
+create table Notification (
+    notification_id int identity primary key,
+    user_id int references Users(user_id),
+    role_name varchar(50),
+    title nvarchar(255) not null,
+    message nvarchar(1000),
+    type varchar(50),
+    target_url varchar(500),
+    is_read bit default 0,
+    created_at datetime2 default getdate()
+);
+create index IX_Notification_User_Read on Notification(user_id, is_read, created_at);
+create index IX_Notification_Role_Read on Notification(role_name, is_read, created_at);
+
+create table OrderStatusHistory (
+    history_id int identity primary key,
+    order_id int not null references Orders(order_id),
+    actor_user_id int references Users(user_id),
+    actor_role varchar(50),
+    from_status varchar(30),
+    to_status varchar(30) not null,
+    note nvarchar(500),
+    created_at datetime2 default getdate()
+);
+create index IX_OrderStatusHistory_Order on OrderStatusHistory(order_id, created_at);
 
 create table FavoriteProduct (
     favorite_id int identity primary key,
@@ -267,29 +408,29 @@ insert into Category (name, description, sort_order, status) values
 go
 
 insert into DeliveryZone (district_name, shipping_fee, is_active) values
-(N'Quận 1', 15000.00, NULL),
-(N'Quận 2', 15000.00, NULL),
-(N'Quận 3', 12000.00, NULL),
-(N'Quận 4', 12000.00, NULL),
-(N'Quận 5', 12000.00, NULL),
-(N'Quận 6', 12000.00, NULL),
-(N'Quận 7', 10000.00, NULL),
-(N'Quận 8', 12000.00, NULL),
-(N'Quận 9', 15000.00, NULL),
-(N'Quận 10', 10000.00, NULL),
-(N'Quận 11', 12000.00, NULL),
-(N'Quận 12', 15000.00, NULL),
-(N'Bình Thạnh', 10000.00, NULL),
-(N'Tân Bình', 12000.00, NULL),
-(N'Tân Phú', 12000.00, NULL),
-(N'Gò Vấp', 12000.00, NULL),
-(N'Phú Nhuận', 10000.00, NULL),
-(N'Thủ Đức', 15000.00, NULL),
-(N'Bình Tân', 15000.00, NULL),
-(N'Hóc Môn', 20000.00, NULL),
-(N'Củ Chi', 25000.00, NULL),
-(N'Nhà Bè', 20000.00, NULL),
-(N'Cần Giờ', 30000.00, NULL)
+(N'Quận 1', 15000.00, 1),
+(N'Quận 2', 15000.00, 1),
+(N'Quận 3', 12000.00, 1),
+(N'Quận 4', 12000.00, 1),
+(N'Quận 5', 12000.00, 1),
+(N'Quận 6', 12000.00, 1),
+(N'Quận 7', 10000.00, 1),
+(N'Quận 8', 12000.00, 1),
+(N'Quận 9', 15000.00, 1),
+(N'Quận 10', 10000.00, 1),
+(N'Quận 11', 12000.00, 1),
+(N'Quận 12', 15000.00, 1),
+(N'Bình Thạnh', 10000.00, 1),
+(N'Tân Bình', 12000.00, 1),
+(N'Tân Phú', 12000.00, 1),
+(N'Gò Vấp', 12000.00, 1),
+(N'Phú Nhuận', 10000.00, 1),
+(N'Thủ Đức', 15000.00, 1),
+(N'Bình Tân', 15000.00, 1),
+(N'Hóc Môn', 20000.00, 1),
+(N'Củ Chi', 25000.00, 1),
+(N'Nhà Bè', 20000.00, 1),
+(N'Cần Giờ', 30000.00, 1)
 ;
 go
 
@@ -372,93 +513,94 @@ insert into Product (category_id, name, description, base_price, image_url, gall
 go
 
 insert into ProductVariant (product_id, variant_name, price, original_price, sku, quantity_available, weight, length, width, height, is_default, status, created_at, updated_at) values
-(1, N'Mặc định', 45000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(2, N'Mặc định', 55000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(3, N'Mặc định', 59000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(4, N'Mặc định', 49000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(5, N'Mặc định', 52000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(6, N'Mặc định', 55000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(7, N'Mặc định', 56000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(8, N'Mặc định', 49000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(9, N'Mặc định', 55000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(10, N'Mặc định', 52000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(11, N'Mặc định', 58000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(12, N'Mặc định', 45000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(13, N'Mặc định', 35000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(14, N'Mặc định', 45000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(15, N'Mặc định', 42000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(16, N'Mặc định', 55000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(17, N'Mặc định', 48000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(18, N'Mặc định', 42000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(19, N'Mặc định', 45000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(20, N'Mặc định', 89000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(21, N'Mặc định', 85000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(22, N'Mặc định', 92000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(23, N'Mặc định', 99000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(24, N'Mặc định', 95000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(25, N'Mặc định', 89000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(26, N'Mặc định', 20000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(27, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(28, N'Mặc định', 22000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(29, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(30, N'Mặc định', 35000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(31, N'Mặc định', 28000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(32, N'Mặc định', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(33, N'Mặc định', 45000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(34, N'Mặc định', 42000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(35, N'Mặc định', 48000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(36, N'Mặc định', 55000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(37, N'Mặc định', 48000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(38, N'Mặc định', 45000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(39, N'Mặc định', 55000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(40, N'Mặc định', 48000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(41, N'Mặc định', 50000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(42, N'Mặc định', 40000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(43, N'Mặc định', 42000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(44, N'Mặc định', 45000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(45, N'Mặc định', 50000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(46, N'Mặc định', 42000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(47, N'Mặc định', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(48, N'Mặc định', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(49, N'Mặc định', 35000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(50, N'Mặc định', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(51, N'Mặc định', 35000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(52, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(53, N'Mặc định', 35000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(54, N'Mặc định', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(55, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(56, N'Mặc định', 12000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(57, N'Mặc định', 12000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(58, N'Mặc định', 12000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(59, N'Mặc định', 12000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(60, N'Mặc định', 20000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(61, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(62, N'Mặc định', 20000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(63, N'Mặc định', 35000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(64, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(65, N'Mặc định', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(66, N'Mặc định', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(67, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(68, N'Mặc định', 15000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(69, N'Mặc định', 15000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(70, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(71, N'Mặc định', 20000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(72, N'Mặc định', 35000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(73, N'Mặc định', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(1, N'Size L (lớn)', 55000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(2, N'Size L (lớn)', 65000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(4, N'Size L (lớn)', 59000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(8, N'Combo 3 miếng', 69000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(8, N'Combo 6 miếng', 94000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(13, N'Combo 6 cánh', 70000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(20, N'Size L (30cm)', 119000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(21, N'Size L (30cm)', 115000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(22, N'Size L (30cm)', 122000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(60, N'Size L', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(61, N'Size L', 30000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(62, N'Size L', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
-(63, N'Size L', 25000.00, NULL, NULL, NULL, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL)
+(1, N'Mặc định', 45000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(2, N'Mặc định', 55000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(3, N'Mặc định', 59000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(4, N'Mặc định', 49000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(5, N'Mặc định', 52000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(6, N'Mặc định', 55000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(7, N'Mặc định', 56000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(8, N'Mặc định', 49000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(9, N'Mặc định', 55000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(10, N'Mặc định', 52000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(11, N'Mặc định', 58000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(12, N'Mặc định', 45000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(13, N'Mặc định', 35000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(14, N'Mặc định', 45000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(15, N'Mặc định', 42000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(16, N'Mặc định', 55000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(17, N'Mặc định', 48000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(18, N'Mặc định', 42000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(19, N'Mặc định', 45000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(20, N'Mặc định', 89000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(21, N'Mặc định', 85000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(22, N'Mặc định', 92000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(23, N'Mặc định', 99000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(24, N'Mặc định', 95000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(25, N'Mặc định', 89000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(26, N'Mặc định', 20000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(27, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(28, N'Mặc định', 22000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(29, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(30, N'Mặc định', 35000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(31, N'Mặc định', 28000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(32, N'Mặc định', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(33, N'Mặc định', 45000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(34, N'Mặc định', 42000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(35, N'Mặc định', 48000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(36, N'Mặc định', 55000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(37, N'Mặc định', 48000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(38, N'Mặc định', 45000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(39, N'Mặc định', 55000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(40, N'Mặc định', 48000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(41, N'Mặc định', 50000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(42, N'Mặc định', 40000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(43, N'Mặc định', 42000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(44, N'Mặc định', 45000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(45, N'Mặc định', 50000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(46, N'Mặc định', 42000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(47, N'Mặc định', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(48, N'Mặc định', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(49, N'Mặc định', 35000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(50, N'Mặc định', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(51, N'Mặc định', 35000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(52, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(53, N'Mặc định', 35000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(54, N'Mặc định', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(55, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(56, N'Mặc định', 12000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(57, N'Mặc định', 12000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(58, N'Mặc định', 12000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(59, N'Mặc định', 12000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(60, N'Mặc định', 20000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(61, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(62, N'Mặc định', 20000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(63, N'Mặc định', 35000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(64, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(65, N'Mặc định', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(66, N'Mặc định', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(67, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(68, N'Mặc định', 15000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(69, N'Mặc định', 15000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(70, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(71, N'Mặc định', 20000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(72, N'Mặc định', 35000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(73, N'Mặc định', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(1, N'Size L (lớn)', 55000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(2, N'Size L (lớn)', 65000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(4, N'Size L (lớn)', 59000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(8, N'Combo 3 miếng', 69000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(8, N'Combo 6 miếng', 94000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(13, N'Combo 6 cánh', 70000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(20, N'Size L (30cm)', 119000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(21, N'Size L (30cm)', 115000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, NULL, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(22, N'Size L (30cm)', 122000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(60, N'Size L', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(61, N'Size L', 30000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(62, N'Size L', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL),
+(63, N'Size L', 25000.00, NULL, NULL, 100, 500.00, 20.00, 20.00, 10.00, 0, 'AVAILABLE', '7/4/2026 1:40:02 AM', NULL)
 ;
+update ProductVariant set is_default = 1 where variant_name = N'Mặc định';
 go
 
 insert into ShippingConfig (config_key, config_value) values
@@ -468,7 +610,10 @@ insert into ShippingConfig (config_key, config_value) values
 ('default_length', '20'),
 ('default_width', '20'),
 ('default_height', '10'),
-('default_service_type_id', '2')
+('default_service_type_id', '2'),
+('business_open_time', '08:00'),
+('business_close_time', '22:00'),
+('service_fee', '0')
 ;
 go
 
@@ -482,21 +627,21 @@ insert into Role (role_name) values
 go
 
 insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, status, created_at) values
-(4, 'admin@fastguy.com', '0901000001', 'pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=', N'Nam Phong', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(2, 'staff1@fastguy.com', '0901000002', '123456', N'Nguyễn Văn A', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(2, 'staff2@fastguy.com', '0901000003', '123456', N'Trần Thị B', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+(1, 'admin@fastguy.com', '0901000001', 'pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=', N'Nam Phong', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+(4, 'staff1@fastguy.com', '0901000002', '123456', N'Nguyễn Văn A', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+(4, 'staff2@fastguy.com', '0901000003', '123456', N'Trần Thị B', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
 (3, 'shipper1@fastguy.com', '0901000004', '123456', N'Phạm Văn C', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
 (3, 'shipper2@fastguy.com', '0901000005', '123456', N'Lê Thị D', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(1, 'user1@gmail.com', '0901000006', 'pbkdf2$120000$JpbGvZddz37orCzWxpmabw==$Ld1dCzqT9N0fD5cRfj0S6HF16f59UQZAulLRTvFc/sE=', N'Phúc Khang', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(1, 'user2@gmail.com', '0901000007', '123456', N'Mai Thị F', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(1, NULL, '0901000008', '123456', N'Khách Vãng Lai 1', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM')
+(5, 'user1@gmail.com', '0901000006', 'pbkdf2$120000$JpbGvZddz37orCzWxpmabw==$Ld1dCzqT9N0fD5cRfj0S6HF16f59UQZAulLRTvFc/sE=', N'Phúc Khang', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+(5, 'user2@gmail.com', '0901000007', '123456', N'Mai Thị F', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+(2, NULL, '0901000008', '123456', N'Khách Vãng Lai 1', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM')
 ;
 go
 
 insert into Banner (title, subtitle, image_url, link, sort_order, is_active, created_at) values
-(N'Khuyến mãi mùa hè', N'Giảm đến 10% cho tất cả Burger', '/images/banner-summer.jpg', '/menu?category=1', 1, NULL, '7/4/2026 1:40:02 AM'),
-(N'Combo Gà Rán', N'Combo gà rán giòn rụm chỉ từ 35.000đ', '/images/banner-chicken.jpg', '/menu?category=2', 2, NULL, '7/4/2026 1:40:02 AM'),
-(N'Pizza Size L', N'Pizza size L chỉ từ 85.000đ', '/images/banner-pizza.jpg', '/menu?category=4', 3, NULL, '7/4/2026 1:40:02 AM')
+(N'Khuyến mãi mùa hè', N'Giảm đến 10% cho tất cả Burger', '/images/banner-summer.jpg', '/menu?category=1', 1, 1, '7/4/2026 1:40:02 AM'),
+(N'Combo Gà Rán', N'Combo gà rán giòn rụm chỉ từ 35.000đ', '/images/banner-chicken.jpg', '/menu?category=2', 2, 1, '7/4/2026 1:40:02 AM'),
+(N'Pizza Size L', N'Pizza size L chỉ từ 85.000đ', '/images/banner-pizza.jpg', '/menu?category=4', 3, 1, '7/4/2026 1:40:02 AM')
 ;
 go
 
@@ -526,9 +671,9 @@ insert into CartItem (cart_id, product_id, variant_id, quantity, unit_price, cre
 go
 
 insert into Coupon (code, type, value, min_order, max_discount, max_uses, used_count, expires_at, is_active, is_public, created_at) values
-('WELCOME10', 'PERCENT', 10.00, 50000.00, 20000.00, 100, 1, '12/31/2026 11:59:59 PM', NULL, NULL, '7/4/2026 1:40:02 AM'),
-('FREESHIP', 'FREE_SHIPPING', 0.00, 30000.00, NULL, 50, 0, '12/31/2026 11:59:59 PM', NULL, NULL, '7/4/2026 1:40:02 AM'),
-('GIAM20K', 'FIXED', 20000.00, 100000.00, NULL, 30, 0, '12/31/2026 11:59:59 PM', NULL, NULL, '7/4/2026 1:40:02 AM')
+('WELCOME10', 'PERCENT', 10.00, 50000.00, 20000.00, 100, 1, '12/31/2026 11:59:59 PM', 1, 1, '7/4/2026 1:40:02 AM'),
+('FREESHIP', 'FREE_SHIPPING', 0.00, 30000.00, NULL, 50, 0, '12/31/2026 11:59:59 PM', 1, 1, '7/4/2026 1:40:02 AM'),
+('GIAM20K', 'FIXED', 20000.00, 100000.00, NULL, 30, 0, '12/31/2026 11:59:59 PM', 1, 1, '7/4/2026 1:40:02 AM')
 ;
 go
 
@@ -540,18 +685,18 @@ insert into ClaimedCoupon (coupon_id, user_id, claimed_at, used_at) values
 ;
 go
 
-insert into CouponUsage (coupon_id, user_id, order_id, discount_amount, used_at) values
-(1, 6, 6, 20000.00, '7/4/2026 8:39:50 AM')
+insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, zone_id, to_province_name, to_district_name, to_ward_name, ghn_province_id, ghn_district_id, ghn_ward_code, total_amount, shipping_fee, final_amount, shipping_provider, shipping_service_id, shipping_service_type_id, expected_delivery_time, ghn_order_code, ghn_tracking_url, ghn_status, from_district_id, from_ward_code, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, paid_at, delivered_at, cancelled_at, coupon_code, discount_amount, failure_reason, cancelled_by, refund_status, refund_note, internal_note, delivery_note, created_at) values
+('FG-20250601-001', 6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi, Phường Bến Nghé, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 171000.00, 15000.00, 186000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'PAID', 'DELIVERED', 2, 4, '6/1/2025 10:15:00 AM', '6/1/2025 10:20:00 AM', '6/1/2025 10:40:00 AM', '6/1/2025 10:50:00 AM', '6/1/2025 11:10:00 AM', '6/1/2025 11:10:00 AM', NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/1/2025 10:00:00 AM'),
+('FG-20250601-002', 7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ, Phường Bến Thành, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 135000.00, 15000.00, 150000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'BANKING', 'PAID', 'DELIVERED', 3, 5, '6/1/2025 11:30:00 AM', '6/1/2025 11:35:00 AM', '6/1/2025 12:00:00 PM', '6/1/2025 12:10:00 PM', '6/1/2025 12:30:00 PM', '6/1/2025 12:30:00 PM', NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/1/2025 11:15:00 AM'),
+('FG-20250602-001', 6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt, Phường Cô Giang, Quận 4', 4, NULL, NULL, NULL, NULL, NULL, NULL, 117000.00, 12000.00, 129000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'PENDING', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/2/2025 2:00:00 PM'),
+('FG-20250602-002', NULL, N'Nguyễn Vãng Lai', '0901888999', N'12 Nguyễn Trãi, Phường Phạm Ngũ Lão, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 49000.00, 15000.00, 64000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'CONFIRMED', 2, 4, '6/2/2025 2:30:00 PM', '6/2/2025 2:35:00 PM', NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/2/2025 2:20:00 PM'),
+('GST-FA1F4F8A', NULL, N'Nam Phong', '0974211242', N'Nam Phong, Quang Trung, Phường Trung Mỹ Tây, Quận 12, Hồ Chí Minh', NULL, N'Hồ Chí Minh', N'Quận 12', N'Phường Trung Mỹ Tây', 202, 1454, '21211', 55000.00, 21001.00, 76001.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'COD', 'UNPAID', 'READY', 2, 5, '7/4/2026 8:41:35 AM', '7/4/2026 1:41:58 AM', '7/4/2026 8:41:25 AM', NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '7/4/2026 1:41:32 AM'),
+('ORD-D9D9FD16', 6, N'Phúc Khang', '098765512331', N'Nam PHong, 123, Phường An Khánh, Thành Phố Thủ Đức, Hồ Chí Minh', NULL, N'Hồ Chí Minh', N'Thành Phố Thủ Đức', N'Phường An Khánh', 202, 3695, '90768', 387000.00, 21001.00, 388001.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'COD', 'UNPAID', 'READY', 2, 5, '7/8/2026 3:53:16 PM', '7/4/2026 8:40:08 AM', '7/8/2026 3:53:10 PM', NULL, NULL, NULL, NULL, 'WELCOME10', 20000.00, NULL, NULL, NULL, NULL, NULL, NULL, '7/4/2026 8:39:50 AM')
 ;
 go
 
-insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, zone_id, to_province_name, to_district_name, to_ward_name, ghn_province_id, ghn_district_id, ghn_ward_code, total_amount, shipping_fee, final_amount, shipping_provider, shipping_service_id, shipping_service_type_id, expected_delivery_time, ghn_order_code, ghn_tracking_url, ghn_status, from_district_id, from_ward_code, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, paid_at, delivered_at, cancelled_at, coupon_code, discount_amount, failure_reason, internal_note, delivery_note, created_at) values
-('FG-20250601-001', 6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi, Phường Bến Nghé, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 171000.00, 15000.00, 186000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'PAID', 'DELIVERED', 2, 4, '6/1/2025 10:15:00 AM', '6/1/2025 10:20:00 AM', '6/1/2025 10:40:00 AM', '6/1/2025 10:50:00 AM', '6/1/2025 11:10:00 AM', '6/1/2025 11:10:00 AM', NULL, NULL, 0.00, NULL, NULL, NULL, '6/1/2025 10:00:00 AM'),
-('FG-20250601-002', 7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ, Phường Bến Thành, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 135000.00, 15000.00, 150000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'BANKING', 'PAID', 'DELIVERED', 3, 5, '6/1/2025 11:30:00 AM', '6/1/2025 11:35:00 AM', '6/1/2025 12:00:00 PM', '6/1/2025 12:10:00 PM', '6/1/2025 12:30:00 PM', '6/1/2025 12:30:00 PM', NULL, NULL, 0.00, NULL, NULL, NULL, '6/1/2025 11:15:00 AM'),
-('FG-20250602-001', 6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt, Phường Cô Giang, Quận 4', 4, NULL, NULL, NULL, NULL, NULL, NULL, 117000.00, 12000.00, 129000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'PENDING', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, '6/2/2025 2:00:00 PM'),
-('FG-20250602-002', NULL, N'Nguyễn Vãng Lai', '0901888999', N'12 Nguyễn Trãi, Phường Phạm Ngũ Lão, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 49000.00, 15000.00, 64000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'CONFIRMED', 2, 4, '6/2/2025 2:30:00 PM', '6/2/2025 2:35:00 PM', NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, '6/2/2025 2:20:00 PM'),
-('GST-FA1F4F8A', NULL, N'Nam Phong', '0974211242', N'Nam Phong, Quang Trung, Phường Trung Mỹ Tây, Quận 12, Hồ Chí Minh', NULL, N'Hồ Chí Minh', N'Quận 12', N'Phường Trung Mỹ Tây', 202, 1454, '21211', 55000.00, 21001.00, 76001.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'COD', 'UNPAID', 'READY', 2, 5, '7/4/2026 8:41:35 AM', '7/4/2026 1:41:58 AM', '7/4/2026 8:41:25 AM', NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, '7/4/2026 1:41:32 AM'),
-('ORD-D9D9FD16', 6, N'Phúc Khang', '098765512331', N'Nam PHong, 123, Phường An Khánh, Thành Phố Thủ Đức, Hồ Chí Minh', NULL, N'Hồ Chí Minh', N'Thành Phố Thủ Đức', N'Phường An Khánh', 202, 3695, '90768', 387000.00, 21001.00, 388001.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'COD', 'UNPAID', 'READY', 2, 5, '7/8/2026 3:53:16 PM', '7/4/2026 8:40:08 AM', '7/8/2026 3:53:10 PM', NULL, NULL, NULL, NULL, 'WELCOME10', 20000.00, NULL, NULL, NULL, '7/4/2026 8:39:50 AM')
+insert into CouponUsage (coupon_id, user_id, order_id, discount_amount, used_at) values
+(1, 6, 6, 20000.00, '7/4/2026 8:39:50 AM')
 ;
 go
 

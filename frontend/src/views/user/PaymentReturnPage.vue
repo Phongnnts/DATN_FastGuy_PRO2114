@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
+import { orderApi } from '@/api';
 
 const route = useRoute();
 const router = useRouter();
@@ -10,44 +11,41 @@ const auth = useAuthStore();
 const cart = useCartStore();
 
 const status = ref('loading');
-const orderId = ref(null);
-const orderCode = ref('');
+const orderId = ref(Number(route.query.orderId) || null);
+const orderCode = ref(String(route.query.orderCode || ''));
 
-onMounted(() => {
-  const payosStatus = route.query.status;
-  const isCancel = route.query.cancel === 'true';
-  const payosOrderCode = route.query.orderCode;
-
-  const stored = JSON.parse(sessionStorage.getItem('payos_order') || '{}');
-  orderId.value = stored.orderId || null;
-  orderCode.value = stored.orderCode || '';
-
-  if (payosStatus === 'PAID') {
-    status.value = 'success';
-    cart.clear();
-    sessionStorage.removeItem('payos_order');
-    setTimeout(() => redirect(), 3000);
-  } else if (isCancel || payosStatus === 'CANCELLED') {
-    status.value = 'cancelled';
-    sessionStorage.removeItem('payos_order');
-    setTimeout(() => redirect(), 3000);
-  } else if (payosOrderCode) {
-    // Unknown status but we have an order code
-    status.value = 'pending';
-    setTimeout(() => redirect(), 3000);
-  } else {
+onMounted(async () => {
+  if (!orderId.value && !orderCode.value) {
     status.value = 'error';
+    return;
   }
+  for (let attempt = 0; attempt < 12; attempt++) {
+    try {
+      const order = auth.isLoggedIn && orderId.value
+        ? await orderApi.getById(orderId.value)
+        : await orderApi.trackOrder(orderCode.value);
+      if (order?.paymentStatus === 'PAID') {
+        status.value = 'success';
+        cart.clear();
+        setTimeout(redirect, 2000);
+        return;
+      }
+      if (order?.status === 'CANCELLED') {
+        status.value = 'cancelled';
+        setTimeout(redirect, 2000);
+        return;
+      }
+    } catch {}
+    await new Promise(resolve => setTimeout(resolve, 2500));
+  }
+  status.value = 'pending';
+  setTimeout(redirect, 2000);
 });
 
 function redirect() {
-  if (auth.isLoggedIn && orderId.value) {
-    router.replace(`/account/orders/${orderId.value}`);
-  } else if (orderCode.value) {
-    router.replace(`/track-order?code=${orderCode.value}`);
-  } else {
-    router.replace('/');
-  }
+  if (auth.isLoggedIn && orderId.value) router.replace(`/account/orders/${orderId.value}`);
+  else if (orderCode.value) router.replace(`/track-order?code=${orderCode.value}`);
+  else router.replace('/');
 }
 </script>
 

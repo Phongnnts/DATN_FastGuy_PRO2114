@@ -41,6 +41,9 @@ public class User {
     @Column(name = "status")
     private String status;
 
+    @Column(name = "loyalty_points")
+    private int loyaltyPoints;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -62,6 +65,8 @@ public class User {
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public int getLoyaltyPoints() { return loyaltyPoints; }
+    public void setLoyaltyPoints(int loyaltyPoints) { this.loyaltyPoints = loyaltyPoints; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

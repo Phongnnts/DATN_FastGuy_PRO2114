@@ -22,8 +22,8 @@ export default {
   pickUpOrder(id) {
     return client.put(`/shipper/orders/${id}/pickup`);
   },
-  deliverOrder(id) {
-    return client.put(`/shipper/orders/${id}/deliver`);
+  deliverOrder(id, collectedAmount) {
+    return client.put(`/shipper/orders/${id}/deliver`, collectedAmount === undefined ? {} : { collectedAmount });
   },
   cancelOrder(id, reason) {
     return client.put(`/shipper/orders/${id}/cancel`, { reason });

@@ -4,8 +4,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dao.CategoryDAO;
 import dao.ProductDAO;
+import dao.ProductModifierDAO;
 import entity.Category;
 import entity.Product;
+import entity.ProductCombo;
+import entity.ProductComboItem;
+import entity.ProductModifierGroup;
+import entity.ProductModifierOption;
 import entity.ProductVariant;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -18,6 +23,7 @@ import utils.JsonUtil;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +34,7 @@ import java.util.stream.Collectors;
 public class AdminProductServlet extends HttpServlet {
     private static final ObjectMapper mapper = new ObjectMapper();
     private ProductDAO productDAO = new ProductDAO();
+    private ProductModifierDAO modifierDAO = new ProductModifierDAO();
     private CategoryDAO categoryDAO = new CategoryDAO();
 
     private boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -86,14 +93,32 @@ public class AdminProductServlet extends HttpServlet {
         m.put("imageUrl", p.getImageUrl() != null ? p.getImageUrl() : "");
         m.put("description", p.getDescription() != null ? p.getDescription() : "");
         m.put("status", p.getStatus());
+        m.put("availableFrom", p.getAvailableFrom() != null ? p.getAvailableFrom().toString() : null);
+        m.put("availableTo", p.getAvailableTo() != null ? p.getAvailableTo().toString() : null);
         m.put("galleryImages", parseGalleryImages(p));
         m.put("variants", productDAO.findVariantsByProductId(p.getProductId()).stream()
                 .map(this::toVariantMap).collect(Collectors.toList()));
+        m.put("modifierGroups", modifierDAO.groups(p.getProductId()).stream().map(this::modifierGroupMap).collect(Collectors.toList()));
+        m.put("combo", comboMap(modifierDAO.combo(p.getProductId())));
         m.put("discountPrice", null);
         m.put("rating", 0);
         m.put("reviewCount", 0);
         m.put("inStock", "AVAILABLE".equals(p.getStatus()));
         m.put("featured", false);
+        return m;
+    }
+
+    private Map<String, Object> modifierGroupMap(ProductModifierGroup group) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("modifierGroupId", group.getModifierGroupId()); m.put("name", group.getName()); m.put("minSelections", group.getMinSelections()); m.put("maxSelections", group.getMaxSelections()); m.put("isActive", Boolean.TRUE.equals(group.getIsActive()));
+        m.put("options", modifierDAO.options(group.getModifierGroupId()).stream().map(option -> { Map<String, Object> o = new HashMap<>(); o.put("modifierOptionId", option.getModifierOptionId()); o.put("name", option.getName()); o.put("price", option.getPrice()); o.put("isActive", Boolean.TRUE.equals(option.getIsActive())); return o; }).collect(Collectors.toList()));
+        return m;
+    }
+
+    private Map<String, Object> comboMap(ProductCombo combo) {
+        if (combo == null) return null;
+        Map<String, Object> m = new HashMap<>(); m.put("comboId", combo.getComboId()); m.put("isActive", Boolean.TRUE.equals(combo.getIsActive()));
+        m.put("items", modifierDAO.comboItems(combo.getComboId()).stream().map(item -> Map.of("comboItemId", item.getComboItemId(), "productId", item.getProduct().getProductId(), "variantId", item.getVariant().getVariantId(), "quantity", item.getQuantity())).collect(Collectors.toList()));
         return m;
     }
 
@@ -104,6 +129,32 @@ public class AdminProductServlet extends HttpServlet {
 
     private Integer parseId(String s) {
         try { return Integer.parseInt(s); } catch (NumberFormatException e) { return null; }
+    }
+
+    private BigDecimal readMoney(Map<String, Object> body, String key, BigDecimal fallback) {
+        if (!body.containsKey(key) || body.get(key) == null) return fallback;
+        BigDecimal value = BigDecimal.valueOf(((Number) body.get(key)).doubleValue());
+        if (value.compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException(key + " must be >= 0");
+        return value;
+    }
+
+    private Integer readStock(Map<String, Object> body, String key, Integer fallback) {
+        if (!body.containsKey(key) || body.get(key) == null) return fallback;
+        int value = ((Number) body.get(key)).intValue();
+        if (value < 0) throw new IllegalArgumentException("Tồn kho không được âm");
+        return value;
+    }
+
+    private String readStatus(Map<String, Object> body, String key, String fallback) {
+        String status = body.containsKey(key) ? (String) body.get(key) : fallback;
+        if (status == null) return fallback;
+        if (!"AVAILABLE".equals(status) && !"UNAVAILABLE".equals(status)) throw new IllegalArgumentException("Trạng thái không hợp lệ");
+        return status;
+    }
+
+    private LocalTime readTime(Map<String, Object> body, String key, LocalTime fallback) {
+        if (!body.containsKey(key) || body.get(key) == null || ((String) body.get(key)).isBlank()) return body.containsKey(key) ? null : fallback;
+        try { return LocalTime.parse((String) body.get(key)); } catch (Exception e) { throw new IllegalArgumentException(key + " không hợp lệ"); }
     }
 
     @Override
@@ -125,6 +176,22 @@ public class AdminProductServlet extends HttpServlet {
             Product p = productDAO.findById(id);
             if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
             ApiResponse.ok(resp, toMap(p));
+            return;
+        }
+
+        if (segs.length == 2 && "modifier-groups".equals(segs[1])) {
+            Integer pid = parseId(segs[0]);
+            Product p = pid == null ? null : productDAO.findById(pid);
+            if (p == null) { ApiResponse.error(resp, "Product not found", 404); return; }
+            ApiResponse.ok(resp, modifierDAO.groups(pid).stream().map(this::modifierGroupMap).collect(Collectors.toList()));
+            return;
+        }
+
+        if (segs.length == 2 && "combo".equals(segs[1])) {
+            Integer pid = parseId(segs[0]);
+            Product p = pid == null ? null : productDAO.findById(pid);
+            if (p == null) { ApiResponse.error(resp, "Product not found", 404); return; }
+            ApiResponse.ok(resp, comboMap(modifierDAO.combo(pid)));
             return;
         }
 
@@ -169,20 +236,60 @@ public class AdminProductServlet extends HttpServlet {
             p.setCategory(category);
             p.setName((String) body.get("name"));
             p.setDescription((String) body.get("description"));
-            if (body.containsKey("basePrice")) {
-                p.setBasePrice(BigDecimal.valueOf(((Number) body.get("basePrice")).doubleValue()));
+            try {
+                p.setBasePrice(readMoney(body, "basePrice", BigDecimal.ZERO));
+                p.setStatus(readStatus(body, "status", "AVAILABLE"));
+                p.setAvailableFrom(readTime(body, "availableFrom", null));
+                p.setAvailableTo(readTime(body, "availableTo", null));
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+                return;
             }
             p.setImageUrl((String) body.get("imageUrl"));
             if (body.containsKey("galleryImages")) {
                 p.setGalleryImages(toGalleryJson((List<String>) body.get("galleryImages")));
             }
-            p.setStatus((String) body.getOrDefault("status", "AVAILABLE"));
             p.setCreatedAt(LocalDateTime.now());
             productDAO.save(p);
 
             resp.setStatus(201);
             ApiResponse.ok(resp, toMap(p), "Created");
             return;
+        }
+
+        if (segs.length == 2 && "modifier-groups".equals(segs[1])) {
+            Integer productId = parseId(segs[0]);
+            Product product = productId == null ? null : productDAO.findById(productId);
+            String name = (String) body.get("name");
+            if (product == null || name == null || name.isBlank()) { ApiResponse.error(resp, "Invalid modifier group", 400); return; }
+            int min = body.get("minSelections") instanceof Number ? ((Number) body.get("minSelections")).intValue() : 0;
+            int max = body.get("maxSelections") instanceof Number ? ((Number) body.get("maxSelections")).intValue() : 1;
+            if (min < 0 || max < min) { ApiResponse.error(resp, "Invalid selection limits", 400); return; }
+            ProductModifierGroup group = new ProductModifierGroup(); group.setProduct(product); group.setName(name.trim()); group.setMinSelections(min); group.setMaxSelections(max); group.setIsActive(true); modifierDAO.save(group);
+            resp.setStatus(201); ApiResponse.ok(resp, modifierGroupMap(group), "Created"); return;
+        }
+
+        if (segs.length == 3 && "modifier-groups".equals(segs[1]) && "options".equals(segs[2])) {
+            Integer groupId = parseId(segs[0]); ProductModifierGroup group = groupId == null ? null : modifierDAO.group(groupId);
+            String name = (String) body.get("name");
+            if (group == null || name == null || name.isBlank()) { ApiResponse.error(resp, "Invalid modifier option", 400); return; }
+            ProductModifierOption option = new ProductModifierOption(); option.setGroup(group); option.setName(name.trim());
+            try { option.setPrice(readMoney(body, "price", BigDecimal.ZERO)); } catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); return; }
+            option.setIsActive(true); modifierDAO.save(option); resp.setStatus(201); ApiResponse.ok(resp, option, "Created"); return;
+        }
+
+        if (segs.length == 2 && "combo".equals(segs[1])) {
+            Integer productId = parseId(segs[0]); Product product = productId == null ? null : productDAO.findById(productId);
+            if (product == null) { ApiResponse.error(resp, "Product not found", 404); return; }
+            ProductCombo combo = modifierDAO.combo(productId); if (combo == null) { combo = new ProductCombo(); combo.setProduct(product); } combo.setIsActive(!body.containsKey("isActive") || Boolean.TRUE.equals(body.get("isActive"))); modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Saved"); return;
+        }
+
+        if (segs.length == 3 && "combo".equals(segs[1]) && "items".equals(segs[2])) {
+            Integer productId = parseId(segs[0]); ProductCombo combo = productId == null ? null : modifierDAO.combo(productId);
+            Integer variantId = body.get("variantId") instanceof Number ? ((Number) body.get("variantId")).intValue() : null; ProductVariant variant = variantId == null ? null : productDAO.findVariantById(variantId);
+            int qty = body.get("quantity") instanceof Number ? ((Number) body.get("quantity")).intValue() : 0;
+            if (combo == null || variant == null || qty <= 0) { ApiResponse.error(resp, "Invalid combo item", 400); return; }
+            ProductComboItem item = new ProductComboItem(); item.setCombo(combo); item.setProduct(variant.getProduct()); item.setVariant(variant); item.setQuantity(qty); modifierDAO.save(item); resp.setStatus(201); ApiResponse.ok(resp, comboMap(combo), "Created"); return;
         }
 
         if (segs.length == 2 && "variants".equals(segs[1])) {
@@ -193,19 +300,20 @@ public class AdminProductServlet extends HttpServlet {
 
             ProductVariant v = new ProductVariant();
             v.setProduct(p);
-            v.setVariantName((String) body.get("variantName"));
-            if (body.containsKey("price")) {
-                v.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
-            }
-            if (body.containsKey("originalPrice")) {
-                v.setOriginalPrice(BigDecimal.valueOf(((Number) body.get("originalPrice")).doubleValue()));
+            String variantName = (String) body.get("variantName");
+            if (variantName == null || variantName.trim().isEmpty()) { ApiResponse.error(resp, "Tên biến thể không được trống", 400); return; }
+            v.setVariantName(variantName.trim());
+            try {
+                v.setPrice(readMoney(body, "price", BigDecimal.ZERO));
+                v.setOriginalPrice(readMoney(body, "originalPrice", null));
+                v.setQuantityAvailable(readStock(body, "quantityAvailable", null));
+                v.setStatus(readStatus(body, "status", "AVAILABLE"));
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+                return;
             }
             v.setSku((String) body.get("sku"));
-            if (body.containsKey("quantityAvailable")) {
-                v.setQuantityAvailable(((Number) body.get("quantityAvailable")).intValue());
-            }
             v.setIsDefault(body.containsKey("isDefault") ? (Boolean) body.get("isDefault") : false);
-            v.setStatus((String) body.getOrDefault("status", "AVAILABLE"));
             v.setCreatedAt(LocalDateTime.now());
             productDAO.saveVariant(v);
 
@@ -238,12 +346,19 @@ public class AdminProductServlet extends HttpServlet {
             }
             if (body.containsKey("name")) p.setName((String) body.get("name"));
             if (body.containsKey("description")) p.setDescription((String) body.get("description"));
-            if (body.containsKey("basePrice")) p.setBasePrice(BigDecimal.valueOf(((Number) body.get("basePrice")).doubleValue()));
+            try {
+                if (body.containsKey("basePrice")) p.setBasePrice(readMoney(body, "basePrice", p.getBasePrice()));
+                if (body.containsKey("status")) p.setStatus(readStatus(body, "status", p.getStatus()));
+                if (body.containsKey("availableFrom")) p.setAvailableFrom(readTime(body, "availableFrom", p.getAvailableFrom()));
+                if (body.containsKey("availableTo")) p.setAvailableTo(readTime(body, "availableTo", p.getAvailableTo()));
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+                return;
+            }
             if (body.containsKey("imageUrl")) p.setImageUrl((String) body.get("imageUrl"));
             if (body.containsKey("galleryImages")) {
                 p.setGalleryImages(toGalleryJson((List<String>) body.get("galleryImages")));
             }
-            if (body.containsKey("status")) p.setStatus((String) body.get("status"));
             p.setUpdatedAt(LocalDateTime.now());
             productDAO.save(p);
 
@@ -257,13 +372,22 @@ public class AdminProductServlet extends HttpServlet {
             ProductVariant v = productDAO.findVariantById(vid);
             if (v == null) { ApiResponse.error(resp, "Not found", 404); return; }
 
-            if (body.containsKey("variantName")) v.setVariantName((String) body.get("variantName"));
-            if (body.containsKey("price")) v.setPrice(BigDecimal.valueOf(((Number) body.get("price")).doubleValue()));
-            if (body.containsKey("originalPrice")) v.setOriginalPrice(BigDecimal.valueOf(((Number) body.get("originalPrice")).doubleValue()));
+            if (body.containsKey("variantName")) {
+                String variantName = (String) body.get("variantName");
+                if (variantName == null || variantName.trim().isEmpty()) { ApiResponse.error(resp, "Tên biến thể không được trống", 400); return; }
+                v.setVariantName(variantName.trim());
+            }
+            try {
+                if (body.containsKey("price")) v.setPrice(readMoney(body, "price", v.getPrice()));
+                if (body.containsKey("originalPrice")) v.setOriginalPrice(readMoney(body, "originalPrice", v.getOriginalPrice()));
+                if (body.containsKey("quantityAvailable")) v.setQuantityAvailable(readStock(body, "quantityAvailable", v.getQuantityAvailable()));
+                if (body.containsKey("status")) v.setStatus(readStatus(body, "status", v.getStatus()));
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+                return;
+            }
             if (body.containsKey("sku")) v.setSku((String) body.get("sku"));
-            if (body.containsKey("quantityAvailable")) v.setQuantityAvailable(((Number) body.get("quantityAvailable")).intValue());
             if (body.containsKey("isDefault")) v.setIsDefault((Boolean) body.get("isDefault"));
-            if (body.containsKey("status")) v.setStatus((String) body.get("status"));
             v.setUpdatedAt(LocalDateTime.now());
             productDAO.saveVariant(v);
 

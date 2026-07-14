@@ -7,6 +7,7 @@ const auth = useAuthStore();
 const coupons = ref([]);
 const loading = ref(true);
 const claiming = ref({});
+const claimSuccess = ref('');
 
 async function load() {
   loading.value = true;
@@ -25,7 +26,10 @@ async function handleClaim(couponId) {
   try {
     await couponApi.claim(couponId);
     const c = coupons.value.find(c => c.couponId === couponId);
-    if (c) c.isClaimed = true;
+    if (c) {
+      c.isClaimed = true;
+      claimSuccess.value = `Đã nhận mã ${c.code}. Bạn có thể dùng tại trang thanh toán.`;
+    }
   } catch (e) {
     alert(e.response?.data?.message || e.message);
   } finally {
@@ -65,6 +69,7 @@ onMounted(load);
 
     <section class="promo-body">
       <div class="container">
+        <div v-if="claimSuccess" class="claim-success"><i class="bi bi-check-circle-fill"></i>{{ claimSuccess }}</div>
         <div v-if="loading" class="promo-loading">
           <div class="skeleton-grid">
             <div v-for="i in 3" :key="i" class="skeleton-card">
@@ -147,6 +152,7 @@ onMounted(load);
 
 <style scoped>
 /* ── Page ── */
+.claim-success { display: flex; align-items: center; gap: 8px; margin: 18px 0 0; padding: 12px 14px; border-radius: var(--radius-sm); background: #ecfdf5; color: #047857; font-size: 14px; font-weight: 700; }
 .promo-page {
   background: var(--bg);
   min-height: 100vh;

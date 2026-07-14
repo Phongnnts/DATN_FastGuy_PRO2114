@@ -22,10 +22,16 @@ const form = ref({
   basePrice: 0,
   image: '',
   description: '',
-  status: 'AVAILABLE',
-  galleryImages: [],
+   status: 'AVAILABLE',
+   availableFrom: '',
+   availableTo: '',
+   galleryImages: [],
 });
 const productVariants = ref([]);
+const modifierGroup = ref({ name: '', minSelections: 0, maxSelections: 1 });
+const modifierOption = ref({ groupId: null, name: '', price: 0 });
+const comboVariantId = ref(null);
+const comboQuantity = ref(1);
 
 function openAdd() {
   editingId.value = null;
@@ -50,8 +56,10 @@ function openEdit(p) {
     basePrice: p.basePrice,
     image: p.image,
     description: p.description,
-    status: p.status,
-    galleryImages: [...(p.galleryImages || [])],
+     status: p.status,
+     availableFrom: p.availableFrom || '',
+     availableTo: p.availableTo || '',
+     galleryImages: [...(p.galleryImages || [])],
   };
   productVariants.value = (p.variants || []).map((v) => ({ ...v }));
   showForm.value = true;
@@ -104,26 +112,39 @@ function removeGallery(idx) {
 }
 
 async function save() {
+  if (!form.value.name.trim()) return alert('Nhập tên sản phẩm');
+  if (Number(form.value.basePrice) < 0) return alert('Giá gốc không được âm');
+  for (const v of productVariants.value) {
+    if (!v.variantName?.trim()) return alert('Tên biến thể không được trống');
+    if (Number(v.price) < 0) return alert('Giá biến thể không được âm');
+    if (Number(v.quantityAvailable) < 0) return alert('Tồn kho không được âm');
+  }
   const payload = {
     name: form.value.name,
     categoryId: form.value.categoryId,
     basePrice: form.value.basePrice,
     imageUrl: form.value.image,
     description: form.value.description,
-    status: form.value.status,
-    galleryImages: form.value.galleryImages,
+     status: form.value.status,
+     availableFrom: form.value.availableFrom || null,
+     availableTo: form.value.availableTo || null,
+     galleryImages: form.value.galleryImages,
   };
-  if (editingId.value) {
-    await adminStore.updateProduct(editingId.value, payload);
-    await syncVariants(editingId.value);
-  } else {
-    const created = await adminStore.createProduct(payload);
-    if (created) {
-      const newId = created.productId;
-      if (newId) await syncVariants(newId);
+  try {
+    if (editingId.value) {
+      await adminStore.updateProduct(editingId.value, payload);
+      await syncVariants(editingId.value);
+    } else {
+      const created = await adminStore.createProduct(payload);
+      if (created) {
+        const newId = created.productId;
+        if (newId) await syncVariants(newId);
+      }
     }
+    showForm.value = false;
+  } catch (e) {
+    alert(e.message || 'Không thể lưu sản phẩm');
   }
-  showForm.value = false;
 }
 
 async function syncVariants(productId) {
@@ -139,6 +160,7 @@ async function syncVariants(productId) {
     const data = {
       variantName: v.variantName,
       price: v.price || 0,
+      quantityAvailable: v.quantityAvailable === '' || v.quantityAvailable === null || v.quantityAvailable === undefined ? null : Math.max(0, Number(v.quantityAvailable) || 0),
       isDefault: !!v.isDefault,
       status: v.status || 'AVAILABLE',
     };
@@ -157,6 +179,7 @@ function addVariant() {
     variantId: null,
     variantName: '',
     price: 0,
+    quantityAvailable: null,
     isDefault: false,
     status: 'AVAILABLE',
   });
@@ -172,9 +195,39 @@ function setDefaultVariant(idx) {
   });
 }
 
-function remove(id) {
-  if (confirm('Xóa sản phẩm?')) adminStore.deleteProduct(id);
+async function addModifierGroup() {
+  if (!editingId.value || !modifierGroup.value.name.trim()) return;
+  await adminStore.createModifierGroup(editingId.value, modifierGroup.value);
+  await adminStore.fetchProducts();
+  modifierGroup.value = { name: '', minSelections: 0, maxSelections: 1 };
 }
+
+async function addModifierOption() {
+  if (!modifierOption.value.groupId || !modifierOption.value.name.trim()) return;
+  await adminStore.createModifierOption(modifierOption.value.groupId, modifierOption.value);
+  await adminStore.fetchProducts();
+  modifierOption.value = { groupId: null, name: '', price: 0 };
+}
+
+async function addComboItem() {
+  if (!editingId.value || !comboVariantId.value || Number(comboQuantity.value) < 1) return;
+  await adminStore.saveCombo(editingId.value, { isActive: true });
+  await adminStore.createComboItem(editingId.value, { variantId: comboVariantId.value, quantity: comboQuantity.value });
+  await adminStore.fetchProducts();
+  comboVariantId.value = null;
+  comboQuantity.value = 1;
+}
+
+async function remove(id) {
+  if (!confirm('Xóa sản phẩm?')) return;
+  try {
+    await adminStore.deleteProduct(id);
+  } catch (e) {
+    alert(e.message || 'Không thể xóa sản phẩm đang được sử dụng');
+  }
+}
+
+const comboVariants = computed(() => adminStore.allProducts.flatMap(product => product.variants.map(variant => ({ ...variant, label: `${product.name} - ${variant.variantName}` }))));
 
 const filtered = computed(() => {
   const list = adminStore.allProducts;
@@ -210,6 +263,7 @@ const filtered = computed(() => {
               <th>Danh mục</th>
               <th>Giá gốc</th>
               <th>Biến thể</th>
+              <th>Tồn kho</th>
               <th>Trạng thái</th>
               <th>Ảnh</th>
               <th></th>
@@ -243,6 +297,9 @@ const filtered = computed(() => {
                   {{ p.variants.length }} biến thể
                 </span>
                 <span v-else class="text-muted">0</span>
+              </td>
+              <td>
+                <strong>{{ (p.variants || []).some(v => v.quantityAvailable === null || v.quantityAvailable === undefined) ? 'Không giới hạn' : (p.variants || []).reduce((sum, v) => sum + (Number(v.quantityAvailable) || 0), 0) }}</strong>
               </td>
               <td>
                 <span
@@ -304,20 +361,25 @@ const filtered = computed(() => {
               ><input
                 v-model.number="form.basePrice"
                 type="number"
+                min="0"
                 class="form-input"
                 required
               />
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Trạng thái</label
-            ><select v-model="form.status" class="form-select">
-              <option value="AVAILABLE">Còn hàng</option>
-              <option value="UNAVAILABLE">Hết hàng</option>
-            </select>
-          </div>
+           <div class="form-group">
+             <label class="form-label">Trạng thái</label
+             ><select v-model="form.status" class="form-select">
+               <option value="AVAILABLE">Còn hàng</option>
+               <option value="UNAVAILABLE">Hết hàng</option>
+             </select>
+           </div>
+           <div class="grid-2">
+             <div class="form-group"><label class="form-label">Bán từ</label><input v-model="form.availableFrom" type="time" class="form-input" /></div>
+             <div class="form-group"><label class="form-label">Bán đến</label><input v-model="form.availableTo" type="time" class="form-input" /></div>
+           </div>
 
-          <div class="form-group">
+           <div class="form-group">
             <label class="form-label">Ảnh chính</label>
             <div class="upload-area" @click="triggerUpload">
               <input
@@ -407,10 +469,23 @@ const filtered = computed(() => {
               <input
                 v-model.number="v.price"
                 type="number"
+                min="0"
                 class="form-input"
                 placeholder="Giá"
                 style="flex: 1"
               />
+              <input
+                v-model.number="v.quantityAvailable"
+                type="number"
+                min="0"
+                class="form-input"
+                placeholder="Trống = không giới hạn"
+                style="flex: 1"
+              />
+              <select v-model="v.status" class="form-select" style="flex: 1">
+                <option value="AVAILABLE">Còn bán</option>
+                <option value="UNAVAILABLE">Ngừng bán</option>
+              </select>
               <label class="option-stock">
                 <input type="checkbox" :checked="v.isDefault" @change="setDefaultVariant(idx)" />
                 Mặc định
@@ -423,6 +498,31 @@ const filtered = computed(() => {
               >
                 <i class="bi bi-trash3"></i>
               </button>
+            </div>
+          </div>
+
+          <div v-if="editingId" class="form-group">
+            <label class="form-label">Nhóm topping</label>
+            <div class="option-row">
+              <input v-model="modifierGroup.name" class="form-input" placeholder="Tên nhóm" style="flex: 2" />
+              <input v-model.number="modifierGroup.minSelections" type="number" min="0" class="form-input" placeholder="Tối thiểu" style="flex: 1" />
+              <input v-model.number="modifierGroup.maxSelections" type="number" min="0" class="form-input" placeholder="Tối đa" style="flex: 1" />
+              <button type="button" class="btn btn-sm btn-outline" @click="addModifierGroup">Thêm</button>
+            </div>
+            <div class="option-row">
+              <select v-model="modifierOption.groupId" class="form-select" style="flex: 1"><option :value="null">Chọn nhóm</option><option v-for="group in adminStore.allProducts.find(p => p.id === editingId)?.modifierGroups || []" :key="group.modifierGroupId" :value="group.modifierGroupId">{{ group.name }}</option></select>
+              <input v-model="modifierOption.name" class="form-input" placeholder="Tên topping" style="flex: 2" />
+              <input v-model.number="modifierOption.price" type="number" min="0" class="form-input" placeholder="Giá" style="flex: 1" />
+              <button type="button" class="btn btn-sm btn-outline" @click="addModifierOption">Thêm</button>
+            </div>
+          </div>
+
+          <div v-if="editingId" class="form-group">
+            <label class="form-label">Thành phần combo cố định</label>
+            <div class="option-row">
+              <select v-model="comboVariantId" class="form-select" style="flex: 2"><option :value="null">Chọn biến thể</option><option v-for="variant in comboVariants" :key="variant.variantId" :value="variant.variantId">{{ variant.label }}</option></select>
+              <input v-model.number="comboQuantity" type="number" min="1" class="form-input" placeholder="SL" style="flex: 1" />
+              <button type="button" class="btn btn-sm btn-outline" @click="addComboItem">Thêm</button>
             </div>
           </div>
 
@@ -453,42 +553,39 @@ const filtered = computed(() => {
 
 <style scoped>
 .upload-area {
-  border: 2px dashed var(--border-color, #ddd);
-  border-radius: 12px;
-  padding: 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: all var(--transition-fast);
   position: relative;
+  background: var(--surface);
 }
 .upload-area:hover {
-  border-color: var(--primary, #4f46e5);
+  border-color: var(--primary);
+  background: var(--primary-50);
 }
 .upload-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  color: #999;
+  gap: 6px;
+  color: var(--text-light);
   font-size: 14px;
 }
-.upload-placeholder i {
-  font-size: 32px;
-}
-.upload-preview {
-  position: relative;
-  display: inline-block;
-}
+.upload-placeholder i { font-size: 32px; }
+.upload-preview { position: relative; display: inline-block; }
 .upload-preview img {
   max-height: 160px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
 }
 .upload-remove {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: var(--red-active, #dc2626);
+  background: var(--red-active);
   color: #fff;
   border-radius: 50%;
   width: 24px;
@@ -508,19 +605,15 @@ const filtered = computed(() => {
   position: relative;
   width: 80px;
   height: 80px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
-.gallery-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.gallery-item img { width: 100%; height: 100%; object-fit: cover; }
 .gallery-remove {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  background: rgba(0, 0, 0, 0.6);
+  top: 4px;
+  right: 4px;
+  background: rgba(0, 0, 0, 0.55);
   color: #fff;
   border-radius: 50%;
   width: 20px;
@@ -534,29 +627,31 @@ const filtered = computed(() => {
 .gallery-add {
   width: 80px;
   height: 80px;
-  border: 2px dashed var(--border-color, #ddd);
-  border-radius: 8px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #999;
+  color: var(--text-light);
   font-size: 24px;
-  transition: border-color 0.2s;
+  transition: all var(--transition-fast);
+  background: var(--surface);
 }
 .gallery-add:hover {
-  border-color: var(--primary, #4f46e5);
-  color: var(--primary, #4f46e5);
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-50);
 }
-.gallery-add.uploading {
-  opacity: 0.5;
-  pointer-events: none;
-}
+.gallery-add.uploading { opacity: 0.5; pointer-events: none; }
 .option-row {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
 }
 .option-stock {
   display: flex;
@@ -565,5 +660,6 @@ const filtered = computed(() => {
   font-size: 13px;
   white-space: nowrap;
   cursor: pointer;
+  color: var(--text-mid);
 }
 </style>

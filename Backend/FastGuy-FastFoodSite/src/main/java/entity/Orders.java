@@ -64,8 +64,17 @@ public class Orders {
     @Column(name = "shipping_fee")
     private BigDecimal shippingFee;
 
+    @Column(name = "service_fee")
+    private BigDecimal serviceFee;
+
     @Column(name = "final_amount")
     private BigDecimal finalAmount;
+
+    @Column(name = "cod_collected_amount")
+    private BigDecimal codCollectedAmount;
+
+    @Column(name = "cod_collected_at")
+    private LocalDateTime codCollectedAt;
 
     @Column(name = "shipping_provider")
     private String shippingProvider;
@@ -99,6 +108,12 @@ public class Orders {
 
     @Column(name = "payment_status")
     private String paymentStatus;
+
+    @Column(name = "payos_payment_link_id")
+    private String payosPaymentLinkId;
+
+    @Column(name = "payos_checkout_url")
+    private String payosCheckoutUrl;
 
     @Column(name = "order_status")
     private String orderStatus;
@@ -134,6 +149,21 @@ public class Orders {
 
     @Column(name = "failure_reason")
     private String failureReason;
+
+    @Column(name = "cancelled_by")
+    private String cancelledBy;
+
+    @Column(name = "refund_status")
+    private String refundStatus;
+
+    @Column(name = "refund_amount")
+    private BigDecimal refundAmount;
+
+    @Column(name = "refunded_at")
+    private LocalDateTime refundedAt;
+
+    @Column(name = "refund_note")
+    private String refundNote;
 
     @Column(name = "internal_note")
     private String internalNote;
@@ -182,8 +212,14 @@ public class Orders {
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public BigDecimal getShippingFee() { return shippingFee; }
     public void setShippingFee(BigDecimal shippingFee) { this.shippingFee = shippingFee; }
+    public BigDecimal getServiceFee() { return serviceFee; }
+    public void setServiceFee(BigDecimal serviceFee) { this.serviceFee = serviceFee; }
     public BigDecimal getFinalAmount() { return finalAmount; }
     public void setFinalAmount(BigDecimal finalAmount) { this.finalAmount = finalAmount; }
+    public BigDecimal getCodCollectedAmount() { return codCollectedAmount; }
+    public void setCodCollectedAmount(BigDecimal codCollectedAmount) { this.codCollectedAmount = codCollectedAmount; }
+    public LocalDateTime getCodCollectedAt() { return codCollectedAt; }
+    public void setCodCollectedAt(LocalDateTime codCollectedAt) { this.codCollectedAt = codCollectedAt; }
     public String getShippingProvider() { return shippingProvider; }
     public void setShippingProvider(String shippingProvider) { this.shippingProvider = shippingProvider; }
     public Integer getShippingServiceId() { return shippingServiceId; }
@@ -206,6 +242,10 @@ public class Orders {
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
     public String getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
+    public String getPayosPaymentLinkId() { return payosPaymentLinkId; }
+    public void setPayosPaymentLinkId(String payosPaymentLinkId) { this.payosPaymentLinkId = payosPaymentLinkId; }
+    public String getPayosCheckoutUrl() { return payosCheckoutUrl; }
+    public void setPayosCheckoutUrl(String payosCheckoutUrl) { this.payosCheckoutUrl = payosCheckoutUrl; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
     public User getStaff() { return staff; }
@@ -228,6 +268,16 @@ public class Orders {
     public void setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; }
     public String getFailureReason() { return failureReason; }
     public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
+    public String getCancelledBy() { return cancelledBy; }
+    public void setCancelledBy(String cancelledBy) { this.cancelledBy = cancelledBy; }
+    public String getRefundStatus() { return refundStatus; }
+    public void setRefundStatus(String refundStatus) { this.refundStatus = refundStatus; }
+    public BigDecimal getRefundAmount() { return refundAmount; }
+    public void setRefundAmount(BigDecimal refundAmount) { this.refundAmount = refundAmount; }
+    public LocalDateTime getRefundedAt() { return refundedAt; }
+    public void setRefundedAt(LocalDateTime refundedAt) { this.refundedAt = refundedAt; }
+    public String getRefundNote() { return refundNote; }
+    public void setRefundNote(String refundNote) { this.refundNote = refundNote; }
     public String getInternalNote() { return internalNote; }
     public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
     public String getDeliveryNote() { return deliveryNote; }

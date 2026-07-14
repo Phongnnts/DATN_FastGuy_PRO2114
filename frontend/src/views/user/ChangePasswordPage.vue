@@ -22,41 +22,24 @@ async function submit() {
 </script>
 
 <template>
-  <div class="change-password-page">
-    <div class="card">
-      <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 24px">
-        Đổi mật khẩu
-      </h3>
-      <div v-if="success" class="alert alert-success">
+  <div class="change-pw-page">
+    <h2 class="page-title">Đổi mật khẩu</h2>
+    <div class="card" style="max-width:480px">
+      <div v-if="success" class="alert-success">
         <i class="bi bi-check-circle-fill"></i> {{ success }}
       </div>
       <form @submit.prevent="submit">
         <div class="form-group">
           <label class="form-label">Mật khẩu hiện tại</label>
-          <input
-            v-model="form.currentPassword"
-            type="password"
-            class="form-input"
-            required
-          />
+          <input v-model="form.currentPassword" type="password" class="form-input" required />
         </div>
         <div class="form-group">
           <label class="form-label">Mật khẩu mới</label>
-          <input
-            v-model="form.newPassword"
-            type="password"
-            class="form-input"
-            required
-          />
+          <input v-model="form.newPassword" type="password" class="form-input" required />
         </div>
         <div class="form-group">
           <label class="form-label">Xác nhận mật khẩu mới</label>
-          <input
-            v-model="form.confirmPassword"
-            type="password"
-            class="form-input"
-            required
-          />
+          <input v-model="form.confirmPassword" type="password" class="form-input" required />
         </div>
         <p v-if="error" class="form-error">{{ error }}</p>
         <button type="submit" class="btn btn-primary" :disabled="loading">
@@ -68,12 +51,14 @@ async function submit() {
 </template>
 
 <style scoped>
+.change-pw-page { padding: 32px 0; }
+.page-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
 .alert-success {
-  background: #d4edda;
-  color: #155724;
+  background: #dcfce7;
+  color: #166534;
   padding: 12px 16px;
   border-radius: var(--radius-sm);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   font-size: 14px;
   display: flex;
   align-items: center;

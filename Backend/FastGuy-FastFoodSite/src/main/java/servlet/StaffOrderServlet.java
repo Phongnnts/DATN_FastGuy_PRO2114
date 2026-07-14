@@ -24,6 +24,7 @@ public class StaffOrderServlet extends HttpServlet {
     private StaffOrderService staffOrderService = new StaffOrderService();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private OrdersDAO ordersDAO = new OrdersDAO();
+    private service.OrderStatusHistoryService orderStatusHistoryService = new service.OrderStatusHistoryService();
     private ObjectMapper mapper = new ObjectMapper();
 
     @Override
@@ -33,7 +34,7 @@ public class StaffOrderServlet extends HttpServlet {
         if (staffId < 0) return;
         String path = req.getPathInfo();
         if (path != null && path.contains("/notes")) {
-            String orderIdStr = path.substring(1, path.indexOf("/notes") - 1);
+            String orderIdStr = path.substring(1, path.indexOf("/notes"));
             try {
                 int orderId = Integer.parseInt(orderIdStr);
                 java.util.Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), java.util.Map.class);
@@ -110,7 +111,7 @@ public class StaffOrderServlet extends HttpServlet {
                 ApiResponse.ok(resp, result);
             } else if (path.equals("/history")) {
                 List<Orders> all = new java.util.ArrayList<>();
-                for (String s : new String[]{"READY", "DELIVERED", "CANCELLED", "CONFIRMED", "PREPARING"}) {
+                for (String s : new String[]{"DELIVERED", "CANCELLED"}) {
                     all.addAll(ordersDAO.findByStatus(s));
                 }
                 all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
@@ -167,7 +168,13 @@ public class StaffOrderServlet extends HttpServlet {
             return;
         }
 
-        int orderId = Integer.parseInt(parts[1]);
+        int orderId;
+        try {
+            orderId = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            ApiResponse.error(resp, "Invalid order ID", 400);
+            return;
+        }
         String action = parts[2];
 
         if ("status".equals(action)) {
@@ -176,12 +183,14 @@ public class StaffOrderServlet extends HttpServlet {
                 ApiResponse.error(resp, "Invalid data", 400);
                 return;
             }
-            String status = (String) body.get("status");
-            if (status == null || (!"CONFIRMED".equals(status) && !"PREPARING".equals(status) && !"READY".equals(status) && !"CANCELLED".equals(status))) {
+            Object rawStatus = body.get("status");
+            String status = rawStatus instanceof String ? (String) rawStatus : null;
+            if (status == null || (!"PENDING".equals(status) && !"CONFIRMED".equals(status) && !"PREPARING".equals(status) && !"READY".equals(status) && !"CANCELLED".equals(status))) {
                 ApiResponse.error(resp, "Invalid status", 400);
                 return;
             }
-            String failureReason = (String) body.get("failureReason");
+            Object rawReason = body.get("failureReason");
+            String failureReason = rawReason instanceof String ? (String) rawReason : null;
             if ("CONFIRMED".equals(status)) {
                 Orders order = staffOrderService.getOrderDetail(orderId);
                 if (order != null && "BANK_TRANSFER".equals(order.getPaymentMethod()) && !"PAID".equals(order.getPaymentStatus())) {
@@ -191,7 +200,10 @@ public class StaffOrderServlet extends HttpServlet {
             }
             boolean ok = staffOrderService.updateStatus(orderId, status, staffId, failureReason);
             if (!ok) {
-                ApiResponse.error(resp, "Cannot update status: invalid transition", 400);
+                String message = "PENDING".equals(status)
+                        ? "Không thể xác nhận tồn kho hoặc tạo link PayOS. Đơn vẫn chờ xác nhận."
+                        : "Cannot update status: invalid transition";
+                ApiResponse.error(resp, message, 400);
                 return;
             }
             ApiResponse.ok(resp, null, "Status updated");
@@ -199,6 +211,10 @@ public class StaffOrderServlet extends HttpServlet {
             Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), Map.class);
             if (body == null || !body.containsKey("shipperId")) {
                 ApiResponse.error(resp, "Missing shipperId", 400);
+                return;
+            }
+            if (!(body.get("shipperId") instanceof Number)) {
+                ApiResponse.error(resp, "Invalid shipperId", 400);
                 return;
             }
             int shipperId = ((Number) body.get("shipperId")).intValue();
@@ -226,8 +242,32 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("userId", o.getUser() != null ? o.getUser().getUserId() : null);
         m.put("customerName", o.getCustomerName());
         m.put("orderStatus", o.getOrderStatus());
-        m.put("items", new java.util.ArrayList<>());
+        m.put("items", orderItemDAO.findByOrderId(o.getOrderId()).stream().map(oi -> {
+            Map<String, Object> im = new HashMap<>();
+            im.put("productId", oi.getProduct().getProductId());
+            im.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
+            im.put("productName", oi.getProductName());
+            im.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
+            im.put("quantity", oi.getQuantity());
+            im.put("unitPrice", oi.getUnitPrice());
+            im.put("totalPrice", oi.getTotalPrice());
+            im.put("imageUrl", oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+            return im;
+        }).collect(Collectors.toList()));
+        m.put("totalAmount", o.getTotalAmount());
+        m.put("shippingFee", o.getShippingFee());
+        m.put("serviceFee", o.getServiceFee());
+        m.put("discountAmount", o.getDiscountAmount());
+        m.put("paymentMethod", o.getPaymentMethod());
+        m.put("paymentStatus", o.getPaymentStatus());
         m.put("finalAmount", o.getFinalAmount());
+        m.put("refundAmount", o.getRefundAmount());
+        m.put("refundedAt", o.getRefundedAt());
+        m.put("paymentStatus", o.getPaymentStatus());
+        m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);
+        m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
+        m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
+        m.put("updatedAt", o.getCancelledAt() != null ? o.getCancelledAt().toString() : o.getDeliveredAt() != null ? o.getDeliveredAt().toString() : o.getReadyAt() != null ? o.getReadyAt().toString() : o.getConfirmedAt() != null ? o.getConfirmedAt().toString() : o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
     }
@@ -242,9 +282,21 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("orderStatus", o.getOrderStatus());
         m.put("totalAmount", o.getTotalAmount());
         m.put("shippingFee", o.getShippingFee());
+        m.put("serviceFee", o.getServiceFee());
         m.put("finalAmount", o.getFinalAmount());
+        m.put("codCollectedAmount", o.getCodCollectedAmount());
+        m.put("codCollectedAt", o.getCodCollectedAt() != null ? o.getCodCollectedAt().toString() : null);
         m.put("paymentMethod", o.getPaymentMethod());
         m.put("paymentStatus", o.getPaymentStatus());
+        m.put("cancelledBy", o.getCancelledBy());
+        m.put("refundStatus", o.getRefundStatus());
+        m.put("refundAmount", o.getRefundAmount());
+        m.put("refundedAt", o.getRefundedAt());
+        m.put("refundNote", o.getRefundNote());
+        m.put("failureReason", o.getFailureReason());
+        m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);
+        m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
+        m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
         m.put("customerAddress", o.getCustomerAddress());
         m.put("deliveryNote", o.getDeliveryNote());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
@@ -283,7 +335,8 @@ public class StaffOrderServlet extends HttpServlet {
             String reason = o.getFailureReason() != null ? o.getFailureReason() : "";
             history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", reason));
         }
-        m.put("statusHistory", history);
+        var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
+        m.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
         m.put("internalNotes", new java.util.ArrayList<>());
 
         return m;

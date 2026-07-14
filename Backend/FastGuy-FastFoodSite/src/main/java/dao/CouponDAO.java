@@ -46,6 +46,9 @@ public class CouponDAO {
                 em.merge(coupon);
             }
             em.getTransaction().commit();
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
         } finally {
             em.close();
         }
@@ -58,6 +61,24 @@ public class CouponDAO {
             Coupon c = em.find(Coupon.class, id);
             if (c != null) em.remove(c);
             em.getTransaction().commit();
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
+    public boolean hasReferences(int couponId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            Long claims = em.createQuery("SELECT COUNT(c) FROM ClaimedCoupon c WHERE c.couponId = :couponId", Long.class)
+                    .setParameter("couponId", couponId)
+                    .getSingleResult();
+            Long usages = em.createQuery("SELECT COUNT(c) FROM CouponUsage c WHERE c.couponId = :couponId", Long.class)
+                    .setParameter("couponId", couponId)
+                    .getSingleResult();
+            return claims > 0 || usages > 0;
         } finally {
             em.close();
         }
@@ -70,6 +91,21 @@ public class CouponDAO {
             Coupon c = em.find(Coupon.class, couponId);
             if (c != null) {
                 c.setUsedCount(c.getUsedCount() + 1);
+                em.merge(c);
+            }
+            em.getTransaction().commit();
+        } finally {
+            em.close();
+        }
+    }
+
+    public void decrementUsedCount(int couponId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Coupon c = em.find(Coupon.class, couponId);
+            if (c != null && c.getUsedCount() > 0) {
+                c.setUsedCount(c.getUsedCount() - 1);
                 em.merge(c);
             }
             em.getTransaction().commit();

@@ -20,6 +20,11 @@ frontend/dist/
 frontend/node_modules/
 Backend/package-lock.json
 
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # GitHub modernization artifacts
 .github/modernize/
 Backend/FastGuy-FastFoodSite/.github/

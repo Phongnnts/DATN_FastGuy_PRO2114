@@ -1,349 +1,73 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStaffStore } from '@/stores/staff';
-import { formatPrice, formatDate } from '@/utils/format';
+import { staffApi } from '@/api';
+import { formatPrice } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import OrderTimeline from '@/components/common/OrderTimeline.vue';
 
 const route = useRoute();
 const staffStore = useStaffStore();
-
 const order = ref(null);
+const loading = ref(true);
+const loadError = ref('');
+const saving = ref(false);
 const showCancelModal = ref(false);
 const cancelReason = ref('');
 const selectedShipperId = ref(null);
 const shippers = ref([]);
 
-const pendingPayment = computed(() => {
-  if (!order.value) return false;
-  return order.value.paymentMethod === 'BANK_TRANSFER' && order.value.paymentStatus !== 'PAID';
-});
+const pendingPayment = computed(() => order.value?.paymentMethod === 'BANK_TRANSFER' && order.value?.paymentStatus !== 'PAID');
+const canCancel = computed(() => ['WAITING_STOCK_CONFIRM', 'PENDING', 'CONFIRMED', 'PREPARING'].includes(order.value?.status));
+const assignedShipper = computed(() => order.value?.shipperName || '');
 
-async function loadShippers() {
+async function load() {
+  loading.value = true;
+  loadError.value = '';
   try {
-    const { staffApi } = await import('@/api');
-    const data = await staffApi.getAvailableShippers();
-    shippers.value = Array.isArray(data) ? data : [];
-  } catch { shippers.value = []; }
+    order.value = await staffStore.fetchOrderById(route.params.id);
+    if (!order.value) loadError.value = 'Không tìm thấy đơn hàng';
+    if (order.value?.status === 'READY' && !order.value.shipperId) await loadShippers();
+  } catch (e) { loadError.value = e.message || 'Không thể tải đơn hàng'; }
+  finally { loading.value = false; }
 }
-
+async function loadShippers() { try { const data = await staffApi.getAvailableShippers(); shippers.value = Array.isArray(data) ? data : []; } catch { shippers.value = []; } }
+async function updateStatus(status, reason = null) {
+  if (!order.value || saving.value) return;
+  saving.value = true;
+  try { await staffStore.updateOrderStatus(order.value.id, status, reason); await load(); }
+  catch (e) { alert(e.message || 'Không thể cập nhật trạng thái'); }
+  finally { saving.value = false; }
+}
 async function assignShipper() {
-  if (!selectedShipperId.value) return;
-  try {
-    const { staffApi } = await import('@/api');
-    await staffApi.assignShipper(order.value.id, selectedShipperId.value);
-    alert('Đã gán shipper thành công');
-    order.value = await staffStore.fetchOrderById(route.params.id);
-  } catch { alert('Không thể gán shipper'); }
+  if (!order.value || !selectedShipperId.value || saving.value) return;
+  saving.value = true;
+  try { await staffApi.assignShipper(order.value.id, selectedShipperId.value); await load(); }
+  catch (e) { alert(e.message || 'Không thể gán shipper'); }
+  finally { saving.value = false; }
 }
-
-onMounted(async () => {
-  order.value = await staffStore.fetchOrderById(route.params.id);
-  if (order.value?.status === 'READY') loadShippers();
-});
-
-async function updateStatus(status) {
-  if (!order.value) return;
-  try {
-    await staffStore.updateOrderStatus(order.value.id, status);
-    order.value = await staffStore.fetchOrderById(route.params.id);
-    if (order.value.status === 'READY') loadShippers();
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
-async function confirmOrder() {
-  await updateStatus('CONFIRMED');
-}
-
-async function startPreparing() {
-  await updateStatus('PREPARING');
-}
-
-async function completeOrder() {
-  await updateStatus('READY');
-}
-
-function openCancelModal() {
-  cancelReason.value = '';
-  showCancelModal.value = true;
-}
-
-async function cancelOrder() {
-  if (!order.value) return;
-  try {
-    await staffStore.updateOrderStatus(order.value.id, 'CANCELLED', cancelReason.value);
-    order.value = await staffStore.fetchOrderById(route.params.id);
-    showCancelModal.value = false;
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
-function printInvoice() {
-  window.print();
-}
+function openCancelModal() { cancelReason.value = ''; showCancelModal.value = true; }
+async function cancelOrder() { if (!cancelReason.value.trim()) return; await updateStatus('CANCELLED', cancelReason.value.trim()); showCancelModal.value = false; }
+function printInvoice() { window.print(); }
+onMounted(load);
 </script>
 
 <template>
-  <div v-if="order">
-    <div class="page-header">
-      <div style="display: flex; align-items: center; gap: 12px">
-        <h1>Đơn hàng {{ order.orderCode }}</h1>
-        <OrderStatusBadge :status="order.status" />
-      </div>
-      <div class="no-print" style="display: flex; gap: 8px">
-        <button class="btn btn-sm btn-outline" @click="printInvoice">
-          <i class="bi bi-printer"></i> In hóa đơn
-        </button>
-      </div>
-    </div>
-    <div class="grid-2">
-      <div class="card">
-        <h3 style="font-weight: 700; margin-bottom: 16px">
-          Thông tin đơn hàng
-        </h3>
-        <div class="info-row">
-          <span>Khách hàng</span><span>{{ order.customerName }}</span>
-        </div>
-        <div class="info-row">
-          <span>Địa chỉ</span><span>{{ order.shippingAddress }}</span>
-        </div>
-        <div class="info-row">
-          <span>Phương thức</span><span>{{ order.paymentMethod }}</span>
-        </div>
-        <div class="info-row">
-          <span>Thanh toán</span
-          ><span>{{
-            order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'
-          }}</span>
-        </div>
-        <div class="info-row">
-          <span>Ghi chú</span><span>{{ order.note || 'Không có' }}</span>
-        </div>
-      </div>
-      <div class="card">
-        <h3 style="font-weight: 700; margin-bottom: 16px">Thao tác</h3>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap">
-          <button
-            v-if="order.status === 'PENDING'"
-            class="btn btn-primary"
-            :disabled="pendingPayment"
-            @click="confirmOrder"
-          >
-            <i class="bi bi-check-lg"></i> Xác nhận
-          </button>
-          <p v-if="pendingPayment" style="margin-top:8px;font-size:13px;color:var(--red-active)">
-            <i class="bi bi-exclamation-circle"></i> Chờ khách thanh toán chuyển khoản
-          </p>
-          <button
-            v-if="order.status === 'CONFIRMED'"
-            class="btn btn-primary"
-            @click="startPreparing"
-          >
-            <i class="bi bi-fire"></i> Bắt đầu chế biến
-          </button>
-          <button
-            v-if="order.status === 'PREPARING'"
-            class="btn btn-success"
-            @click="completeOrder"
-          >
-            <i class="bi bi-check2-all"></i> Hoàn thành
-          </button>
-          <button
-            v-if="order.status !== 'READY'"
-            class="btn btn-outline"
-            style="border-color: var(--red-active); color: var(--red-active)"
-            @click="openCancelModal"
-          >
-            <i class="bi bi-x-lg"></i> Hủy đơn
-          </button>
-          <span v-if="order.status === 'READY'" class="badge badge-success"
-            >Sẵn sàng giao</span
-          >
-          <span v-if="order.status === 'CANCELLED'" class="badge badge-danger"
-            >Đã hủy</span
-          >
-        </div>
-        <div v-if="order.status === 'READY'" style="margin-top:12px">
-          <h4 style="font-size:14px;font-weight:700;margin-bottom:8px">Gán shipper</h4>
-          <div style="display:flex;gap:8px">
-            <select v-model="selectedShipperId" class="form-select" style="flex:1">
-              <option :value="null">Chọn shipper</option>
-              <option v-for="s in shippers" :key="s.id" :value="s.id">{{ s.fullName }} - {{ s.phone }}</option>
-            </select>
-            <button class="btn btn-primary btn-sm" @click="assignShipper" :disabled="!selectedShipperId">
-              <i class="bi bi-check"></i> Gán
-            </button>
-          </div>
-        </div>
-        <div v-if="order.ghnOrderCode" style="margin-top:12px;padding:10px;background:#F0FDF4;border-radius:var(--radius-sm)">
-          <p style="font-size:13px;font-weight:600;color:#065F46"><i class="bi bi-truck"></i> GHN: {{ order.ghnOrderCode }}</p>
-          <a :href="'https://donhang.ghn.vn/?order_code=' + order.ghnOrderCode" target="_blank" class="btn btn-sm btn-outline" style="margin-top:6px">
-            <i class="bi bi-box-arrow-up-right"></i> Theo dõi GHN
-          </a>
-        </div>
-      </div>
-    </div>
-    <div class="card mt-3">
-      <h3 style="font-weight: 700; margin-bottom: 16px">Sản phẩm</h3>
-      <table class="table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>Sản phẩm</th>
-            <th>Phân loại</th>
-            <th>Đơn giá</th>
-            <th>Số lượng</th>
-            <th>Thành tiền</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in order.items" :key="item.productId">
-            <td>
-              <img
-                :src="item.image"
-                style="
-                  width: 48px;
-                  height: 48px;
-                  border-radius: 8px;
-                  object-fit: cover;
-                "
-              />
-            </td>
-            <td>{{ item.productName }}</td>
-            <td>{{ item.variantName || 'Mặc định' }}</td>
-            <td>{{ formatPrice(item.price) }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>
-              <strong>{{ formatPrice(item.price * item.quantity) }}</strong>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="order-totals" style="margin-top: 16px; text-align: right">
-        <div>Tạm tính: {{ formatPrice(order.subtotal) }}</div>
-        <div>Phí ship: {{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</div>
-        <div style="font-size: 20px; font-weight: 800; margin-top: 8px">
-          Tổng: {{ formatPrice(order.total) }}
-        </div>
-      </div>
-    </div>
-    <div class="card mt-3">
-      <h3 style="font-weight: 700; margin-bottom: 16px">Lịch sử trạng thái</h3>
-      <OrderTimeline :history="order.statusHistory" />
-    </div>
-
-    <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>Hủy đơn hàng</h3>
-          <button class="btn btn-sm btn-outline" @click="showCancelModal = false">
-            <i class="bi bi-x-lg"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Lý do hủy</label>
-            <textarea
-              v-model="cancelReason"
-              class="form-textarea"
-              placeholder="Nhập lý do hủy đơn..."
-              rows="3"
-            ></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-outline" @click="showCancelModal = false">Quay lại</button>
-          <button class="btn btn-danger" @click="cancelOrder" :disabled="!cancelReason.trim()">
-            <i class="bi bi-x-lg"></i> Xác nhận hủy
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div v-else class="empty-state" style="padding: 60px 0">
-    <i class="bi bi-box"></i>
-    <h3>Không tìm thấy đơn hàng</h3>
+  <div v-if="loading" class="staff-state"><span class="spinner"></span> Đang tải đơn hàng...</div>
+  <div v-else-if="loadError" class="staff-state staff-error"><span>{{ loadError }}</span><button class="btn btn-sm btn-outline" @click="load">Thử lại</button></div>
+  <div v-else-if="order">
+    <div class="page-header"><div class="title-wrap"><h1>Đơn hàng {{ order.orderCode }}</h1><OrderStatusBadge :status="order.status" /></div><button class="btn btn-sm btn-outline no-print" @click="printInvoice"><i class="bi bi-printer"></i> In hóa đơn</button></div>
+    <div class="grid-2"><section class="card"><h3>Thông tin đơn hàng</h3><div class="info-row"><span>Khách hàng</span><strong>{{ order.customerName }}</strong></div><div class="info-row"><span>Địa chỉ</span><strong>{{ order.shippingAddress }}</strong></div><div class="info-row"><span>Phương thức</span><strong>{{ order.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }}</strong></div><div class="info-row"><span>Thanh toán</span><strong :class="{ paid: order.paymentStatus === 'PAID' }">{{ order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán' }}</strong></div><div class="info-row"><span>Ghi chú</span><strong>{{ order.note || 'Không có' }}</strong></div><template v-if="order.status === 'CANCELLED'"><div class="info-row"><span>Người hủy</span><strong>{{ order.cancelledBy === 'STAFF' ? 'Nhân viên' : 'Khách hàng' }}</strong></div><div v-if="order.failureReason" class="info-row"><span>Lý do</span><strong class="danger">{{ order.failureReason }}</strong></div><div v-if="order.refundStatus" class="info-row"><span>Hoàn tiền</span><strong>{{ order.refundStatus }}{{ order.refundNote ? ` · ${order.refundNote}` : '' }}</strong></div></template></section>
+      <section class="card"><h3>Thao tác</h3><div class="actions"><button v-if="order.status === 'PENDING' && !pendingPayment" class="btn btn-primary" :disabled="saving" @click="updateStatus('CONFIRMED')"><i class="bi bi-check-lg"></i> Xác nhận</button><p v-if="pendingPayment" class="payment-wait"><i class="bi bi-hourglass-split"></i> Chờ khách thanh toán PayOS</p><button v-if="order.status === 'CONFIRMED'" class="btn btn-primary" :disabled="saving" @click="updateStatus('PREPARING')"><i class="bi bi-fire"></i> Bắt đầu chế biến</button><button v-if="order.status === 'PREPARING'" class="btn btn-success" :disabled="saving" @click="updateStatus('READY')"><i class="bi bi-check2-all"></i> Hoàn thành</button><button v-if="canCancel" class="btn btn-outline danger-button" :disabled="saving" @click="openCancelModal"><i class="bi bi-x-lg"></i> Hủy đơn</button><span v-if="order.status === 'READY'" class="badge badge-success">Sẵn sàng giao</span></div>
+        <div v-if="order.status === 'READY'" class="shipper-panel"><h4>Giao shipper</h4><p v-if="assignedShipper" class="assigned"><i class="bi bi-person-check"></i> {{ assignedShipper }}<span v-if="order.assignedAt"> · Đã gán</span></p><div v-else class="shipper-form"><select v-model="selectedShipperId" class="form-select" aria-label="Chọn shipper" :disabled="saving"><option :value="null">Chọn shipper</option><option v-for="shipper in shippers" :key="shipper.id" :value="shipper.id">{{ shipper.fullName }} · {{ shipper.phone }}</option></select><button class="btn btn-primary btn-sm" :disabled="saving || !selectedShipperId" @click="assignShipper">{{ saving ? 'Đang gán...' : 'Gán' }}</button></div></div>
+      </section></div>
+    <section class="card mt-3"><h3>Sản phẩm</h3><div class="table-wrapper"><table class="table"><thead><tr><th></th><th>Sản phẩm</th><th>Phân loại</th><th>Đơn giá</th><th>SL</th><th>Thành tiền</th></tr></thead><tbody><tr v-for="item in order.items" :key="`${item.productId}-${item.variantId}`"><td><img :src="item.image" :alt="item.productName" class="item-image"></td><td>{{ item.productName }}</td><td>{{ item.variantName || 'Mặc định' }}</td><td>{{ formatPrice(item.price) }}</td><td>{{ item.quantity }}</td><td><strong>{{ formatPrice(item.price * item.quantity) }}</strong></td></tr></tbody></table></div><div class="order-totals"><div>Tạm tính: {{ formatPrice(order.subtotal) }}</div><div>Phí ship: {{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</div><strong>Tổng: {{ formatPrice(order.total) }}</strong></div></section>
+    <section class="card mt-3"><h3>Lịch sử trạng thái</h3><OrderTimeline :history="order.statusHistory" /></section>
+    <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-title"><div class="modal-header"><h2 id="cancel-title" class="modal-title">Hủy đơn hàng</h2><button class="modal-close" aria-label="Đóng" :disabled="saving" @click="showCancelModal = false"><i class="bi bi-x-lg"></i></button></div><div class="modal-body"><label class="form-label" for="cancel-reason">Lý do hủy *</label><textarea id="cancel-reason" v-model="cancelReason" class="form-textarea" placeholder="Nhập lý do hủy đơn" rows="3" maxlength="500"></textarea><div class="modal-footer"><button class="btn btn-ghost" :disabled="saving" @click="showCancelModal = false">Quay lại</button><button class="btn btn-danger" :disabled="saving || !cancelReason.trim()" @click="cancelOrder">{{ saving ? 'Đang hủy...' : 'Xác nhận hủy' }}</button></div></div></div></div>
   </div>
 </template>
 
 <style scoped>
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
-}
-.info-row span:last-child {
-  font-weight: 600;
-  text-align: right;
-  max-width: 60%;
-}
-.btn-success {
-  background: #10b981;
-  color: #fff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-success:hover {
-  background: #059669;
-}
-.btn-danger {
-  background: #ef4444;
-  color: #fff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-danger:hover {
-  background: #dc2626;
-}
-.btn-danger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal {
-  background: #fff;
-  border-radius: var(--radius);
-  width: 440px;
-  max-width: 90vw;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px 0;
-}
-.modal-header h3 {
-  font-size: 18px;
-  font-weight: 700;
-}
-.modal-body {
-  padding: 20px 24px;
-}
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-}
+.staff-state { display:flex; align-items:center; justify-content:center; gap:10px; min-height:240px; color:var(--text-mid); }.staff-error { flex-direction:column; color:var(--red-active); }.title-wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }.card h3 { margin-bottom:16px; font-size:16px; }.info-row { display:flex; justify-content:space-between; gap:16px; padding:10px 0; border-bottom:1px solid var(--border-light); font-size:14px; }.info-row span { color:var(--text-mid); }.info-row strong { max-width:62%; text-align:right; }.paid { color:#15803d; }.danger { color:var(--red-active); }.actions { display:flex; flex-wrap:wrap; gap:8px; }.danger-button { color:var(--red-active); border-color:var(--red-active); }.payment-wait { width:100%; margin:0; padding:10px 12px; border-radius:var(--radius-sm); background:#fff7ed; color:#c2410c; font-size:13px; }.shipper-panel { margin-top:18px; padding-top:16px; border-top:1px solid var(--border-light); }.shipper-panel h4 { margin-bottom:8px; font-size:14px; }.assigned { margin:0; color:#15803d; font-size:14px; font-weight:600; }.shipper-form { display:flex; gap:8px; }.item-image { width:48px; height:48px; border-radius:8px; object-fit:cover; }.order-totals { margin-top:16px; color:var(--text-mid); line-height:1.9; text-align:right; }.order-totals strong { display:block; color:var(--text-dark); font-size:19px; }@media print { .topbar,.sidebar,.no-print,.actions,.shipper-panel { display:none!important; }.main-content { margin-left:0!important; }.card { box-shadow:none; } }@media (max-width:640px) { .shipper-form { flex-direction:column; }.info-row strong { max-width:58%; } }
 </style>

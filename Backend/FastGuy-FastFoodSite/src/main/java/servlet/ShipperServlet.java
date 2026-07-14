@@ -13,6 +13,7 @@ import utils.ApiResponse;
 import utils.JwtUtil;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -134,11 +135,21 @@ public class ShipperServlet extends HttpServlet {
                     break;
                 }
                 case "deliver": {
-                    boolean ok = shipperService.deliverOrder(orderId, shipperId);
-                    if (ok) {
+                    Map<String, Object> body = mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {});
+                    BigDecimal collectedAmount = null;
+                    if (body != null && body.get("collectedAmount") != null) {
+                        try {
+                            collectedAmount = new BigDecimal(body.get("collectedAmount").toString());
+                        } catch (NumberFormatException e) {
+                            ApiResponse.error(resp, "Collected amount must be a valid number", 400);
+                            break;
+                        }
+                    }
+                    String error = shipperService.deliverOrder(orderId, shipperId, collectedAmount);
+                    if (error == null) {
                         ApiResponse.ok(resp, null, "Delivered successfully");
                     } else {
-                        ApiResponse.error(resp, "Cannot deliver this order", 400);
+                        ApiResponse.error(resp, error, 400);
                     }
                     break;
                 }
@@ -172,6 +183,8 @@ public class ShipperServlet extends HttpServlet {
         m.put("customerAddress", o.getCustomerAddress());
         m.put("finalAmount", o.getFinalAmount());
         m.put("shippingFee", o.getShippingFee());
+        m.put("serviceFee", o.getServiceFee());
+        m.put("serviceFee", o.getServiceFee());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
     }
@@ -186,8 +199,12 @@ public class ShipperServlet extends HttpServlet {
         data.put("customerAddress", o.getCustomerAddress());
         data.put("totalAmount", o.getTotalAmount());
         data.put("shippingFee", o.getShippingFee());
+        data.put("serviceFee", o.getServiceFee());
         data.put("finalAmount", o.getFinalAmount());
+        data.put("codCollectedAmount", o.getCodCollectedAmount());
+        data.put("codCollectedAt", o.getCodCollectedAt() != null ? o.getCodCollectedAt().toString() : null);
         data.put("paymentMethod", o.getPaymentMethod());
+        data.put("paymentStatus", o.getPaymentStatus());
         data.put("deliveryNote", o.getDeliveryNote());
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         data.put("pickedUpAt", o.getPickedUpAt() != null ? o.getPickedUpAt().toString() : null);

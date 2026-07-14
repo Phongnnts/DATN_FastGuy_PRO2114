@@ -120,6 +120,16 @@ const routes = [
         name: 'ChangePassword',
         component: () => import('@/views/user/ChangePasswordPage.vue'),
       },
+      {
+        path: 'support',
+        name: 'UserSupport',
+        component: () => import('@/views/user/SupportPage.vue'),
+      },
+      {
+        path: 'loyalty',
+        name: 'UserLoyalty',
+        component: () => import('@/views/user/LoyaltyPage.vue'),
+      },
     ],
   },
   // ─── Staff ─────────────────────────────────
@@ -147,6 +157,11 @@ const routes = [
         path: 'orders/history',
         name: 'StaffOrderHistory',
         component: () => import('@/views/staff/OrderHistoryPage.vue'),
+      },
+      {
+        path: 'support',
+        name: 'StaffSupport',
+        component: () => import('@/views/staff/SupportPage.vue'),
       },
     ],
   },
@@ -196,6 +211,11 @@ const routes = [
         name: 'AdminProducts',
         component: () => import('@/views/admin/ProductsPage.vue'),
       },
+       {
+         path: 'inventory',
+         name: 'AdminInventory',
+         component: () => import('@/views/admin/InventoryPage.vue'),
+       },
       {
         path: 'categories',
         name: 'AdminCategories',
@@ -220,6 +240,21 @@ const routes = [
         path: 'coupons',
         name: 'AdminCoupons',
         component: () => import('@/views/admin/CouponsPage.vue'),
+      },
+      {
+        path: 'banners',
+        name: 'AdminBanners',
+        component: () => import('@/views/admin/BannersPage.vue'),
+      },
+      {
+        path: 'settings',
+        name: 'AdminSettings',
+        component: () => import('@/views/admin/SettingsPage.vue'),
+      },
+      {
+        path: 'shifts',
+        name: 'AdminShifts',
+        component: () => import('@/views/admin/ShiftsPage.vue'),
       },
     ],
   },
