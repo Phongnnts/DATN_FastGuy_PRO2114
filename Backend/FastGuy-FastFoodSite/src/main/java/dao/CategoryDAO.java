@@ -48,9 +48,20 @@ public class CategoryDAO {
                 em.merge(category);
             }
             em.getTransaction().commit();
-        } catch (Exception e) {
-            em.getTransaction().rollback();
-            e.printStackTrace();
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
+    public boolean hasProducts(int id) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(p) FROM Product p WHERE p.category.categoryId = :id", Long.class)
+                    .setParameter("id", id)
+                    .getSingleResult() > 0;
         } finally {
             em.close();
         }
@@ -63,9 +74,9 @@ public class CategoryDAO {
             Category c = em.find(Category.class, id);
             if (c != null) em.remove(c);
             em.getTransaction().commit();
-        } catch (Exception e) {
-            em.getTransaction().rollback();
-            e.printStackTrace();
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
         } finally {
             em.close();
         }

@@ -14,6 +14,7 @@ onMounted(() => orderStore.fetchOrders());
 
 const tabs = [
   { key: 'ALL', label: 'Tất cả' },
+  { key: 'WAITING_STOCK_CONFIRM', label: 'Chờ xác nhận tồn kho' },
   { key: 'PENDING', label: 'Chờ xác nhận' },
   { key: 'CONFIRMED', label: 'Đã xác nhận' },
   { key: 'PREPARING', label: 'Đang chuẩn bị' },
@@ -49,6 +50,10 @@ function goDetail(id) {
         >
           {{ tab.label }}
         </button>
+      </div>
+      <div v-if="orderStore.error" class="order-error">
+        {{ orderStore.error }}
+        <button class="btn btn-sm btn-outline" @click="orderStore.fetchOrders">Thử lại</button>
       </div>
       <div
         v-if="filteredOrders.length === 0"
@@ -90,7 +95,7 @@ function goDetail(id) {
           <div class="order-card-footer">
             <span class="order-total">{{ formatPrice(order.total) }}</span>
             <span class="order-payment">{{
-              order.paymentMethod === 'COD' ? 'COD' : 'Đã thanh toán'
+              order.paymentMethod === 'COD' ? 'COD' : order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chờ thanh toán'
             }}</span>
           </div>
         </div>
@@ -100,21 +105,19 @@ function goDetail(id) {
 </template>
 
 <style scoped>
-.orders-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
+.orders-page { padding: 32px 0; }
+.orders-list { display: flex; flex-direction: column; gap: 12px; }
 .order-card {
   background: #fff;
-  border: 2px solid var(--border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 18px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 .order-card:hover {
-  border-color: var(--primary);
+  border-color: var(--primary-100);
+  box-shadow: var(--shadow-sm);
 }
 .order-card-header {
   display: flex;
@@ -122,20 +125,9 @@ function goDetail(id) {
   align-items: flex-start;
   margin-bottom: 12px;
 }
-.order-code {
-  font-size: 14px;
-  font-weight: 700;
-  display: block;
-}
-.order-date {
-  font-size: 12px;
-  color: var(--text-light);
-}
-.order-card-items {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
+.order-code { font-size: 14px; font-weight: 700; display: block; }
+.order-date { font-size: 12px; color: var(--text-light); }
+.order-card-items { display: flex; gap: 8px; margin-bottom: 12px; }
 .order-item-thumb img {
   width: 48px;
   height: 48px;
@@ -146,7 +138,7 @@ function goDetail(id) {
   width: 48px;
   height: 48px;
   border-radius: var(--radius-sm);
-  background: var(--bg);
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -159,12 +151,7 @@ function goDetail(id) {
   justify-content: space-between;
   align-items: center;
 }
-.order-total {
-  font-size: 18px;
-  font-weight: 800;
-}
-.order-payment {
-  font-size: 12px;
-  color: var(--text-mid);
-}
+.order-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 10px 12px; border-radius: var(--radius-sm); background: #fef2f2; color: #b91c1c; font-size: 13px; }
+.order-total { font-size: 17px; font-weight: 800; }
+.order-payment { font-size: 12px; color: var(--text-mid); }
 </style>

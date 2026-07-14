@@ -7,6 +7,7 @@ export const useOrderStore = defineStore('order', () => {
   const allOrders = ref([]);
   const currentOrder = ref(null);
   const loading = ref(false);
+  const error = ref('');
 
   const userOrders = computed(() => allOrders.value);
 
@@ -34,12 +35,15 @@ export const useOrderStore = defineStore('order', () => {
       })),
       subtotal: o.totalAmount ? parseFloat(o.totalAmount) : 0,
       shippingFee: o.shippingFee ? parseFloat(o.shippingFee) : 0,
-      discount: 0,
+      discount: o.discountAmount ? parseFloat(o.discountAmount) : 0,
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
       paymentMethod: o.paymentMethod,
       paymentStatus: o.paymentStatus,
+      codCollectedAmount: o.codCollectedAmount != null ? parseFloat(o.codCollectedAmount) : null,
+      codCollectedAt: o.codCollectedAt || null,
       shippingAddress: o.customerAddress || '',
       note: o.deliveryNote || '',
+      checkoutUrl: o.checkoutUrl || '',
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,
       statusHistory: o.statusHistory || [
@@ -54,6 +58,8 @@ export const useOrderStore = defineStore('order', () => {
       orderCode: o.orderCode,
       status: o.status,
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
+      paymentMethod: o.paymentMethod || '',
+      paymentStatus: o.paymentStatus || 'UNPAID',
       createdAt: o.createdAt,
       items: o.items || [],
     };
@@ -61,11 +67,12 @@ export const useOrderStore = defineStore('order', () => {
 
   async function fetchOrders() {
     loading.value = true;
+    error.value = '';
     try {
       const data = await orderApi.getAll();
       allOrders.value = (data || []).map(mapOrderListItem);
-    } catch {
-      allOrders.value = [];
+    } catch (e) {
+      error.value = e.message || 'Không thể tải đơn hàng';
     } finally {
       loading.value = false;
     }
@@ -79,11 +86,13 @@ export const useOrderStore = defineStore('order', () => {
 
   async function fetchDetail(id) {
     loading.value = true;
+    error.value = '';
     try {
       const data = await orderApi.getById(id);
       currentOrder.value = data ? mapOrder(data) : null;
-    } catch {
+    } catch (e) {
       currentOrder.value = null;
+      error.value = e.message || 'Không thể tải chi tiết đơn hàng';
     } finally {
       loading.value = false;
     }
@@ -93,8 +102,8 @@ export const useOrderStore = defineStore('order', () => {
     try {
       const data = await orderApi.trackOrder(code);
       return data ? mapOrder(data) : null;
-    } catch {
-      return null;
+    } catch (e) {
+      throw new Error(e.message || 'Không thể tra cứu đơn hàng');
     }
   }
 
@@ -102,6 +111,7 @@ export const useOrderStore = defineStore('order', () => {
     loading.value = true;
     try {
       const data = await orderApi.create({
+        customerName: orderData.customerName || '',
         address: orderData.address || '',
         phone: orderData.phone || '',
         deliveryNote: orderData.deliveryNote || '',
@@ -112,7 +122,6 @@ export const useOrderStore = defineStore('order', () => {
         toProvinceName: orderData.toProvinceName || '',
         toDistrictName: orderData.toDistrictName || '',
         toWardName: orderData.toWardName || '',
-        shippingFee: orderData.shippingFee || 0,
         couponCode: orderData.couponCode || '',
       });
       const newOrder = {
@@ -123,8 +132,7 @@ export const useOrderStore = defineStore('order', () => {
         total: data.finalAmount ? parseFloat(data.finalAmount) : 0,
         createdAt: new Date().toISOString(),
         items: orderData.items || [],
-        sepayQrUrl: data.sepayQrUrl,
-        transferContent: data.transferContent,
+        checkoutUrl: data.checkoutUrl || '',
       };
       allOrders.value.unshift(newOrder);
       return newOrder;
@@ -149,6 +157,7 @@ export const useOrderStore = defineStore('order', () => {
     allOrders,
     currentOrder,
     loading,
+    error,
     userOrders,
     fetchOrders,
     fetchById,

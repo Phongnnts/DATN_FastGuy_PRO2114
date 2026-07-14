@@ -2,10 +2,8 @@ package servlet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dao.AddressDAO;
-import dao.DeliveryZoneDAO;
 import dao.UserDAO;
 import entity.Address;
-import entity.DeliveryZone;
 import entity.User;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -25,7 +23,6 @@ import java.util.stream.Collectors;
 public class AddressServlet extends HttpServlet {
     private AddressDAO addressDAO = new AddressDAO();
     private UserDAO userDAO = new UserDAO();
-    private DeliveryZoneDAO deliveryZoneDAO = new DeliveryZoneDAO();
     private ObjectMapper objectMapper = new ObjectMapper();
 
     private int getUserId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -100,12 +97,6 @@ public class AddressServlet extends HttpServlet {
         if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
         address.setCity((String) body.getOrDefault("city", "Hồ Chí Minh"));
 
-        Object zoneIdObj = body.get("zoneId");
-        if (zoneIdObj != null) {
-            DeliveryZone zone = deliveryZoneDAO.findById(((Number) zoneIdObj).intValue());
-            address.setZone(zone);
-        }
-
         boolean isDefault = body.get("isDefault") instanceof Boolean && (Boolean) body.get("isDefault");
         if (isDefault) {
             addressDAO.resetDefaultForUser(userId);
@@ -172,12 +163,6 @@ public class AddressServlet extends HttpServlet {
             if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
             if (body.containsKey("city")) address.setCity((String) body.get("city"));
 
-            Object zoneIdObj = body.get("zoneId");
-            if (zoneIdObj != null) {
-                DeliveryZone zone = deliveryZoneDAO.findById(((Number) zoneIdObj).intValue());
-                address.setZone(zone);
-            }
-
             if (body.containsKey("isDefault")) {
                 boolean isDefault = (Boolean) body.get("isDefault");
                 if (isDefault) {
@@ -234,13 +219,6 @@ public class AddressServlet extends HttpServlet {
         m.put("city", a.getCity());
         m.put("isDefault", a.getIsDefault());
         m.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
-        if (a.getZone() != null) {
-            Map<String, Object> zone = new HashMap<>();
-            zone.put("zoneId", a.getZone().getZoneId());
-            zone.put("districtName", a.getZone().getDistrictName());
-            zone.put("shippingFee", a.getZone().getShippingFee());
-            m.put("zone", zone);
-        }
         return m;
     }
 

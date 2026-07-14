@@ -1,12 +1,12 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useOrderStore } from '@/stores/order';
 import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
-import { userApi, shippingApi, deliveryZoneApi, orderApi } from '@/api';
+import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
 
 const router = useRouter();
@@ -29,9 +29,12 @@ const couponDiscount = ref(0);
 const verifyingCoupon = ref(false);
 const couponError = ref('');
 const claimedCoupons = ref([]);
-const showMyCoupons = ref(false);
+const claimedCouponsLoading = ref(false);
+const claimedCouponsError = ref('');
+const showMyCoupons = ref(true);
 const note = ref('');
 const submitting = ref(false);
+const storeConfig = ref(null);
 
 const provinces = ref([]);
 const districts = ref([]);
@@ -41,25 +44,22 @@ const selectedDistrict = ref(null);
 const selectedWard = ref(null);
 const loadingProvinces = ref(false);
 const shippingFee = ref(null);
-const shippingProvider = ref('');
 const feeLoading = ref(false);
 const expectedDelivery = ref('');
-const services = ref([]);
-const selectedServiceId = ref(2);
-const serviceLoading = ref(false);
-const sepayQrUrl = ref('');
-const paymentConfirmed = ref(false);
-const createdOrderCode = ref('');
 const createdOrderId = ref(null);
-let paymentPolling = null;
+let pendingWardCode = null;
 
-onUnmounted(() => {
-  if (paymentPolling) clearInterval(paymentPolling);
-});
-
-const total = computed(() => cart.subtotal + (shippingFee.value || 0));
+const serviceFee = computed(() => Number(storeConfig.value?.serviceFee) || 0);
+const total = computed(() => Math.max(0, cart.subtotal + (shippingFee.value || 0) + serviceFee.value - couponDiscount.value));
+const isStoreClosed = computed(() => storeConfig.value?.isOpen === false);
+const hasInvalidItems = computed(() => cart.items.some(i => (i.variantStatus && i.variantStatus !== 'AVAILABLE') || (i.quantityAvailable != null && (Number(i.quantityAvailable) <= 0 || i.quantity > Number(i.quantityAvailable)))));
 
 onMounted(async () => {
+  try {
+    storeConfig.value = await storeApi.getConfig();
+  } catch {
+    storeConfig.value = null;
+  }
   loadingProvinces.value = true;
   try {
     const provData = await shippingApi.getProvinces();
@@ -67,7 +67,7 @@ onMounted(async () => {
       id: p.ProvinceID || p.province_id || p.provinceId,
       name: p.ProvinceName || p.province_name || p.provinceName,
     }));
-    // Auto-select TP.HCM
+    // FastGuy only delivers within Ho Chi Minh City.
     const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
     if (hcm) selectedProvince.value = hcm.id;
 
@@ -76,9 +76,7 @@ onMounted(async () => {
       savedAddresses.value = addrData || [];
       const defaultAddr = savedAddresses.value.find(a => a.isDefault);
       if (defaultAddr) selectAddress(defaultAddr);
-      try {
-        claimedCoupons.value = await couponApi.getClaimed() || [];
-      } catch {}
+      await loadClaimedCoupons();
     }
   } catch {
     provinces.value = [];
@@ -117,8 +115,13 @@ watch(selectedDistrict, async (id) => {
       code: w.WardCode || w.ward_code || w.wardCode,
       name: w.WardName || w.ward_name || w.wardName,
     }));
+    if (pendingWardCode && wards.value.some(w => w.code === pendingWardCode)) {
+      selectedWard.value = pendingWardCode;
+    }
+    pendingWardCode = null;
   } catch {
     wards.value = [];
+    pendingWardCode = null;
   }
 });
 
@@ -135,49 +138,26 @@ watch(selectedWard, async (code) => {
       width: 20,
       height: 10,
     });
-    const feeResp = result.fee || result.shippingFee || 0;
-    shippingFee.value = typeof feeResp === 'number' ? feeResp : parseFloat(feeResp) || 0;
-    shippingProvider.value = result.shippingProvider || 'GHN';
+    const feeResp = Number(result.fee);
+    if (!Number.isFinite(feeResp) || feeResp < 0) throw new Error('GHN không trả về phí giao hàng hợp lệ');
+    shippingFee.value = feeResp;
     if (result.expectedDeliveryTime) expectedDelivery.value = result.expectedDeliveryTime;
-    if (selectedDistrict.value) {
-      try {
-        const svc = await shippingApi.getServices({ toDistrictId: selectedDistrict.value });
-        services.value = Array.isArray(svc) ? svc : [];
-        if (services.value.length) selectedServiceId.value = services.value[0].service_id || 2;
-      } catch { services.value = []; }
-    }
-  } catch {
-    try {
-      const zones = await deliveryZoneApi.getAll();
-      const zone = (zones || []).find(z => z.districtName?.toLowerCase().includes(
-        (districts.value.find(d => d.id === selectedDistrict.value)?.name || '').toLowerCase()
-      ));
-      shippingFee.value = zone ? (zone.shippingFee || 15000) : 15000;
-      shippingProvider.value = 'FALLBACK_ZONE';
     } catch {
-      shippingFee.value = 15000;
-      shippingProvider.value = 'FALLBACK_ZONE';
-    }
-  } finally {
+      shippingFee.value = null;
+    } finally {
     feeLoading.value = false;
   }
 });
 
 function selectAddress(addr) {
   selectedAddressId.value = addr.addressId;
-  useNewAddress.value = false;
+  useNewAddress.value = !addr.ghnDistrictId || !addr.ghnWardCode;
   street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
   if (addr.ghnDistrictId) {
+    pendingWardCode = addr.ghnWardCode || null;
     selectedDistrict.value = addr.ghnDistrictId;
-  } else if (addr.zone?.shippingFee) {
-    shippingFee.value = addr.zone.shippingFee;
-    shippingProvider.value = 'FALLBACK_ZONE';
-  }
-  if (addr.ghnWardCode) selectedWard.value = addr.ghnWardCode;
-  if (!selectedProvince.value && addr.provinceName?.includes('Hồ Chí Minh')) {
-    selectedProvince.value = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'))?.id;
   }
 }
 
@@ -187,18 +167,23 @@ function useManualEntry() {
   street.value = '';
   phone.value = '';
   recipientName.value = '';
+  pendingWardCode = null;
+}
+
+function selectedAddress() {
+  return savedAddresses.value.find(a => a.addressId === selectedAddressId.value);
 }
 
 function getFullAddress() {
+  const saved = selectedAddress();
   const prov = provinces.value.find(p => p.id === selectedProvince.value);
   const dist = districts.value.find(d => d.id === selectedDistrict.value);
   const ward = wards.value.find(w => w.code === selectedWard.value);
   return [
-    recipientName.value.trim(),
     street.value.trim(),
-    ward?.name || '',
-    dist?.name || '',
-    prov?.name || '',
+    ward?.name || saved?.wardName || '',
+    dist?.name || saved?.districtName || '',
+    prov?.name || saved?.provinceName || '',
   ].filter(Boolean).join(', ');
 }
 
@@ -207,29 +192,34 @@ function isValidPhone(value) {
 }
 
 function canPlaceOrder() {
-  if (shippingProvider.value === 'FALLBACK_ZONE') {
-    return shippingFee.value !== null
-      && recipientName.value.trim().length >= 2
-      && isValidPhone(phone.value)
-      && street.value.trim().length >= 5;
-  }
   return selectedWard.value && selectedDistrict.value && shippingFee.value !== null
     && recipientName.value.trim().length >= 2 && isValidPhone(phone.value) && street.value.trim().length >= 5;
 }
 
+async function loadClaimedCoupons() {
+  claimedCouponsLoading.value = true;
+  claimedCouponsError.value = '';
+  try {
+    const data = await couponApi.getClaimed();
+    claimedCoupons.value = Array.isArray(data) ? data : [];
+  } catch {
+    claimedCoupons.value = [];
+    claimedCouponsError.value = 'Không thể tải ví mã. Vui lòng thử lại.';
+  } finally {
+    claimedCouponsLoading.value = false;
+  }
+}
+
 function getProvinceName() {
-  const p = provinces.value.find(p => p.id === selectedProvince.value);
-  return p?.name || '';
+  return provinces.value.find(p => p.id === selectedProvince.value)?.name || selectedAddress()?.provinceName || '';
 }
 
 function getDistrictName() {
-  const d = districts.value.find(d => d.id === selectedDistrict.value);
-  return d?.name || '';
+  return districts.value.find(d => d.id === selectedDistrict.value)?.name || selectedAddress()?.districtName || '';
 }
 
 function getWardName() {
-  const w = wards.value.find(w => w.code === selectedWard.value);
-  return w?.name || '';
+  return wards.value.find(w => w.code === selectedWard.value)?.name || selectedAddress()?.wardName || '';
 }
 
 async function verifyCoupon() {
@@ -272,6 +262,8 @@ function selectClaimedCoupon(c) {
 }
 
 async function placeOrder() {
+  if (isStoreClosed.value) return alert('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
+  if (hasInvalidItems.value) return alert('Có món đã hết hàng hoặc vượt tồn kho, vui lòng cập nhật giỏ hàng');
   if (!canPlaceOrder()) return alert('Vui lòng điền đầy đủ thông tin giao hàng');
   const fullAddress = getFullAddress();
   if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
@@ -282,6 +274,7 @@ async function placeOrder() {
         productId: i.productId,
         variantId: i.variantId,
         quantity: i.quantity,
+        modifierOptionIds: (i.modifiers || []).map((modifier) => modifier.modifierOptionId),
       }));
       const result = await orderApi.guestCheckout({
         customerName: recipientName.value.trim(),
@@ -290,7 +283,6 @@ async function placeOrder() {
         deliveryNote: note.value,
         paymentMethod: paymentMethod.value,
         items,
-        shippingFee: shippingFee.value,
         ghnProvinceId: selectedProvince.value,
         ghnDistrictId: selectedDistrict.value,
         ghnWardCode: selectedWard.value,
@@ -300,11 +292,16 @@ async function placeOrder() {
         couponCode: appliedCoupon.value?.code || '',
       });
       cart.clear();
-      router.push(`/track-order?code=${result.orderCode}`);
+      if (result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+      router.push(`/track-order?code=${result.orderCode}&created=1`);
       return;
     }
 
     const result = await orderStore.createOrder({
+      customerName: recipientName.value.trim(),
       address: fullAddress,
       phone: phone.value.trim(),
       deliveryNote: note.value,
@@ -315,31 +312,15 @@ async function placeOrder() {
       toProvinceName: getProvinceName(),
       toDistrictName: getDistrictName(),
       toWardName: getWardName(),
-      shippingFee: shippingFee.value,
       couponCode: appliedCoupon.value?.code || '',
     });
     createdOrderId.value = result.id;
-    if (paymentMethod.value === 'BANK_TRANSFER' && result.sepayQrUrl) {
-      sepayQrUrl.value = result.sepayQrUrl;
-      createdOrderCode.value = result.orderCode;
-      paymentPolling = setInterval(async () => {
-        try {
-          const status = await orderApi.getPaymentStatus(createdOrderId.value);
-            if (status.paymentStatus === 'PAID') {
-                paymentConfirmed.value = true;
-                clearInterval(paymentPolling);
-                paymentPolling = null;
-                cart.clear();
-                setTimeout(() => {
-                  router.push(`/account/orders/${createdOrderId.value}`);
-                }, 2000);
-              }
-        } catch (e) {}
-      }, 5000);
-    } else {
-      cart.clear();
-      router.push(`/account/orders/${createdOrderId.value}`);
+    cart.clear();
+    if (result.checkoutUrl) {
+      window.location.assign(result.checkoutUrl);
+      return;
     }
+    router.push(`/account/orders/${createdOrderId.value}?created=1`);
   } catch (e) {
     alert(e.message);
   } finally {
@@ -351,10 +332,22 @@ async function placeOrder() {
 
 <template>
   <div class="checkout-page">
+    <div class="container">
+      <div class="checkout-breadcrumb"><router-link to="/">Trang chủ</router-link><i class="bi bi-chevron-right"></i><router-link to="/cart">Giỏ hàng</router-link><i class="bi bi-chevron-right"></i><strong>Thanh toán</strong></div>
+      <div class="checkout-stepper">
+        <div class="step complete"><span><i class="bi bi-check-lg"></i></span><strong>Giỏ hàng</strong></div><div class="step-line"></div>
+        <div class="step active"><span>2</span><strong>Thông tin giao</strong></div><div class="step-line"></div>
+        <div class="step"><span>3</span><strong>Thanh toán</strong></div><div class="step-line"></div>
+        <div class="step"><span>4</span><strong>Hoàn tất</strong></div>
+      </div>
     <div class="checkout-layout" v-if="cart.items.length > 0">
-      <div class="checkout-main">
-        <div class="card mb-3">
-          <h3>Địa chỉ giao hàng</h3>
+        <div class="checkout-main">
+          <div v-if="storeConfig" class="store-status" :class="{ closed: isStoreClosed }">
+            <i :class="isStoreClosed ? 'bi bi-shop-window' : 'bi bi-check-circle-fill'"></i>
+            <span>{{ isStoreClosed ? 'Cửa hàng hiện đã đóng cửa' : 'Cửa hàng đang mở cửa' }} · {{ storeConfig.openTime }} - {{ storeConfig.closeTime }}</span>
+          </div>
+          <div class="card mb-3 checkout-block">
+          <h3><i class="bi bi-geo-alt"></i> Thông tin nhận hàng</h3>
 
           <div v-if="!isGuest && savedAddresses.length > 0 && !useNewAddress" class="saved-addresses">
             <div
@@ -388,13 +381,9 @@ async function placeOrder() {
               <label class="form-label">Tên người nhận</label>
               <input v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" minlength="2" maxlength="100" required />
             </div>
-            <div class="form-group">
-              <label class="form-label">Tỉnh / Thành phố</label>
-              <select v-if="loadingProvinces" class="form-select" disabled><option>Đang tải dữ liệu...</option></select>
-              <select v-else v-model="selectedProvince" class="form-select">
-                <option :value="null">Chọn tỉnh/thành</option>
-                <option v-for="p in provinces" :key="p.id" :value="p.id">{{ p.name }}</option>
-              </select>
+            <div class="delivery-area">
+              <i class="bi bi-geo-alt-fill"></i>
+              Giao hàng nội thành TP. Hồ Chí Minh
             </div>
             <div class="form-group">
               <label class="form-label">Quận / Huyện</label>
@@ -430,14 +419,16 @@ async function placeOrder() {
           <div v-else-if="shippingFee !== null" class="fee-result" style="margin-top:8px">
             <i class="bi bi-truck"></i>
             Phí giao hàng: <strong>{{ formatPrice(shippingFee) }}</strong>
-            <span v-if="shippingProvider === 'FALLBACK_ZONE'" style="font-size:12px;color:var(--text-mid)"> (ước tính)</span>
             <span v-if="expectedDelivery" style="display:block;font-size:12px;color:var(--text-mid);margin-top:4px">
               <i class="bi bi-clock"></i> Dự kiến: {{ expectedDelivery }}
             </span>
           </div>
+          <div v-if="storeConfig" class="fee-result" style="margin-top:8px">
+            <i class="bi bi-receipt"></i> Phí phục vụ: <strong>{{ formatPrice(serviceFee) }}</strong>
+          </div>
         </div>
-        <div class="card mb-3">
-          <h3>Phương thức thanh toán</h3>
+        <div class="card mb-3 checkout-block">
+          <h3><i class="bi bi-credit-card"></i> Phương thức thanh toán</h3>
           <div class="payment-selector">
             <div
               v-for="(label, key) in PAYMENT_METHOD_LABEL"
@@ -461,30 +452,12 @@ async function placeOrder() {
             </div>
           </div>
           <div v-if="paymentMethod === 'BANK_TRANSFER'" class="card" style="margin-top:12px;padding:16px;background:#f8f9fa;border:1px solid var(--border);border-radius:var(--radius-sm)">
-            <p><strong>Ngân hàng:</strong> Techcombank</p>
-            <p><strong>Số tài khoản:</strong> 19074734124014</p>
-            <p><strong>Chủ tài khoản:</strong> FASTGUY</p>
-            <p><strong>Nội dung:</strong> Mã đơn hàng + SĐT</p>
-            <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Sau khi chuyển khoản, vui lòng chờ xác nhận</p>
+            <p><strong>Thanh toán PayOS</strong></p>
+            <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Cửa hàng xác nhận tồn kho trước, sau đó bạn sẽ nhận được link PayOS để thanh toán an toàn.</p>
           </div>
         </div>
-        <div v-if="paymentMethod === 'BANK_TRANSFER' && sepayQrUrl" class="card mb-3">
-          <h3>Quét mã QR để thanh toán</h3>
-          <div style="text-align:center;padding:20px">
-            <img :src="sepayQrUrl" alt="QR thanh toán" style="width:250px;height:250px" />
-            <p style="font-size:24px;font-weight:800;margin:12px 0">{{ formatPrice(cart.subtotal + (shippingFee || 0)) }}</p>
-            <p style="color:var(--text-mid)">Nội dung: TT-{{ createdOrderCode }}</p>
-            <div v-if="paymentConfirmed" style="text-align:center;padding:12px">
-              <i class="bi bi-check-circle-fill" style="color:#10b981;font-size:48px"></i>
-              <p style="color:#10b981;font-weight:600">Đã thanh toán thành công!</p>
-            </div>
-            <div v-else style="text-align:center;padding:12px">
-              <i class="bi bi-arrow-repeat spin"></i> Đang chờ cổng thanh toán xác nhận...
-            </div>
-          </div>
-        </div>
-        <div class="card mb-3">
-          <h3>Ghi chú</h3>
+        <div class="card mb-3 checkout-block">
+          <h3><i class="bi bi-chat-left-text"></i> Ghi chú cho cửa hàng</h3>
           <textarea
             v-model="note"
             class="form-textarea"
@@ -494,7 +467,7 @@ async function placeOrder() {
         </div>
       </div>
       <div class="checkout-sidebar">
-        <div class="card">
+        <div class="card order-summary-card">
           <h3>Đơn hàng</h3>
           <div class="checkout-items">
             <div
@@ -507,6 +480,8 @@ async function placeOrder() {
                 <div class="checkout-item-name">{{ item.name }}</div>
                 <div v-if="item.variantName" class="item-variant">{{ item.variantName }}</div>
                 <div class="checkout-item-qty">x{{ item.quantity }}</div>
+                <div v-if="item.variantStatus && item.variantStatus !== 'AVAILABLE' || (item.quantityAvailable != null && Number(item.quantityAvailable) <= 0)" class="item-stock-warning">Hết hàng</div>
+                <div v-else-if="item.quantityAvailable != null && item.quantity > Number(item.quantityAvailable)" class="item-stock-warning">Chỉ còn {{ item.quantityAvailable }} phần</div>
               </div>
               <div class="checkout-item-price">
                 {{
@@ -517,21 +492,48 @@ async function placeOrder() {
               </div>
             </div>
           </div>
-          <div class="checkout-coupon">
+          <div v-if="!isGuest" class="checkout-coupon">
             <div class="coupon-header">
               <i class="bi bi-tag"></i>
               <span>Mã giảm giá</span>
             </div>
 
-            <div v-if="!appliedCoupon" class="coupon-body">
-              <div class="coupon-input-group">
-                <input v-model="couponCode" class="coupon-input" placeholder="Nhập mã giảm giá" @keyup.enter="verifyCoupon" :disabled="verifyingCoupon">
-                <button class="coupon-btn" @click="verifyCoupon" :disabled="verifyingCoupon || !couponCode.trim()">
-                  <span v-if="verifyingCoupon" class="spinner-sm"></span>
-                  <span v-else>Áp dụng</span>
+            <div v-if="!isGuest && !appliedCoupon" class="my-coupons">
+              <div class="my-coupons-heading">
+                <div>
+                  <span>Mã đã nhận</span>
+                  <small v-if="claimedCouponsLoading">Đang tải ví mã...</small>
+                  <small v-else-if="claimedCoupons.length">Chọn một mã để áp dụng</small>
+                  <small v-else-if="claimedCouponsError">{{ claimedCouponsError }}</small>
+                  <small v-else>Chưa có mã nào trong ví của bạn</small>
+                </div>
+                <button class="my-coupons-toggle" @click="loadClaimedCoupons" :disabled="claimedCouponsLoading" title="Làm mới ví mã">
+                  <i :class="claimedCouponsLoading ? 'bi bi-arrow-repeat spin' : 'bi bi-arrow-clockwise'"></i>
+                </button>
+                <button v-if="claimedCoupons.length" class="my-coupons-toggle" @click="showMyCoupons = !showMyCoupons">
+                  <span class="my-count">{{ claimedCoupons.length }}</span>
+                  <i :class="showMyCoupons ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                 </button>
               </div>
-              <div v-if="couponError" class="coupon-msg error">
+              <router-link v-if="!claimedCouponsLoading && !claimedCoupons.length && !claimedCouponsError" to="/promotions" class="coupon-empty-link">
+                Xem và nhận mã khuyến mãi <i class="bi bi-arrow-right"></i>
+              </router-link>
+              <transition name="slide">
+                <div v-if="showMyCoupons && claimedCoupons.length" class="claimed-list">
+                  <button v-for="c in claimedCoupons" :key="c.claimedId" type="button" class="claimed-item" @click="selectClaimedCoupon(c)">
+                    <span class="claimed-ticket-icon"><i class="bi bi-ticket-perforated"></i></span>
+                    <span class="claimed-left">
+                      <strong class="claimed-code">{{ c.code }}</strong>
+                      <span class="claimed-desc">{{ c.description || 'Áp dụng cho đơn hàng đủ điều kiện' }}</span>
+                    </span>
+                    <i class="bi bi-arrow-up-right"></i>
+                  </button>
+                </div>
+              </transition>
+            </div>
+
+            <div v-if="!appliedCoupon && couponError" class="coupon-body">
+              <div class="coupon-msg error">
                 <i class="bi bi-exclamation-circle"></i> {{ couponError }}
               </div>
             </div>
@@ -550,24 +552,6 @@ async function placeOrder() {
               </div>
             </div>
 
-            <div v-if="!isGuest && claimedCoupons.length > 0 && !appliedCoupon" class="my-coupons">
-              <button class="my-coupons-toggle" @click="showMyCoupons = !showMyCoupons">
-                <i class="bi bi-wallet2"></i> Mã của tôi
-                <span class="my-count">{{ claimedCoupons.length }}</span>
-                <i :class="showMyCoupons ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
-              </button>
-              <transition name="slide">
-                <div v-if="showMyCoupons" class="claimed-list">
-                  <div v-for="c in claimedCoupons" :key="c.claimedId" class="claimed-item" @click="selectClaimedCoupon(c)">
-                    <div class="claimed-left">
-                      <span class="claimed-code">{{ c.code }}</span>
-                      <span class="claimed-desc">{{ c.description }}</span>
-                    </div>
-                    <i class="bi bi-chevron-right"></i>
-                  </div>
-                </div>
-              </transition>
-            </div>
           </div>
           <div class="checkout-summary">
             <div class="summary-row">
@@ -578,18 +562,23 @@ async function placeOrder() {
               <span v-if="feeLoading">Đang tính...</span>
               <span v-else>{{ shippingFee !== null ? formatPrice(shippingFee) : '—' }}</span>
             </div>
+            <div class="summary-row" v-if="storeConfig">
+              <span>Phí phục vụ</span><span>{{ formatPrice(serviceFee) }}</span>
+            </div>
             <div class="summary-row" v-if="couponDiscount > 0">
               <span>Giảm giá</span><span style="color: var(--success)">-{{ formatPrice(couponDiscount) }}</span>
             </div>
             <div class="summary-divider"></div>
             <div class="summary-row" style="font-size: 18px; font-weight: 800">
-              <span>Tổng cộng</span><span>{{ formatPrice(total - couponDiscount) }}</span>
+              <span>Tổng cộng</span><span>{{ formatPrice(total) }}</span>
             </div>
           </div>
+          <p v-if="isStoreClosed" class="stock-warning">Cửa hàng đang đóng cửa ({{ storeConfig.openTime }} - {{ storeConfig.closeTime }}), chưa thể đặt hàng.</p>
+          <p v-else-if="hasInvalidItems" class="stock-warning">Có món đã hết hàng hoặc vượt tồn kho</p>
           <button
             class="btn btn-lg btn-primary checkout-btn"
             @click="placeOrder"
-            :disabled="submitting || !canPlaceOrder() || feeLoading"
+            :disabled="submitting || isStoreClosed || !canPlaceOrder() || feeLoading || hasInvalidItems"
           >
             <i v-if="submitting" class="bi bi-arrow-repeat spin"></i>
             {{ submitting ? 'Đang xử lý...' : 'Đặt hàng' }}
@@ -602,10 +591,24 @@ async function placeOrder() {
       <h3>Giỏ hàng trống</h3>
       <router-link to="/menu" class="btn btn-primary">Mua sắm ngay</router-link>
     </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.store-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 600;
+}
+.store-status.closed { background: #fef2f2; color: var(--red-active); }
 .checkout-layout {
   display: grid;
   grid-template-columns: 1fr 380px;
@@ -695,6 +698,18 @@ async function placeOrder() {
 .preview-address i {
   font-size: 18px;
 }
+.delivery-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 600;
+}
 .payment-selector {
   display: flex;
   flex-direction: column;
@@ -763,6 +778,13 @@ async function placeOrder() {
   font-size: 12px;
   color: var(--text-mid);
 }
+.item-stock-warning,
+.stock-warning {
+  margin-top: 4px;
+  color: var(--red-active);
+  font-size: 12px;
+  font-weight: 600;
+}
 .checkout-item-price {
   font-size: 14px;
   font-weight: 600;
@@ -818,10 +840,11 @@ async function placeOrder() {
 }
 .coupon-header i { color: var(--primary); font-size: 16px; }
 .coupon-body { padding: 14px 16px; }
-.coupon-input-group { display: flex; gap: 8px; }
+.coupon-input-group { display: flex; min-width: 0; gap: 8px; }
 .coupon-input {
-  flex: 1;
-  padding: 10px 14px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 12px;
   border: 2px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
@@ -833,7 +856,8 @@ async function placeOrder() {
 .coupon-input:focus { border-color: var(--primary); }
 .coupon-input:disabled { background: var(--bg); }
 .coupon-btn {
-  padding: 10px 20px;
+  flex: 0 0 auto;
+  padding: 10px 14px;
   background: var(--primary);
   color: #fff;
   border: none;
@@ -901,50 +925,81 @@ async function placeOrder() {
   transition: all 0.15s;
 }
 .applied-remove:hover { border-color: #dc2626; color: #dc2626; }
-.my-coupons { border-top: 1px solid var(--border); }
-.my-coupons-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-mid);
-  transition: color 0.15s;
+.my-coupons {
+  margin: 12px 14px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fffaf4;
 }
-.my-coupons-toggle:hover { color: var(--primary); }
-.my-coupons-toggle i:first-child { color: var(--primary); }
-.my-count {
-  margin-left: auto;
-  background: var(--primary-light);
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
-}
-.claimed-list { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 6px; }
-.claimed-item {
+.my-coupons-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 11px 12px;
+}
+.my-coupons-heading > div { display: grid; gap: 2px; }
+.my-coupons-heading span { font-size: 13px; font-weight: 800; color: var(--text-dark); }
+.my-coupons-heading small { font-size: 11px; color: var(--text-mid); }
+.coupon-empty-link { display: flex; align-items: center; justify-content: space-between; margin: 0 12px 10px; padding: 9px 10px; border-radius: 7px; background: #fff; color: var(--primary-dark); font-size: 12px; font-weight: 700; }
+.my-coupons-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-mid);
+}
+.my-coupons-toggle:hover { color: var(--primary-dark); }
+.my-count {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  background: var(--primary-dark);
+  color: #fff !important;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 6px;
+  border-radius: 999px;
+}
+.claimed-list { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 6px; }
+.claimed-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 9px;
+  padding: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
+  background: #fff;
+  text-align: left;
   cursor: pointer;
   transition: all 0.15s;
 }
-.claimed-item:hover { border-color: var(--primary); background: var(--primary-light); }
-.claimed-left { flex: 1; }
-.claimed-code { font-size: 13px; font-weight: 700; text-transform: uppercase; display: block; }
+.claimed-item:hover { border-color: var(--primary-dark); background: var(--primary-light); transform: translateY(-1px); }
+.claimed-ticket-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: #fff0e8; color: var(--primary-dark); }
+.claimed-left { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.claimed-code { font-size: 13px; font-weight: 800; text-transform: uppercase; display: block; color: var(--text-dark); }
 .claimed-desc { font-size: 12px; color: var(--text-mid); margin-top: 1px; }
 .claimed-item i { color: var(--text-light); font-size: 12px; }
+.coupon-manual-label { display: block; margin-bottom: 7px; color: var(--text-mid); font-size: 12px; font-weight: 700; }
 .slide-enter-active,
 .slide-leave-active { transition: all 0.2s ease; }
 .slide-enter-from,
 .slide-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* Checkout route layout */
+.checkout-page { min-height: 100vh; padding: 22px 0 56px; background: #fff8f0; }
+.checkout-breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--text-mid); font-size: 12px; margin-bottom: 18px; }
+.checkout-breadcrumb a { color: var(--text-dark); font-weight: 600; }.checkout-breadcrumb i { color: var(--text-light); font-size: 10px; }
+.checkout-stepper { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto; align-items: center; gap: 12px; padding: 18px 24px; margin-bottom: 16px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: #fff; }
+.checkout-stepper .step { display: grid; justify-items: center; gap: 6px; color: var(--text-mid); font-size: 12px; white-space: nowrap; }.checkout-stepper .step span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e9eef8; font-size: 12px; font-weight: 800; }.checkout-stepper .step.complete { color: var(--primary-dark); }.checkout-stepper .step.complete span { background: #ffc89b; color: var(--primary-dark); }.checkout-stepper .step.active { color: var(--primary-dark); }.checkout-stepper .step.active span { background: var(--primary-dark); color: #fff; }.checkout-stepper .step-line { height: 1px; background: linear-gradient(90deg, var(--primary-100), var(--border)); }
+.checkout-layout { grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; }.checkout-main { min-width: 0; }.checkout-block { border-radius: var(--radius-lg); }.checkout-main h3, .checkout-sidebar h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; }.checkout-main h3 > i { color: var(--primary-dark); }
+.saved-address-item { border: 1px solid var(--border); border-radius: var(--radius); }.saved-address-item.selected { border-color: var(--primary-dark); background: var(--primary-light); box-shadow: 0 0 0 3px var(--primary-50); }.saved-address-item:hover { border-color: var(--primary); }.radio-circle.checked { border-color: var(--primary-dark); background: var(--primary-dark); }
+.payment-option { border: 1px solid var(--border); border-radius: var(--radius); }.payment-option.selected { border-color: var(--primary-dark); background: #fff0e8; box-shadow: 0 0 0 3px var(--primary-50); }.payment-option:hover { border-color: var(--primary); }.payment-option i:first-child, .selected-icon { color: var(--primary-dark) !important; }
+.order-summary-card { border-radius: var(--radius-lg); overflow: hidden; }.order-summary-card::before { content: ''; display: block; height: 4px; margin: -24px -24px 18px; background: linear-gradient(90deg, var(--primary-dark), var(--route-amber)); }.checkout-sidebar .card { top: 82px; }.checkout-item { border-bottom-color: var(--border-light); }.checkout-item img { border-radius: var(--radius-sm); }.checkout-summary { border-top: 1px dashed var(--border); padding-top: 12px; }.checkout-summary .summary-row:last-child span:last-child { color: var(--primary-dark); font-size: 24px; letter-spacing: -.03em; }.checkout-btn { min-height: 48px; border-radius: var(--radius-full); background: linear-gradient(135deg, var(--primary-dark), var(--route-orange)); box-shadow: 0 12px 22px rgba(212,97,58,.2); }.checkout-coupon { border-color: var(--border-light); border-radius: var(--radius); }.coupon-header { border-bottom-color: var(--border-light); }.coupon-header i, .my-coupons-toggle i:first-child { color: var(--primary-dark); }.coupon-input { border: 1px solid var(--border); border-radius: var(--radius-sm); }.coupon-input:focus { border-color: var(--primary-dark); }.coupon-btn { border-radius: var(--radius-sm); background: var(--primary-dark); }.coupon-btn:hover { background: var(--route-orange); }
+@media (max-width: 768px) { .checkout-stepper { grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 14px 8px; }.checkout-stepper .step { white-space: normal; text-align: center; font-size: 10px; }.checkout-stepper .step-line { display: none; }.checkout-layout { grid-template-columns: 1fr; }.checkout-sidebar .card { position: static; }.checkout-page { padding-top: 16px; } }
+@media (max-width: 380px) { .coupon-input-group { flex-direction: column; }.coupon-btn { width: 100%; } }
 </style>

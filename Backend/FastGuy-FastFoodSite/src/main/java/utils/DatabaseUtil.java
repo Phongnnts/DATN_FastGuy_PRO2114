@@ -7,7 +7,7 @@ import jakarta.persistence.Persistence;
 public class DatabaseUtil {
     private static EntityManagerFactory factory;
 
-    public static EntityManager getEntityManager() {
+    public static synchronized EntityManager getEntityManager() {
         if (factory == null) {
             factory = Persistence.createEntityManagerFactory("FastGuyPU");
         }

@@ -186,6 +186,28 @@ onUnmounted(destroyCharts);
 </script>
 
 <style scoped>
+:deep(.stat-card) {
+  position: relative;
+  overflow: hidden;
+}
+:deep(.stat-card::after) {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+:deep(.stat-card:hover::after) { opacity: 1; }
+:deep(.chart-container) {
+  min-height: 320px;
+  border-color: var(--border-light);
+}
+:deep(.chart-container h3) {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
 @media (max-width: 1024px) { :deep(.grid-3) { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { :deep(.grid-3) { grid-template-columns: 1fr; } }
 </style>

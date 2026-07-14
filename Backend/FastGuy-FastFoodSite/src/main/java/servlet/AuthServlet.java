@@ -185,6 +185,7 @@ public class AuthServlet extends HttpServlet {
         data.put("avatarUrl", user.getAvatarUrl());
         data.put("role", user.getRole().getRoleName());
         data.put("status", user.getStatus());
+        data.put("loyaltyPoints", user.getLoyaltyPoints());
         data.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
 
         JsonUtil.write(resp, ApiResponse.ok(data));
