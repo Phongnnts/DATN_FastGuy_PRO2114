@@ -10,6 +10,7 @@ import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 const route = useRoute();
 const orderStore = useOrderStore();
 const orderCode = ref('');
+const phoneSuffix = ref('');
 const trackingResult = ref(null);
 const error = ref('');
 const searched = ref(false);
@@ -17,11 +18,15 @@ const justCreated = ref(route.query.created === '1');
 let paymentPolling = null;
 
 async function track() {
-  if (!orderCode.value) return;
+  if (!orderCode.value || !phoneSuffix.value) return;
+  if (!/^\d{4}$/.test(phoneSuffix.value)) {
+    error.value = 'Số điện thoại phải là đúng 4 chữ số cuối';
+    return;
+  }
   error.value = '';
   searched.value = true;
   try {
-    const result = await orderStore.trackOrder(orderCode.value);
+    const result = await orderStore.trackOrder(orderCode.value, phoneSuffix.value);
     if (!result) {
       trackingResult.value = null;
       error.value = 'Không tìm thấy đơn hàng với mã này';
@@ -40,7 +45,7 @@ function startPaymentPolling() {
   if (paymentPolling || !trackingResult.value?.id) return;
   paymentPolling = setInterval(async () => {
     try {
-      const result = await orderStore.trackOrder(orderCode.value);
+      const result = await orderStore.trackOrder(orderCode.value, phoneSuffix.value);
       if (!result) return;
        trackingResult.value = result;
        if (result.checkoutUrl && result.paymentStatus === 'UNPAID') {
@@ -77,17 +82,24 @@ onUnmounted(() => {
         <p>Nhập mã đơn hàng để kiểm tra tình trạng</p>
       </div>
       <div class="track-search card" style="max-width: 500px; margin: 0 auto">
-        <div class="search-box" style="display: flex; gap: 8px">
+        <div class="search-box" style="display: flex; flex-direction: column; gap: 8px">
           <input
             v-model="orderCode"
             type="text"
             class="form-input"
             placeholder="VD: FG-20240201-001"
             @keyup.enter="track"
-            style="flex: 1"
+          />
+          <input
+            v-model="phoneSuffix"
+            type="text"
+            class="form-input"
+            maxlength="4"
+            placeholder="4 chữ số cuối SĐT (VD: 1234)"
+            @keyup.enter="track"
           />
           <button class="btn btn-primary" @click="track">
-            <i class="bi bi-search"></i>
+            <i class="bi bi-search"></i> Tra cứu
           </button>
         </div>
       </div>

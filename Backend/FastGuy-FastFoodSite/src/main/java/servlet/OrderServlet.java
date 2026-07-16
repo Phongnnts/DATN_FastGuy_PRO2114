@@ -47,22 +47,29 @@ public class OrderServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         String path = req.getPathInfo();
 
-        // KHONG can auth
+        // KHONG can auth — public tracking
         if ("/track".equals(path)) {
             String code = req.getParameter("code");
-            if (code == null) {
-                ApiResponse.error(resp, "Missing order code", 400);
+            String phoneSuffix = req.getParameter("phoneSuffix");
+            if (code == null || code.isBlank()) {
+                ApiResponse.error(resp, "Thiếu mã đơn hàng", 400);
                 return;
             }
-            List<Orders> allOrders = ordersDAO.findAll();
-            Orders order = allOrders.stream()
-                .filter(o -> code.equals(o.getOrderCode()))
-                .findFirst().orElse(null);
+            if (phoneSuffix == null || !phoneSuffix.matches("\\d{4}")) {
+                ApiResponse.error(resp, "Số điện thoại phải là đúng 4 chữ số cuối", 400);
+                return;
+            }
+            Orders order = ordersDAO.findByOrderCode(code.trim());
             if (order == null) {
-                ApiResponse.error(resp, "Order not found", 404);
+                ApiResponse.error(resp, "Không tìm thấy đơn hàng", 404);
                 return;
             }
-            ApiResponse.ok(resp, toDetail(order));
+            String phone = order.getCustomerPhone();
+            if (phone == null || !phone.endsWith(phoneSuffix)) {
+                ApiResponse.error(resp, "Số điện thoại không khớp", 404);
+                return;
+            }
+            ApiResponse.ok(resp, toPublicTrack(order));
             return;
         }
 
@@ -330,6 +337,48 @@ public class OrderServlet extends HttpServlet {
         if (o.getCancelledAt() != null) {
             String reason = o.getFailureReason() != null ? o.getFailureReason() : "";
             history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", reason));
+        }
+        var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
+        data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
+
+        return data;
+    }
+
+    private Map<String, Object> toPublicTrack(Orders o) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("orderCode", o.getOrderCode());
+        data.put("orderStatus", o.getOrderStatus());
+        data.put("paymentMethod", o.getPaymentMethod());
+        data.put("paymentStatus", o.getPaymentStatus());
+        data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+
+        List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
+                .stream()
+                .map(oi -> {
+                    Map<String, Object> im = new HashMap<>();
+                    im.put("name", oi.getProductName());
+                    im.put("quantity", oi.getQuantity());
+                    return im;
+                })
+                .collect(Collectors.toList());
+        data.put("items", items);
+
+        List<Map<String, Object>> history = new ArrayList<>();
+        if (o.getCreatedAt() != null) {
+            history.add(Map.of("status", "PENDING", "timestamp", o.getCreatedAt().toString()));
+        }
+        if (o.getConfirmedAt() != null) {
+            history.add(Map.of("status", "CONFIRMED", "timestamp", o.getConfirmedAt().toString()));
+        }
+        if ("PREPARING".equals(o.getOrderStatus()) || o.getReadyAt() != null) {
+            String t = o.getConfirmedAt() != null ? o.getConfirmedAt().toString() : "";
+            history.add(Map.of("status", "PREPARING", "timestamp", t));
+        }
+        if (o.getReadyAt() != null) {
+            history.add(Map.of("status", "READY", "timestamp", o.getReadyAt().toString()));
+        }
+        if (o.getCancelledAt() != null) {
+            history.add(Map.of("status", "CANCELLED", "timestamp", o.getCancelledAt().toString()));
         }
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);

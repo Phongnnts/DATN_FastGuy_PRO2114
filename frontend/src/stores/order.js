@@ -98,9 +98,9 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  async function trackOrder(code) {
+  async function trackOrder(code, phoneSuffix) {
     try {
-      const data = await orderApi.trackOrder(code);
+      const data = await orderApi.trackOrder(code, phoneSuffix);
       return data ? mapOrder(data) : null;
     } catch (e) {
       throw new Error(e.message || 'Không thể tra cứu đơn hàng');
