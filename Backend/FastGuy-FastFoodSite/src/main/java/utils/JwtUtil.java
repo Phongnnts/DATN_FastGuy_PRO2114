@@ -4,12 +4,22 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 public class JwtUtil {
-    private static final String SECRET = "FastGuySecretKey2024VeryLongAndSecureEnough12345678";
     private static final long EXPIRATION = 86400000;
-    private static final SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes());
+    private static final SecretKey KEY;
+
+    static {
+        String secret = AppConfig.getJwtSecret();
+        if (secret.isEmpty()) {
+            // Dev-only: generate ephemeral key for local development
+            KEY = Keys.hmacShaKeyFor("dev-only-ephemeral-key-not-for-production-32bytes!".getBytes(StandardCharsets.UTF_8));
+        } else {
+            KEY = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        }
+    }
 
     public static String generate(int userId, String role) {
         return Jwts.builder()
@@ -17,14 +27,14 @@ public class JwtUtil {
                 .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION))
-                .signWith(key)
+                .signWith(KEY)
                 .compact();
     }
 
     public static Claims validate(String token) {
         try {
             return Jwts.parser()
-                    .verifyWith(key)
+                    .verifyWith(KEY)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
