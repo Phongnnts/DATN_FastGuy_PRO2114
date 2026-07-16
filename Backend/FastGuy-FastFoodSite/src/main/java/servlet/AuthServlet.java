@@ -72,6 +72,8 @@ public class AuthServlet extends HttpServlet {
                 handleLogin(body, resp);
             } else if (path.equals("/register")) {
                 handleRegister(body, resp);
+            } else if (path.equals("/forgot-password")) {
+                handleForgotPassword(resp);
             } else if (path.equals("/cart/migrate")) {
                 ApiResponse.ok(resp, null, "Cart migrated");
             } else {
@@ -94,6 +96,8 @@ public class AuthServlet extends HttpServlet {
         try {
             if (path.equals("/profile")) {
                 handleUpdateProfile(req, resp);
+            } else if (path.equals("/password")) {
+                handleChangePassword(req, resp);
             } else {
                 resp.sendError(404);
             }
@@ -162,6 +166,39 @@ public class AuthServlet extends HttpServlet {
 
     private void handleLogout(HttpServletResponse resp) throws IOException {
         JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đăng xuất thành công"));
+    }
+
+    private void handleForgotPassword(HttpServletResponse resp) throws IOException {
+        JsonUtil.write(resp, ApiResponse.ok((Object) null, "Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi."));
+    }
+
+    private void handleChangePassword(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        int userId = getUserIdFromToken(req);
+        if (userId == -1) {
+            ApiResponse.error(resp, "Unauthorized", 401);
+            return;
+        }
+
+        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+        if (body == null) {
+            JsonUtil.write(resp, ApiResponse.error("Dữ liệu không hợp lệ"));
+            return;
+        }
+
+        String currentPassword = (String) body.get("currentPassword");
+        String newPassword = (String) body.get("newPassword");
+
+        if (currentPassword == null || currentPassword.isEmpty() || newPassword == null || newPassword.isEmpty()) {
+            JsonUtil.write(resp, ApiResponse.error("Vui lòng nhập đầy đủ mật khẩu"));
+            return;
+        }
+
+        try {
+            authService.changePassword(userId, currentPassword, newPassword);
+            JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đổi mật khẩu thành công"));
+        } catch (IllegalArgumentException e) {
+            JsonUtil.write(resp, ApiResponse.error(e.getMessage()));
+        }
     }
 
     private void handleGetProfile(HttpServletRequest req, HttpServletResponse resp) throws IOException {
