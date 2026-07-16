@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.ReviewService;
+import dao.OrdersDAO;
+import entity.Orders;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
@@ -15,6 +17,7 @@ import java.util.Map;
 @WebServlet("/api/reviews/*")
 public class ReviewServlet extends HttpServlet {
     private ReviewService reviewService = new ReviewService();
+    private OrdersDAO ordersDAO = new OrdersDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -27,6 +30,11 @@ public class ReviewServlet extends HttpServlet {
         }
         if (path != null && path.startsWith("/order/")) {
             int orderId = Integer.parseInt(path.substring("/order/".length()));
+            Orders order = ordersDAO.findById(orderId);
+            if (order == null || order.getUser().getUserId() != userId) {
+                ApiResponse.error(resp, "Không tìm thấy đánh giá", 404);
+                return;
+            }
             Map<String, Object> review = reviewService.getByOrderId(orderId);
             if (review == null) {
                 ApiResponse.ok(resp, java.util.Collections.emptyMap());
