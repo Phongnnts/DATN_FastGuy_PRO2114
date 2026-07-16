@@ -93,6 +93,8 @@ onUnmounted(() => {
           <input
             v-model="phoneSuffix"
             type="text"
+            inputmode="numeric"
+            pattern="\d{4}"
             class="form-input"
             maxlength="4"
             placeholder="4 chữ số cuối SĐT (VD: 1234)"

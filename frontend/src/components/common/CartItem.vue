@@ -8,9 +8,9 @@ const props = defineProps({
 const emit = defineEmits(['update:quantity', 'remove']);
 
 function changeQty(delta) {
-  const stock = props.item.quantityAvailable === null || props.item.quantityAvailable === undefined ? null : Number(props.item.quantityAvailable);
+  const stock = props.item.quantityAvailable === null || props.item.quantityAvailable === undefined ? 99 : Number(props.item.quantityAvailable);
   const nextQty = props.item.quantity + delta;
-  const newQty = Math.max(1, stock === null ? nextQty : Math.min(stock, nextQty));
+  const newQty = Math.max(1, Math.min(99, Math.min(stock, nextQty)));
   emit('update:quantity', props.item.productId, props.item.variantId, newQty, (props.item.modifiers || []).map((m) => m.modifierOptionId));
 }
 

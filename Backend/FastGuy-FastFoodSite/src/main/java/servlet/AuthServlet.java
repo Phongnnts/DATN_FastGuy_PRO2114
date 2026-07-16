@@ -271,9 +271,13 @@ public class AuthServlet extends HttpServlet {
 
     private String validateAccount(String fullName, String phone, String email, String password, boolean requirePassword) {
         if (fullName == null || fullName.length() < 2 || fullName.length() > 100) return "Họ tên phải từ 2 đến 100 ký tự";
-        if (phone == null || !PHONE_PATTERN.matcher(phone).matches()) return "Số điện thoại không hợp lệ";
+        if (phone == null || !PHONE_PATTERN.matcher(phone).matches()) return "Số điện thoại không hợp lệ (VD: 0912345678 hoặc +84912345678)";
         if (email != null && !email.isEmpty() && !EMAIL_PATTERN.matcher(email).matches()) return "Email không hợp lệ";
-        if (requirePassword && (password == null || password.length() < 6 || password.length() > 72)) return "Mật khẩu phải từ 6 đến 72 ký tự";
+        if (requirePassword) {
+            if (password == null || password.length() < 8 || password.length() > 72) return "Mật khẩu phải từ 8 đến 72 ký tự";
+            if (!password.matches(".*[a-zA-Z].*") || !password.matches(".*[0-9].*"))
+                return "Mật khẩu phải có ít nhất 1 chữ và 1 số";
+        }
         return null;
     }
 
