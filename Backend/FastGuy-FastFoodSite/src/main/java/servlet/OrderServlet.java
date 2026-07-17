@@ -351,6 +351,7 @@ public class OrderServlet extends HttpServlet {
         data.put("paymentMethod", o.getPaymentMethod());
         data.put("paymentStatus", o.getPaymentStatus());
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+        data.put("estimatedDeliveryAt", o.getExpectedDeliveryTime() != null ? o.getExpectedDeliveryTime().toString() : null);
 
         List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
                 .stream()
@@ -381,7 +382,13 @@ public class OrderServlet extends HttpServlet {
             history.add(Map.of("status", "CANCELLED", "timestamp", o.getCancelledAt().toString()));
         }
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
-        data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
+        if (!savedHistory.isEmpty()) {
+            history = savedHistory.stream()
+                    .map(entry -> Map.<String, Object>of("status", String.valueOf(entry.get("status")),
+                            "timestamp", String.valueOf(entry.get("time"))))
+                    .collect(Collectors.toList());
+        }
+        data.put("statusHistory", history);
 
         return data;
     }

@@ -29,17 +29,17 @@ public class ReviewServlet extends HttpServlet {
             return;
         }
         if (path != null && path.startsWith("/order/")) {
-            int orderId = Integer.parseInt(path.substring("/order/".length()));
-            Orders order = ordersDAO.findById(orderId);
-            if (order == null || order.getUser().getUserId() != userId) {
-                ApiResponse.error(resp, "Không tìm thấy đánh giá", 404);
-                return;
-            }
-            Map<String, Object> review = reviewService.getByOrderId(orderId);
-            if (review == null) {
-                ApiResponse.ok(resp, java.util.Collections.emptyMap());
-            } else {
-                ApiResponse.ok(resp, review);
+            try {
+                int orderId = Integer.parseInt(path.substring("/order/".length()));
+                Orders order = ordersDAO.findById(orderId);
+                if (order == null || order.getUser() == null || order.getUser().getUserId() != userId) {
+                    ApiResponse.error(resp, "Không tìm thấy đánh giá", 404);
+                    return;
+                }
+                Map<String, Object> review = reviewService.getByOrderId(orderId);
+                ApiResponse.ok(resp, review == null ? java.util.Collections.emptyMap() : review);
+            } catch (NumberFormatException e) {
+                ApiResponse.error(resp, "Mã đơn hàng không hợp lệ", 400);
             }
             return;
         }

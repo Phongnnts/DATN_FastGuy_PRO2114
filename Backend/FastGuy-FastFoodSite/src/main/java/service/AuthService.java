@@ -71,8 +71,8 @@ public class AuthService {
         userDAO.save(user);
     }
 
-    private boolean isStrongPassword(String pw) {
-        if (pw == null || pw.length() < 8) return false;
+    public static boolean isStrongPassword(String pw) {
+        if (pw == null || pw.length() < 8 || pw.length() > 72) return false;
         boolean hasLetter = pw.matches(".*[a-zA-Z].*");
         boolean hasDigit = pw.matches(".*[0-9].*");
         return hasLetter && hasDigit;

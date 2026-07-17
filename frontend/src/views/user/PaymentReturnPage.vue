@@ -21,9 +21,11 @@ onMounted(async () => {
   }
   for (let attempt = 0; attempt < 12; attempt++) {
     try {
-      const order = auth.isLoggedIn && orderId.value
-        ? await orderApi.getById(orderId.value)
-        : await orderApi.trackOrder(orderCode.value);
+      if (!auth.isLoggedIn || !orderId.value) {
+        status.value = 'pending';
+        return;
+      }
+      const order = await orderApi.getById(orderId.value);
       if (order?.paymentStatus === 'PAID') {
         status.value = 'success';
         cart.clear();

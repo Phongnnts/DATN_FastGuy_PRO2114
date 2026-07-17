@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.AuthService;
+import service.PasswordResetService;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
@@ -21,6 +22,7 @@ public class AuthServlet extends HttpServlet {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final Pattern PHONE_PATTERN = Pattern.compile("^(0|\\+84)(3|5|7|8|9)[0-9]{8}$");
     private AuthService authService = new AuthService();
+    private PasswordResetService passwordResetService = new PasswordResetService();
 
     @Override
     protected void doOptions(HttpServletRequest req, HttpServletResponse resp) {
@@ -73,7 +75,9 @@ public class AuthServlet extends HttpServlet {
             } else if (path.equals("/register")) {
                 handleRegister(body, resp);
             } else if (path.equals("/forgot-password")) {
-                handleForgotPassword(resp);
+                handleForgotPassword(body, resp);
+            } else if (path.equals("/reset-password")) {
+                handleResetPassword(body, resp);
             } else if (path.equals("/cart/migrate")) {
                 ApiResponse.ok(resp, null, "Cart migrated");
             } else {
@@ -168,8 +172,30 @@ public class AuthServlet extends HttpServlet {
         JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đăng xuất thành công"));
     }
 
-    private void handleForgotPassword(HttpServletResponse resp) throws IOException {
+    private void handleForgotPassword(Map<String, Object> body, HttpServletResponse resp) throws IOException {
+        String email = trim((String) body.get("email"));
+        if (email != null && EMAIL_PATTERN.matcher(email).matches()) {
+            try {
+                passwordResetService.request(email);
+            } catch (IllegalStateException ignored) {
+            }
+        }
         JsonUtil.write(resp, ApiResponse.ok((Object) null, "Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi."));
+    }
+
+    private void handleResetPassword(Map<String, Object> body, HttpServletResponse resp) throws IOException {
+        String token = trim((String) body.get("token"));
+        String password = (String) body.get("password");
+        if (token == null || token.length() < 32 || password == null) {
+            ApiResponse.error(resp, "Liên kết hoặc mật khẩu không hợp lệ", 400);
+            return;
+        }
+        try {
+            passwordResetService.reset(token, password);
+            JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đặt lại mật khẩu thành công"));
+        } catch (IllegalArgumentException e) {
+            ApiResponse.error(resp, e.getMessage(), 400);
+        }
     }
 
     private void handleChangePassword(HttpServletRequest req, HttpServletResponse resp) throws IOException {
