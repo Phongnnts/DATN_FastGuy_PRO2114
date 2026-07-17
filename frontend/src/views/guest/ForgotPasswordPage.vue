@@ -16,8 +16,7 @@ async function handleSubmit() {
     message.value = res?.message || 'Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi.';
     sent.value = true;
   } catch (e) {
-    message.value = 'Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi.';
-    sent.value = true;
+    error.value = e.message || 'Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại sau.';
   } finally {
     loading.value = false;
   }

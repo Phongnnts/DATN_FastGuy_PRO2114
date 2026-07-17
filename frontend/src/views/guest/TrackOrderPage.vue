@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
 import { ORDER_STATUS_LABEL } from '@/utils/constants';
@@ -15,7 +15,6 @@ const trackingResult = ref(null);
 const error = ref('');
 const searched = ref(false);
 const justCreated = ref(route.query.created === '1');
-let paymentPolling = null;
 
 async function track() {
   if (!orderCode.value || !phoneSuffix.value) return;
@@ -33,44 +32,15 @@ async function track() {
       return;
     }
     trackingResult.value = result;
-    if (result.checkoutUrl && result.paymentStatus === 'UNPAID') window.location.assign(result.checkoutUrl);
-    if (result.paymentMethod === 'BANK_TRANSFER' && result.paymentStatus === 'UNPAID') startPaymentPolling();
   } catch (e) {
     trackingResult.value = null;
     error.value = e.message || 'Không thể tra cứu đơn hàng';
   }
 }
 
-function startPaymentPolling() {
-  if (paymentPolling || !trackingResult.value?.id) return;
-  paymentPolling = setInterval(async () => {
-    try {
-      const result = await orderStore.trackOrder(orderCode.value, phoneSuffix.value);
-      if (!result) return;
-       trackingResult.value = result;
-       if (result.checkoutUrl && result.paymentStatus === 'UNPAID') {
-         window.location.assign(result.checkoutUrl);
-         return;
-       }
-       if (result.paymentStatus === 'PAID' || result.status === 'CANCELLED') {
-        clearInterval(paymentPolling);
-        paymentPolling = null;
-      }
-    } catch {}
-  }, 5000);
-}
-
-onMounted(async () => {
+onMounted(() => {
   const code = route.query.code;
-  if (code) {
-    orderCode.value = code;
-    await track();
-    startPaymentPolling();
-  }
-});
-
-onUnmounted(() => {
-  if (paymentPolling) clearInterval(paymentPolling);
+  if (code) orderCode.value = code;
 });
 </script>
 

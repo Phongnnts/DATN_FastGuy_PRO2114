@@ -3,11 +3,14 @@ package utils;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Properties;
 
 public class AppConfig {
     private static final Properties LOCAL_ENV = loadLocalEnv();
-    private static final boolean PROD = "true".equalsIgnoreCase(System.getProperty("prod"));
+    private static final boolean PROD = "production".equalsIgnoreCase(env("APP_ENV", ""))
+            || "true".equalsIgnoreCase(System.getProperty("prod"));
 
     private static final String JWT_SECRET;
     private static final String GHN_TOKEN;
@@ -15,7 +18,7 @@ public class AppConfig {
     private static final String GHN_HOST;
 
     static {
-        JWT_SECRET = requireEnv("JWT_SECRET");
+        JWT_SECRET = jwtSecret();
         GHN_TOKEN = env("GHN_TOKEN", "");
         GHN_SHOP_ID = env("GHN_SHOP_ID", "");
         GHN_HOST = env("GHN_HOST", "https://online-gateway.ghn.vn");
@@ -70,30 +73,35 @@ public class AppConfig {
         return value.replaceAll("/+$", "");
     }
 
-    public static String getDbUrl() {
-        return env("DB_URL", "jdbc:sqlserver://localhost:1433;databaseName=FastGuyDB;encrypt=false;sendStringParametersAsUnicode=true");
+    public static String getSmtpHost() { return env("SMTP_HOST", "smtp.gmail.com"); }
+    public static String getSmtpPort() { return env("SMTP_PORT", "587"); }
+    public static String getSmtpUser() { return env("SMTP_USER", ""); }
+    public static String getSmtpPassword() { return env("SMTP_PASSWORD", ""); }
+    public static String getSmtpFrom() { return env("SMTP_FROM", getSmtpUser()); }
+    public static boolean isSmtpConfigured() {
+        return !getSmtpUser().isBlank() && !getSmtpPassword().isBlank() && !getSmtpFrom().isBlank();
     }
 
-    public static String getDbUser() {
-        return env("DB_USER", "JavaDuAn");
-    }
-
-    public static String getDbPassword() {
-        return env("DB_PASSWORD", "");
-    }
+    public static String getDbUrl() { return required("DB_URL"); }
+    public static String getDbUser() { return required("DB_USER"); }
+    public static String getDbPassword() { return required("DB_PASSWORD"); }
 
     public static boolean isProduction() {
         return PROD;
     }
 
-    private static String requireEnv(String name) {
+    private static String jwtSecret() {
+        String value = env("JWT_SECRET", "");
+        if (value.length() >= 32) return value;
+        if (PROD) throw new IllegalStateException("Required env var JWT_SECRET must contain at least 32 characters.");
+        byte[] bytes = new byte[48];
+        new SecureRandom().nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String required(String name) {
         String value = env(name, "");
-        if (value.isEmpty()) {
-            if (PROD) {
-                throw new IllegalStateException("Required env var " + name + " is not set. Cannot start in production.");
-            }
-            return "";
-        }
+        if (value.isBlank()) throw new IllegalStateException("Required env var " + name + " is not set.");
         return value;
     }
 
@@ -107,6 +115,10 @@ public class AppConfig {
     private static Properties loadLocalEnv() {
         Properties properties = new Properties();
         Path path = Path.of(System.getProperty("user.dir"), ".env");
+        if (!Files.isRegularFile(path)) {
+            String catalinaBase = System.getProperty("catalina.base");
+            if (catalinaBase != null && !catalinaBase.isBlank()) path = Path.of(catalinaBase, ".env");
+        }
         if (!Files.isRegularFile(path)) {
             try {
                 path = Path.of(AppConfig.class.getProtectionDomain().getCodeSource().getLocation().toURI())
