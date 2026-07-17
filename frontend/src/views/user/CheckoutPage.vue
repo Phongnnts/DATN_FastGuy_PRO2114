@@ -8,6 +8,9 @@ import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
 import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
+import { useToast } from '@/utils/toast';
+
+const toast = useToast();
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -262,11 +265,11 @@ function selectClaimedCoupon(c) {
 }
 
 async function placeOrder() {
-  if (isStoreClosed.value) return alert('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
-  if (hasInvalidItems.value) return alert('Có món đã hết hàng hoặc vượt tồn kho, vui lòng cập nhật giỏ hàng');
-  if (!canPlaceOrder()) return alert('Vui lòng điền đầy đủ thông tin giao hàng');
+  if (isStoreClosed.value) return toast.error('Cua hang hien da dong cua. Vui long quay lai trong gio hoat dong');
+  if (hasInvalidItems.value) return toast.error('Co mon da het hang hoac vuot ton kho, vui long cap nhat gio hang');
+  if (!canPlaceOrder()) return toast.error('Vui long dien day du thong tin giao hang');
   const fullAddress = getFullAddress();
-  if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
+  if (!fullAddress) return toast.error('Vui long nhap dia chi');
   submitting.value = true;
   try {
     if (isGuest.value) {
@@ -322,7 +325,7 @@ async function placeOrder() {
     }
     router.push(`/account/orders/${createdOrderId.value}?created=1`);
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     submitting.value = false;
   }

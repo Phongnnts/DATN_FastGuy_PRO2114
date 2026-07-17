@@ -8,11 +8,15 @@ import StarRating from '@/components/common/StarRating.vue'
 import { orderApi, reviewApi } from '@/api'
 import { useCartStore } from '@/stores/cart'
 import { useProductStore } from '@/stores/product'
+import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/utils/toast'
 
 const route = useRoute()
 const router = useRouter()
 const cart = useCartStore()
 const productStore = useProductStore()
+const auth = useAuthStore()
+const toast = useToast()
 const order = ref(null)
 const loadError = ref('')
 const orderReview = ref(null)
@@ -26,8 +30,12 @@ const justCreated = ref(route.query.created === '1')
 
 const isDelivered = computed(() => order.value?.status === 'DELIVERED')
 const isCancelled = computed(() => order.value?.status === 'CANCELLED')
-const canCancel = computed(() => order.value?.status === 'PENDING' || order.value?.status === 'WAITING_STOCK_CONFIRM')
+const canCancel = computed(() => order.value?.allowedActions?.includes('CANCEL') || false)
+const canReview = computed(() => order.value?.canReview === true && !orderReview.value)
 const waitingStockConfirm = computed(() => order.value?.status === 'WAITING_STOCK_CONFIRM')
+const isOwner = computed(() => order.value?.userId === auth.user?.id)
+const showPayOS = computed(() => isOwner.value && order.value?.paymentMethod === 'BANK_TRANSFER' && order.value?.checkoutUrl && !isCancelled.value && order.value?.paymentStatus !== 'PAID')
+
 let statusPolling = null
 
 onMounted(async () => {
@@ -38,6 +46,7 @@ onMounted(async () => {
         id: data.orderId,
         orderCode: data.orderCode,
         status: data.status,
+        userId: data.userId,
         items: (data.items || []).map(i => ({
           productId: i.productId,
           variantId: i.variantId || null,
@@ -67,6 +76,8 @@ onMounted(async () => {
         refundNote: data.refundNote || '',
         failureReason: data.failureReason || '',
         checkoutUrl: data.checkoutUrl || null,
+        allowedActions: data.allowedActions || [],
+        canReview: data.canReview || false,
       }
     }
     if (data && data.status === 'DELIVERED') {
@@ -74,7 +85,7 @@ onMounted(async () => {
     }
     startStatusPolling()
   } catch (e) {
-    loadError.value = e.message || 'Không thể tải chi tiết đơn hàng'
+    loadError.value = e.message || 'Khong the tai chi tiet don hang'
   }
 })
 
@@ -89,6 +100,8 @@ function startStatusPolling() {
       const data = await orderApi.getById(order.value.id)
       if (data && data.status !== 'WAITING_STOCK_CONFIRM') {
         order.value.status = data.status
+        order.value.allowedActions = data.allowedActions || []
+        order.value.canReview = data.canReview || false
         order.value.checkoutUrl = data.checkoutUrl || null
         order.value.statusHistory = data.statusHistory || order.value.statusHistory
         order.value.paymentStatus = data.paymentStatus
@@ -117,8 +130,9 @@ async function submitReview() {
     })
     await loadReview(order.value.id)
     showReviewForm.value = false
+    toast.success('Gui danh gia thanh cong!')
   } catch (e) {
-    alert(e.message || 'Không thể gửi đánh giá')
+    toast.error(e.message || 'Khong the gui danh gia')
   } finally {
     submitting.value = false
   }
@@ -143,7 +157,7 @@ async function reorder() {
         unavailable.push(item.productName)
       }
     }
-    if (unavailable.length) alert(`Không thể thêm: ${unavailable.join(', ')}`)
+    if (unavailable.length) toast.warning(`Khong the them: ${unavailable.join(', ')}`)
     if (unavailable.length < order.value.items.length) router.push('/cart')
   } finally {
     reordering.value = false
@@ -156,16 +170,18 @@ async function cancelOrder() {
     await orderApi.cancel(order.value.id, { reason: cancelForm.value.reason });
     order.value.status = 'CANCELLED';
     order.value.cancelledBy = 'CUSTOMER';
+    order.value.allowedActions = [];
     if (order.value.statusHistory) {
       order.value.statusHistory.push({
         status: 'CANCELLED',
         time: new Date().toISOString(),
-        note: cancelForm.value.reason || 'Khách hủy',
+        note: cancelForm.value.reason || 'Khach huy',
       });
     }
     showCancelForm.value = false;
+    toast.success('Huy don hang thanh cong');
   } catch (e) {
-    alert(e.message || 'Không thể hủy đơn hàng');
+    toast.error(e.message || 'Khong the huy don hang');
   }
 }
 </script>
@@ -174,24 +190,24 @@ async function cancelOrder() {
   <div class="order-detail-page" v-if="order">
     <div class="card">
       <div v-if="justCreated" class="order-success">
-        <i class="bi bi-check-circle-fill"></i> Đặt đơn thành công. Mã đơn: <strong>{{ order.orderCode }}</strong>
+        <i class="bi bi-check-circle-fill"></i> Dat don thanh cong. Ma don: <strong>{{ order.orderCode }}</strong>
       </div>
       <div class="detail-header">
         <div>
-          <h3>Đơn hàng {{ order.orderCode }}</h3>
+          <h3>Don hang {{ order.orderCode }}</h3>
           <p style="color:var(--text-mid);font-size:14px">{{ formatDate(order.createdAt) }}</p>
         </div>
         <OrderStatusBadge :status="order.status" />
       </div>
       <div class="detail-section">
-        <h4>Thông tin giao hàng</h4>
+        <h4>Thong tin giao hang</h4>
         <p><i class="bi bi-geo-alt"></i> {{ order.shippingAddress }}</p>
-        <p v-if="order.note"><i class="bi bi-chat-dots"></i> Ghi chú: {{ order.note }}</p>
-        <p><i class="bi bi-credit-card"></i> {{ order.paymentMethod === 'COD' ? 'Thanh toán khi nhận hàng' : 'Thanh toán PayOS' }}</p>
-        <p><i class="bi bi-receipt"></i> Trạng thái: {{ order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán' }}</p>
+        <p v-if="order.note"><i class="bi bi-chat-dots"></i> Ghi chu: {{ order.note }}</p>
+        <p><i class="bi bi-credit-card"></i> {{ order.paymentMethod === 'COD' ? 'Thanh toan khi nhan hang' : 'Thanh toan PayOS' }}</p>
+        <p><i class="bi bi-receipt"></i> Trang thai: {{ order.paymentStatus === 'PAID' ? 'Da thanh toan' : 'Chua thanh toan' }}</p>
       </div>
       <div class="detail-section">
-        <h4>Sản phẩm</h4>
+        <h4>San pham</h4>
         <div v-for="item in order.items" :key="item.productId" class="detail-item">
           <img :src="item.image" :alt="item.productName" class="detail-item-img" />
           <div class="detail-item-info">
@@ -204,84 +220,84 @@ async function cancelOrder() {
         </div>
       </div>
       <div class="detail-summary">
-        <div class="detail-summary-row"><span>Tạm tính</span><span>{{ formatPrice(order.subtotal) }}</span></div>
-        <div class="detail-summary-row"><span>Phí giao hàng</span><span>{{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</span></div>
-        <div v-if="order.discount > 0" class="detail-summary-row" style="color:var(--red-active)"><span>Giảm giá</span><span>-{{ formatPrice(order.discount) }}</span></div>
-        <div class="detail-summary-row detail-total"><span>Tổng cộng</span><span>{{ formatPrice(order.total) }}</span></div>
+        <div class="detail-summary-row"><span>Tam tinh</span><span>{{ formatPrice(order.subtotal) }}</span></div>
+        <div class="detail-summary-row"><span>Phi giao hang</span><span>{{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Mien phi' }}</span></div>
+        <div v-if="order.discount > 0" class="detail-summary-row" style="color:var(--red-active)"><span>Giam gia</span><span>-{{ formatPrice(order.discount) }}</span></div>
+        <div class="detail-summary-row detail-total"><span>Tong cong</span><span>{{ formatPrice(order.total) }}</span></div>
       </div>
       <div class="detail-section">
-        <h4>Trạng thái đơn hàng</h4>
+        <h4>Trang thai don hang</h4>
         <OrderTimeline :history="order.statusHistory" />
       </div>
 
       <div v-if="waitingStockConfirm" class="detail-section" style="text-align:center;padding:24px">
         <i class="bi bi-hourglass-split" style="color:var(--primary);font-size:48px"></i>
-        <h4 style="margin-top:8px">Đang chờ cửa hàng xác nhận tồn kho</h4>
-        <p style="color:var(--text-mid);font-size:13px">Cửa hàng sẽ kiểm tra và xác nhận đơn hàng của bạn</p>
+        <h4 style="margin-top:8px">Dang cho cua hang xac nhan ton kho</h4>
+        <p style="color:var(--text-mid);font-size:13px">Cua hang se kiem tra va xac nhan don hang cua ban</p>
       </div>
 
-      <div v-if="order.paymentMethod === 'BANK_TRANSFER' && order.checkoutUrl && !isCancelled && order.paymentStatus !== 'PAID'" class="detail-section" style="text-align:center;padding:24px">
-        <h4>Thanh toán PayOS</h4>
+      <div v-if="showPayOS" class="detail-section" style="text-align:center;padding:24px">
+        <h4>Thanh toan PayOS</h4>
         <p style="font-size:20px;font-weight:800">{{ formatPrice(order.total) }}</p>
-        <a :href="order.checkoutUrl" class="btn btn-primary">Mở trang thanh toán</a>
+        <a :href="order.checkoutUrl" class="btn btn-primary">Mo trang thanh toan</a>
       </div>
 
       <div v-if="isDelivered" class="detail-section">
-        <h4>Đánh giá đơn hàng</h4>
+        <h4>Danh gia don hang</h4>
         <div v-if="orderReview" class="review-done">
           <StarRating :modelValue="orderReview.rating" readonly :size="18" />
-          <p class="review-done-comment">{{ orderReview.comment || 'Ngon, sẽ ủng hộ tiếp.' }}</p>
-          <span class="badge badge-success">Đã đánh giá</span>
+          <p class="review-done-comment">{{ orderReview.comment || 'Ngon, se ung ho tiep.' }}</p>
+          <span class="badge badge-success">Da danh gia</span>
         </div>
         <div v-else-if="showReviewForm" class="review-form-block">
           <StarRating v-model="reviewForm.rating" :size="24" />
-          <textarea v-model="reviewForm.comment" class="form-textarea" rows="3" maxlength="1000" placeholder="Chia sẻ cảm nhận về đơn hàng..."></textarea>
+          <textarea v-model="reviewForm.comment" class="form-textarea" rows="3" maxlength="1000" placeholder="Chia se cam nhan ve don hang..."></textarea>
           <div class="review-form-actions">
-            <button class="btn btn-sm btn-ghost" @click="showReviewForm = false">Hủy</button>
+            <button class="btn btn-sm btn-ghost" @click="showReviewForm = false">Huy</button>
             <button class="btn btn-sm btn-primary" :disabled="submitting" @click="submitReview">
-              {{ submitting ? 'Đang gửi...' : 'Gửi đánh giá' }}
+              {{ submitting ? 'Dang gui...' : 'Gui danh gia' }}
             </button>
           </div>
         </div>
-        <div v-else>
+        <div v-else-if="canReview">
           <button class="btn btn-outline" @click="showReviewForm = true">
-            <i class="bi bi-star"></i> Đánh giá đơn hàng
+            <i class="bi bi-star"></i> Danh gia don hang
           </button>
         </div>
       </div>
 
       <div v-if="isCancelled" class="detail-section">
-        <h4>Thông tin hủy đơn</h4>
-        <p v-if="order.failureReason"><i class="bi bi-chat-left-text"></i> Lý do: {{ order.failureReason }}</p>
-        <p v-if="order.cancelledBy"><i class="bi bi-person-x"></i> Người hủy: {{ order.cancelledBy === 'STAFF' ? 'Nhân viên' : 'Bạn' }}</p>
-        <p v-if="order.refundStatus"><i class="bi bi-arrow-return-left"></i> Hoàn tiền: {{ order.refundStatus }}{{ order.refundNote ? ' - ' + order.refundNote : '' }}</p>
-        <p v-if="order.refundAmount !== null"><i class="bi bi-cash-stack"></i> Số tiền hoàn: {{ formatPrice(order.refundAmount) }}</p>
-        <p v-if="order.refundedAt"><i class="bi bi-calendar-check"></i> Ngày hoàn: {{ formatDate(order.refundedAt) }}</p>
+        <h4>Thong tin huy don</h4>
+        <p v-if="order.failureReason"><i class="bi bi-chat-left-text"></i> Ly do: {{ order.failureReason }}</p>
+        <p v-if="order.cancelledBy"><i class="bi bi-person-x"></i> Nguoi huy: {{ order.cancelledBy === 'STAFF' ? 'Nhan vien' : 'Ban' }}</p>
+        <p v-if="order.refundStatus"><i class="bi bi-arrow-return-left"></i> Hoan tien: {{ order.refundStatus }}{{ order.refundNote ? ' - ' + order.refundNote : '' }}</p>
+        <p v-if="order.refundAmount !== null"><i class="bi bi-cash-stack"></i> So tien hoan: {{ formatPrice(order.refundAmount) }}</p>
+        <p v-if="order.refundedAt"><i class="bi bi-calendar-check"></i> Ngay hoan: {{ formatDate(order.refundedAt) }}</p>
       </div>
       <div v-if="isDelivered || isCancelled" style="margin-top:16px">
-        <button class="btn btn-primary" :disabled="reordering" @click="reorder"><i class="bi bi-cart-plus"></i> {{ reordering ? 'Đang thêm...' : 'Đặt lại đơn' }}</button>
+        <button class="btn btn-primary" :disabled="reordering" @click="reorder"><i class="bi bi-cart-plus"></i> {{ reordering ? 'Dang them...' : 'Dat lai don' }}</button>
       </div>
       <div v-if="canCancel && !showCancelForm" style="margin-top:16px">
         <button class="btn btn-outline" style="border-color:var(--red-active);color:var(--red-active)" @click="showCancelForm = true">
-          <i class="bi bi-x-lg"></i> Hủy đơn hàng
+          <i class="bi bi-x-lg"></i> Huy don hang
         </button>
       </div>
       <div v-if="showCancelForm" class="detail-section">
         <div class="form-group">
-          <label class="form-label">Lý do hủy</label>
-          <textarea v-model="cancelForm.reason" class="form-textarea" rows="3" maxlength="500" placeholder="Nhập lý do hủy..."></textarea>
+          <label class="form-label">Ly do huy</label>
+          <textarea v-model="cancelForm.reason" class="form-textarea" rows="3" maxlength="500" placeholder="Nhap ly do huy..."></textarea>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-          <button class="btn btn-outline" @click="showCancelForm = false">Quay lại</button>
-          <button class="btn btn-danger" :disabled="!cancelForm.reason.trim()" @click="cancelOrder">Xác nhận hủy</button>
+          <button class="btn btn-outline" @click="showCancelForm = false">Quay lai</button>
+          <button class="btn btn-danger" :disabled="!cancelForm.reason.trim()" @click="cancelOrder">Xac nhan huy</button>
         </div>
       </div>
     </div>
   </div>
   <div v-else class="empty-state" style="padding:60px 0">
     <i class="bi bi-box"></i>
-    <h3>{{ loadError || 'Không tìm thấy đơn hàng' }}</h3>
-    <button v-if="loadError" class="btn btn-primary" @click="router.go(0)">Thử lại</button>
+    <h3>{{ loadError || 'Khong tim thay don hang' }}</h3>
+    <button v-if="loadError" class="btn btn-primary" @click="router.go(0)">Thu lai</button>
   </div>
 </template>
 

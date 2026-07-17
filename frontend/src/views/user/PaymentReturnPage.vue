@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
@@ -13,36 +13,60 @@ const cart = useCartStore();
 const status = ref('loading');
 const orderId = ref(Number(route.query.orderId) || null);
 const orderCode = ref(String(route.query.orderCode || ''));
+let pollingTimer = null;
+let redirectTimer = null;
+let unmounted = false;
 
 onMounted(async () => {
   if (!orderId.value && !orderCode.value) {
     status.value = 'error';
     return;
   }
+  await pollPayment();
+});
+
+onUnmounted(() => {
+  unmounted = true;
+  if (pollingTimer) { clearTimeout(pollingTimer); pollingTimer = null; }
+  if (redirectTimer) { clearTimeout(redirectTimer); redirectTimer = null; }
+});
+
+async function pollPayment() {
   for (let attempt = 0; attempt < 12; attempt++) {
+    if (unmounted) return;
     try {
       if (!auth.isLoggedIn || !orderId.value) {
         status.value = 'pending';
+        scheduleRedirect();
         return;
       }
       const order = await orderApi.getById(orderId.value);
+      if (unmounted) return;
       if (order?.paymentStatus === 'PAID') {
         status.value = 'success';
         cart.clear();
-        setTimeout(redirect, 2000);
+        scheduleRedirect();
         return;
       }
       if (order?.status === 'CANCELLED') {
         status.value = 'cancelled';
-        setTimeout(redirect, 2000);
+        scheduleRedirect();
         return;
       }
     } catch {}
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    await new Promise(resolve => { pollingTimer = setTimeout(resolve, 2500); });
+    if (unmounted) return;
   }
   status.value = 'pending';
-  setTimeout(redirect, 2000);
-});
+  scheduleRedirect();
+}
+
+function scheduleRedirect() {
+  if (redirectTimer) clearTimeout(redirectTimer);
+  redirectTimer = setTimeout(() => {
+    if (!unmounted) redirect();
+  }, 2000);
+}
 
 function redirect() {
   if (auth.isLoggedIn && orderId.value) router.replace(`/account/orders/${orderId.value}`);
@@ -56,35 +80,35 @@ function redirect() {
     <div class="card payment-card">
       <div v-if="status === 'loading'" class="payment-state">
         <i class="bi bi-arrow-repeat spin"></i>
-        <h3>Đang xử lý...</h3>
+        <h3>Dang xu ly...</h3>
       </div>
 
       <div v-else-if="status === 'success'" class="payment-state success">
         <i class="bi bi-check-circle-fill icon-success"></i>
-        <h3>Thanh toán thành công!</h3>
-        <p v-if="orderCode">Đơn hàng <strong>{{ orderCode }}</strong> đã được thanh toán.</p>
-        <p class="text-mid">Đang chuyển hướng...</p>
+        <h3>Thanh toan thanh cong!</h3>
+        <p v-if="orderCode">Don hang <strong>{{ orderCode }}</strong> da duoc thanh toan.</p>
+        <p class="text-mid">Dang chuyen huong...</p>
       </div>
 
       <div v-else-if="status === 'cancelled'" class="payment-state cancelled">
         <i class="bi bi-x-circle-fill icon-cancelled"></i>
-        <h3>Đã hủy thanh toán</h3>
-        <p>Bạn có thể thử lại hoặc chọn phương thức thanh toán khác.</p>
-        <p class="text-mid">Đang chuyển hướng...</p>
+        <h3>Da huy thanh toan</h3>
+        <p>Ban co the thu lai hoac chon phuong thuc thanh toan khac.</p>
+        <p class="text-mid">Dang chuyen huong...</p>
       </div>
 
       <div v-else-if="status === 'pending'" class="payment-state">
         <i class="bi bi-clock-fill icon-pending"></i>
-        <h3>Đang chờ xử lý</h3>
-        <p>Vui lòng kiểm tra trạng thái đơn hàng sau.</p>
-        <p class="text-mid">Đang chuyển hướng...</p>
+        <h3>Dang cho xu ly</h3>
+        <p>Vui long kiem tra trang thai don hang sau.</p>
+        <p class="text-mid">Dang chuyen huong...</p>
       </div>
 
       <div v-else class="payment-state error">
         <i class="bi bi-exclamation-triangle-fill icon-error"></i>
-        <h3>Không xác định được trạng thái</h3>
-        <p>Vui lòng kiểm tra lại đơn hàng của bạn.</p>
-        <router-link to="/" class="btn btn-primary">Về trang chủ</router-link>
+        <h3>Khong xac dinh duoc trang thai</h3>
+        <p>Vui long kiem tra lai don hang cua ban.</p>
+        <router-link to="/" class="btn btn-primary">Ve trang chu</router-link>
       </div>
     </div>
   </div>

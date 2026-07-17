@@ -34,8 +34,33 @@ public class SupportTicketServlet extends HttpServlet {
             return;
         }
         try {
+            String subject = body.get("subject") instanceof String ? ((String) body.get("subject")).trim() : "";
+            String category = body.get("category") instanceof String ? ((String) body.get("category")).trim() : "";
+            String description = body.get("description") instanceof String ? ((String) body.get("description")).trim() : "";
             Integer orderId = body.get("orderId") instanceof Number ? ((Number) body.get("orderId")).intValue() : null;
-            ApiResponse.ok(resp, supportTicketService.create(userId, orderId, (String) body.get("subject"), (String) body.get("category"), (String) body.get("description")), "Ticket created");
+
+            if (subject.isEmpty()) {
+                ApiResponse.error(resp, "Tieu de khong duoc de trong", 400);
+                return;
+            }
+            if (subject.length() > 255) {
+                ApiResponse.error(resp, "Tieu de toi da 255 ky tu", 400);
+                return;
+            }
+            if (description.isEmpty()) {
+                ApiResponse.error(resp, "Mo ta khong duoc de trong", 400);
+                return;
+            }
+            if (description.length() > 2000) {
+                ApiResponse.error(resp, "Mo ta toi da 2000 ky tu", 400);
+                return;
+            }
+            if (!java.util.Set.of("MISSING_ITEM", "COLD_FOOD", "WRONG_ITEM", "LATE_DELIVERY", "OTHER").contains(category)) {
+                ApiResponse.error(resp, "Loai van de khong hop le", 400);
+                return;
+            }
+
+            ApiResponse.ok(resp, supportTicketService.create(userId, orderId, subject, category, description), "Ticket created");
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         }

@@ -341,6 +341,16 @@ public class OrderServlet extends HttpServlet {
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
 
+        String status = o.getOrderStatus();
+        List<String> actions = new ArrayList<>();
+        if ("PENDING".equals(status) || "WAITING_STOCK_CONFIRM".equals(status)) {
+            actions.add("CANCEL");
+        }
+        data.put("allowedActions", actions);
+
+        boolean canReview = "DELIVERED".equals(status);
+        data.put("canReview", canReview);
+
         return data;
     }
 
