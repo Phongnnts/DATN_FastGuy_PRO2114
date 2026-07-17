@@ -98,10 +98,27 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  async function trackOrder(code) {
+  async function trackOrder(code, phoneSuffix) {
     try {
-      const data = await orderApi.trackOrder(code);
-      return data ? mapOrder(data) : null;
+      const data = await orderApi.trackOrder(code, phoneSuffix);
+      if (!data) return null;
+      return {
+        orderCode: data.orderCode,
+        status: data.orderStatus,
+        paymentMethod: data.paymentMethod,
+        paymentStatus: data.paymentStatus,
+        createdAt: data.createdAt,
+        items: (data.items || []).map((item) => ({
+          productId: `${item.name}-${item.quantity}`,
+          productName: item.name,
+          quantity: item.quantity,
+          image: '',
+        })),
+        statusHistory: (data.statusHistory || []).map((entry) => ({
+          status: entry.status,
+          time: entry.timestamp,
+        })),
+      };
     } catch (e) {
       throw new Error(e.message || 'Không thể tra cứu đơn hàng');
     }

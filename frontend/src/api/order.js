@@ -13,8 +13,8 @@ export default {
   cancel(id, data) {
     return client.put(`/orders/${id}/cancel`, data || {});
   },
-  trackOrder(orderCode) {
-    return client.get('/orders/track', { params: { code: orderCode } });
+  trackOrder(orderCode, phoneSuffix) {
+    return client.get('/orders/track', { params: { code: orderCode, phoneSuffix } });
   },
   getHistory(params) {
     return client.get('/orders/history', { params });

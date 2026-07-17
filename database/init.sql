@@ -125,6 +125,16 @@ create table Users (
 create unique index UQ__Users__AB6E6164B24E18DD on Users(email) where email is not null;
 create unique index UQ__Users__B43B145F28B1640F on Users(phone);
 
+create table PasswordResetToken (
+    reset_token_id int identity primary key,
+    user_id int not null references Users(user_id),
+    token_hash varchar(64) not null unique,
+    expires_at datetime2 not null,
+    used_at datetime2,
+    created_at datetime2 not null default getdate()
+);
+create index IX_PasswordResetToken_User on PasswordResetToken(user_id);
+
 create table Banner (
     banner_id int identity primary key,
     title nvarchar(255),

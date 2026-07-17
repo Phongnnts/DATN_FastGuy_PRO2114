@@ -14,8 +14,12 @@ async function handleRegister() {
   error.value = '';
   const phonePattern = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
   if (form.value.name.trim().length < 2) { error.value = 'Họ tên phải từ 2 ký tự'; return; }
-  if (!phonePattern.test(form.value.phone.trim())) { error.value = 'Số điện thoại không hợp lệ'; return; }
-  if (form.value.password.length < 6) { error.value = 'Mật khẩu phải từ 6 ký tự'; return; }
+  if (!phonePattern.test(form.value.phone.trim())) { error.value = 'Số điện thoại không hợp lệ (VD: 0912345678)'; return; }
+  if (form.value.password.length < 8) { error.value = 'Mật khẩu phải từ 8 ký tự'; return; }
+  if (!/[a-zA-Z]/.test(form.value.password) || !/[0-9]/.test(form.value.password)) {
+    error.value = 'Mật khẩu phải có ít nhất 1 chữ và 1 số';
+    return;
+  }
   if (form.value.password !== form.value.confirmPassword) { error.value = 'Mật khẩu không khớp'; return; }
   loading.value = true;
   try {
@@ -59,7 +63,7 @@ async function handleRegister() {
           <div class="form-row-2">
             <div class="form-group">
               <label class="form-label">Mật khẩu</label>
-              <input v-model="form.password" type="password" class="form-input" placeholder="••••••" minlength="6" maxlength="72" required />
+              <input v-model="form.password" type="password" class="form-input" placeholder="Tối thiểu 8 ký tự, có chữ và số" minlength="8" maxlength="72" required />
             </div>
             <div class="form-group">
               <label class="form-label">Xác nhận</label>

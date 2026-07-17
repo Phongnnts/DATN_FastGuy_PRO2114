@@ -6,6 +6,7 @@
     <persistence-unit name="FastGuyPU" transaction-type="RESOURCE_LOCAL">
         <class>entity.Role</class>
         <class>entity.User</class>
+        <class>entity.PasswordResetToken</class>
         <class>entity.Address</class>
         <class>entity.DeliveryZone</class>
         <class>entity.Category</class>
@@ -33,9 +34,6 @@
         <class>entity.WorkShift</class>
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
-            <property name="jakarta.persistence.jdbc.url" value="jdbc:sqlserver://localhost:1433;databaseName=FastGuyDB;encrypt=false;sendStringParametersAsUnicode=true"/>
-            <property name="jakarta.persistence.jdbc.user" value="JavaDuAn"/>
-            <property name="jakarta.persistence.jdbc.password" value="ZaZksnguyen1234"/>
             <property name="hibernate.dialect" value="org.hibernate.dialect.SQLServerDialect"/>
             <property name="hibernate.hbm2ddl.auto" value="none"/>
             <property name="hibernate.show_sql" value="false"/>

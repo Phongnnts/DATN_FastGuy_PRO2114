@@ -87,15 +87,33 @@ function openEditAddress(addr) {
 }
 
 async function saveAddress() {
+  const PHONE_PATTERN = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+  const f = addressForm.value;
+  if (!f.recipientName?.trim() || f.recipientName.trim().length < 2) {
+    alert('Tên người nhận phải từ 2 ký tự');
+    return;
+  }
+  if (!f.phone?.trim() || !PHONE_PATTERN.test(f.phone.trim())) {
+    alert('Số điện thoại không hợp lệ (VD: 0912345678 hoặc +84912345678)');
+    return;
+  }
+  if (!f.street?.trim() || f.street.trim().length < 5) {
+    alert('Địa chỉ phải từ 5 ký tự');
+    return;
+  }
+  if (!f.wardName?.trim() || !f.districtName?.trim() || !f.provinceName?.trim()) {
+    alert('Vui lòng nhập đầy đủ phường/xã, quận/huyện, tỉnh/thành phố');
+    return;
+  }
   try {
     const data = {
-      recipientName: addressForm.value.recipientName,
-      phone: addressForm.value.phone,
-      street: addressForm.value.street,
-      wardName: addressForm.value.wardName,
-      districtName: addressForm.value.districtName,
-      provinceName: addressForm.value.provinceName,
-      isDefault: addressForm.value.isDefault,
+      recipientName: f.recipientName.trim(),
+      phone: f.phone.trim(),
+      street: f.street.trim(),
+      wardName: f.wardName.trim(),
+      districtName: f.districtName.trim(),
+      provinceName: f.provinceName.trim(),
+      isDefault: f.isDefault,
     };
     if (editingAddress.value) {
       await userApi.updateAddress(editingAddress.value.addressId, data);
@@ -131,10 +149,30 @@ async function setDefault(addr) {
 }
 
 async function saveProfile() {
-  await auth.updateProfile(form.value);
-  success.value = 'Cập nhật thành công!';
-  editMode.value = false;
-  setTimeout(() => (success.value = ''), 3000);
+  const PHONE_PATTERN = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+  const name = form.value.fullName?.trim();
+  const phone = form.value.phone?.trim();
+  const email = form.value.email?.trim();
+  if (!name || name.length < 2 || name.length > 100) {
+    alert('Họ tên phải từ 2 đến 100 ký tự');
+    return;
+  }
+  if (phone && !PHONE_PATTERN.test(phone)) {
+    alert('Số điện thoại không hợp lệ (VD: 0912345678 hoặc +84912345678)');
+    return;
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert('Email không hợp lệ');
+    return;
+  }
+  try {
+    await auth.updateProfile(form.value);
+    success.value = 'Cập nhật thành công!';
+    editMode.value = false;
+    setTimeout(() => (success.value = ''), 3000);
+  } catch (e) {
+    alert(e.message || 'Cập nhật thất bại');
+  }
 }
 </script>
 

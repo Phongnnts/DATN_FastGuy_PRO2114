@@ -52,9 +52,13 @@ public class CartServlet extends HttpServlet {
             return;
         }
 
-        int productId = ((Number) body.get("productId")).intValue();
-        int variantId = ((Number) body.get("variantId")).intValue();
-        int quantity = body.containsKey("quantity") ? ((Number) body.get("quantity")).intValue() : 1;
+        int productId = body.get("productId") instanceof Number ? ((Number) body.get("productId")).intValue() : -1;
+        int variantId = body.get("variantId") instanceof Number ? ((Number) body.get("variantId")).intValue() : -1;
+        if (productId <= 0 || variantId <= 0) {
+            ApiResponse.error(resp, "Invalid productId or variantId", 400);
+            return;
+        }
+        int quantity = body.containsKey("quantity") && body.get("quantity") instanceof Number ? ((Number) body.get("quantity")).intValue() : 1;
         List<Integer> modifierOptionIds;
         try {
             modifierOptionIds = body.containsKey("modifierOptionIds") ? ((List<?>) body.get("modifierOptionIds")).stream().map(v -> ((Number) v).intValue()).toList() : List.of();
@@ -86,8 +90,12 @@ public class CartServlet extends HttpServlet {
             return;
         }
 
-        int cartItemId = ((Number) body.get("cartItemId")).intValue();
-        int quantity = ((Number) body.get("quantity")).intValue();
+        int cartItemId = body.get("cartItemId") instanceof Number ? ((Number) body.get("cartItemId")).intValue() : -1;
+        int quantity = body.get("quantity") instanceof Number ? ((Number) body.get("quantity")).intValue() : 0;
+        if (cartItemId <= 0 || quantity < 0) {
+            ApiResponse.error(resp, "Invalid cartItemId or quantity", 400);
+            return;
+        }
 
         boolean ok = cartService.updateItemQuantity(cartItemId, userId, quantity);
         if (!ok) {
