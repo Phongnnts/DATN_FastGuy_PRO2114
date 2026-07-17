@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.AuthService;
+import service.PasswordResetService;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
@@ -21,6 +22,7 @@ public class AuthServlet extends HttpServlet {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final Pattern PHONE_PATTERN = Pattern.compile("^(0|\\+84)(3|5|7|8|9)[0-9]{8}$");
     private AuthService authService = new AuthService();
+    private PasswordResetService passwordResetService = new PasswordResetService();
 
     @Override
     protected void doOptions(HttpServletRequest req, HttpServletResponse resp) {
@@ -72,6 +74,10 @@ public class AuthServlet extends HttpServlet {
                 handleLogin(body, resp);
             } else if (path.equals("/register")) {
                 handleRegister(body, resp);
+            } else if (path.equals("/forgot-password")) {
+                handleForgotPassword(body, resp);
+            } else if (path.equals("/reset-password")) {
+                handleResetPassword(body, resp);
             } else if (path.equals("/cart/migrate")) {
                 ApiResponse.ok(resp, null, "Cart migrated");
             } else {
@@ -94,6 +100,8 @@ public class AuthServlet extends HttpServlet {
         try {
             if (path.equals("/profile")) {
                 handleUpdateProfile(req, resp);
+            } else if (path.equals("/password")) {
+                handleChangePassword(req, resp);
             } else {
                 resp.sendError(404);
             }
@@ -162,6 +170,61 @@ public class AuthServlet extends HttpServlet {
 
     private void handleLogout(HttpServletResponse resp) throws IOException {
         JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đăng xuất thành công"));
+    }
+
+    private void handleForgotPassword(Map<String, Object> body, HttpServletResponse resp) throws IOException {
+        String email = trim((String) body.get("email"));
+        if (email != null && EMAIL_PATTERN.matcher(email).matches()) {
+            try {
+                passwordResetService.request(email);
+            } catch (IllegalStateException ignored) {
+            }
+        }
+        JsonUtil.write(resp, ApiResponse.ok((Object) null, "Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi."));
+    }
+
+    private void handleResetPassword(Map<String, Object> body, HttpServletResponse resp) throws IOException {
+        String token = trim((String) body.get("token"));
+        String password = (String) body.get("password");
+        if (token == null || token.length() < 32 || password == null) {
+            ApiResponse.error(resp, "Liên kết hoặc mật khẩu không hợp lệ", 400);
+            return;
+        }
+        try {
+            passwordResetService.reset(token, password);
+            JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đặt lại mật khẩu thành công"));
+        } catch (IllegalArgumentException e) {
+            ApiResponse.error(resp, e.getMessage(), 400);
+        }
+    }
+
+    private void handleChangePassword(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        int userId = getUserIdFromToken(req);
+        if (userId == -1) {
+            ApiResponse.error(resp, "Unauthorized", 401);
+            return;
+        }
+
+        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+        if (body == null) {
+            JsonUtil.write(resp, ApiResponse.error("Dữ liệu không hợp lệ"));
+            return;
+        }
+
+        String currentPassword = (String) body.get("currentPassword");
+        String newPassword = (String) body.get("newPassword");
+
+        if (currentPassword == null || currentPassword.isEmpty() || newPassword == null || newPassword.isEmpty()) {
+            JsonUtil.write(resp, ApiResponse.error("Vui lòng nhập đầy đủ mật khẩu"));
+            return;
+        }
+
+        try {
+            authService.changePassword(userId, currentPassword, newPassword);
+            JsonUtil.write(resp, ApiResponse.ok((Object) null, "Đổi mật khẩu thành công"));
+        } catch (IllegalArgumentException e) {
+            JsonUtil.write(resp, ApiResponse.error(e.getMessage()));
+        }
     }
 
     private void handleGetProfile(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -234,9 +297,13 @@ public class AuthServlet extends HttpServlet {
 
     private String validateAccount(String fullName, String phone, String email, String password, boolean requirePassword) {
         if (fullName == null || fullName.length() < 2 || fullName.length() > 100) return "Họ tên phải từ 2 đến 100 ký tự";
-        if (phone == null || !PHONE_PATTERN.matcher(phone).matches()) return "Số điện thoại không hợp lệ";
+        if (phone == null || !PHONE_PATTERN.matcher(phone).matches()) return "Số điện thoại không hợp lệ (VD: 0912345678 hoặc +84912345678)";
         if (email != null && !email.isEmpty() && !EMAIL_PATTERN.matcher(email).matches()) return "Email không hợp lệ";
-        if (requirePassword && (password == null || password.length() < 6 || password.length() > 72)) return "Mật khẩu phải từ 6 đến 72 ký tự";
+        if (requirePassword) {
+            if (password == null || password.length() < 8 || password.length() > 72) return "Mật khẩu phải từ 8 đến 72 ký tự";
+            if (!password.matches(".*[a-zA-Z].*") || !password.matches(".*[0-9].*"))
+                return "Mật khẩu phải có ít nhất 1 chữ và 1 số";
+        }
         return null;
     }
 

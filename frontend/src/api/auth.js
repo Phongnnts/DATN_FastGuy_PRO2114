@@ -16,4 +16,13 @@ export default {
   updateProfile(data) {
     return client.put('/auth/profile', data);
   },
+  changePassword(data) {
+    return client.put('/auth/password', data);
+  },
+  forgotPassword(email) {
+    return client.post('/auth/forgot-password', { email });
+  },
+  resetPassword(token, password) {
+    return client.post('/auth/reset-password', { token, password });
+  },
 };

@@ -80,6 +80,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function changePassword(currentPassword, newPassword) {
+    return await authApi.changePassword({ currentPassword, newPassword });
+  }
+
   return {
     token,
     user,
@@ -93,5 +97,6 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     updateProfile,
+    changePassword,
   };
 });

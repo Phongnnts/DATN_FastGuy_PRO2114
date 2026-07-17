@@ -1,23 +1,42 @@
 <script setup>
 import { ref } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 
+const auth = useAuthStore();
 const form = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
 const error = ref('');
 const success = ref('');
 const loading = ref(false);
 
+function isStrongPassword(pw) {
+  if (pw.length < 8) return false;
+  return /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw);
+}
+
 async function submit() {
   error.value = '';
   success.value = '';
+
   if (form.value.newPassword !== form.value.confirmPassword) {
     error.value = 'Mật khẩu mới không khớp';
     return;
   }
+
+  if (!isStrongPassword(form.value.newPassword)) {
+    error.value = 'Mật khẩu mới phải từ 8 ký tự, có ít nhất 1 chữ và 1 số';
+    return;
+  }
+
   loading.value = true;
-  setTimeout(() => {
-    error.value = 'Tính năng đổi mật khẩu chưa được bật. Vui lòng liên hệ quản trị viên.';
+  try {
+    await auth.changePassword(form.value.currentPassword, form.value.newPassword);
+    success.value = 'Đổi mật khẩu thành công';
+    form.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
+  } catch (e) {
+    error.value = e.response?.data?.message || e.message || 'Đổi mật khẩu thất bại';
+  } finally {
     loading.value = false;
-  }, 300);
+  }
 }
 </script>
 
@@ -35,7 +54,7 @@ async function submit() {
         </div>
         <div class="form-group">
           <label class="form-label">Mật khẩu mới</label>
-          <input v-model="form.newPassword" type="password" class="form-input" required />
+          <input v-model="form.newPassword" type="password" class="form-input" placeholder="Tối thiểu 8 ký tự, có chữ và số" required />
         </div>
         <div class="form-group">
           <label class="form-label">Xác nhận mật khẩu mới</label>
@@ -53,15 +72,5 @@ async function submit() {
 <style scoped>
 .change-pw-page { padding: 32px 0; }
 .page-title { font-size: 20px; font-weight: 700; margin-bottom: 20px; }
-.alert-success {
-  background: #dcfce7;
-  color: #166534;
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 20px;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.alert-success { background:#dcfce7; color:#166534; padding:12px 16px; border-radius:var(--radius-sm); margin-bottom:20px; font-size:14px; display:flex; align-items:center; gap:8px; }
 </style>

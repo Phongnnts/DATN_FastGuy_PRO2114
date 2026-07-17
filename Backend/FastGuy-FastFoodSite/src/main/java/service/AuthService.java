@@ -58,6 +58,26 @@ public class AuthService {
         return userDAO.findById(userId);
     }
 
+    public void changePassword(int userId, String currentPassword, String newPassword) {
+        User user = userDAO.findById(userId);
+        if (user == null) throw new IllegalArgumentException("Không tìm thấy người dùng");
+        if (!PasswordUtil.check(currentPassword, user.getPasswordHash())) {
+            throw new IllegalArgumentException("Mật khẩu hiện tại không đúng");
+        }
+        if (!isStrongPassword(newPassword)) {
+            throw new IllegalArgumentException("Mật khẩu mới phải từ 8 ký tự, có ít nhất 1 chữ và 1 số");
+        }
+        user.setPasswordHash(PasswordUtil.hash(newPassword));
+        userDAO.save(user);
+    }
+
+    public static boolean isStrongPassword(String pw) {
+        if (pw == null || pw.length() < 8 || pw.length() > 72) return false;
+        boolean hasLetter = pw.matches(".*[a-zA-Z].*");
+        boolean hasDigit = pw.matches(".*[0-9].*");
+        return hasLetter && hasDigit;
+    }
+
     public User updateProfile(int userId, Map<String, Object> data) {
         User user = userDAO.findById(userId);
         if (user == null) return null;

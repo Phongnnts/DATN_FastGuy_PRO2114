@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
 import { ORDER_STATUS_LABEL } from '@/utils/constants';
@@ -10,62 +10,37 @@ import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 const route = useRoute();
 const orderStore = useOrderStore();
 const orderCode = ref('');
+const phoneSuffix = ref('');
 const trackingResult = ref(null);
 const error = ref('');
 const searched = ref(false);
 const justCreated = ref(route.query.created === '1');
-let paymentPolling = null;
 
 async function track() {
-  if (!orderCode.value) return;
+  if (!orderCode.value || !phoneSuffix.value) return;
+  if (!/^\d{4}$/.test(phoneSuffix.value)) {
+    error.value = 'Số điện thoại phải là đúng 4 chữ số cuối';
+    return;
+  }
   error.value = '';
   searched.value = true;
   try {
-    const result = await orderStore.trackOrder(orderCode.value);
+    const result = await orderStore.trackOrder(orderCode.value, phoneSuffix.value);
     if (!result) {
       trackingResult.value = null;
       error.value = 'Không tìm thấy đơn hàng với mã này';
       return;
     }
     trackingResult.value = result;
-    if (result.checkoutUrl && result.paymentStatus === 'UNPAID') window.location.assign(result.checkoutUrl);
-    if (result.paymentMethod === 'BANK_TRANSFER' && result.paymentStatus === 'UNPAID') startPaymentPolling();
   } catch (e) {
     trackingResult.value = null;
     error.value = e.message || 'Không thể tra cứu đơn hàng';
   }
 }
 
-function startPaymentPolling() {
-  if (paymentPolling || !trackingResult.value?.id) return;
-  paymentPolling = setInterval(async () => {
-    try {
-      const result = await orderStore.trackOrder(orderCode.value);
-      if (!result) return;
-       trackingResult.value = result;
-       if (result.checkoutUrl && result.paymentStatus === 'UNPAID') {
-         window.location.assign(result.checkoutUrl);
-         return;
-       }
-       if (result.paymentStatus === 'PAID' || result.status === 'CANCELLED') {
-        clearInterval(paymentPolling);
-        paymentPolling = null;
-      }
-    } catch {}
-  }, 5000);
-}
-
-onMounted(async () => {
+onMounted(() => {
   const code = route.query.code;
-  if (code) {
-    orderCode.value = code;
-    await track();
-    startPaymentPolling();
-  }
-});
-
-onUnmounted(() => {
-  if (paymentPolling) clearInterval(paymentPolling);
+  if (code) orderCode.value = code;
 });
 </script>
 
@@ -77,17 +52,26 @@ onUnmounted(() => {
         <p>Nhập mã đơn hàng để kiểm tra tình trạng</p>
       </div>
       <div class="track-search card" style="max-width: 500px; margin: 0 auto">
-        <div class="search-box" style="display: flex; gap: 8px">
+        <div class="search-box" style="display: flex; flex-direction: column; gap: 8px">
           <input
             v-model="orderCode"
             type="text"
             class="form-input"
             placeholder="VD: FG-20240201-001"
             @keyup.enter="track"
-            style="flex: 1"
+          />
+          <input
+            v-model="phoneSuffix"
+            type="text"
+            inputmode="numeric"
+            pattern="\d{4}"
+            class="form-input"
+            maxlength="4"
+            placeholder="4 chữ số cuối SĐT (VD: 1234)"
+            @keyup.enter="track"
           />
           <button class="btn btn-primary" @click="track">
-            <i class="bi bi-search"></i>
+            <i class="bi bi-search"></i> Tra cứu
           </button>
         </div>
       </div>

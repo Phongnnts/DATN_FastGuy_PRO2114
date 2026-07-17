@@ -25,6 +25,21 @@ if col_length('Orders', 'payos_payment_link_id') is null alter table Orders add 
 if col_length('Orders', 'payos_checkout_url') is null alter table Orders add payos_checkout_url varchar(500) null;
 go
 
+if object_id('PasswordResetToken', 'U') is null
+begin
+    create table PasswordResetToken (
+        reset_token_id int identity primary key,
+        user_id int not null references Users(user_id),
+        token_hash varchar(64) not null unique,
+        expires_at datetime2 not null,
+        used_at datetime2 null,
+        created_at datetime2 not null default getdate()
+    );
+end;
+if not exists (select 1 from sys.indexes where name = 'IX_PasswordResetToken_User' and object_id = object_id('PasswordResetToken'))
+    create index IX_PasswordResetToken_User on PasswordResetToken(user_id);
+go
+
 if object_id('ProductModifierGroup', 'U') is null
 begin
     create table ProductModifierGroup (
