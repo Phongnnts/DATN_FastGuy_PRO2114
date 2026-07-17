@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import utils.AddressValidator;
+
 @WebServlet("/api/user/addresses/*")
 public class AddressServlet extends HttpServlet {
     private AddressDAO addressDAO = new AddressDAO();
@@ -78,6 +80,12 @@ public class AddressServlet extends HttpServlet {
             return;
         }
 
+        String validationError = AddressValidator.validate(body);
+        if (validationError != null) {
+            ApiResponse.error(resp, validationError, 400);
+            return;
+        }
+
         User user = userDAO.findById(userId);
         if (user == null) {
             ApiResponse.error(resp, "User not found", 404);
@@ -86,14 +94,14 @@ public class AddressServlet extends HttpServlet {
 
         Address address = new Address();
         address.setUser(user);
-        address.setRecipientName((String) body.get("recipientName"));
-        address.setPhone((String) body.get("phone"));
-        address.setStreet((String) body.get("street"));
-        address.setWardName((String) body.get("wardName"));
-        address.setDistrictName((String) body.get("districtName"));
-        address.setProvinceName((String) body.get("provinceName"));
-        if (body.containsKey("ghnProvinceId")) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
-        if (body.containsKey("ghnDistrictId")) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
+        address.setRecipientName(((String) body.get("recipientName")).trim());
+        address.setPhone(((String) body.get("phone")).trim());
+        address.setStreet(((String) body.get("street")).trim());
+        address.setWardName(((String) body.get("wardName")).trim());
+        address.setDistrictName(((String) body.get("districtName")).trim());
+        address.setProvinceName(((String) body.get("provinceName")).trim());
+        if (body.containsKey("ghnProvinceId") && body.get("ghnProvinceId") instanceof Number) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
+        if (body.containsKey("ghnDistrictId") && body.get("ghnDistrictId") instanceof Number) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
         if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
         address.setCity((String) body.getOrDefault("city", "Hồ Chí Minh"));
 
@@ -146,25 +154,31 @@ public class AddressServlet extends HttpServlet {
                 return;
             }
 
+            String validationError = AddressValidator.validate(body);
+            if (validationError != null) {
+                ApiResponse.error(resp, validationError, 400);
+                return;
+            }
+
             Address address = addressDAO.findById(addressId);
             if (address == null || address.getUser().getUserId() != userId) {
                 ApiResponse.error(resp, "Address not found", 404);
                 return;
             }
 
-            if (body.containsKey("recipientName")) address.setRecipientName((String) body.get("recipientName"));
-            if (body.containsKey("phone")) address.setPhone((String) body.get("phone"));
-            if (body.containsKey("street")) address.setStreet((String) body.get("street"));
-            if (body.containsKey("wardName")) address.setWardName((String) body.get("wardName"));
-            if (body.containsKey("districtName")) address.setDistrictName((String) body.get("districtName"));
-            if (body.containsKey("provinceName")) address.setProvinceName((String) body.get("provinceName"));
-            if (body.containsKey("ghnProvinceId")) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
-            if (body.containsKey("ghnDistrictId")) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
+            if (body.containsKey("recipientName")) address.setRecipientName(((String) body.get("recipientName")).trim());
+            if (body.containsKey("phone")) address.setPhone(((String) body.get("phone")).trim());
+            if (body.containsKey("street")) address.setStreet(((String) body.get("street")).trim());
+            if (body.containsKey("wardName")) address.setWardName(((String) body.get("wardName")).trim());
+            if (body.containsKey("districtName")) address.setDistrictName(((String) body.get("districtName")).trim());
+            if (body.containsKey("provinceName")) address.setProvinceName(((String) body.get("provinceName")).trim());
+            if (body.containsKey("ghnProvinceId") && body.get("ghnProvinceId") instanceof Number) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
+            if (body.containsKey("ghnDistrictId") && body.get("ghnDistrictId") instanceof Number) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
             if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
             if (body.containsKey("city")) address.setCity((String) body.get("city"));
 
             if (body.containsKey("isDefault")) {
-                boolean isDefault = (Boolean) body.get("isDefault");
+                boolean isDefault = body.get("isDefault") instanceof Boolean && (Boolean) body.get("isDefault");
                 if (isDefault) {
                     addressDAO.resetDefaultForUser(userId);
                 }
