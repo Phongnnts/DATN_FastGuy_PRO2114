@@ -143,20 +143,58 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
    async function createModifierGroup(productId, data) {
-     return adminApi.createModifierGroup(productId, data);
-   }
+      const result = await adminApi.createModifierGroup(productId, data);
+      await fetchProducts();
+      return result;
+    }
 
-   async function createModifierOption(groupId, data) {
-     return adminApi.createModifierOption(groupId, data);
-   }
+    async function createModifierOption(groupId, data) {
+      const result = await adminApi.createModifierOption(groupId, data);
+      await fetchProducts();
+      return result;
+    }
 
-   async function saveCombo(productId, data) {
-     return adminApi.saveCombo(productId, data);
-   }
+    async function updateModifierGroup(groupId, data) {
+      await adminApi.updateModifierGroup(groupId, data);
+      await fetchProducts();
+    }
 
-   async function createComboItem(productId, data) {
-     return adminApi.createComboItem(productId, data);
-   }
+    async function deleteModifierGroup(groupId) {
+      await adminApi.deleteModifierGroup(groupId);
+      await fetchProducts();
+    }
+
+    async function updateModifierOption(groupId, optionId, data) {
+      await adminApi.updateModifierOption(groupId, optionId, data);
+      await fetchProducts();
+    }
+
+    async function deleteModifierOption(groupId, optionId) {
+      await adminApi.deleteModifierOption(groupId, optionId);
+      await fetchProducts();
+    }
+
+    async function saveCombo(productId, data) {
+      const result = await adminApi.saveCombo(productId, data);
+      await fetchProducts();
+      return result;
+    }
+
+    async function updateCombo(productId, data) {
+      await adminApi.updateCombo(productId, data);
+      await fetchProducts();
+    }
+
+    async function createComboItem(productId, data) {
+      const result = await adminApi.createComboItem(productId, data);
+      await fetchProducts();
+      return result;
+    }
+
+    async function deleteComboItem(productId, itemId) {
+      await adminApi.deleteComboItem(productId, itemId);
+      await fetchProducts();
+    }
 
   async function createCategory(data) {
     const res = await adminApi.createCategory(data);
@@ -213,10 +251,16 @@ export const useAdminStore = defineStore('admin', () => {
     createVariant,
     updateVariant,
      deleteVariant,
-     createModifierGroup,
-     createModifierOption,
-     saveCombo,
-     createComboItem,
+      createModifierGroup,
+      createModifierOption,
+      updateModifierGroup,
+      deleteModifierGroup,
+      updateModifierOption,
+      deleteModifierOption,
+      saveCombo,
+      updateCombo,
+      createComboItem,
+      deleteComboItem,
      createCategory,
     updateCategory,
     deleteCategory,
