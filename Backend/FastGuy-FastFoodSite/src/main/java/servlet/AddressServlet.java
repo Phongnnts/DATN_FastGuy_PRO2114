@@ -2,13 +2,13 @@ package servlet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dao.AddressDAO;
-import dao.UserDAO;
 import entity.Address;
-import entity.User;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.AddressService;
+import utils.AddressValidator;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
@@ -19,12 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import utils.AddressValidator;
-
 @WebServlet("/api/user/addresses/*")
 public class AddressServlet extends HttpServlet {
     private AddressDAO addressDAO = new AddressDAO();
-    private UserDAO userDAO = new UserDAO();
+    private AddressService addressService = new AddressService();
     private ObjectMapper objectMapper = new ObjectMapper();
 
     private int getUserId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -33,11 +31,8 @@ public class AddressServlet extends HttpServlet {
             ApiResponse.error(resp, "Missing token", 401);
             return -1;
         }
-        String token = authHeader.substring(7);
-        int userId = JwtUtil.getUserId(token);
-        if (userId < 0) {
-            ApiResponse.error(resp, "Invalid token", 401);
-        }
+        int userId = JwtUtil.getUserId(authHeader.substring(7));
+        if (userId < 0) ApiResponse.error(resp, "Invalid token", 401);
         return userId;
     }
 
@@ -46,25 +41,21 @@ public class AddressServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
-
         String path = req.getPathInfo();
-
         if (path == null || path.equals("/")) {
-            List<Address> addresses = addressDAO.findByUserId(userId);
-            List<Map<String, Object>> result = addresses.stream().map(this::toMap).collect(Collectors.toList());
+            List<Map<String, Object>> result = addressDAO.findByUserId(userId).stream().map(this::toMap).collect(Collectors.toList());
             ApiResponse.ok(resp, result);
-        } else {
-            try {
-                int addressId = Integer.parseInt(path.substring(1));
-                Address address = addressDAO.findById(addressId);
-                if (address == null || address.getUser().getUserId() != userId) {
-                    ApiResponse.error(resp, "Address not found", 404);
-                    return;
-                }
-                ApiResponse.ok(resp, toMap(address));
-            } catch (NumberFormatException e) {
-                resp.sendError(404);
+            return;
+        }
+        try {
+            Address address = addressDAO.findById(Integer.parseInt(path.substring(1)));
+            if (address == null || address.getUser().getUserId() != userId) {
+                ApiResponse.error(resp, "Address not found", 404);
+                return;
             }
+            ApiResponse.ok(resp, toMap(address));
+        } catch (NumberFormatException e) {
+            resp.sendError(404);
         }
     }
 
@@ -73,49 +64,20 @@ public class AddressServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
-
         Map<String, Object> body = objectMapper.readValue(req.getReader(), Map.class);
-        if (body == null) {
-            ApiResponse.error(resp, "Invalid data", 400);
-            return;
-        }
-
         String validationError = AddressValidator.validate(body);
         if (validationError != null) {
             ApiResponse.error(resp, validationError, 400);
             return;
         }
-
-        User user = userDAO.findById(userId);
-        if (user == null) {
-            ApiResponse.error(resp, "User not found", 404);
-            return;
-        }
-
-        Address address = new Address();
-        address.setUser(user);
-        address.setRecipientName(((String) body.get("recipientName")).trim());
-        address.setPhone(((String) body.get("phone")).trim());
-        address.setStreet(((String) body.get("street")).trim());
-        address.setWardName(((String) body.get("wardName")).trim());
-        address.setDistrictName(((String) body.get("districtName")).trim());
-        address.setProvinceName(((String) body.get("provinceName")).trim());
-        if (body.containsKey("ghnProvinceId") && body.get("ghnProvinceId") instanceof Number) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
-        if (body.containsKey("ghnDistrictId") && body.get("ghnDistrictId") instanceof Number) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
-        if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
-        address.setCity((String) body.getOrDefault("city", "Hồ Chí Minh"));
-
-        boolean isDefault = body.get("isDefault") instanceof Boolean && (Boolean) body.get("isDefault");
-        if (isDefault) {
-            addressDAO.resetDefaultForUser(userId);
-        }
-        address.setIsDefault(isDefault);
+        Address address = toAddress(body);
+        address.setIsDefault(body.get("isDefault") instanceof Boolean && (Boolean) body.get("isDefault"));
         address.setCreatedAt(LocalDateTime.now());
-
-        addressDAO.save(address);
-
-        Map<String, Object> result = toMap(address);
-        ApiResponse.ok(resp, result, "Address created");
+        try {
+            ApiResponse.ok(resp, toMap(addressService.create(userId, address)), "Address created");
+        } catch (RuntimeException e) {
+            ApiResponse.error(resp, "Could not save address", 500);
+        }
     }
 
     @Override
@@ -123,70 +85,43 @@ public class AddressServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
-
         String path = req.getPathInfo();
         if (path == null || path.equals("/")) {
             resp.sendError(404);
             return;
         }
-
         String[] parts = path.split("/");
-
         try {
             int addressId = Integer.parseInt(parts[1]);
-
             if (parts.length >= 3 && "default".equals(parts[2])) {
-                Address address = addressDAO.findById(addressId);
-                if (address == null || address.getUser().getUserId() != userId) {
+                try {
+                    addressService.setDefault(userId, addressId);
+                    ApiResponse.ok(resp, null, "Default address updated");
+                } catch (IllegalArgumentException e) {
                     ApiResponse.error(resp, "Address not found", 404);
-                    return;
+                } catch (RuntimeException e) {
+                    ApiResponse.error(resp, "Could not update default address", 500);
                 }
-                addressDAO.resetDefaultForUser(userId);
-                address.setIsDefault(true);
-                addressDAO.save(address);
-                ApiResponse.ok(resp, null, "Default address updated");
                 return;
             }
-
             Map<String, Object> body = objectMapper.readValue(req.getReader(), Map.class);
-            if (body == null) {
-                ApiResponse.error(resp, "Invalid data", 400);
-                return;
-            }
-
             String validationError = AddressValidator.validate(body);
             if (validationError != null) {
                 ApiResponse.error(resp, validationError, 400);
                 return;
             }
-
-            Address address = addressDAO.findById(addressId);
-            if (address == null || address.getUser().getUserId() != userId) {
-                ApiResponse.error(resp, "Address not found", 404);
+            Boolean isDefault = body.containsKey("isDefault") && body.get("isDefault") instanceof Boolean ? (Boolean) body.get("isDefault") : null;
+            if (body.containsKey("isDefault") && isDefault == null) {
+                ApiResponse.error(resp, "Default address flag is invalid", 400);
                 return;
             }
-
-            if (body.containsKey("recipientName")) address.setRecipientName(((String) body.get("recipientName")).trim());
-            if (body.containsKey("phone")) address.setPhone(((String) body.get("phone")).trim());
-            if (body.containsKey("street")) address.setStreet(((String) body.get("street")).trim());
-            if (body.containsKey("wardName")) address.setWardName(((String) body.get("wardName")).trim());
-            if (body.containsKey("districtName")) address.setDistrictName(((String) body.get("districtName")).trim());
-            if (body.containsKey("provinceName")) address.setProvinceName(((String) body.get("provinceName")).trim());
-            if (body.containsKey("ghnProvinceId") && body.get("ghnProvinceId") instanceof Number) address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
-            if (body.containsKey("ghnDistrictId") && body.get("ghnDistrictId") instanceof Number) address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
-            if (body.containsKey("ghnWardCode")) address.setGhnWardCode((String) body.get("ghnWardCode"));
-            if (body.containsKey("city")) address.setCity((String) body.get("city"));
-
-            if (body.containsKey("isDefault")) {
-                boolean isDefault = body.get("isDefault") instanceof Boolean && (Boolean) body.get("isDefault");
-                if (isDefault) {
-                    addressDAO.resetDefaultForUser(userId);
-                }
-                address.setIsDefault(isDefault);
+            try {
+                ApiResponse.ok(resp, toMap(addressService.update(userId, addressId, toAddress(body), isDefault)), "Address updated");
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, "Address not found", 404);
+            } catch (RuntimeException e) {
+                ApiResponse.error(resp, "Could not save address", 500);
             }
-
-            addressDAO.save(address);
-            ApiResponse.ok(resp, toMap(address), "Address updated");
         } catch (NumberFormatException e) {
             resp.sendError(404);
         }
@@ -197,13 +132,11 @@ public class AddressServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
-
         String path = req.getPathInfo();
         if (path == null || path.equals("/")) {
             resp.sendError(404);
             return;
         }
-
         try {
             int addressId = Integer.parseInt(path.substring(1));
             Address address = addressDAO.findById(addressId);
@@ -218,26 +151,41 @@ public class AddressServlet extends HttpServlet {
         }
     }
 
-    private Map<String, Object> toMap(Address a) {
-        Map<String, Object> m = new HashMap<>();
-        m.put("addressId", a.getAddressId());
-        m.put("recipientName", a.getRecipientName());
-        m.put("phone", a.getPhone());
-        m.put("street", a.getStreet());
-        m.put("wardName", a.getWardName());
-        m.put("districtName", a.getDistrictName());
-        m.put("provinceName", a.getProvinceName());
-        m.put("ghnProvinceId", a.getGhnProvinceId());
-        m.put("ghnDistrictId", a.getGhnDistrictId());
-        m.put("ghnWardCode", a.getGhnWardCode());
-        m.put("city", a.getCity());
-        m.put("isDefault", a.getIsDefault());
-        m.put("createdAt", a.getCreatedAt() != null ? a.getCreatedAt().toString() : null);
-        return m;
+    private Address toAddress(Map<String, Object> body) {
+        Address address = new Address();
+        address.setRecipientName(((String) body.get("recipientName")).trim());
+        address.setPhone(((String) body.get("phone")).trim());
+        address.setStreet(((String) body.get("street")).trim());
+        address.setWardName(((String) body.get("wardName")).trim());
+        address.setDistrictName(((String) body.get("districtName")).trim());
+        address.setProvinceName(((String) body.get("provinceName")).trim());
+        address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
+        address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
+        address.setGhnWardCode(((String) body.get("ghnWardCode")).trim());
+        address.setCity(body.get("city") instanceof String ? (String) body.get("city") : "Hồ Chí Minh");
+        return address;
+    }
+
+    private Map<String, Object> toMap(Address address) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("addressId", address.getAddressId());
+        result.put("recipientName", address.getRecipientName());
+        result.put("phone", address.getPhone());
+        result.put("street", address.getStreet());
+        result.put("wardName", address.getWardName());
+        result.put("districtName", address.getDistrictName());
+        result.put("provinceName", address.getProvinceName());
+        result.put("ghnProvinceId", address.getGhnProvinceId());
+        result.put("ghnDistrictId", address.getGhnDistrictId());
+        result.put("ghnWardCode", address.getGhnWardCode());
+        result.put("city", address.getCity());
+        result.put("isDefault", address.getIsDefault());
+        result.put("createdAt", address.getCreatedAt() != null ? address.getCreatedAt().toString() : null);
+        return result;
     }
 
     @Override
-    protected void doOptions(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doOptions(HttpServletRequest req, HttpServletResponse resp) {
         resp.setHeader("Access-Control-Allow-Origin", "*");
         resp.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");

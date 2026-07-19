@@ -32,6 +32,16 @@ public class AddressValidator {
         if (provinceName.isEmpty()) {
             return "Tinh/thanh pho khong duoc de trong";
         }
+        if (!(body.get("ghnProvinceId") instanceof Number) || ((Number) body.get("ghnProvinceId")).intValue() <= 0) {
+            return "Tinh/thanh pho GHN khong hop le";
+        }
+        if (!(body.get("ghnDistrictId") instanceof Number) || ((Number) body.get("ghnDistrictId")).intValue() <= 0) {
+            return "Quan/huyen GHN khong hop le";
+        }
+        String wardCode = body.get("ghnWardCode") instanceof String ? ((String) body.get("ghnWardCode")).trim() : "";
+        if (wardCode.isEmpty() || wardCode.length() > 20) {
+            return "Phuong/xa GHN khong hop le";
+        }
         return null;
     }
 }

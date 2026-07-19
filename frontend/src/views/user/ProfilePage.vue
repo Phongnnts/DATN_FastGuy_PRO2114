@@ -45,6 +45,7 @@ const selectedWard = ref(null);
 const loadingProvinces = ref(false);
 const loadingDistricts = ref(false);
 const loadingWards = ref(false);
+let pendingDistrictId = null;
 let pendingWardCode = null;
 
 onMounted(async () => {
@@ -90,6 +91,10 @@ watch(selectedProvince, async (id) => {
       id: d.DistrictID || d.district_id || d.districtId,
       name: d.DistrictName || d.district_name || d.districtName,
     }));
+    if (pendingDistrictId && districts.value.some(d => d.id === pendingDistrictId)) {
+      selectedDistrict.value = pendingDistrictId;
+    }
+    pendingDistrictId = null;
   } catch {
     districts.value = [];
   } finally {
@@ -175,6 +180,7 @@ function openAddAddress() {
   selectedProvince.value = null;
   selectedDistrict.value = null;
   selectedWard.value = null;
+  pendingDistrictId = null;
   pendingWardCode = null;
   showAddressForm.value = true;
 }
@@ -193,15 +199,10 @@ function openEditAddress(addr) {
     ghnWardCode: addr.ghnWardCode || null,
     isDefault: addr.isDefault || false,
   };
+  pendingDistrictId = addr.ghnDistrictId || null;
+  pendingWardCode = addr.ghnWardCode || null;
+  selectedProvince.value = addr.ghnProvinceId || null;
   showAddressForm.value = true;
-  if (addr.ghnDistrictId) {
-    const prov = provinces.value.find(p => p.name?.includes(addr.provinceName));
-    if (prov) {
-      selectedProvince.value = prov.id;
-      pendingWardCode = addr.ghnWardCode || null;
-      selectedDistrict.value = addr.ghnDistrictId;
-    }
-  }
 }
 
 async function saveAddress() {

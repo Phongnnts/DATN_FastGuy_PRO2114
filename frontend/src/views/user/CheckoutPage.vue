@@ -50,6 +50,7 @@ const shippingFee = ref(null);
 const feeLoading = ref(false);
 const expectedDelivery = ref('');
 const createdOrderId = ref(null);
+let pendingDistrictId = null;
 let pendingWardCode = null;
 
 const serviceFee = computed(() => Number(storeConfig.value?.serviceFee) || 0);
@@ -70,9 +71,10 @@ onMounted(async () => {
       id: p.ProvinceID || p.province_id || p.provinceId,
       name: p.ProvinceName || p.province_name || p.provinceName,
     }));
-    // FastGuy only delivers within Ho Chi Minh City.
-    const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
-    if (hcm) selectedProvince.value = hcm.id;
+    if (isGuest.value) {
+      const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
+      if (hcm) selectedProvince.value = hcm.id;
+    }
 
     if (!isGuest.value) {
       const addrData = await userApi.getAddresses();
@@ -102,6 +104,10 @@ watch(selectedProvince, async (id) => {
       id: d.DistrictID || d.district_id || d.districtId,
       name: d.DistrictName || d.district_name || d.districtName,
     }));
+    if (pendingDistrictId && districts.value.some(d => d.id === pendingDistrictId)) {
+      selectedDistrict.value = pendingDistrictId;
+    }
+    pendingDistrictId = null;
   } catch {
     districts.value = [];
   }
@@ -158,10 +164,9 @@ function selectAddress(addr) {
   street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
-  if (addr.ghnDistrictId) {
-    pendingWardCode = addr.ghnWardCode || null;
-    selectedDistrict.value = addr.ghnDistrictId;
-  }
+  pendingDistrictId = addr.ghnDistrictId || null;
+  pendingWardCode = addr.ghnWardCode || null;
+  selectedProvince.value = addr.ghnProvinceId || null;
 }
 
 function useManualEntry() {

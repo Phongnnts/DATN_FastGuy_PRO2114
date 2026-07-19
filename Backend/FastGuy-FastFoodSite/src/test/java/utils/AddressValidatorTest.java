@@ -20,6 +20,9 @@ class AddressValidatorTest {
         body.put("wardName", "Ben Nghé");
         body.put("districtName", "Quan 1");
         body.put("provinceName", "TP. Ho Chi Minh");
+        body.put("ghnProvinceId", 202);
+        body.put("ghnDistrictId", 1442);
+        body.put("ghnWardCode", "20107");
         return body;
     }
 
@@ -139,5 +142,21 @@ class AddressValidatorTest {
         body.put("phone", "invalid");
         String error = AddressValidator.validate(body);
         assertEquals("Ten nguoi nhan phai tu 2 den 100 ky tu", error);
+    }
+
+    @Test
+    @DisplayName("Missing GHN location returns error")
+    void missingGhnLocation_returnsError() {
+        Map<String, Object> body = validBody();
+        body.remove("ghnDistrictId");
+        assertEquals("Quan/huyen GHN khong hop le", AddressValidator.validate(body));
+    }
+
+    @Test
+    @DisplayName("Invalid GHN ward type returns error")
+    void invalidGhnWardType_returnsError() {
+        Map<String, Object> body = validBody();
+        body.put("ghnWardCode", 20107);
+        assertEquals("Phuong/xa GHN khong hop le", AddressValidator.validate(body));
     }
 }
