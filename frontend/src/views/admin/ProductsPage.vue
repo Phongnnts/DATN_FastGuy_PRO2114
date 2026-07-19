@@ -213,9 +213,41 @@ async function addComboItem() {
   if (!editingId.value || !comboVariantId.value || Number(comboQuantity.value) < 1) return;
   await adminStore.saveCombo(editingId.value, { isActive: true });
   await adminStore.createComboItem(editingId.value, { variantId: comboVariantId.value, quantity: comboQuantity.value });
-  await adminStore.fetchProducts();
   comboVariantId.value = null;
   comboQuantity.value = 1;
+}
+
+async function saveModifierGroup(group) {
+  await adminStore.updateModifierGroup(group.modifierGroupId, {
+    name: group.name,
+    minSelections: group.minSelections,
+    maxSelections: group.maxSelections,
+    isActive: group.isActive,
+  });
+}
+
+async function deleteModifierGroup(group) {
+  await adminStore.deleteModifierGroup(group.modifierGroupId);
+}
+
+async function saveModifierOption(group, option) {
+  await adminStore.updateModifierOption(group.modifierGroupId, option.modifierOptionId, {
+    name: option.name,
+    price: option.price,
+    isActive: option.isActive,
+  });
+}
+
+async function deleteModifierOption(group, option) {
+  await adminStore.deleteModifierOption(group.modifierGroupId, option.modifierOptionId);
+}
+
+async function setComboActive(combo) {
+  await adminStore.updateCombo(editingId.value, { isActive: combo.isActive });
+}
+
+async function deleteComboItem(item) {
+  await adminStore.deleteComboItem(editingId.value, item.comboItemId);
 }
 
 async function remove(id) {
@@ -509,7 +541,24 @@ const filtered = computed(() => {
               <input v-model.number="modifierGroup.maxSelections" type="number" min="0" class="form-input" placeholder="Tối đa" style="flex: 1" />
               <button type="button" class="btn btn-sm btn-outline" @click="addModifierGroup">Thêm</button>
             </div>
-            <div class="option-row">
+            <div v-for="group in adminStore.allProducts.find(p => p.id === editingId)?.modifierGroups || []" :key="group.modifierGroupId" style="margin-top:8px; padding:8px; border:1px solid var(--border-light); border-radius:var(--radius-sm)">
+              <div class="option-row" style="border:none; padding:0; margin:0">
+                <input v-model="group.name" class="form-input" style="flex:2" />
+                <input v-model.number="group.minSelections" type="number" min="0" class="form-input" style="flex:1" />
+                <input v-model.number="group.maxSelections" type="number" min="0" class="form-input" style="flex:1" />
+                <label class="option-stock"><input type="checkbox" v-model="group.isActive" @change="saveModifierGroup(group)" /> Bật</label>
+                <button type="button" class="btn btn-sm btn-ghost" @click="saveModifierGroup(group)"><i class="bi bi-check-lg"></i></button>
+                <button type="button" class="btn btn-sm btn-ghost" style="color:var(--red-active)" @click="deleteModifierGroup(group)"><i class="bi bi-trash3"></i></button>
+              </div>
+              <div v-for="option in group.options || []" :key="option.modifierOptionId" class="option-row" style="margin-top:4px; border:none; padding:0 0 0 16px; margin:4px 0 0 0">
+                <input v-model="option.name" class="form-input" style="flex:2" />
+                <input v-model.number="option.price" type="number" min="0" class="form-input" style="flex:1" />
+                <label class="option-stock"><input type="checkbox" v-model="option.isActive" @change="saveModifierOption(group, option)" /> Bật</label>
+                <button type="button" class="btn btn-sm btn-ghost" @click="saveModifierOption(group, option)"><i class="bi bi-check-lg"></i></button>
+                <button type="button" class="btn btn-sm btn-ghost" style="color:var(--red-active)" @click="deleteModifierOption(group, option)"><i class="bi bi-trash3"></i></button>
+              </div>
+            </div>
+            <div class="option-row" style="margin-top:8px">
               <select v-model="modifierOption.groupId" class="form-select" style="flex: 1"><option :value="null">Chọn nhóm</option><option v-for="group in adminStore.allProducts.find(p => p.id === editingId)?.modifierGroups || []" :key="group.modifierGroupId" :value="group.modifierGroupId">{{ group.name }}</option></select>
               <input v-model="modifierOption.name" class="form-input" placeholder="Tên topping" style="flex: 2" />
               <input v-model.number="modifierOption.price" type="number" min="0" class="form-input" placeholder="Giá" style="flex: 1" />
@@ -523,6 +572,11 @@ const filtered = computed(() => {
               <select v-model="comboVariantId" class="form-select" style="flex: 2"><option :value="null">Chọn biến thể</option><option v-for="variant in comboVariants" :key="variant.variantId" :value="variant.variantId">{{ variant.label }}</option></select>
               <input v-model.number="comboQuantity" type="number" min="1" class="form-input" placeholder="SL" style="flex: 1" />
               <button type="button" class="btn btn-sm btn-outline" @click="addComboItem">Thêm</button>
+            </div>
+            <div v-for="item in adminStore.allProducts.find(p => p.id === editingId)?.combo?.items || []" :key="item.comboItemId" class="option-row" style="margin-top:4px">
+              <span style="flex:2; font-size:13px">{{ comboVariants.find(v => v.variantId === item.variantId)?.label || ('Variant #' + item.variantId) }}</span>
+              <span style="flex:1; font-size:13px">x{{ item.quantity }}</span>
+              <button type="button" class="btn btn-sm btn-ghost" style="color:var(--red-active)" @click="deleteComboItem(item)"><i class="bi bi-trash3"></i></button>
             </div>
           </div>
 

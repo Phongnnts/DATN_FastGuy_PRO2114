@@ -96,7 +96,7 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             BigDecimal result = em.createQuery(
-                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED'",
+                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID'",
                     BigDecimal.class)
                     .getSingleResult();
             return result != null ? result.doubleValue() : 0;
@@ -127,7 +127,7 @@ public class OrdersDAO {
             LocalDateTime start = LocalDate.now().atStartOfDay();
             LocalDateTime end = LocalDate.now().plusDays(1).atStartOfDay();
             BigDecimal result = em.createQuery(
-                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.createdAt BETWEEN :start AND :end",
+                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt BETWEEN :start AND :end",
                     BigDecimal.class)
                     .setParameter("start", start)
                     .setParameter("end", end)
@@ -142,9 +142,9 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             List<Object[]> rows = em.createNativeQuery(
-                    "SELECT MONTH(o.created_at) AS m, YEAR(o.created_at) AS y, SUM(o.final_amount) AS rev " +
-                    "FROM Orders o WHERE o.order_status = 'DELIVERED' " +
-                    "GROUP BY YEAR(o.created_at), MONTH(o.created_at) " +
+                    "SELECT MONTH(o.delivered_at) AS m, YEAR(o.delivered_at) AS y, SUM(o.final_amount) AS rev " +
+                    "FROM Orders o WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
+                    "GROUP BY YEAR(o.delivered_at), MONTH(o.delivered_at) " +
                     "ORDER BY y DESC, m DESC")
                     .getResultList();
             List<Map<String, Object>> result = new ArrayList<>();
@@ -167,6 +167,8 @@ public class OrdersDAO {
             Query query = em.createNativeQuery(
                     "SELECT TOP " + limit + " p.name, SUM(oi.quantity) AS sold " +
                     "FROM OrderItem oi JOIN Product p ON oi.product_id = p.product_id " +
+                    "JOIN Orders o ON oi.order_id = o.order_id " +
+                    "WHERE o.order_status = 'DELIVERED' " +
                     "GROUP BY p.name ORDER BY sold DESC");
             List<Object[]> rows = query.getResultList();
             List<Map<String, Object>> result = new ArrayList<>();
@@ -233,7 +235,7 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             BigDecimal result = em.createQuery(
-                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.createdAt BETWEEN :start AND :end",
+                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt BETWEEN :start AND :end",
                     BigDecimal.class)
                     .setParameter("start", start)
                     .setParameter("end", end)
@@ -248,7 +250,7 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT COUNT(o) FROM Orders o WHERE o.orderStatus = :status AND o.createdAt BETWEEN :start AND :end",
+                    "SELECT COUNT(o) FROM Orders o WHERE o.orderStatus = :status AND o.deliveredAt BETWEEN :start AND :end",
                     Long.class)
                     .setParameter("status", status)
                     .setParameter("start", start)
@@ -266,7 +268,7 @@ public class OrdersDAO {
                     "SELECT TOP " + limit + " p.name, SUM(oi.quantity) AS sold, SUM(oi.quantity * oi.unit_price) AS rev " +
                     "FROM OrderItem oi JOIN Product p ON oi.product_id = p.product_id " +
                     "JOIN Orders o ON oi.order_id = o.order_id " +
-                    "WHERE o.created_at BETWEEN :start AND :end AND o.order_status = 'DELIVERED' " +
+                    "WHERE o.delivered_at BETWEEN :start AND :end AND o.order_status = 'DELIVERED' " +
                     "GROUP BY p.name ORDER BY sold DESC")
                     .setParameter("start", java.sql.Timestamp.valueOf(start))
                     .setParameter("end", java.sql.Timestamp.valueOf(end))

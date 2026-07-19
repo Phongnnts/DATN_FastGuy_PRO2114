@@ -8,6 +8,9 @@ import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
 import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
+import { useToast } from '@/utils/toast';
+
+const toast = useToast();
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -47,6 +50,7 @@ const shippingFee = ref(null);
 const feeLoading = ref(false);
 const expectedDelivery = ref('');
 const createdOrderId = ref(null);
+let pendingDistrictId = null;
 let pendingWardCode = null;
 
 const serviceFee = computed(() => Number(storeConfig.value?.serviceFee) || 0);
@@ -67,9 +71,10 @@ onMounted(async () => {
       id: p.ProvinceID || p.province_id || p.provinceId,
       name: p.ProvinceName || p.province_name || p.provinceName,
     }));
-    // FastGuy only delivers within Ho Chi Minh City.
-    const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
-    if (hcm) selectedProvince.value = hcm.id;
+    if (isGuest.value) {
+      const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
+      if (hcm) selectedProvince.value = hcm.id;
+    }
 
     if (!isGuest.value) {
       const addrData = await userApi.getAddresses();
@@ -99,6 +104,10 @@ watch(selectedProvince, async (id) => {
       id: d.DistrictID || d.district_id || d.districtId,
       name: d.DistrictName || d.district_name || d.districtName,
     }));
+    if (pendingDistrictId && districts.value.some(d => d.id === pendingDistrictId)) {
+      selectedDistrict.value = pendingDistrictId;
+    }
+    pendingDistrictId = null;
   } catch {
     districts.value = [];
   }
@@ -155,10 +164,9 @@ function selectAddress(addr) {
   street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
-  if (addr.ghnDistrictId) {
-    pendingWardCode = addr.ghnWardCode || null;
-    selectedDistrict.value = addr.ghnDistrictId;
-  }
+  pendingDistrictId = addr.ghnDistrictId || null;
+  pendingWardCode = addr.ghnWardCode || null;
+  selectedProvince.value = addr.ghnProvinceId || null;
 }
 
 function useManualEntry() {
@@ -262,11 +270,11 @@ function selectClaimedCoupon(c) {
 }
 
 async function placeOrder() {
-  if (isStoreClosed.value) return alert('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
-  if (hasInvalidItems.value) return alert('Có món đã hết hàng hoặc vượt tồn kho, vui lòng cập nhật giỏ hàng');
-  if (!canPlaceOrder()) return alert('Vui lòng điền đầy đủ thông tin giao hàng');
+  if (isStoreClosed.value) return toast.error('Cua hang hien da dong cua. Vui long quay lai trong gio hoat dong');
+  if (hasInvalidItems.value) return toast.error('Co mon da het hang hoac vuot ton kho, vui long cap nhat gio hang');
+  if (!canPlaceOrder()) return toast.error('Vui long dien day du thong tin giao hang');
   const fullAddress = getFullAddress();
-  if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
+  if (!fullAddress) return toast.error('Vui long nhap dia chi');
   submitting.value = true;
   try {
     if (isGuest.value) {
@@ -322,7 +330,7 @@ async function placeOrder() {
     }
     router.push(`/account/orders/${createdOrderId.value}?created=1`);
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     submitting.value = false;
   }

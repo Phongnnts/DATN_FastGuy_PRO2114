@@ -133,6 +133,7 @@ public class AdminProductServlet extends HttpServlet {
 
     private BigDecimal readMoney(Map<String, Object> body, String key, BigDecimal fallback) {
         if (!body.containsKey(key) || body.get(key) == null) return fallback;
+        if (!(body.get(key) instanceof Number)) throw new IllegalArgumentException(key + " must be a number");
         BigDecimal value = BigDecimal.valueOf(((Number) body.get(key)).doubleValue());
         if (value.compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException(key + " must be >= 0");
         return value;
@@ -140,6 +141,7 @@ public class AdminProductServlet extends HttpServlet {
 
     private Integer readStock(Map<String, Object> body, String key, Integer fallback) {
         if (!body.containsKey(key) || body.get(key) == null) return fallback;
+        if (!(body.get(key) instanceof Number)) throw new IllegalArgumentException(key + " must be a number");
         int value = ((Number) body.get(key)).intValue();
         if (value < 0) throw new IllegalArgumentException("Tồn kho không được âm");
         return value;
@@ -325,6 +327,18 @@ public class AdminProductServlet extends HttpServlet {
         resp.sendError(404);
     }
 
+    private Integer readSelection(Map<String, Object> body, String key, Integer fallback) {
+        if (!body.containsKey(key)) return fallback;
+        if (!(body.get(key) instanceof Number)) throw new IllegalArgumentException(key + " must be a number");
+        return ((Number) body.get(key)).intValue();
+    }
+
+    private Boolean readActive(Map<String, Object> body, Boolean fallback) {
+        if (!body.containsKey("isActive")) return fallback;
+        if (!(body.get("isActive") instanceof Boolean)) throw new IllegalArgumentException("isActive must be a boolean");
+        return (Boolean) body.get("isActive");
+    }
+
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
@@ -333,6 +347,45 @@ public class AdminProductServlet extends HttpServlet {
         String[] segs = splitPath(req.getPathInfo());
         Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+
+        if (segs.length == 2 && "modifier-groups".equals(segs[1])) {
+            Integer groupId = parseId(segs[0]);
+            ProductModifierGroup group = groupId == null ? null : modifierDAO.group(groupId);
+            if (group == null) { ApiResponse.error(resp, "Modifier group not found", 404); return; }
+            try {
+                if (body.containsKey("name") && (!(body.get("name") instanceof String) || ((String) body.get("name")).isBlank())) throw new IllegalArgumentException("Invalid modifier group name");
+                if (body.containsKey("name")) group.setName(((String) body.get("name")).trim());
+                int min = readSelection(body, "minSelections", group.getMinSelections());
+                int max = readSelection(body, "maxSelections", group.getMaxSelections());
+                if (min < 0 || max < min) throw new IllegalArgumentException("Invalid selection limits");
+                group.setMinSelections(min); group.setMaxSelections(max); group.setIsActive(readActive(body, group.getIsActive()));
+                modifierDAO.save(group);
+                ApiResponse.ok(resp, modifierGroupMap(group), "Updated");
+            } catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
+            return;
+        }
+
+        if (segs.length == 4 && "modifier-groups".equals(segs[1]) && "options".equals(segs[2])) {
+            Integer groupId = parseId(segs[0]); Integer optionId = parseId(segs[3]);
+            ProductModifierOption option = optionId == null ? null : modifierDAO.option(optionId);
+            if (groupId == null || option == null || option.getGroup().getModifierGroupId() != groupId) { ApiResponse.error(resp, "Modifier option not found", 404); return; }
+            try {
+                if (body.containsKey("name") && (!(body.get("name") instanceof String) || ((String) body.get("name")).isBlank())) throw new IllegalArgumentException("Invalid modifier option name");
+                if (body.containsKey("name")) option.setName(((String) body.get("name")).trim());
+                option.setPrice(readMoney(body, "price", option.getPrice())); option.setIsActive(readActive(body, option.getIsActive()));
+                modifierDAO.save(option);
+                ApiResponse.ok(resp, option, "Updated");
+            } catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
+            return;
+        }
+
+        if (segs.length == 2 && "combo".equals(segs[1])) {
+            Integer productId = parseId(segs[0]); ProductCombo combo = productId == null ? null : modifierDAO.combo(productId);
+            if (combo == null) { ApiResponse.error(resp, "Combo not found", 404); return; }
+            try { combo.setIsActive(readActive(body, combo.getIsActive())); modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Updated"); }
+            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
+            return;
+        }
 
         if (segs.length == 1) {
             Integer id = parseId(segs[0]);
@@ -404,6 +457,33 @@ public class AdminProductServlet extends HttpServlet {
         if (!checkAdmin(req, resp)) return;
 
         String[] segs = splitPath(req.getPathInfo());
+
+        if (segs.length == 2 && "modifier-groups".equals(segs[0])) {
+            Integer groupId = parseId(segs[1]);
+            if (groupId == null || modifierDAO.group(groupId) == null) { ApiResponse.error(resp, "Modifier group not found", 404); return; }
+            modifierDAO.deleteGroup(groupId);
+            ApiResponse.ok(resp, null, "Deleted");
+            return;
+        }
+
+        if (segs.length == 4 && "modifier-groups".equals(segs[1]) && "options".equals(segs[2])) {
+            Integer groupId = parseId(segs[0]); Integer optionId = parseId(segs[3]);
+            ProductModifierOption option = optionId == null ? null : modifierDAO.option(optionId);
+            if (groupId == null || option == null || option.getGroup().getModifierGroupId() != groupId) { ApiResponse.error(resp, "Modifier option not found", 404); return; }
+            modifierDAO.deleteOption(optionId);
+            ApiResponse.ok(resp, null, "Deleted");
+            return;
+        }
+
+        if (segs.length == 4 && "combo".equals(segs[1]) && "items".equals(segs[2])) {
+            Integer productId = parseId(segs[0]); Integer itemId = parseId(segs[3]);
+            ProductCombo combo = productId == null ? null : modifierDAO.combo(productId);
+            ProductComboItem item = itemId == null ? null : modifierDAO.comboItem(itemId);
+            if (combo == null || item == null || item.getCombo().getComboId() != combo.getComboId()) { ApiResponse.error(resp, "Combo item not found", 404); return; }
+            modifierDAO.deleteComboItem(itemId);
+            ApiResponse.ok(resp, null, "Deleted");
+            return;
+        }
 
         if (segs.length == 1) {
             Integer id = parseId(segs[0]);

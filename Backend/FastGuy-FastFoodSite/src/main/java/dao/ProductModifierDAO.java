@@ -1,11 +1,13 @@
 package dao;
 
+import entity.OrderItemModifier;
 import entity.ProductCombo;
 import entity.ProductComboItem;
 import entity.ProductModifierGroup;
 import entity.ProductModifierOption;
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
+
 import java.util.List;
 
 public class ProductModifierDAO {
@@ -17,7 +19,40 @@ public class ProductModifierDAO {
     public List<ProductComboItem> comboItems(int comboId) { return query("SELECT i FROM ProductComboItem i WHERE i.combo.comboId = :id ORDER BY i.sortOrder, i.comboItemId", ProductComboItem.class, "id", comboId); }
     public ProductComboItem comboItem(int id) { return find(ProductComboItem.class, id); }
     public void save(Object entity) { transact(em -> { if (id(entity) == 0) em.persist(entity); else em.merge(entity); }); }
-    public void delete(Class<?> type, int id) { transact(em -> { Object value = em.find(type, id); if (value != null) em.remove(value); }); }
+    public void deleteComboItem(int id) { delete(ProductComboItem.class, id); }
+
+    public void deleteOption(int id) {
+        transact(em -> {
+            ProductModifierOption option = em.find(ProductModifierOption.class, id);
+            if (option == null) return;
+            if (isOptionReferenced(em, id)) option.setIsActive(false);
+            else em.remove(option);
+        });
+    }
+
+    public void deleteGroup(int id) {
+        transact(em -> {
+            ProductModifierGroup group = em.find(ProductModifierGroup.class, id);
+            if (group == null) return;
+            List<ProductModifierOption> options = em.createQuery("SELECT o FROM ProductModifierOption o WHERE o.group.modifierGroupId = :id", ProductModifierOption.class)
+                    .setParameter("id", id).getResultList();
+            boolean referenced = options.stream().anyMatch(option -> isOptionReferenced(em, option.getModifierOptionId()));
+            if (referenced) {
+                group.setIsActive(false);
+                options.forEach(option -> option.setIsActive(false));
+                return;
+            }
+            options.forEach(em::remove);
+            em.remove(group);
+        });
+    }
+
+    private boolean isOptionReferenced(EntityManager em, int optionId) {
+        return !em.createQuery("SELECT m FROM OrderItemModifier m WHERE m.option.modifierOptionId = :id", OrderItemModifier.class)
+                .setParameter("id", optionId).setMaxResults(1).getResultList().isEmpty();
+    }
+
+    private void delete(Class<?> type, int id) { transact(em -> { Object value = em.find(type, id); if (value != null) em.remove(value); }); }
     private <T> T find(Class<T> type, int id) { EntityManager em = DatabaseUtil.getEntityManager(); try { return em.find(type, id); } finally { em.close(); } }
     private <T> List<T> query(String jpql, Class<T> type, String key, int value) { EntityManager em = DatabaseUtil.getEntityManager(); try { return em.createQuery(jpql, type).setParameter(key, value).getResultList(); } finally { em.close(); } }
     private int id(Object entity) { if (entity instanceof ProductModifierGroup x) return x.getModifierGroupId(); if (entity instanceof ProductModifierOption x) return x.getModifierOptionId(); if (entity instanceof ProductCombo x) return x.getComboId(); return ((ProductComboItem) entity).getComboItemId(); }
