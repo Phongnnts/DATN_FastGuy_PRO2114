@@ -14,8 +14,16 @@ public class ClaimedCoupon {
     @Column(name = "coupon_id")
     private int couponId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "coupon_id", insertable = false, updatable = false)
+    private Coupon coupon;
+
     @Column(name = "user_id")
     private int userId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
+    private User user;
 
     @Column(name = "claimed_at")
     private LocalDateTime claimedAt;
@@ -29,8 +37,10 @@ public class ClaimedCoupon {
     public void setClaimedId(int claimedId) { this.claimedId = claimedId; }
     public int getCouponId() { return couponId; }
     public void setCouponId(int couponId) { this.couponId = couponId; }
+    public Coupon getCoupon() { return coupon; }
     public int getUserId() { return userId; }
     public void setUserId(int userId) { this.userId = userId; }
+    public User getUser() { return user; }
     public LocalDateTime getClaimedAt() { return claimedAt; }
     public void setClaimedAt(LocalDateTime claimedAt) { this.claimedAt = claimedAt; }
     public LocalDateTime getUsedAt() { return usedAt; }

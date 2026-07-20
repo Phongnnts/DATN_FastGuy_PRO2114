@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
@@ -80,19 +82,19 @@ public class Orders {
     @Column(name = "shipping_provider")
     private String shippingProvider;
 
-    @Column(name = "shipping_service_id")
+    @Transient
     private Integer shippingServiceId;
 
-    @Column(name = "shipping_service_type_id")
+    @Transient
     private Integer shippingServiceTypeId;
 
-    @Column(name = "expected_delivery_time")
+    @Transient
     private LocalDateTime expectedDeliveryTime;
 
-    @Column(name = "ghn_order_code")
+    @Transient
     private String ghnOrderCode;
 
-    @Column(name = "ghn_tracking_url")
+    @Transient
     private String ghnTrackingUrl;
 
     @Transient
@@ -180,6 +182,15 @@ public class Orders {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate
+    void preUpdate() { updatedAt = LocalDateTime.now(); }
 
     public Orders() {}
 

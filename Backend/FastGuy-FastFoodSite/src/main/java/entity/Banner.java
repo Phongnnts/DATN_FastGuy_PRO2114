@@ -32,6 +32,15 @@ public class Banner {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate
+    void preUpdate() { updatedAt = LocalDateTime.now(); }
+
     public Banner() {}
 
     public int getBannerId() { return bannerId; }

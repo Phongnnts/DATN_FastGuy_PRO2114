@@ -9,6 +9,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 @Entity
@@ -49,8 +51,17 @@ public class SupportTicket {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate
+    void preUpdate() { updatedAt = LocalDateTime.now(); }
 
     public int getTicketId() { return ticketId; }
     public void setTicketId(int ticketId) { this.ticketId = ticketId; }
