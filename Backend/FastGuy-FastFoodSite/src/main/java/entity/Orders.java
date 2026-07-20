@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "Orders")
@@ -94,13 +95,13 @@ public class Orders {
     @Column(name = "ghn_tracking_url")
     private String ghnTrackingUrl;
 
-    @Column(name = "ghn_status")
+    @Transient
     private String ghnStatus;
 
-    @Column(name = "from_district_id")
+    @Transient
     private Integer fromDistrictId;
 
-    @Column(name = "from_ward_code")
+    @Transient
     private String fromWardCode;
 
     @Column(name = "payment_method")

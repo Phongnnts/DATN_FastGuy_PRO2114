@@ -3,6 +3,8 @@ package service;
 import dao.CartDAO;
 import dao.ProductDAO;
 import dao.ProductModifierDAO;
+import entity.CartItemModifier;
+import entity.ProductModifierOption;
 import entity.Cart;
 import entity.CartItem;
 import entity.Product;
@@ -55,11 +57,14 @@ public class CartService {
             m.put("variantStatus", ci.getVariant() != null ? ci.getVariant().getStatus() : "UNAVAILABLE");
             m.put("productStatus", ci.getProduct().getStatus());
             List<Map<String, Object>> modifiers = new ArrayList<>();
-            String selected = ci.getSelectedModifierOptionIds();
-            if (selected != null && !selected.isBlank()) for (String id : selected.split(",")) try {
-                var option = modifierDAO.option(Integer.parseInt(id));
-                if (option != null) modifiers.add(Map.of("modifierOptionId", option.getModifierOptionId(), "groupName", option.getGroup().getName(), "name", option.getName(), "price", option.getPrice()));
-            } catch (NumberFormatException ignored) {}
+            if (ci.getModifiers() != null) {
+                for (var mod : ci.getModifiers()) {
+                    var option = mod.getModifierOption();
+                    if (option != null && option.getGroup() != null) {
+                        modifiers.add(Map.of("modifierOptionId", option.getModifierOptionId(), "groupName", option.getGroup().getName(), "name", option.getName(), "price", option.getPrice()));
+                    }
+                }
+            }
             m.put("modifiers", modifiers);
             return m;
         }).collect(Collectors.toList());
@@ -99,7 +104,7 @@ public class CartService {
         CartItem existing = items.stream()
                 .filter(ci -> ci.getProduct().getProductId() == productId
                         && (ci.getVariant() != null && ci.getVariant().getVariantId() == variantId)
-                        && modifierKey.equals(ci.getSelectedModifierOptionIds() == null ? "" : ci.getSelectedModifierOptionIds()))
+                        && modifierKey.equals(getModifierKey(ci)))
                 .findFirst().orElse(null);
 
         int newQty = quantity;
@@ -120,11 +125,24 @@ public class CartService {
             item.setVariant(variant);
             item.setQuantity(quantity);
             item.setUnitPrice((variant.getPrice() != null ? variant.getPrice() : product.getBasePrice()).add(modifierPrice));
-            item.setSelectedModifierOptionIds(modifierKey);
             item.setCreatedAt(LocalDateTime.now());
+            for (Integer optionId : optionIds) {
+                ProductModifierOption option = modifierDAO.option(optionId);
+                if (option != null) {
+                    item.addModifier(new CartItemModifier(item, option));
+                }
+            }
             cartDAO.addItem(item);
         }
         return true;
+    }
+
+    private String getModifierKey(CartItem ci) {
+        if (ci.getModifiers() == null || ci.getModifiers().isEmpty()) return "";
+        return ci.getModifiers().stream()
+                .map(m -> String.valueOf(m.getModifierOption().getModifierOptionId()))
+                .sorted()
+                .collect(Collectors.joining(","));
     }
 
     public boolean updateItemQuantity(int cartItemId, int userId, int quantity) {

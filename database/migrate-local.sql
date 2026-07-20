@@ -251,3 +251,39 @@ set order_status = 'CANCELLED', cancelled_at = getdate(), cancelled_by = 'SYSTEM
 where payment_method = 'BANK_TRANSFER' and payment_status = 'UNPAID' and order_status = 'PENDING'
   and (payos_checkout_url is null or payos_checkout_url = '');
 go
+
+-- P0: CartItemModifier normalization
+if not exists (select 1 from information_schema.tables where table_name = 'CartItemModifier')
+begin
+    create table CartItemModifier (
+        cart_item_modifier_id int identity(1,1) primary key,
+        cart_item_id int not null foreign key references CartItem(cart_item_id) on delete cascade,
+        modifier_option_id int not null foreign key references ProductModifierOption(modifier_option_id)
+    );
+    create index IX_CartItemModifier_Item on CartItemModifier(cart_item_id);
+
+    -- backfill existing CSV data
+    declare @cartItemId int, @optionIds nvarchar(500), @pos int, @val nvarchar(20);
+    declare cur cursor local fast_forward for
+        select cart_item_id, selected_modifier_option_ids
+        from CartItem where selected_modifier_option_ids is not null and selected_modifier_option_ids != '';
+    open cur;
+    fetch next from cur into @cartItemId, @optionIds;
+    while @@fetch_status = 0
+    begin
+        set @optionIds = @optionIds + ',';
+        while len(@optionIds) > 0
+        begin
+            set @pos = charindex(',', @optionIds);
+            set @val = left(@optionIds, @pos - 1);
+            set @optionIds = stuff(@optionIds, 1, @pos, '');
+            if isnumeric(@val) = 1
+                insert into CartItemModifier (cart_item_id, modifier_option_id)
+                values (@cartItemId, cast(@val as int));
+        end
+        fetch next from cur into @cartItemId, @optionIds;
+    end
+    close cur;
+    deallocate cur;
+end
+go

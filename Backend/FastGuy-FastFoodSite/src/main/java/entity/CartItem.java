@@ -3,14 +3,21 @@ package entity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "CartItem")
@@ -39,7 +46,11 @@ public class CartItem {
     private BigDecimal unitPrice;
 
     @Column(name = "selected_modifier_option_ids")
+    @Transient
     private String selectedModifierOptionIds;
+
+    @OneToMany(mappedBy = "cartItem", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<CartItemModifier> modifiers = new ArrayList<>();
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -62,4 +73,13 @@ public class CartItem {
     public void setSelectedModifierOptionIds(String selectedModifierOptionIds) { this.selectedModifierOptionIds = selectedModifierOptionIds; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public List<CartItemModifier> getModifiers() { return modifiers; }
+    public void setModifiers(List<CartItemModifier> modifiers) { this.modifiers = modifiers; }
+    public void addModifier(CartItemModifier modifier) {
+        modifiers.add(modifier);
+        modifier.setCartItem(this);
+    }
+    public void clearModifiers() {
+        modifiers.clear();
+    }
 }
