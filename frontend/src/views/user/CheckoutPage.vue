@@ -8,7 +8,7 @@ import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
 import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
-import { useToast } from '@/utils/toast';
+import { useToast } from '@/stores/toast';
 
 const toast = useToast();
 

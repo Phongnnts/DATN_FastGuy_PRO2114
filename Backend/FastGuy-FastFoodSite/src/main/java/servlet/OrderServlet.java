@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.OrderService;
+import service.OrderTransitionService;
 import service.PayOSPaymentService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -340,6 +341,9 @@ public class OrderServlet extends HttpServlet {
         }
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
+
+        OrderTransitionService transitionService = new OrderTransitionService();
+        data.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "USER", o.getPaymentStatus()));
 
         return data;
     }

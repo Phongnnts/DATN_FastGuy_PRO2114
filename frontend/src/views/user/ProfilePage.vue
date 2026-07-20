@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { userApi, loyaltyApi, shippingApi } from '@/api';
 import { formatDate } from '@/utils/format';
-import { useToast } from '@/utils/toast';
+import { useToast } from '@/stores/toast';
 
 const auth = useAuthStore();
 const toast = useToast();

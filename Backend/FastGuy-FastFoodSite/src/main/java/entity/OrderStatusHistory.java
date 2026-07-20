@@ -45,6 +45,18 @@ public class OrderStatusHistory {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    public OrderStatusHistory() {}
+
+    public OrderStatusHistory(int orderId, Integer actorUserId, String actorRole, String fromStatus, String toStatus, String note, LocalDateTime createdAt) {
+        this.orderId = orderId;
+        this.actorUserId = actorUserId;
+        this.actorRole = actorRole;
+        this.fromStatus = fromStatus;
+        this.toStatus = toStatus;
+        this.note = note;
+        this.createdAt = createdAt;
+    }
+
     public int getHistoryId() { return historyId; }
     public void setHistoryId(int historyId) { this.historyId = historyId; }
     public int getOrderId() { return orderId; }

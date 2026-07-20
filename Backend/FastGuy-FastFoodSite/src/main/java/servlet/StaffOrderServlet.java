@@ -15,6 +15,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.OrderTransitionService;
 import service.StaffOrderService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -338,6 +339,9 @@ public class StaffOrderServlet extends HttpServlet {
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         m.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
         m.put("internalNotes", new java.util.ArrayList<>());
+
+        OrderTransitionService transitionService = new OrderTransitionService();
+        m.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "STAFF", o.getPaymentStatus()));
 
         return m;
     }
