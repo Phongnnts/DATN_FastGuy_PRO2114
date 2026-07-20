@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { adminApi } from '@/api';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const form = ref({ business_open_time: '08:00', business_close_time: '22:00', service_fee: 0 });
 const loading = ref(true);
 const saving = ref(false);
@@ -17,7 +19,7 @@ async function load() {
       service_fee: Number(data.service_fee || 0),
     };
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     loading.value = false;
   }
@@ -30,7 +32,7 @@ async function save() {
     success.value = 'Đã lưu cài đặt';
     setTimeout(() => (success.value = ''), 3000);
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     saving.value = false;
   }

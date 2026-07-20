@@ -3,7 +3,9 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useShipperStore } from '@/stores/shipper';
 import { formatPrice, formatDate } from '@/utils/format';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 const shipperStore = useShipperStore();
@@ -32,7 +34,7 @@ async function pickUp() {
     await shipperStore.pickUpOrder(order.value.id);
     order.value.status = 'PICKED_UP';
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   }
 }
 
@@ -47,7 +49,7 @@ async function deliver() {
       order.value.paymentStatus = 'PAID';
     }
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   }
 }
 
@@ -62,7 +64,7 @@ async function confirmCancel() {
     order.value.status = 'CANCELLED';
     showCancelModal.value = false;
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   }
 }
 

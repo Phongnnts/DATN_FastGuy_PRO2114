@@ -8,7 +8,9 @@ import StarRating from '@/components/common/StarRating.vue'
 import { orderApi, reviewApi } from '@/api'
 import { useCartStore } from '@/stores/cart'
 import { useProductStore } from '@/stores/product'
+import { useToast } from '@/stores/toast'
 
+const toast = useToast()
 const route = useRoute()
 const router = useRouter()
 const cart = useCartStore()
@@ -118,7 +120,7 @@ async function submitReview() {
     await loadReview(order.value.id)
     showReviewForm.value = false
   } catch (e) {
-    alert(e.message || 'Không thể gửi đánh giá')
+    toast.error(e.message || 'Không thể gửi đánh giá')
   } finally {
     submitting.value = false
   }
@@ -143,7 +145,7 @@ async function reorder() {
         unavailable.push(item.productName)
       }
     }
-    if (unavailable.length) alert(`Không thể thêm: ${unavailable.join(', ')}`)
+    if (unavailable.length) toast.error(`Không thể thêm: ${unavailable.join(', ')}`)
     if (unavailable.length < order.value.items.length) router.push('/cart')
   } finally {
     reordering.value = false
@@ -165,7 +167,7 @@ async function cancelOrder() {
     }
     showCancelForm.value = false;
   } catch (e) {
-    alert(e.message || 'Không thể hủy đơn hàng');
+    toast.error(e.message || 'Không thể hủy đơn hàng');
   }
 }
 </script>

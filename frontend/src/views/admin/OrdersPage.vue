@@ -4,7 +4,9 @@ import { useAdminStore } from '@/stores/admin';
 import { formatPrice, formatDate } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import { adminApi } from '@/api';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const adminStore = useAdminStore();
 const searchTerm = ref('');
 const activeStatus = ref('');
@@ -62,7 +64,7 @@ async function saveRefund() {
     refundOrder.value = null;
     await adminStore.fetchOrders();
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     refunding.value = false;
   }

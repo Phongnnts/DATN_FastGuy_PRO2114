@@ -3,7 +3,9 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice } from '@/utils/format';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const adminStore = useAdminStore();
 const router = useRouter();
 const searchTerm = ref('');
@@ -85,7 +87,7 @@ function statusClass(row) {
 
 async function saveStock(row) {
   const value = getDraft(row);
-  if (value !== null && value !== undefined && Number(value) < 0) return alert('Tồn kho không được âm');
+  if (value !== null && value !== undefined && Number(value) < 0) return toast.error('Tồn kho không được âm');
   savingId.value = row.variantId;
   try {
     await adminStore.updateVariant(row.variantId, {
@@ -94,7 +96,7 @@ async function saveStock(row) {
     await adminStore.fetchProducts();
     delete draftStock.value[row.variantId];
   } catch (e) {
-    alert(e.message || 'Không thể cập nhật tồn kho');
+    toast.error(e.message || 'Không thể cập nhật tồn kho');
   } finally {
     savingId.value = null;
   }

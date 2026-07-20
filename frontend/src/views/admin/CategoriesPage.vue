@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useAdminStore } from '@/stores/admin';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const adminStore = useAdminStore();
 const showForm = ref(false);
 const editingId = ref(null);
@@ -20,21 +22,21 @@ function openAdd() { editingId.value = null; form.value = { name: '', descriptio
 function openEdit(category) { editingId.value = category.id; form.value = { name: category.name, description: category.description || '' }; showForm.value = true; }
 
 async function save() {
-  if (!form.value.name.trim()) return alert('Nhập tên danh mục');
+  if (!form.value.name.trim()) return toast.error('Nhập tên danh mục');
   saving.value = true;
   try {
     const data = { name: form.value.name.trim(), description: form.value.description.trim() };
     if (editingId.value) await adminStore.updateCategory(editingId.value, data);
     else await adminStore.createCategory(data);
     showForm.value = false;
-  } catch (e) { alert(e.message || 'Không thể lưu danh mục'); }
+  } catch (e) { toast.error(e.message || 'Không thể lưu danh mục'); }
   finally { saving.value = false; }
 }
 
 async function remove(category) {
   if (!confirm(`Xóa danh mục "${category.name}"?`)) return;
   try { await adminStore.deleteCategory(category.id); }
-  catch (e) { alert(e.message || 'Không thể xóa danh mục có sản phẩm'); }
+  catch (e) { toast.error(e.message || 'Không thể xóa danh mục có sản phẩm'); }
 }
 </script>
 

@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useAdminStore } from '@/stores/admin';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const adminStore = useAdminStore();
 const searchTerm = ref('');
 const showForm = ref(false);
@@ -53,7 +55,7 @@ async function save() {
     await adminStore.fetchUsers();
     setTimeout(() => (success.value = ''), 3000);
   } catch (e) {
-    alert(e.message || 'Lỗi khi lưu');
+    toast.error(e.message || 'Lỗi khi lưu');
   }
 }
 
@@ -65,7 +67,7 @@ async function deleteUser(u) {
     await adminStore.fetchUsers();
     setTimeout(() => (success.value = ''), 3000);
   } catch (e) {
-    alert(e.message || 'Lỗi khi xóa');
+    toast.error(e.message || 'Lỗi khi xóa');
   }
 }
 </script>

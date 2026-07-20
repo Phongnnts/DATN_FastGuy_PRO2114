@@ -7,7 +7,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useFavoriteStore } from '@/stores/favorite';
 import { formatPrice } from '@/utils/format';
 import StarRating from '@/components/common/StarRating.vue';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 const productStore = useProductStore();
@@ -83,7 +85,7 @@ async function placeInCart(destination) {
     await cart.addItem(product.value.productId, selectedVariant.value.variantId, quantity.value, selectedModifiers.value);
     router.push(destination);
   } catch (error) {
-    alert(error.message || 'Không thể thêm vào giỏ');
+    toast.error(error.message || 'Không thể thêm vào giỏ');
   }
 }
 </script>

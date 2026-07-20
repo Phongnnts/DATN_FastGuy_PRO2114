@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue';
 import couponApi from '@/api/coupon';
 import { useAuthStore } from '@/stores/auth';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const auth = useAuthStore();
 const coupons = ref([]);
 const loading = ref(true);
@@ -21,7 +23,7 @@ async function load() {
 }
 
 async function handleClaim(couponId) {
-  if (!auth.isLoggedIn) return alert('Vui lòng đăng nhập để nhận mã');
+  if (!auth.isLoggedIn) return toast.error('Vui lòng đăng nhập để nhận mã');
   claiming.value[couponId] = true;
   try {
     await couponApi.claim(couponId);
@@ -31,7 +33,7 @@ async function handleClaim(couponId) {
       claimSuccess.value = `Đã nhận mã ${c.code}. Bạn có thể dùng tại trang thanh toán.`;
     }
   } catch (e) {
-    alert(e.response?.data?.message || e.message);
+    toast.error(e.response?.data?.message || e.message);
   } finally {
     claiming.value[couponId] = false;
   }

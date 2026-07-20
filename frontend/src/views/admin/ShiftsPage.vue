@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { adminApi } from '@/api';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const shifts = ref([]);
 const users = ref([]);
 const loading = ref(true);
@@ -23,7 +25,7 @@ async function load() {
     shifts.value = Array.isArray(shiftData) ? shiftData : [];
     users.value = Array.isArray(userData) ? userData : [];
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     loading.value = false;
   }
@@ -53,7 +55,7 @@ async function remove(shift) {
     await adminApi.deleteShift(shift.shiftId);
     await load();
   } catch (e) {
-    alert(e.message || 'Không thể xóa ca đã bắt đầu');
+    toast.error(e.message || 'Không thể xóa ca đã bắt đầu');
   }
 }
 
@@ -66,7 +68,7 @@ async function save() {
     showModal.value = false;
     await load();
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     submitting.value = false;
   }

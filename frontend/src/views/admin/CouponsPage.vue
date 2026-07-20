@@ -1,7 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import couponApi from '@/api/coupon';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const coupons = ref([]);
 const loading = ref(true);
 const error = ref('');
@@ -60,7 +62,7 @@ function validate() {
 
 async function save() {
   const message = validate();
-  if (message) return alert(message);
+  if (message) return toast.error(message);
   submitting.value = true;
   try {
     const payload = {
@@ -77,20 +79,20 @@ async function save() {
     showModal.value = false;
     await load();
   } catch (e) {
-    alert(e.message || 'Không thể lưu mã giảm giá');
+    toast.error(e.message || 'Không thể lưu mã giảm giá');
   } finally {
     submitting.value = false;
   }
 }
 
 async function remove(coupon) {
-  if (!coupon.canDelete) return alert('Mã đã có lịch sử nhận hoặc sử dụng, chỉ có thể tắt kích hoạt');
+  if (!coupon.canDelete) return toast.error('Mã đã có lịch sử nhận hoặc sử dụng, chỉ có thể tắt kích hoạt');
   if (!confirm(`Xóa mã ${coupon.code}?`)) return;
   try {
     await couponApi.delete(coupon.couponId);
     await load();
   } catch (e) {
-    alert(e.message || 'Không thể xóa mã giảm giá');
+    toast.error(e.message || 'Không thể xóa mã giảm giá');
   }
 }
 
@@ -101,7 +103,7 @@ async function toggle(coupon, field) {
     await couponApi.update(coupon.couponId, { [field]: coupon[field] });
   } catch (e) {
     coupon[field] = previous;
-    alert(e.message || 'Không thể cập nhật mã giảm giá');
+    toast.error(e.message || 'Không thể cập nhật mã giảm giá');
   }
 }
 

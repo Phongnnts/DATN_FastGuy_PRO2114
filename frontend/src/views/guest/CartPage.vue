@@ -4,18 +4,20 @@ import { useRouter } from 'vue-router';
 import { useCartStore } from '@/stores/cart';
 import { formatPrice } from '@/utils/format';
 import CartItem from '@/components/common/CartItem.vue';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const router = useRouter();
 const cart = useCartStore();
 const hasInvalidItems = computed(() => cart.items.some((item) => (item.variantStatus && item.variantStatus !== 'AVAILABLE') || (item.quantityAvailable != null && (Number(item.quantityAvailable) <= 0 || item.quantity > Number(item.quantityAvailable)))));
 
 async function updateQty(productId, variantId, quantity, modifierOptionIds) {
   try { await cart.updateQuantity(productId, variantId, quantity, modifierOptionIds); }
-  catch (error) { alert(error.message || 'Không thể cập nhật số lượng'); }
+  catch (error) { toast.error(error.message || 'Không thể cập nhật số lượng'); }
 }
 function removeItem(productId, variantId, modifierOptionIds) { cart.removeItem(productId, variantId, modifierOptionIds); }
 function proceedCheckout() {
-  if (hasInvalidItems.value) return alert('Vui lòng cập nhật giỏ hàng theo tồn kho hiện tại');
+  if (hasInvalidItems.value) return toast.error('Vui lòng cập nhật giỏ hàng theo tồn kho hiện tại');
   router.push('/checkout');
 }
 </script>

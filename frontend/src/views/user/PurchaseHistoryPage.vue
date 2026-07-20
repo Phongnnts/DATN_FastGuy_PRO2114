@@ -5,7 +5,9 @@ import { useOrderStore } from '@/stores/order';
 import { formatPrice, formatDate } from '@/utils/format';
 import { reviewApi } from '@/api';
 import StarRating from '@/components/common/StarRating.vue';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const router = useRouter();
 const orderStore = useOrderStore();
 const reviewsMap = ref({});
@@ -61,7 +63,7 @@ async function submitReview(orderId) {
     editingOrderId.value = null;
     reviewForm.value = { rating: 5, comment: '' };
   } catch (e) {
-    alert(e.message || 'Không thể gửi đánh giá');
+    toast.error(e.message || 'Không thể gửi đánh giá');
   } finally {
     submitting.value = false;
   }

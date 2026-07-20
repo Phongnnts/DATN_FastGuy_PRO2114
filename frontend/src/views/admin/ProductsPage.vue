@@ -3,7 +3,9 @@ import { ref, computed, onMounted } from 'vue';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice } from '@/utils/format';
 import { CLOUDINARY } from '@/utils/constants';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const adminStore = useAdminStore();
 const searchTerm = ref('');
 const uploading = ref(false);
@@ -112,12 +114,12 @@ function removeGallery(idx) {
 }
 
 async function save() {
-  if (!form.value.name.trim()) return alert('Nhập tên sản phẩm');
-  if (Number(form.value.basePrice) < 0) return alert('Giá gốc không được âm');
+  if (!form.value.name.trim()) return toast.error('Nhập tên sản phẩm');
+  if (Number(form.value.basePrice) < 0) return toast.error('Giá gốc không được âm');
   for (const v of productVariants.value) {
-    if (!v.variantName?.trim()) return alert('Tên biến thể không được trống');
-    if (Number(v.price) < 0) return alert('Giá biến thể không được âm');
-    if (Number(v.quantityAvailable) < 0) return alert('Tồn kho không được âm');
+    if (!v.variantName?.trim()) return toast.error('Tên biến thể không được trống');
+    if (Number(v.price) < 0) return toast.error('Giá biến thể không được âm');
+    if (Number(v.quantityAvailable) < 0) return toast.error('Tồn kho không được âm');
   }
   const payload = {
     name: form.value.name,
@@ -143,7 +145,7 @@ async function save() {
     }
     showForm.value = false;
   } catch (e) {
-    alert(e.message || 'Không thể lưu sản phẩm');
+    toast.error(e.message || 'Không thể lưu sản phẩm');
   }
 }
 
@@ -255,7 +257,7 @@ async function remove(id) {
   try {
     await adminStore.deleteProduct(id);
   } catch (e) {
-    alert(e.message || 'Không thể xóa sản phẩm đang được sử dụng');
+    toast.error(e.message || 'Không thể xóa sản phẩm đang được sử dụng');
   }
 }
 
