@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { adminApi } from '@/api';
+import { formatDateShort } from '@/utils/format';
 import { useToast } from '@/stores/toast';
 
 const toast = useToast();
@@ -12,7 +13,16 @@ const editing = ref(null);
 const submitting = ref(false);
 const form = ref({ userId: '', shiftDate: '', startTime: '08:00', endTime: '17:00', status: 'SCHEDULED' });
 
+const filterRole = ref('');
+const filterUserId = ref('');
+const filterFromDate = ref('');
+const filterToDate = ref('');
+
 const employees = computed(() => users.value.filter((u) => u.roleName === 'STAFF' || u.roleName === 'SHIPPER'));
+const filteredEmployees = computed(() => {
+  if (!filterRole.value) return employees.value;
+  return employees.value.filter((u) => u.roleName === filterRole.value);
+});
 
 function timeValue(value) {
   return value ? String(value).slice(0, 5) : '';
@@ -21,7 +31,12 @@ function timeValue(value) {
 async function load() {
   loading.value = true;
   try {
-    const [shiftData, userData] = await Promise.all([adminApi.getShifts(), adminApi.getUsers()]);
+    const params = {};
+    if (filterRole.value) params.role = filterRole.value;
+    if (filterUserId.value) params.userId = filterUserId.value;
+    if (filterFromDate.value) params.fromDate = filterFromDate.value;
+    if (filterToDate.value) params.toDate = filterToDate.value;
+    const [shiftData, userData] = await Promise.all([adminApi.getShifts(params), adminApi.getUsers()]);
     shifts.value = Array.isArray(shiftData) ? shiftData : [];
     users.value = Array.isArray(userData) ? userData : [];
   } catch (e) {
@@ -29,6 +44,14 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+function clearFilters() {
+  filterRole.value = '';
+  filterUserId.value = '';
+  filterFromDate.value = '';
+  filterToDate.value = '';
+  load();
 }
 
 function openCreate() {
@@ -83,6 +106,34 @@ onMounted(load);
       <h1>Quản lý ca làm</h1>
       <button class="btn btn-sm btn-primary" @click="openCreate"><i class="bi bi-plus-lg"></i> Tạo ca</button>
     </div>
+    <div class="card card-flat" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+        <div class="form-group" style="margin:0;min-width:140px">
+          <label class="form-label" style="font-size:12px">Vai trò</label>
+          <select v-model="filterRole" class="form-select" @change="load">
+            <option value="">Tất cả</option>
+            <option value="STAFF">Staff</option>
+            <option value="SHIPPER">Shipper</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:180px">
+          <label class="form-label" style="font-size:12px">Nhân viên</label>
+          <select v-model="filterUserId" class="form-select" @change="load">
+            <option value="">Tất cả</option>
+            <option v-for="u in filteredEmployees" :key="u.userId" :value="u.userId">{{ u.fullName }}</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" style="font-size:12px">Từ ngày</label>
+          <input v-model="filterFromDate" type="date" class="form-input" @change="load">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" style="font-size:12px">Đến ngày</label>
+          <input v-model="filterToDate" type="date" class="form-input" @change="load">
+        </div>
+        <button v-if="filterRole || filterUserId || filterFromDate || filterToDate" class="btn btn-sm btn-outline" @click="clearFilters"><i class="bi bi-x-lg"></i> Xóa bộ lọc</button>
+      </div>
+    </div>
     <div v-if="loading" class="card card-flat text-center" style="padding:32px"><div class="spinner"></div></div>
     <div v-else class="card card-flat">
       <div class="table-wrapper">
@@ -92,12 +143,12 @@ onMounted(load);
             <tr v-for="shift in shifts" :key="shift.shiftId">
               <td><strong>{{ shift.userName }}</strong></td>
               <td><span class="badge">{{ shift.role }}</span></td>
-              <td>{{ shift.shiftDate }}</td>
+              <td>{{ formatDateShort(shift.shiftDate) }}</td>
               <td>{{ timeValue(shift.startTime) }}</td>
               <td>{{ timeValue(shift.endTime) }}</td>
-              <td><span class="badge">{{ shift.status }}</span></td>
-              <td>{{ shift.checkInAt || '—' }}</td>
-              <td>{{ shift.checkOutAt || '—' }}</td>
+              <td><span class="badge" :class="'badge-' + (shift.status === 'CHECKED_IN' ? 'success' : shift.status === 'CHECKED_OUT' ? 'secondary' : 'warning')">{{ shift.status }}</span></td>
+              <td>{{ shift.checkInAt ? formatDateShort(shift.checkInAt) + ' ' + timeValue(shift.checkInAt) : '—' }}</td>
+              <td>{{ shift.checkOutAt ? formatDateShort(shift.checkOutAt) + ' ' + timeValue(shift.checkOutAt) : '—' }}</td>
               <td><button class="btn btn-sm btn-outline" :aria-label="`Sửa ca ${shift.userName}`" @click="openEdit(shift)"><i class="bi bi-pencil"></i></button><button v-if="shift.status === 'SCHEDULED'" class="btn btn-sm btn-ghost text-danger" :aria-label="`Xóa ca ${shift.userName}`" @click="remove(shift)"><i class="bi bi-trash3"></i></button></td>
             </tr>
           </tbody>
@@ -137,7 +188,7 @@ onMounted(load);
             <select v-model="form.status" class="form-select">
               <option value="SCHEDULED">SCHEDULED</option>
               <option value="CHECKED_IN">CHECKED_IN</option>
-              <option value="COMPLETED">COMPLETED</option>
+              <option value="CHECKED_OUT">CHECKED_OUT</option>
             </select>
           </div>
         </div>

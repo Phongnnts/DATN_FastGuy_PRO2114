@@ -1,13 +1,18 @@
 package servlet;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.Map;
 
+import entity.WorkShift;
+import jakarta.persistence.EntityManager;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.WorkShiftService;
 import utils.ApiResponse;
+import utils.DatabaseUtil;
 import utils.JwtUtil;
 
 @WebServlet("/api/shifts/*")
@@ -19,7 +24,17 @@ public class ShiftServlet extends HttpServlet {
         int userId = worker(req, resp);
         if (userId < 0) return;
         resp.setContentType("application/json;charset=UTF-8");
-        if ("/mine".equals(req.getPathInfo())) ApiResponse.ok(resp, workShiftService.list(userId));
+        if ("/mine".equals(req.getPathInfo())) ApiResponse.ok(resp, workShiftService.list(userId, null, null, null));
+        else if ("/has-today".equals(req.getPathInfo())) {
+            EntityManager em = DatabaseUtil.getEntityManager();
+            try {
+                Long count = em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :uid AND ws.shiftDate = :today", Long.class)
+                        .setParameter("uid", userId).setParameter("today", LocalDate.now()).getSingleResult();
+                Map<String, Object> result = new java.util.HashMap<>();
+                result.put("hasShift", count > 0);
+                ApiResponse.ok(resp, result);
+            } finally { em.close(); }
+        }
         else ApiResponse.error(resp, "Not found", 404);
     }
 

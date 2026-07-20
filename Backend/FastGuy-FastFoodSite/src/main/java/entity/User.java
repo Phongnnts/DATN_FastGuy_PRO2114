@@ -21,9 +21,8 @@ public class User {
     @Column(name = "user_id")
     private int userId;
 
-    @ManyToOne
-    @JoinColumn(name = "role_id")
-    private Role role;
+    @Column(name = "role_name")
+    private String role;
 
     @Column(name = "email")
     private String email;
@@ -46,6 +45,9 @@ public class User {
     @Column(name = "loyalty_points")
     private int loyaltyPoints;
 
+    @Column(name = "favorite_ids_json")
+    private String favoriteIdsJson;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -62,8 +64,8 @@ public class User {
 
     public int getUserId() { return userId; }
     public void setUserId(int userId) { this.userId = userId; }
-    public Role getRole() { return role; }
-    public void setRole(Role role) { this.role = role; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
     public String getPhone() { return phone; }
@@ -78,6 +80,8 @@ public class User {
     public void setStatus(String status) { this.status = status; }
     public int getLoyaltyPoints() { return loyaltyPoints; }
     public void setLoyaltyPoints(int loyaltyPoints) { this.loyaltyPoints = loyaltyPoints; }
+    public String getFavoriteIdsJson() { return favoriteIdsJson; }
+    public void setFavoriteIdsJson(String favoriteIdsJson) { this.favoriteIdsJson = favoriteIdsJson; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

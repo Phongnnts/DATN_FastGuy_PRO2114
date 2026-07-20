@@ -19,7 +19,12 @@ public class AdminShiftServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         if (!admin(req, resp)) return;
         resp.setContentType("application/json;charset=UTF-8");
-        ApiResponse.ok(resp, workShiftService.list(null));
+        String userIdParam = req.getParameter("userId");
+        Integer userId = userIdParam != null && !userIdParam.isBlank() ? Integer.parseInt(userIdParam) : null;
+        String role = req.getParameter("role");
+        String fromDate = req.getParameter("fromDate");
+        String toDate = req.getParameter("toDate");
+        ApiResponse.ok(resp, workShiftService.list(userId, role, fromDate, toDate));
     }
 
     @Override

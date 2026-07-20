@@ -184,7 +184,6 @@ public class ShipperServlet extends HttpServlet {
         m.put("finalAmount", o.getFinalAmount());
         m.put("shippingFee", o.getShippingFee());
         m.put("serviceFee", o.getServiceFee());
-        m.put("serviceFee", o.getServiceFee());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
     }
@@ -224,6 +223,8 @@ public class ShipperServlet extends HttpServlet {
                 })
                 .collect(Collectors.toList());
         data.put("items", items);
+        var savedHistory = new service.OrderStatusHistoryService().getByOrderId(o.getOrderId());
+        data.put("statusHistory", savedHistory);
         return data;
     }
 }

@@ -2,9 +2,7 @@ package service;
 
 import java.util.Map;
 
-import dao.RoleDAO;
 import dao.UserDAO;
-import entity.Role;
 import entity.User;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -13,7 +11,6 @@ import utils.PasswordUtil;
 
 public class AuthService {
     private UserDAO userDAO = new UserDAO();
-    private RoleDAO roleDAO = new RoleDAO();
 
     public User login(String login, String password) {
         User user = userDAO.findByPhone(login);
@@ -44,16 +41,13 @@ public class AuthService {
                         .setParameter("email", email).setMaxResults(1).getResultStream().findFirst().orElse(null);
                 if (existing != null) { em.getTransaction().rollback(); return null; }
             }
-            Role userRole = em.createQuery("SELECT r FROM Role r WHERE r.roleName = :name", Role.class)
-                    .setParameter("name", "USER").setMaxResults(1).getResultStream().findFirst().orElse(null);
-            if (userRole == null) { em.getTransaction().rollback(); return null; }
 
             User user = new User();
             user.setFullName(fullName);
             user.setPhone(phone);
             user.setEmail(email);
             user.setPasswordHash(PasswordUtil.hash(password));
-            user.setRole(userRole);
+            user.setRole("USER");
             user.setStatus("ACTIVE");
             em.persist(user);
             em.getTransaction().commit();

@@ -90,8 +90,10 @@ public class CouponServlet extends HttpServlet {
 
         Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+        Object rawCouponId = body.get("couponId");
+        if (!(rawCouponId instanceof Number)) { ApiResponse.error(resp, "Missing couponId", 400); return; }
 
-        int couponId = ((Number) body.get("couponId")).intValue();
+        int couponId = ((Number) rawCouponId).intValue();
         String err = couponService.claim(couponId, userId);
         if (err != null) {
             ApiResponse.error(resp, err, 400);

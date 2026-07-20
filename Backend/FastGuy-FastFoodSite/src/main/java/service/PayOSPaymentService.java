@@ -41,6 +41,38 @@ public class PayOSPaymentService {
         }
     }
 
+    public boolean verifyPayment(int orderId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            Orders order = em.find(Orders.class, orderId);
+            if (order == null || !"BANK_TRANSFER".equals(order.getPaymentMethod())) return false;
+            if ("PAID".equals(order.getPaymentStatus())) return true;
+            if (order.getPayosPaymentLinkId() == null || order.getPayosPaymentLinkId().isBlank()) return false;
+
+            Map<String, Object> info = payOSService.getPaymentInfo(order.getPayosPaymentLinkId());
+            if (info.containsKey("error")) return false;
+
+            String status = String.valueOf(info.getOrDefault("status", ""));
+            if ("PAID".equals(status) || "PROCESSING".equals(status)) {
+                em.getTransaction().begin();
+                Orders locked = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+                if (!"PAID".equals(locked.getPaymentStatus())) {
+                    locked.setPaymentStatus("PAID");
+                    locked.setPaidAt(LocalDateTime.now());
+                }
+                em.getTransaction().commit();
+                historyService.record(orderId, null, "PAYOS", "UNPAID", "PAID", "PayOS xác nhận thanh toán (verify)");
+                return true;
+            }
+            return false;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            return false;
+        } finally {
+            em.close();
+        }
+    }
+
     public boolean isValidWebhook(Map<String, Object> payload) {
         Object rawData = payload.get("data");
         if (!(rawData instanceof Map<?, ?> map) || !(payload.get("signature") instanceof String signature)) return false;

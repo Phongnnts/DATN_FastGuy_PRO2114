@@ -127,12 +127,12 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        String token = JwtUtil.generate(user.getUserId(), user.getRole().getRoleName());
+        String token = JwtUtil.generate(user.getUserId(), user.getRole());
 
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getUserId());
-        data.put("role", user.getRole().getRoleName());
+        data.put("role", user.getRole());
         data.put("fullName", user.getFullName());
         data.put("avatarUrl", user.getAvatarUrl());
 
@@ -157,12 +157,12 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        String token = JwtUtil.generate(user.getUserId(), user.getRole().getRoleName());
+        String token = JwtUtil.generate(user.getUserId(), user.getRole());
 
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getUserId());
-        data.put("role", user.getRole().getRoleName());
+        data.put("role", user.getRole());
         data.put("fullName", user.getFullName());
 
         resp.setStatus(201);
@@ -247,7 +247,7 @@ public class AuthServlet extends HttpServlet {
         data.put("email", user.getEmail());
         data.put("phone", user.getPhone());
         data.put("avatarUrl", user.getAvatarUrl());
-        data.put("role", user.getRole().getRoleName());
+        data.put("role", user.getRole());
         data.put("status", user.getStatus());
         data.put("loyaltyPoints", user.getLoyaltyPoints());
         data.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);

@@ -169,6 +169,11 @@ const routes = [
         name: 'StaffSupport',
         component: () => import('@/views/staff/SupportPage.vue'),
       },
+      {
+        path: 'shifts',
+        name: 'StaffShifts',
+        component: () => import('@/views/staff/StaffShiftsPage.vue'),
+      },
     ],
   },
 
@@ -231,6 +236,11 @@ const routes = [
         path: 'orders',
         name: 'AdminOrders',
         component: () => import('@/views/admin/OrdersPage.vue'),
+      },
+      {
+        path: 'orders/:id',
+        name: 'AdminOrderDetail',
+        component: () => import('@/views/admin/OrderDetailPage.vue'),
       },
       {
         path: 'reports/revenue',

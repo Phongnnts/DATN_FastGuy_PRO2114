@@ -19,23 +19,29 @@ onMounted(async () => {
     status.value = 'error';
     return;
   }
+  if (!auth.isLoggedIn && !orderId.value) {
+    status.value = 'pending';
+    setTimeout(redirect, 3000);
+    return;
+  }
   for (let attempt = 0; attempt < 12; attempt++) {
     try {
-      if (!auth.isLoggedIn || !orderId.value) {
-        status.value = 'pending';
-        return;
-      }
-      const order = await orderApi.getById(orderId.value);
-      if (order?.paymentStatus === 'PAID') {
-        status.value = 'success';
-        cart.clear();
-        setTimeout(redirect, 2000);
-        return;
-      }
-      if (order?.status === 'CANCELLED') {
-        status.value = 'cancelled';
-        setTimeout(redirect, 2000);
-        return;
+      if (orderId.value) {
+        if (attempt > 0 && attempt % 3 === 0) {
+          await orderApi.verifyPayment(orderId.value).catch(() => {});
+        }
+        const order = await orderApi.getById(orderId.value);
+        if (order?.paymentStatus === 'PAID') {
+          status.value = 'success';
+          cart.clear();
+          setTimeout(redirect, 2000);
+          return;
+        }
+        if (order?.status === 'CANCELLED') {
+          status.value = 'cancelled';
+          setTimeout(redirect, 2000);
+          return;
+        }
       }
     } catch {}
     await new Promise(resolve => setTimeout(resolve, 2500));

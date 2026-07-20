@@ -4,13 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import entity.CartItem;
-import entity.CartItemModifier;
 import entity.Product;
 import entity.ProductModifierGroup;
 import entity.ProductModifierOption;
@@ -29,20 +30,15 @@ class CartServiceTest {
     @Test
     @DisplayName("CartItem modifier key matches sorted option IDs")
     void modifierKeySorted() {
-        ProductModifierOption opt3 = new ProductModifierOption();
-        opt3.setModifierOptionId(3);
-        ProductModifierOption opt1 = new ProductModifierOption();
-        opt1.setModifierOptionId(1);
-        ProductModifierOption opt2 = new ProductModifierOption();
-        opt2.setModifierOptionId(2);
-
         CartItem ci = new CartItem();
-        ci.addModifier(new CartItemModifier(ci, opt3));
-        ci.addModifier(new CartItemModifier(ci, opt1));
-        ci.addModifier(new CartItemModifier(ci, opt2));
+        List<CartItem.ModifierItem> mods = new ArrayList<>();
+        mods.add(new CartItem.ModifierItem(3, 1, "Group", "Option3", BigDecimal.ZERO));
+        mods.add(new CartItem.ModifierItem(1, 1, "Group", "Option1", BigDecimal.ZERO));
+        mods.add(new CartItem.ModifierItem(2, 1, "Group", "Option2", BigDecimal.ZERO));
+        ci.setModifiers(mods);
 
         String key = ci.getModifiers().stream()
-                .map(m -> String.valueOf(m.getModifierOption().getModifierOptionId()))
+                .map(m -> String.valueOf(m.modifierOptionId))
                 .sorted()
                 .collect(Collectors.joining(","));
         assertEquals("1,2,3", key);
@@ -73,14 +69,31 @@ class CartServiceTest {
     }
 
     @Test
-    @DisplayName("CartItem addModifier sets back-reference")
-    void addModifierSetsBackRef() {
+    @DisplayName("CartItem ModifierItem stores correct fields")
+    void modifierItemFields() {
+        CartItem.ModifierItem mod = new CartItem.ModifierItem(42, 1, "Size", "L", new BigDecimal("5000"));
+        assertEquals(42, mod.modifierOptionId);
+        assertEquals(1, mod.groupId);
+        assertEquals("Size", mod.groupName);
+        assertEquals("L", mod.name);
+        assertEquals(new BigDecimal("5000"), mod.price);
+    }
+
+    @Test
+    @DisplayName("CartItem modifiers JSON round-trip")
+    void modifierJsonRoundTrip() {
         CartItem ci = new CartItem();
-        ProductModifierOption opt = new ProductModifierOption();
-        opt.setModifierOptionId(42);
-        CartItemModifier mod = new CartItemModifier(ci, opt);
-        assertEquals(ci, mod.getCartItem());
-        assertEquals(42, mod.getModifierOption().getModifierOptionId());
+        List<CartItem.ModifierItem> mods = new ArrayList<>();
+        mods.add(new CartItem.ModifierItem(1, 1, "Size", "L", new BigDecimal("5000")));
+        mods.add(new CartItem.ModifierItem(2, 2, "Topping", "Cheese", new BigDecimal("3000")));
+        ci.setModifiers(mods);
+
+        assertEquals(2, ci.getModifiers().size());
+        assertEquals(1, ci.getModifiers().get(0).modifierOptionId);
+        assertEquals("Topping", ci.getModifiers().get(1).groupName);
+
+        ci.clearModifiers();
+        assertTrue(ci.getModifiers().isEmpty());
     }
 
     @Test

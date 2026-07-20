@@ -3,10 +3,9 @@ package service;
 import dao.CartDAO;
 import dao.ProductDAO;
 import dao.ProductModifierDAO;
-import entity.CartItemModifier;
-import entity.ProductModifierOption;
 import entity.Cart;
 import entity.CartItem;
+import entity.ProductModifierOption;
 import entity.Product;
 import entity.ProductVariant;
 import entity.User;
@@ -62,10 +61,7 @@ public class CartService {
             List<Map<String, Object>> modifiers = new ArrayList<>();
             if (ci.getModifiers() != null) {
                 for (var mod : ci.getModifiers()) {
-                    var option = mod.getModifierOption();
-                    if (option != null && option.getGroup() != null) {
-                        modifiers.add(Map.of("modifierOptionId", option.getModifierOptionId(), "groupName", option.getGroup().getName(), "name", option.getName(), "price", option.getPrice()));
-                    }
+                    modifiers.add(Map.of("modifierOptionId", mod.modifierOptionId, "groupName", mod.groupName != null ? mod.groupName : "", "name", mod.name != null ? mod.name : "", "price", mod.price != null ? mod.price : java.math.BigDecimal.ZERO));
                 }
             }
             m.put("modifiers", modifiers);
@@ -141,14 +137,16 @@ public class CartService {
                 item.setVariant(variant);
                 item.setQuantity(quantity);
                 item.setUnitPrice((variant.getPrice() != null ? variant.getPrice() : variant.getProduct().getBasePrice()).add(modifierPrice));
-                item.setCreatedAt(LocalDateTime.now());
-                for (Integer optionId : optionIds) {
-                    ProductModifierOption option = modifierDAO.option(optionId);
-                    if (option != null) {
-                        item.addModifier(new CartItemModifier(item, option));
-                    }
+            item.setCreatedAt(LocalDateTime.now());
+            List<CartItem.ModifierItem> modifierItems = new ArrayList<>();
+            for (Integer optionId : optionIds) {
+                ProductModifierOption option = modifierDAO.option(optionId);
+                if (option != null && option.getGroup() != null) {
+                    modifierItems.add(new CartItem.ModifierItem(option.getModifierOptionId(), option.getGroup().getModifierGroupId(), option.getGroup().getName(), option.getName(), option.getPrice()));
                 }
-                cartDAO.addItem(item);
+            }
+            item.setModifiers(modifierItems);
+            cartDAO.addItem(item);
             }
             return true;
         } catch (RuntimeException e) {
@@ -162,7 +160,7 @@ public class CartService {
     private String getModifierKey(CartItem ci) {
         if (ci.getModifiers() == null || ci.getModifiers().isEmpty()) return "";
         return ci.getModifiers().stream()
-                .map(m -> String.valueOf(m.getModifierOption().getModifierOptionId()))
+                .map(m -> String.valueOf(m.modifierOptionId))
                 .sorted()
                 .collect(Collectors.joining(","));
     }

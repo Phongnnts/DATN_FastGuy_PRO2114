@@ -1,10 +1,9 @@
 package service;
 
-import dao.ClaimedCouponDAO;
 import dao.CouponDAO;
-import dao.CouponUsageDAO;
-import entity.ClaimedCoupon;
+import dao.CouponRedemptionDAO;
 import entity.Coupon;
+import entity.CouponRedemption;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
@@ -16,8 +15,7 @@ import java.util.stream.Collectors;
 
 public class CouponService {
     private CouponDAO couponDAO = new CouponDAO();
-    private CouponUsageDAO couponUsageDAO = new CouponUsageDAO();
-    private ClaimedCouponDAO claimedCouponDAO = new ClaimedCouponDAO();
+    private CouponRedemptionDAO redemptionDAO = new CouponRedemptionDAO();
 
     public Map<String, Object> verify(String code, BigDecimal totalAmount, BigDecimal shippingFee, Integer userId) {
         Map<String, Object> result = new HashMap<>();
@@ -65,12 +63,12 @@ public class CouponService {
             result.put("message", "Vui lòng đăng nhập và nhận mã trước khi sử dụng");
             return result;
         }
-        if (!claimedCouponDAO.hasUnused(coupon.getCouponId(), userId)) {
+        if (!redemptionDAO.hasUnused(coupon.getCouponId(), userId)) {
             result.put("valid", false);
             result.put("message", "Mã không có trong ví hoặc đã được sử dụng");
             return result;
         }
-        if (couponUsageDAO.hasUserUsed(coupon.getCouponId(), userId)) {
+        if (redemptionDAO.hasUserUsed(coupon.getCouponId(), userId)) {
             result.put("valid", false);
             result.put("message", "Bạn đã sử dụng mã này rồi");
             return result;
@@ -118,15 +116,15 @@ public class CouponService {
             if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) { em.getTransaction().rollback(); return "Mã đã hết hạn"; }
             if (coupon.getMaxUses() > 0 && coupon.getUsedCount() >= coupon.getMaxUses()) { em.getTransaction().rollback(); return "Mã đã hết lượt"; }
 
-            boolean exists = em.createQuery("SELECT 1 FROM ClaimedCoupon c WHERE c.couponId = :cid AND c.userId = :uid", ClaimedCoupon.class)
-                    .setParameter("cid", couponId).setParameter("uid", userId).setMaxResults(1).getResultList().isEmpty() == false;
+            boolean exists = em.createQuery("SELECT 1 FROM CouponRedemption cr WHERE cr.couponId = :cid AND cr.userId = :uid", CouponRedemption.class)
+                    .setParameter("cid", couponId).setParameter("uid", userId).setMaxResults(1).getResultList().size() > 0;
             if (exists) { em.getTransaction().rollback(); return "Bạn đã nhận mã này rồi"; }
 
-            ClaimedCoupon cc = new ClaimedCoupon();
-            cc.setCouponId(couponId);
-            cc.setUserId(userId);
-            cc.setClaimedAt(LocalDateTime.now());
-            em.persist(cc);
+            CouponRedemption cr = new CouponRedemption();
+            cr.setCouponId(couponId);
+            cr.setUserId(userId);
+            cr.setClaimedAt(LocalDateTime.now());
+            em.persist(cr);
             em.getTransaction().commit();
             return null;
         } catch (RuntimeException e) {
@@ -141,8 +139,8 @@ public class CouponService {
         List<Coupon> list = couponDAO.findPublicActive();
         Set<Integer> claimedIds = null;
         if (userId != null) {
-            claimedIds = claimedCouponDAO.findByUserId(userId).stream()
-                    .map(ClaimedCoupon::getCouponId).collect(Collectors.toSet());
+            claimedIds = redemptionDAO.findByUserId(userId).stream()
+                    .map(cr -> cr.getCouponId()).collect(Collectors.toSet());
         }
         Set<Integer> finalClaimed = claimedIds;
         return list.stream().map(c -> {
@@ -161,18 +159,18 @@ public class CouponService {
     }
 
     public List<Map<String, Object>> getClaimedCoupons(int userId) {
-        return claimedCouponDAO.findUnusedByUserId(userId).stream().map(cc -> {
-            Coupon c = couponDAO.findById(cc.getCouponId());
+        return redemptionDAO.findUnusedByUserId(userId).stream().map(cr -> {
+            Coupon c = couponDAO.findById(cr.getCouponId());
             Map<String, Object> m = new HashMap<>();
-            m.put("claimedId", cc.getClaimedId());
-            m.put("couponId", cc.getCouponId());
+            m.put("claimedId", cr.getRedemptionId());
+            m.put("couponId", cr.getCouponId());
             m.put("code", c != null ? c.getCode() : "");
             m.put("type", c != null ? c.getType() : "");
             m.put("value", c != null ? c.getValue() : BigDecimal.ZERO);
             m.put("minOrder", c != null ? c.getMinOrder() : BigDecimal.ZERO);
             m.put("maxDiscount", c != null ? c.getMaxDiscount() : BigDecimal.ZERO);
             m.put("description", c != null ? getDescription(c) : "");
-            m.put("claimedAt", cc.getClaimedAt() != null ? cc.getClaimedAt().toString() : null);
+            m.put("claimedAt", cr.getClaimedAt() != null ? cr.getClaimedAt().toString() : null);
             return m;
         }).collect(Collectors.toList());
     }

@@ -1,15 +1,16 @@
 package entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ClaimedCoupon")
-public class ClaimedCoupon {
+@Table(name = "CouponRedemption")
+public class CouponRedemption {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "claimed_id")
-    private int claimedId;
+    @Column(name = "redemption_id")
+    private int redemptionId;
 
     @Column(name = "coupon_id")
     private int couponId;
@@ -25,24 +26,46 @@ public class ClaimedCoupon {
     @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
 
+    @Column(name = "order_id")
+    private Integer orderId;
+
     @Column(name = "claimed_at")
     private LocalDateTime claimedAt;
 
     @Column(name = "used_at")
     private LocalDateTime usedAt;
 
-    public ClaimedCoupon() {}
+    @Column(name = "discount_amount")
+    private BigDecimal discountAmount;
 
-    public int getClaimedId() { return claimedId; }
-    public void setClaimedId(int claimedId) { this.claimedId = claimedId; }
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate
+    void preUpdate() { updatedAt = LocalDateTime.now(); }
+
+    public CouponRedemption() {}
+
+    public int getRedemptionId() { return redemptionId; }
+    public void setRedemptionId(int redemptionId) { this.redemptionId = redemptionId; }
     public int getCouponId() { return couponId; }
     public void setCouponId(int couponId) { this.couponId = couponId; }
     public Coupon getCoupon() { return coupon; }
     public int getUserId() { return userId; }
     public void setUserId(int userId) { this.userId = userId; }
     public User getUser() { return user; }
+    public Integer getOrderId() { return orderId; }
+    public void setOrderId(Integer orderId) { this.orderId = orderId; }
     public LocalDateTime getClaimedAt() { return claimedAt; }
     public void setClaimedAt(LocalDateTime claimedAt) { this.claimedAt = claimedAt; }
     public LocalDateTime getUsedAt() { return usedAt; }
     public void setUsedAt(LocalDateTime usedAt) { this.usedAt = usedAt; }
+    public BigDecimal getDiscountAmount() { return discountAmount; }
+    public void setDiscountAmount(BigDecimal discountAmount) { this.discountAmount = discountAmount; }
 }

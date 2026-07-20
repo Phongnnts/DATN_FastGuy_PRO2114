@@ -39,10 +39,6 @@ public class Orders {
     @Column(name = "customer_address")
     private String customerAddress;
 
-    @ManyToOne
-    @JoinColumn(name = "zone_id")
-    private DeliveryZone zone;
-
     @Column(name = "to_province_name")
     private String toProvinceName;
 
@@ -206,8 +202,6 @@ public class Orders {
     public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
     public String getCustomerAddress() { return customerAddress; }
     public void setCustomerAddress(String customerAddress) { this.customerAddress = customerAddress; }
-    public DeliveryZone getZone() { return zone; }
-    public void setZone(DeliveryZone zone) { this.zone = zone; }
     public String getToProvinceName() { return toProvinceName; }
     public void setToProvinceName(String toProvinceName) { this.toProvinceName = toProvinceName; }
     public String getToDistrictName() { return toDistrictName; }

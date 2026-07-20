@@ -6,20 +6,33 @@ import { formatPrice, formatDate } from '@/utils/format';
 
 const router = useRouter();
 const shipperStore = useShipperStore();
-const activeTab = ref('active');
+const activeTab = ref('pickup');
 const searchTerm = ref('');
 
-const activeOrders = computed(() =>
-  shipperStore.myOrders.filter(o => o.status === 'PICKED_UP' || o.status === 'READY')
+const pickupOrders = computed(() =>
+  shipperStore.myOrders.filter(o => o.status === 'READY')
+);
+const deliveringOrders = computed(() =>
+  shipperStore.myOrders.filter(o => o.status === 'PICKED_UP')
 );
 const historyOrders = computed(() =>
   shipperStore.myOrders.filter(o => o.status === 'DELIVERED' || o.status === 'CANCELLED')
 );
 
-const filteredActive = computed(() => {
-  if (!searchTerm.value) return activeOrders.value;
+const filteredPickup = computed(() => {
+  if (!searchTerm.value) return pickupOrders.value;
   const q = searchTerm.value.toLowerCase();
-  return activeOrders.value.filter(o =>
+  return pickupOrders.value.filter(o =>
+    o.orderCode.toLowerCase().includes(q) ||
+    o.customerName.toLowerCase().includes(q) ||
+    o.customerAddress.toLowerCase().includes(q)
+  );
+});
+
+const filteredDelivering = computed(() => {
+  if (!searchTerm.value) return deliveringOrders.value;
+  const q = searchTerm.value.toLowerCase();
+  return deliveringOrders.value.filter(o =>
     o.orderCode.toLowerCase().includes(q) ||
     o.customerName.toLowerCase().includes(q) ||
     o.customerAddress.toLowerCase().includes(q)
@@ -56,21 +69,50 @@ function goDetail(id) {
     </div>
 
     <div class="shipper-tabs">
-      <button class="tab" :class="{ active: activeTab === 'active' }" @click="activeTab = 'active'">
-        Đang giao ({{ activeOrders.length }})
+      <button class="tab" :class="{ active: activeTab === 'pickup' }" @click="activeTab = 'pickup'">
+        Chờ lấy ({{ pickupOrders.length }})
+      </button>
+      <button class="tab" :class="{ active: activeTab === 'delivering' }" @click="activeTab = 'delivering'">
+        Đang giao ({{ deliveringOrders.length }})
       </button>
       <button class="tab" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">
         Lịch sử ({{ historyOrders.length }})
       </button>
     </div>
 
-    <div v-if="activeTab === 'active'" class="order-cards">
-      <div v-if="filteredActive.length === 0" class="shipper-empty">
+    <div v-if="activeTab === 'pickup'" class="order-cards">
+      <div v-if="filteredPickup.length === 0" class="shipper-empty">
         <i class="bi bi-inbox"></i>
-        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn nào đang giao' }}</p>
+        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn chờ lấy' }}</p>
       </div>
       <div
-        v-for="order in filteredActive"
+        v-for="order in filteredPickup"
+        :key="order.id"
+        class="order-card pickup-card"
+        @click="goDetail(order.id)"
+      >
+        <div class="card-top">
+          <strong class="order-code">{{ order.orderCode }}</strong>
+          <span class="pickup-badge">Chờ lấy</span>
+        </div>
+        <div class="card-body">
+          <p><i class="bi bi-person"></i> {{ order.customerName }}</p>
+          <p><i class="bi bi-telephone"></i> {{ order.customerPhone }}</p>
+          <p><i class="bi bi-geo-alt"></i> {{ order.customerAddress }}</p>
+        </div>
+        <div class="card-bottom">
+          <span class="order-total">{{ formatPrice(order.total) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="activeTab === 'delivering'" class="order-cards">
+      <div v-if="filteredDelivering.length === 0" class="shipper-empty">
+        <i class="bi bi-inbox"></i>
+        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn đang giao' }}</p>
+      </div>
+      <div
+        v-for="order in filteredDelivering"
         :key="order.id"
         class="order-card"
         @click="goDetail(order.id)"
@@ -166,6 +208,7 @@ function goDetail(id) {
   font-weight: 600;
 }
 .active-badge { background: #dbeafe; color: #1e40af; }
+.pickup-badge { background: #fef3c7; color: #92400e; }
 .status-delivered { background: #dcfce7; color: #166534; }
 .status-cancelled { background: #fee2e2; color: #991b1b; }
 .card-body p {

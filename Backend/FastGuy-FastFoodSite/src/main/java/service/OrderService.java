@@ -11,11 +11,9 @@ import java.util.UUID;
 
 import entity.Cart;
 import entity.CartItem;
-import entity.ClaimedCoupon;
 import entity.Coupon;
-import entity.CouponUsage;
+import entity.CouponRedemption;
 import entity.OrderItem;
-import entity.OrderItemModifier;
 import entity.Orders;
 import entity.ProductModifierOption;
 import entity.Product;
@@ -42,7 +40,7 @@ public class OrderService {
 
     private static class CouponResult {
         Coupon coupon;
-        ClaimedCoupon claimedCoupon;
+        CouponRedemption redemption;
         BigDecimal discount = BigDecimal.ZERO;
         String code;
     }
@@ -229,7 +227,9 @@ public class OrderService {
             for (OrderItem oi : orderItems) {
                 CheckoutLine locked = lockedLines.get(oi.getVariant().getVariantId());
                 if (locked != null) {
-                    BigDecimal modifierPrice = em.createQuery("SELECT COALESCE(SUM(m.price), 0) FROM OrderItemModifier m WHERE m.orderItem.orderItemId = :itemId", BigDecimal.class).setParameter("itemId", oi.getOrderItemId()).getSingleResult();
+                    BigDecimal modifierPrice = oi.getModifiers().stream()
+                            .map(m -> m.price != null ? m.price : BigDecimal.ZERO)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
                     oi.setUnitPrice(locked.unitPrice.add(modifierPrice));
                     oi.setTotalPrice(oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())));
                     totalAmount = totalAmount.add(oi.getTotalPrice());
@@ -308,11 +308,15 @@ public class OrderService {
             String current = order.getOrderStatus();
             String orderCode = order.getOrderCode();
             Integer orderUserId = order.getUser() != null ? order.getUser().getUserId() : null;
-            if ("CANCELLED".equals(current) || "DELIVERED".equals(current) || "READY".equals(current)) {
+            if ("CANCELLED".equals(current) || "DELIVERED".equals(current)) {
                 em.getTransaction().rollback();
                 return false;
             }
             if (pendingOnly && !"PENDING".equals(current) && !"WAITING_STOCK_CONFIRM".equals(current)) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            if ("READY".equals(current) && staffId == null && userId != null) {
                 em.getTransaction().rollback();
                 return false;
             }
@@ -452,21 +456,21 @@ public class OrderService {
         if (userId == null || userId <= 0) {
             throw new IllegalArgumentException("Vui lòng đăng nhập và nhận mã trước khi sử dụng");
         }
-        List<ClaimedCoupon> claims = em.createQuery(
-                        "SELECT cc FROM ClaimedCoupon cc WHERE cc.couponId = :couponId AND cc.userId = :userId AND cc.usedAt IS NULL", ClaimedCoupon.class)
+        List<CouponRedemption> claims = em.createQuery(
+                        "SELECT cr FROM CouponRedemption cr WHERE cr.couponId = :couponId AND cr.userId = :userId AND cr.usedAt IS NULL", CouponRedemption.class)
                 .setParameter("couponId", coupon.getCouponId())
                 .setParameter("userId", userId)
                 .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .getResultList();
         if (claims.isEmpty()) throw new IllegalArgumentException("Mã không có trong ví hoặc đã được sử dụng");
-        Long used = em.createQuery("SELECT COUNT(cu) FROM CouponUsage cu WHERE cu.couponId = :couponId AND cu.userId = :userId", Long.class)
+        Long used = em.createQuery("SELECT COUNT(cr) FROM CouponRedemption cr WHERE cr.couponId = :couponId AND cr.userId = :userId AND cr.usedAt IS NOT NULL", Long.class)
                 .setParameter("couponId", coupon.getCouponId())
                 .setParameter("userId", userId)
                 .getSingleResult();
         if (used > 0) throw new IllegalArgumentException("Bạn đã sử dụng mã này rồi");
 
         result.coupon = coupon;
-        result.claimedCoupon = claims.get(0);
+        result.redemption = claims.get(0);
         result.discount = couponService.calculateDiscount(coupon, totalAmount, shippingFee);
         result.code = coupon.getCode();
         return result;
@@ -474,14 +478,9 @@ public class OrderService {
 
     private void applyCoupon(EntityManager em, CouponResult coupon, int orderId, Integer userId) {
         if (coupon.coupon == null) return;
-        CouponUsage usage = new CouponUsage();
-        usage.setCouponId(coupon.coupon.getCouponId());
-        usage.setOrderId(orderId);
-        usage.setUserId(userId);
-        usage.setDiscountAmount(coupon.discount);
-        usage.setUsedAt(LocalDateTime.now());
-        em.persist(usage);
-        coupon.claimedCoupon.setUsedAt(LocalDateTime.now());
+        coupon.redemption.setOrderId(orderId);
+        coupon.redemption.setUsedAt(LocalDateTime.now());
+        coupon.redemption.setDiscountAmount(coupon.discount);
         coupon.coupon.setUsedCount(coupon.coupon.getUsedCount() + 1);
     }
 
@@ -578,38 +577,24 @@ public class OrderService {
             item.setUnitPrice(line.unitPrice);
             item.setTotalPrice(line.unitPrice.multiply(BigDecimal.valueOf(line.quantity)));
             em.persist(item);
+            List<OrderItem.ModifierItem> modifierItems = new ArrayList<>();
             for (ProductModifierOption option : line.modifiers) {
-                OrderItemModifier modifier = new OrderItemModifier();
-                modifier.setOrderItem(item);
-                modifier.setOption(option);
-                modifier.setGroupName(option.getGroup().getName());
-                modifier.setOptionName(option.getName());
-                modifier.setPrice(option.getPrice() != null ? option.getPrice() : BigDecimal.ZERO);
-                em.persist(modifier);
+                modifierItems.add(new OrderItem.ModifierItem(option.getModifierOptionId(), option.getGroup().getName(), option.getName(), option.getPrice() != null ? option.getPrice() : BigDecimal.ZERO));
             }
+            item.setModifiers(modifierItems);
         }
     }
 
     private void revertCoupon(EntityManager em, int orderId) {
-        List<CouponUsage> usages = em.createQuery("SELECT cu FROM CouponUsage cu WHERE cu.orderId = :orderId", CouponUsage.class)
-                .setParameter("orderId", orderId)
-                .getResultList();
-        for (CouponUsage usage : usages) {
-            Coupon coupon = em.find(Coupon.class, usage.getCouponId());
-            if (coupon != null && coupon.getUsedCount() > 0) {
-                coupon.setUsedCount(coupon.getUsedCount() - 1);
-            }
-            if (usage.getUserId() != null) {
-                List<ClaimedCoupon> claims = em.createQuery(
-                                "SELECT cc FROM ClaimedCoupon cc WHERE cc.couponId = :couponId AND cc.userId = :userId", ClaimedCoupon.class)
-                        .setParameter("couponId", usage.getCouponId())
-                        .setParameter("userId", usage.getUserId())
-                        .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-                        .getResultList();
-                if (!claims.isEmpty()) claims.get(0).setUsedAt(null);
-            }
-            em.remove(usage);
+        CouponRedemption cr = em.createQuery("SELECT cr FROM CouponRedemption cr WHERE cr.orderId = :orderId", CouponRedemption.class)
+                .setParameter("orderId", orderId).setMaxResults(1).getResultStream().findFirst().orElse(null);
+        if (cr == null) return;
+        Coupon coupon = em.find(Coupon.class, cr.getCouponId());
+        if (coupon != null && coupon.getUsedCount() > 0) {
+            coupon.setUsedCount(coupon.getUsedCount() - 1);
         }
+        cr.setUsedAt(null);
+        cr.setOrderId(null);
     }
 
     private void restoreStock(EntityManager em, int orderId) {

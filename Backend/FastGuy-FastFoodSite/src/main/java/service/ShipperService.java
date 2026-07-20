@@ -154,8 +154,12 @@ public class ShipperService {
         boolean ok = orderService.cancelOrder(orderId, null, null, reason, false);
         if (!ok) return false;
         Orders order = ordersDAO.findById(orderId);
-        if (order != null && order.getUser() != null) {
-            notificationService.notifyUser(order.getUser().getUserId(), "Đơn giao hàng thất bại", "Đơn " + order.getOrderCode() + " đã bị hủy bởi shipper", "ORDER_CANCELLED", "/account/orders/" + orderId);
+        if (order != null) {
+            order.setCancelledBy("SHIPPER");
+            ordersDAO.save(order);
+            if (order.getUser() != null) {
+                notificationService.notifyUser(order.getUser().getUserId(), "Đơn giao hàng thất bại", "Đơn " + order.getOrderCode() + " đã bị hủy bởi shipper", "ORDER_CANCELLED", "/account/orders/" + orderId);
+            }
         }
         return true;
     }

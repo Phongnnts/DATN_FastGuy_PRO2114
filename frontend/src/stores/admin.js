@@ -74,9 +74,9 @@ export const useAdminStore = defineStore('admin', () => {
     return allCategories.value;
   }
 
-  async function fetchOrders() {
+  async function fetchOrders(params) {
     try {
-      const data = await adminApi.getOrders();
+      const data = await adminApi.getOrders(params);
       allOrders.value = Array.isArray(data) ? data : [];
       return allOrders.value;
     } catch {

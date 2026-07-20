@@ -4,11 +4,9 @@
              xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence https://jakarta.ee/xml/ns/persistence/persistence_3_0.xsd"
              version="3.0">
     <persistence-unit name="FastGuyPU" transaction-type="RESOURCE_LOCAL">
-        <class>entity.Role</class>
         <class>entity.User</class>
         <class>entity.PasswordResetToken</class>
         <class>entity.Address</class>
-        <class>entity.DeliveryZone</class>
         <class>entity.Category</class>
         <class>entity.Product</class>
         <class>entity.ProductVariant</class>
@@ -20,13 +18,10 @@
         <class>entity.CartItem</class>
         <class>entity.Orders</class>
         <class>entity.OrderItem</class>
-        <class>entity.OrderItemModifier</class>
         <class>entity.Coupon</class>
-        <class>entity.CouponUsage</class>
-        <class>entity.ClaimedCoupon</class>
+        <class>entity.CouponRedemption</class>
         <class>entity.Banner</class>
         <class>entity.Review</class>
-        <class>entity.FavoriteProduct</class>
         <class>entity.Notification</class>
         <class>entity.SupportTicket</class>
         <class>entity.OrderStatusHistory</class>

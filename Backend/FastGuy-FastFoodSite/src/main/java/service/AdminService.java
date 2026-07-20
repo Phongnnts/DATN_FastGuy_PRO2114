@@ -65,4 +65,16 @@ public class AdminService {
 
         return data;
     }
+
+    public double getRevenueByDateRange(LocalDateTime start, LocalDateTime end) {
+        return ordersDAO.sumRevenueByDateRange(start, end);
+    }
+
+    public long getOrdersByDateRange(LocalDateTime start, LocalDateTime end) {
+        return ordersDAO.countByStatusAndDateRange("DELIVERED", start, end);
+    }
+
+    public java.util.List<Map<String, Object>> getRevenueByCustomRange(LocalDateTime start, LocalDateTime end) {
+        return ordersDAO.sumRevenueByCustomRange(start, end);
+    }
 }

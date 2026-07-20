@@ -62,8 +62,14 @@ public class ReviewServlet extends HttpServlet {
         }
 
         try {
-            int orderId = ((Number) body.get("orderId")).intValue();
-            int rating = ((Number) body.get("rating")).intValue();
+            Object rawOrderId = body.get("orderId");
+            Object rawRating = body.get("rating");
+            if (!(rawOrderId instanceof Number) || !(rawRating instanceof Number)) {
+                ApiResponse.error(resp, "Missing orderId or rating", 400);
+                return;
+            }
+            int orderId = ((Number) rawOrderId).intValue();
+            int rating = ((Number) rawRating).intValue();
             String comment = body.get("comment") != null ? body.get("comment").toString() : "";
             ApiResponse.ok(resp, reviewService.create(userId, orderId, rating, comment), "Reviewed");
         } catch (IllegalArgumentException e) {

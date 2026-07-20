@@ -52,10 +52,6 @@ public class Address {
     @Column(name = "ghn_ward_code")
     private String ghnWardCode;
 
-    @ManyToOne
-    @JoinColumn(name = "zone_id")
-    private DeliveryZone zone;
-
     @Column(name = "city")
     private String city;
 
@@ -98,8 +94,6 @@ public class Address {
     public void setGhnDistrictId(Integer ghnDistrictId) { this.ghnDistrictId = ghnDistrictId; }
     public String getGhnWardCode() { return ghnWardCode; }
     public void setGhnWardCode(String ghnWardCode) { this.ghnWardCode = ghnWardCode; }
-    public DeliveryZone getZone() { return zone; }
-    public void setZone(DeliveryZone zone) { this.zone = zone; }
     public String getCity() { return city; }
     public void setCity(String city) { this.city = city; }
     public Boolean getIsDefault() { return isDefault; }

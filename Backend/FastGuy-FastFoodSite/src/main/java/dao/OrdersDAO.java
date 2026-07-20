@@ -70,6 +70,18 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findPendingRefunds() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.refundStatus = 'PENDING' ORDER BY o.cancelledAt DESC",
+                    Orders.class)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public long count() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -146,6 +158,32 @@ public class OrdersDAO {
                     "FROM Orders o WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
                     "GROUP BY YEAR(o.delivered_at), MONTH(o.delivered_at) " +
                     "ORDER BY y DESC, m DESC")
+                    .getResultList();
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Object[] row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("month", ((Number) row[0]).intValue());
+                item.put("year", ((Number) row[1]).intValue());
+                item.put("revenue", ((Number) row[2]).doubleValue());
+                result.add(item);
+            }
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map<String, Object>> sumRevenueByCustomRange(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Object[]> rows = em.createNativeQuery(
+                    "SELECT MONTH(o.delivered_at) AS m, YEAR(o.delivered_at) AS y, SUM(o.final_amount) AS rev " +
+                    "FROM Orders o WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
+                    "AND o.delivered_at >= ?1 AND o.delivered_at < ?2 " +
+                    "GROUP BY YEAR(o.delivered_at), MONTH(o.delivered_at) " +
+                    "ORDER BY y DESC, m DESC")
+                    .setParameter(1, start)
+                    .setParameter(2, end)
                     .getResultList();
             List<Map<String, Object>> result = new ArrayList<>();
             for (Object[] row : rows) {

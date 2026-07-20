@@ -31,7 +31,6 @@ public class StaffDashboardServlet extends HttpServlet {
             return;
         }
 
-        int userId = JwtUtil.getUserId(token);
         var data = staffService.getDashboard();
         ApiResponse.ok(resp, data);
     }

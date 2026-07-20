@@ -7,6 +7,7 @@ import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
 const data = ref({ topProducts: [], periodTopProducts: [] })
+const dateRange = ref('6m')
 const chartRef = ref(null)
 const loading = ref(true)
 const error = ref('')
@@ -15,7 +16,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    data.value = await adminApi.getTopProducts({ period: '6m' })
+    data.value = await adminApi.getTopProducts({ period: dateRange.value })
     buildChart()
   } catch (e) {
     error.value = e.message || 'Không thể tải báo cáo'
@@ -63,13 +64,22 @@ function buildChart() {
 }
 
 onMounted(load)
+watch(dateRange, load)
 watch(data, buildChart, { deep: true })
 onUnmounted(() => chart?.destroy())
 </script>
 
 <template>
   <div>
-    <div class="page-header"><h1>Sản phẩm bán chạy</h1></div>
+    <div class="page-header">
+      <h1>Sản phẩm bán chạy</h1>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" :class="dateRange === '7d' ? 'btn-primary' : 'btn-outline'" @click="dateRange = '7d'">7 ngày</button>
+        <button class="btn btn-sm" :class="dateRange === '30d' ? 'btn-primary' : 'btn-outline'" @click="dateRange = '30d'">30 ngày</button>
+        <button class="btn btn-sm" :class="dateRange === '6m' ? 'btn-primary' : 'btn-outline'" @click="dateRange = '6m'">6 tháng</button>
+        <button class="btn btn-sm" :class="dateRange === '1y' ? 'btn-primary' : 'btn-outline'" @click="dateRange = '1y'">1 năm</button>
+      </div>
+    </div>
     <div v-if="loading" class="admin-state"><span class="spinner"></span> Đang tải báo cáo...</div>
     <div v-else-if="error" class="admin-state admin-error"><span>{{ error }}</span><button class="btn btn-sm btn-outline" @click="load">Thử lại</button></div>
     <template v-else>

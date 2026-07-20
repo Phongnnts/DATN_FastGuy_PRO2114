@@ -60,7 +60,7 @@ public class StaffOrderService {
                 return false;
             }
             User shipper = em.find(User.class, shipperId);
-            if (shipper == null || shipper.getRole() == null || !"SHIPPER".equals(shipper.getRole().getRoleName())) {
+            if (shipper == null || !"SHIPPER".equals(shipper.getRole())) {
                 em.getTransaction().rollback();
                 return false;
             }

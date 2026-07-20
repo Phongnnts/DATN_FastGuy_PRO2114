@@ -8,6 +8,9 @@ Chart.register(...registerables);
 
 const data = ref({ totalRevenue: 0, periodRevenue: 0, periodOrders: 0, revenueToday: 0, ordersToday: 0, revenueByMonth: [] });
 const dateRange = ref('6m');
+const customFrom = ref('');
+const customTo = ref('');
+const isCustom = ref(false);
 const filteredData = ref([]);
 const chartRef = ref(null);
 const loading = ref(true);
@@ -21,7 +24,11 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    data.value = await adminApi.getRevenueReport({ period: dateRange.value });
+    if (isCustom.value && customFrom.value && customTo.value) {
+      data.value = await adminApi.getRevenueReport({ startDate: customFrom.value, endDate: customTo.value });
+    } else {
+      data.value = await adminApi.getRevenueReport({ period: dateRange.value });
+    }
     buildChart();
   } catch (e) {
     error.value = e.message || 'Không thể tải báo cáo';
@@ -29,7 +36,19 @@ async function load() {
     loading.value = false;
   }
 }
-watch(dateRange, load);
+
+function usePreset(val) {
+  isCustom.value = false;
+  dateRange.value = val;
+}
+function applyCustom() {
+  if (!customFrom.value || !customTo.value) return;
+  isCustom.value = true;
+  load();
+}
+
+watch(dateRange, () => { if (!isCustom.value) load(); });
+
 let chart = null;
 
 function getCSSVar(name) {
@@ -50,7 +69,7 @@ function buildChart() {
   chart = new Chart(chartRef.value, {
     type: 'bar',
     data: {
-      labels: filteredData.value.map((m) => m.month),
+      labels: filteredData.value.map((m) => `Tháng ${m.month}/${m.year}`),
       datasets: [
         {
           label: 'Doanh thu',
@@ -93,13 +112,15 @@ onUnmounted(() => chart?.destroy());
   <div>
     <div class="page-header">
       <h1>Báo cáo doanh thu</h1>
-      <div style="display: flex; gap: 8px; align-items: center">
-        <select v-model="dateRange" class="form-select" style="width: auto">
-          <option value="7d">7 ngày</option>
-          <option value="30d">30 ngày</option>
-          <option value="6m">6 tháng</option>
-          <option value="1y">1 năm</option>
-        </select>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+        <button class="btn btn-sm" :class="!isCustom ? 'btn-primary' : 'btn-outline'" @click="usePreset('7d')">7 ngày</button>
+        <button class="btn btn-sm" :class="!isCustom && dateRange === '30d' ? 'btn-primary' : 'btn-outline'" @click="usePreset('30d')">30 ngày</button>
+        <button class="btn btn-sm" :class="!isCustom && dateRange === '6m' ? 'btn-primary' : 'btn-outline'" @click="usePreset('6m')">6 tháng</button>
+        <button class="btn btn-sm" :class="!isCustom && dateRange === '1y' ? 'btn-primary' : 'btn-outline'" @click="usePreset('1y')">1 năm</button>
+        <span style="color:var(--text-mid);font-size:13px">|</span>
+        <input v-model="customFrom" type="date" class="form-input" style="width:auto" placeholder="Từ ngày">
+        <input v-model="customTo" type="date" class="form-input" style="width:auto" placeholder="Đến ngày">
+        <button class="btn btn-sm btn-primary" @click="applyCustom"><i class="bi bi-filter"></i> Lọc</button>
       </div>
     </div>
     <div v-if="loading" class="admin-state"><span class="spinner"></span> Đang tải báo cáo...</div>

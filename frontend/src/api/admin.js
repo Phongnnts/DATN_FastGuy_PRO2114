@@ -43,17 +43,14 @@ export default {
   getOrders(params) {
     return client.get('/admin/orders', { params });
   },
+  getOrderById(id) {
+    return client.get(`/admin/orders/${id}`);
+  },
   getRevenueReport(params) {
     return client.get('/admin/reports/revenue', { params });
   },
   getTopProducts(params) {
     return client.get('/admin/reports/top-products', { params });
-  },
-  exportReport(type, params) {
-    return client.get(`/admin/reports/export/${type}`, {
-      params,
-      responseType: 'blob',
-    });
   },
   getVariants(productId) {
     return client.get(`/admin/products/${productId}/variants`);
@@ -109,8 +106,8 @@ export default {
   updateSettings(data) {
     return client.put('/admin/settings', data);
   },
-  getShifts() {
-    return client.get('/admin/shifts');
+  getShifts(params) {
+    return client.get('/admin/shifts', { params });
   },
   createShift(data) {
     return client.post('/admin/shifts', data);
@@ -123,5 +120,23 @@ export default {
   },
   updateRefund(orderId, data) {
     return client.put(`/admin/refunds/${orderId}`, data);
+  },
+  getRefunds() {
+    return client.get('/admin/refunds');
+  },
+  cancelOrder(orderId, data) {
+    return client.put(`/admin/orders/${orderId}/cancel`, data || {});
+  },
+  updateOrderStatus(orderId, data) {
+    return client.put(`/admin/orders/${orderId}/status`, data);
+  },
+  addOrderNote(orderId, note) {
+    return client.post(`/admin/orders/${orderId}/notes`, { note });
+  },
+  getUserOrders(userId) {
+    return client.get(`/admin/users/${userId}/orders`);
+  },
+  updateUserStatus(userId, data) {
+    return client.put(`/admin/users/${userId}/status`, data);
   },
 };

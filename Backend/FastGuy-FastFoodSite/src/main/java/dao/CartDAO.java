@@ -42,7 +42,7 @@ public class CartDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT ci FROM CartItem ci LEFT JOIN FETCH ci.modifiers LEFT JOIN FETCH ci.product LEFT JOIN FETCH ci.variant WHERE ci.cart.cartId = :cid ORDER BY ci.cartItemId",
+                    "SELECT ci FROM CartItem ci LEFT JOIN FETCH ci.product LEFT JOIN FETCH ci.variant WHERE ci.cart.cartId = :cid ORDER BY ci.cartItemId",
                     CartItem.class)
                     .setParameter("cid", cartId)
                     .getResultList();
@@ -105,7 +105,7 @@ public class CartDAO {
         try {
             em.getTransaction().begin();
             List<CartItem> items = new ArrayList<>(em.createQuery(
-                    "SELECT ci FROM CartItem ci LEFT JOIN FETCH ci.modifiers WHERE ci.cart.cartId = :cid",
+                    "SELECT ci FROM CartItem ci WHERE ci.cart.cartId = :cid",
                     CartItem.class)
                     .setParameter("cid", cartId)
                     .getResultList());

@@ -1,6 +1,5 @@
 package dao;
 
-import entity.OrderItemModifier;
 import entity.ProductCombo;
 import entity.ProductComboItem;
 import entity.ProductModifierGroup;
@@ -48,8 +47,10 @@ public class ProductModifierDAO {
     }
 
     private boolean isOptionReferenced(EntityManager em, int optionId) {
-        return !em.createQuery("SELECT m FROM OrderItemModifier m WHERE m.option.modifierOptionId = :id", OrderItemModifier.class)
-                .setParameter("id", optionId).setMaxResults(1).getResultList().isEmpty();
+        Long count = (Long) em.createNativeQuery("SELECT COUNT(*) FROM OrderItem WHERE modifiers_json LIKE ?")
+                .setParameter(1, "%\"modifierOptionId\":" + optionId + "%")
+                .getSingleResult();
+        return count > 0;
     }
 
     private void delete(Class<?> type, int id) { transact(em -> { Object value = em.find(type, id); if (value != null) em.remove(value); }); }

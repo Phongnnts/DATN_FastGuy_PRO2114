@@ -4,15 +4,15 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import service.FavoriteProductService;
+import service.UserFavoriteService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
 import java.io.IOException;
 
 @WebServlet("/api/favorites/*")
-public class FavoriteProductServlet extends HttpServlet {
-    private FavoriteProductService favoriteService = new FavoriteProductService();
+public class FavoriteServlet extends HttpServlet {
+    private UserFavoriteService favoriteService = new UserFavoriteService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {

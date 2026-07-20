@@ -5,6 +5,7 @@ import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
@@ -27,6 +28,11 @@ public class StoreConfigService {
         }
     }
 
+    private static final java.util.Set<String> TIME_KEYS = Set.of(OPEN_TIME, CLOSE_TIME);
+    private static final java.util.Set<String> FEE_KEYS = Set.of(SERVICE_FEE, "tax_rate", "delivery_fee", "min_order_amount");
+    private static final java.util.Set<String> INT_KEYS = Set.of("estimated_delivery_minutes");
+    private static final java.util.Set<String> TEXT_KEYS = Set.of("store_name", "store_phone", "store_address", "store_logo");
+
     public Map<String, Object> getPublicConfig() {
         Map<String, String> config = getAll();
         String openTime = config.getOrDefault(OPEN_TIME, "08:00");
@@ -37,7 +43,20 @@ public class StoreConfigService {
         result.put("openTime", openTime);
         result.put("closeTime", closeTime);
         result.put("serviceFee", serviceFee);
+        result.put("taxRate", parseFee(config.get("tax_rate")));
+        result.put("deliveryFee", parseFee(config.get("delivery_fee")));
+        result.put("minOrderAmount", parseFee(config.get("min_order_amount")));
+        result.put("estimatedDeliveryMinutes", parseIntSafe(config.get("estimated_delivery_minutes"), 30));
+        result.put("storeName", config.getOrDefault("store_name", "FastGuy"));
+        result.put("storePhone", config.getOrDefault("store_phone", ""));
+        result.put("storeAddress", config.getOrDefault("store_address", ""));
+        result.put("storeLogo", config.getOrDefault("store_logo", ""));
         return result;
+    }
+
+    private int parseIntSafe(String val, int defaultVal) {
+        try { return val != null && !val.isBlank() ? Integer.parseInt(val) : defaultVal; }
+        catch (NumberFormatException e) { return defaultVal; }
     }
 
     public void update(Map<String, Object> values) {
@@ -48,12 +67,13 @@ public class StoreConfigService {
             for (Map.Entry<String, Object> entry : values.entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue() == null ? null : String.valueOf(entry.getValue()).trim();
-                if (!OPEN_TIME.equals(key) && !CLOSE_TIME.equals(key) && !SERVICE_FEE.equals(key)) {
-                    throw new IllegalArgumentException("Unsupported config key");
+                if (!TIME_KEYS.contains(key) && !FEE_KEYS.contains(key) && !INT_KEYS.contains(key) && !TEXT_KEYS.contains(key)) {
+                    throw new IllegalArgumentException("Unsupported config key: " + key);
                 }
-                if (value == null || value.isEmpty()) throw new IllegalArgumentException("Invalid config value");
-                if (SERVICE_FEE.equals(key)) parseFee(value);
-                else LocalTime.parse(value);
+                if (value == null || value.isEmpty()) throw new IllegalArgumentException("Invalid config value for " + key);
+                if (FEE_KEYS.contains(key)) parseFee(value);
+                else if (TIME_KEYS.contains(key)) LocalTime.parse(value);
+                else if (INT_KEYS.contains(key)) Integer.parseInt(value);
                 int updated = em.createNativeQuery("UPDATE ShippingConfig SET config_value = :value WHERE config_key = :key")
                         .setParameter("key", key).setParameter("value", value).executeUpdate();
                 if (updated == 0) {

@@ -80,8 +80,15 @@ export const useShipperStore = defineStore('shipper', () => {
 
   async function pickUpOrder(id) {
     await shipperApi.pickUpOrder(id);
-    const order = myOrders.value.find(o => o.id === id);
-    if (order) order.status = 'PICKED_UP';
+    const idx = myOrders.value.findIndex(o => o.id === id);
+    if (idx >= 0) {
+      myOrders.value[idx].status = 'PICKED_UP';
+    } else {
+      const fromAvailable = availableOrders.value.find(o => o.id === id);
+      if (fromAvailable) {
+        myOrders.value.unshift({ ...fromAvailable, status: 'PICKED_UP' });
+      }
+    }
     availableOrders.value = availableOrders.value.filter(o => o.id !== id);
   }
 

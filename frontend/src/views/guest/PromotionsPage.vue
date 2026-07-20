@@ -33,7 +33,7 @@ async function handleClaim(couponId) {
       claimSuccess.value = `Đã nhận mã ${c.code}. Bạn có thể dùng tại trang thanh toán.`;
     }
   } catch (e) {
-    toast.error(e.response?.data?.message || e.message);
+    toast.error(e.message);
   } finally {
     claiming.value[couponId] = false;
   }
