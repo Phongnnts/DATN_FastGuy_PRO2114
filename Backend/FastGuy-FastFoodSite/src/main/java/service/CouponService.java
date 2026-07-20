@@ -5,6 +5,9 @@ import dao.CouponDAO;
 import dao.CouponUsageDAO;
 import entity.ClaimedCoupon;
 import entity.Coupon;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import utils.DatabaseUtil;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -106,19 +109,32 @@ public class CouponService {
     }
 
     public String claim(int couponId, int userId) {
-        Coupon coupon = couponDAO.findById(couponId);
-        if (coupon == null) return "Mã giảm giá không tồn tại";
-        if (!Boolean.TRUE.equals(coupon.getIsActive())) return "Mã giảm giá không khả dụng";
-        if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) return "Mã đã hết hạn";
-        if (coupon.getMaxUses() > 0 && coupon.getUsedCount() >= coupon.getMaxUses()) return "Mã đã hết lượt";
-        if (claimedCouponDAO.exists(couponId, userId)) return "Bạn đã nhận mã này rồi";
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Coupon coupon = em.find(Coupon.class, couponId, LockModeType.PESSIMISTIC_WRITE);
+            if (coupon == null) { em.getTransaction().rollback(); return "Mã giảm giá không tồn tại"; }
+            if (!Boolean.TRUE.equals(coupon.getIsActive())) { em.getTransaction().rollback(); return "Mã giảm giá không khả dụng"; }
+            if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) { em.getTransaction().rollback(); return "Mã đã hết hạn"; }
+            if (coupon.getMaxUses() > 0 && coupon.getUsedCount() >= coupon.getMaxUses()) { em.getTransaction().rollback(); return "Mã đã hết lượt"; }
 
-        ClaimedCoupon cc = new ClaimedCoupon();
-        cc.setCouponId(couponId);
-        cc.setUserId(userId);
-        cc.setClaimedAt(LocalDateTime.now());
-        claimedCouponDAO.save(cc);
-        return null;
+            boolean exists = em.createQuery("SELECT 1 FROM ClaimedCoupon c WHERE c.couponId = :cid AND c.userId = :uid", ClaimedCoupon.class)
+                    .setParameter("cid", couponId).setParameter("uid", userId).setMaxResults(1).getResultList().isEmpty() == false;
+            if (exists) { em.getTransaction().rollback(); return "Bạn đã nhận mã này rồi"; }
+
+            ClaimedCoupon cc = new ClaimedCoupon();
+            cc.setCouponId(couponId);
+            cc.setUserId(userId);
+            cc.setClaimedAt(LocalDateTime.now());
+            em.persist(cc);
+            em.getTransaction().commit();
+            return null;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
     }
 
     public List<Map<String, Object>> getPublicCoupons(Integer userId) {
