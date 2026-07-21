@@ -37,6 +37,26 @@ const claimedCouponsError = ref('');
 const showMyCoupons = ref(true);
 const note = ref('');
 const submitting = ref(false);
+const IDEMPOTENCY_STORAGE_KEY = 'checkout_idempotency';
+let memoryIdempotency = null;
+
+function idempotencyKeyFor(payload) {
+  const serialized = JSON.stringify(payload);
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(IDEMPOTENCY_STORAGE_KEY) || 'null');
+    if (saved?.payload === serialized && saved?.key) return saved.key;
+  } catch {}
+  if (memoryIdempotency?.payload === serialized) return memoryIdempotency.key;
+  const key = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  memoryIdempotency = { payload: serialized, key };
+  try { sessionStorage.setItem(IDEMPOTENCY_STORAGE_KEY, JSON.stringify(memoryIdempotency)); } catch {}
+  return key;
+}
+
+function clearIdempotencyKey() {
+  memoryIdempotency = null;
+  try { sessionStorage.removeItem(IDEMPOTENCY_STORAGE_KEY); } catch {}
+}
 const storeConfig = ref(null);
 const currentStep = ref(1);
 const shippingError = ref('');
@@ -298,7 +318,7 @@ async function placeOrder() {
         quantity: i.quantity,
         modifierOptionIds: (i.modifiers || []).map((modifier) => modifier.modifierOptionId),
       }));
-      const result = await orderApi.guestCheckout({
+      const payload = {
         customerName: recipientName.value.trim(),
         phone: phone.value.trim(),
         address: fullAddress,
@@ -312,7 +332,9 @@ async function placeOrder() {
         toDistrictName: getDistrictName(),
         toWardName: getWardName(),
         couponCode: appliedCoupon.value?.code || '',
-      });
+      };
+      const result = await orderApi.guestCheckout(payload, idempotencyKeyFor(payload));
+      clearIdempotencyKey();
       cart.clear();
       if (result.checkoutUrl) {
         window.location.assign(result.checkoutUrl);
@@ -322,7 +344,7 @@ async function placeOrder() {
       return;
     }
 
-    const result = await orderStore.createOrder({
+    const payload = {
       customerName: recipientName.value.trim(),
       address: fullAddress,
       phone: phone.value.trim(),
@@ -335,7 +357,14 @@ async function placeOrder() {
       toDistrictName: getDistrictName(),
       toWardName: getWardName(),
       couponCode: appliedCoupon.value?.code || '',
-    });
+      cartSignature: cart.items.map(item => ({
+        variantId: item.variantId,
+        quantity: item.quantity,
+        modifierOptionIds: (item.modifiers || []).map(modifier => modifier.modifierOptionId).sort((a, b) => a - b),
+      })).sort((a, b) => a.variantId - b.variantId),
+    };
+    const result = await orderStore.createOrder(payload, idempotencyKeyFor(payload));
+    clearIdempotencyKey();
     createdOrderId.value = result.id;
     cart.clear();
     if (result.checkoutUrl) {
@@ -610,6 +639,7 @@ async function placeOrder() {
           <p v-if="isStoreClosed" class="stock-warning">Cửa hàng đang đóng cửa ({{ storeConfig.openTime }} - {{ storeConfig.closeTime }}), chưa thể đặt hàng.</p>
           <p v-else-if="hasInvalidItems" class="stock-warning">Có món đã hết hàng hoặc vượt tồn kho</p>
           <button
+            v-if="currentStep === 3"
             class="btn btn-lg btn-primary checkout-btn"
             @click="placeOrder"
             :disabled="submitting || isStoreClosed || !canPlaceOrder() || feeLoading || hasInvalidItems"
@@ -967,7 +997,7 @@ async function placeOrder() {
 }
 .applied-remove:hover { border-color: #dc2626; color: #dc2626; }
 .my-coupons {
-  margin: 12px 14px 0;
+  margin: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: #fffaf4;
@@ -976,12 +1006,12 @@ async function placeOrder() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 12px;
+  padding: 12px 14px;
 }
 .my-coupons-heading > div { display: grid; gap: 2px; }
 .my-coupons-heading span { font-size: 13px; font-weight: 800; color: var(--text-dark); }
 .my-coupons-heading small { font-size: 11px; color: var(--text-mid); }
-.coupon-empty-link { display: flex; align-items: center; justify-content: space-between; margin: 0 12px 10px; padding: 9px 10px; border-radius: 7px; background: #fff; color: var(--primary-dark); font-size: 12px; font-weight: 700; }
+.coupon-empty-link { display: flex; align-items: center; justify-content: space-between; margin: 0 14px 10px; padding: 9px 10px; border-radius: 7px; background: #fff; color: var(--primary-dark); font-size: 12px; font-weight: 700; }
 .my-coupons-toggle {
   display: flex;
   align-items: center;
@@ -1005,7 +1035,7 @@ async function placeOrder() {
   padding: 0 6px;
   border-radius: 999px;
 }
-.claimed-list { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 6px; }
+.claimed-list { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 6px; }
 .claimed-item {
   display: flex;
   align-items: center;
