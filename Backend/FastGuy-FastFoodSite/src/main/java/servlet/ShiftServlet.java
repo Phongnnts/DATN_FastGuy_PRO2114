@@ -25,6 +25,7 @@ public class ShiftServlet extends HttpServlet {
         if (userId < 0) return;
         resp.setContentType("application/json;charset=UTF-8");
         if ("/mine".equals(req.getPathInfo())) ApiResponse.ok(resp, workShiftService.list(userId, null, null, null));
+        else if ("/current".equals(req.getPathInfo())) ApiResponse.ok(resp, workShiftService.current(userId));
         else if ("/has-today".equals(req.getPathInfo())) {
             EntityManager em = DatabaseUtil.getEntityManager();
             try {
