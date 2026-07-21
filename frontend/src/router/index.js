@@ -185,16 +185,19 @@ const routes = [
         path: '',
         name: 'ShipperDashboard',
         component: () => import('@/views/shipper/DashboardPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'orders',
         name: 'ShipperOrders',
         component: () => import('@/views/shipper/MyOrdersPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'orders/:id',
         name: 'ShipperOrderDetail',
         component: () => import('@/views/shipper/OrderDetailPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
     ],
   },
@@ -339,9 +342,13 @@ router.beforeEach(async (to, from, next) => {
   if (to.matched.some((record) => record.meta.requiresCheckedInShift)) {
     try {
       const current = await shiftApi.getCurrent();
-      if (current?.state !== 'CHECKED_IN') return next('/staff/shifts');
+      if (current?.state !== 'CHECKED_IN') {
+        const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/orders' };
+        return next(shiftRoutes[auth.role] || '/staff/shifts');
+      }
     } catch {
-      return next('/staff/shifts');
+      const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/orders' };
+      return next(shiftRoutes[auth.role] || '/staff/shifts');
     }
   }
 
