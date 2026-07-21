@@ -78,9 +78,11 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       const data = await adminApi.getOrders(params);
       allOrders.value = Array.isArray(data) ? data : [];
+      error.value = '';
       return allOrders.value;
-    } catch {
-      return [];
+    } catch (e) {
+      error.value = e.message;
+      throw e;
     }
   }
 
@@ -118,12 +120,8 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchVariants(productId) {
-    try {
-      const data = await adminApi.getVariants(productId);
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
-    }
+    const data = await adminApi.getVariants(productId);
+    return Array.isArray(data) ? data : [];
   }
 
   async function createVariant(productId, data) {
@@ -212,22 +210,6 @@ export const useAdminStore = defineStore('admin', () => {
     await fetchCategories();
   }
 
-  async function getRevenueReport(params) {
-    try {
-      return await adminApi.getRevenueReport(params);
-    } catch {
-      return [];
-    }
-  }
-
-  async function getTopProducts(params) {
-    try {
-      return await adminApi.getTopProducts(params);
-    } catch {
-      return [];
-    }
-  }
-
   return {
     dashboard,
     allUsers,
@@ -262,9 +244,8 @@ export const useAdminStore = defineStore('admin', () => {
       createComboItem,
       deleteComboItem,
      createCategory,
-    updateCategory,
-    deleteCategory,
-    getRevenueReport,
-    getTopProducts,
+     updateCategory,
+     deleteCategory,
+
   };
 });

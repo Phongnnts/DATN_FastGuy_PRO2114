@@ -118,8 +118,7 @@ const routes = [
       },
       {
         path: 'history',
-        name: 'UserPurchaseHistory',
-        component: () => import('@/views/user/PurchaseHistoryPage.vue'),
+        redirect: { path: '/account/orders', query: { status: 'DELIVERED' } },
       },
       {
         path: 'change-password',
@@ -130,11 +129,6 @@ const routes = [
         path: 'support',
         name: 'UserSupport',
         component: () => import('@/views/user/SupportPage.vue'),
-      },
-      {
-        path: 'loyalty',
-        name: 'UserLoyalty',
-        component: () => import('@/views/user/LoyaltyPage.vue'),
       },
     ],
   },
@@ -243,14 +237,9 @@ const routes = [
         component: () => import('@/views/admin/OrderDetailPage.vue'),
       },
       {
-        path: 'reports/revenue',
-        name: 'AdminRevenueReport',
-        component: () => import('@/views/admin/RevenueReportPage.vue'),
-      },
-      {
-        path: 'reports/top-products',
-        name: 'AdminTopProducts',
-        component: () => import('@/views/admin/TopProductsReportPage.vue'),
+        path: 'reports',
+        name: 'AdminReports',
+        component: () => import('@/views/admin/ReportsPage.vue'),
       },
       {
         path: 'coupons',
@@ -283,11 +272,27 @@ const routes = [
   },
 ];
 
+const pageTitles = {
+  Home: 'Trang chủ', Menu: 'Thực đơn', ProductDetail: 'Chi tiết món', Cart: 'Giỏ hàng',
+  Login: 'Đăng nhập', Register: 'Đăng ký', TrackOrder: 'Tra cứu đơn', Promotions: 'Khuyến mãi',
+  Checkout: 'Thanh toán', Profile: 'Thông tin cá nhân', UserOrders: 'Đơn hàng',
+  UserOrderDetail: 'Chi tiết đơn hàng', UserFavorites: 'Món yêu thích', ChangePassword: 'Đổi mật khẩu',
+  UserSupport: 'Hỗ trợ', NotFound: 'Không tìm thấy trang',
+};
+
+function applyTitles(records) {
+  records.forEach((record) => {
+    if (record.name) record.meta = { ...record.meta, title: pageTitles[record.name] || record.name };
+    if (record.children) applyTitles(record.children);
+  });
+}
+applyTitles(routes);
+
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior() {
-    return { top: 0 };
+  scrollBehavior(to, from, savedPosition) {
+    return savedPosition || (to.hash ? { el: to.hash, behavior: 'smooth' } : { top: 0 });
   },
 });
 
@@ -308,11 +313,14 @@ router.beforeEach((to, from, next) => {
     if (redirect) return next(redirect);
   }
 
-  if (to.meta.requiresAuth && !auth.isLoggedIn) {
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+  const requiredRole = to.matched.findLast((record) => record.meta.role)?.meta.role;
+
+  if (requiresAuth && !auth.isLoggedIn) {
     return next({ name: 'Login', query: { redirect: to.fullPath } });
   }
 
-  if (to.meta.role && auth.role !== to.meta.role) {
+  if (requiredRole && auth.role !== requiredRole) {
     const roleRoutes = {
       [ROLES.USER]: '/account/profile',
       [ROLES.STAFF]: '/staff',
@@ -325,6 +333,11 @@ router.beforeEach((to, from, next) => {
   }
 
   next();
+});
+
+router.afterEach((to) => {
+  const title = [...to.matched].reverse().find((record) => record.meta.title)?.meta.title;
+  document.title = title ? `${title} | FastGuy` : 'FastGuy';
 });
 
 export default router;

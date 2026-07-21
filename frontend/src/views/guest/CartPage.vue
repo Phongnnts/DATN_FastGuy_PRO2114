@@ -1,21 +1,40 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from '@/stores/cart';
 import { formatPrice } from '@/utils/format';
 import CartItem from '@/components/common/CartItem.vue';
 import { useToast } from '@/stores/toast';
+import { useAuthStore } from '@/stores/auth';
 
 const toast = useToast();
 const router = useRouter();
 const cart = useCartStore();
+const auth = useAuthStore();
+const pendingKeys = ref(new Set());
 const hasInvalidItems = computed(() => cart.items.some((item) => (item.variantStatus && item.variantStatus !== 'AVAILABLE') || (item.quantityAvailable != null && (Number(item.quantityAvailable) <= 0 || item.quantity > Number(item.quantityAvailable)))));
 
-async function updateQty(productId, variantId, quantity, modifierOptionIds) {
-  try { await cart.updateQuantity(productId, variantId, quantity, modifierOptionIds); }
-  catch (error) { toast.error(error.message || 'Không thể cập nhật số lượng'); }
+function pendingKey(productId, variantId, modifierOptionIds) {
+  return `${productId}_${variantId}_${[...modifierOptionIds].sort((a, b) => a - b).join(',')}`;
 }
-function removeItem(productId, variantId, modifierOptionIds) { cart.removeItem(productId, variantId, modifierOptionIds); }
+async function runItemAction(productId, variantId, modifierOptionIds, action, message) {
+  const key = pendingKey(productId, variantId, modifierOptionIds);
+  if (pendingKeys.value.has(key)) return;
+  pendingKeys.value = new Set(pendingKeys.value).add(key);
+  try { await action(); }
+  catch (error) { toast.error(error.message || message); }
+  finally {
+    const next = new Set(pendingKeys.value);
+    next.delete(key);
+    pendingKeys.value = next;
+  }
+}
+function updateQty(productId, variantId, quantity, modifierOptionIds) {
+  return runItemAction(productId, variantId, modifierOptionIds, () => cart.updateQuantity(productId, variantId, quantity, modifierOptionIds), 'Không thể cập nhật số lượng');
+}
+function removeItem(productId, variantId, modifierOptionIds) {
+  return runItemAction(productId, variantId, modifierOptionIds, () => cart.removeItem(productId, variantId, modifierOptionIds), 'Không thể xóa sản phẩm');
+}
 function proceedCheckout() {
   if (hasInvalidItems.value) return toast.error('Vui lòng cập nhật giỏ hàng theo tồn kho hiện tại');
   router.push('/checkout');
@@ -27,15 +46,15 @@ function proceedCheckout() {
     <div class="container">
       <div class="cart-breadcrumb"><router-link to="/">Trang chủ</router-link><i class="bi bi-chevron-right"></i><strong>Giỏ hàng</strong></div>
 
-      <div class="checkout-stepper" aria-label="Tiến trình đặt hàng">
-        <div class="step active"><span><i class="bi bi-check-lg"></i></span><strong>Giỏ hàng</strong></div>
-        <div class="step-line"></div>
-        <div class="step"><span>2</span><strong>Thông tin giao</strong></div>
-        <div class="step-line"></div>
-        <div class="step"><span>3</span><strong>Thanh toán</strong></div>
-        <div class="step-line"></div>
-        <div class="step"><span>4</span><strong>Hoàn tất</strong></div>
-      </div>
+      <ol class="checkout-stepper" aria-label="Tiến trình đặt hàng">
+        <li class="step active" aria-current="step"><span><i class="bi bi-check-lg"></i></span><strong>Giỏ hàng</strong></li>
+        <li class="step-line"></li>
+        <li class="step"><span>2</span><strong>Thông tin giao</strong></li>
+        <li class="step-line" aria-hidden="true"></li>
+        <li class="step"><span>3</span><strong>Thanh toán</strong></li>
+        <li class="step-line" aria-hidden="true"></li>
+        <li class="step"><span>4</span><strong>Hoàn tất</strong></li>
+      </ol>
 
       <div v-if="!cart.isLoaded" class="skeleton-cart"><div v-for="number in 3" :key="number" class="skeleton-cart-item"></div></div>
 
@@ -48,7 +67,7 @@ function proceedCheckout() {
           <section class="cart-block">
             <div class="block-title"><span><i class="bi bi-basket2"></i> Sản phẩm trong giỏ</span><small>{{ cart.itemCount }} món</small></div>
             <div class="cart-columns"><span>Sản phẩm</span><span>Số lượng</span><span>Thành tiền</span></div>
-            <CartItem v-for="item in cart.items" :key="item.key" :item="item" @update:quantity="updateQty" @remove="removeItem" />
+            <CartItem v-for="item in cart.items" :key="item.key" :item="item" :pending="pendingKeys.has(item.key)" @update:quantity="updateQty" @remove="removeItem" />
             <div class="coupon-preview"><i class="bi bi-ticket-perforated"></i><span>Mã giảm giá sẽ được áp dụng ở bước thanh toán.</span><router-link to="/promotions">Xem ưu đãi</router-link></div>
           </section>
 
@@ -67,7 +86,7 @@ function proceedCheckout() {
           <p v-if="hasInvalidItems" class="stock-warning"><i class="bi bi-exclamation-circle"></i> Có món đã hết hàng hoặc vượt tồn kho.</p>
           <button class="order-button" :disabled="hasInvalidItems" @click="proceedCheckout">Đặt hàng ngay <i class="bi bi-arrow-right"></i></button>
           <p class="terms"><i class="bi bi-lock"></i> Thanh toán an toàn 100%</p>
-          <div class="points-card"><i class="bi bi-stars"></i><span>Bạn sẽ nhận được điểm thưởng sau khi đơn hàng hoàn thành.</span></div>
+          <div class="points-card"><i class="bi bi-stars"></i><span>{{ auth.isUser ? 'Bạn sẽ nhận điểm thưởng khi đơn hàng hoàn thành.' : 'Đăng nhập để tích điểm khi đơn hàng hoàn thành.' }}</span></div>
         </aside>
       </div>
     </div>

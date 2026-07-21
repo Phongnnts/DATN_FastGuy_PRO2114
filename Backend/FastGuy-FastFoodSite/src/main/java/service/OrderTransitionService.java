@@ -27,6 +27,10 @@ public class OrderTransitionService {
         return allowed.contains(to);
     }
 
+    static boolean canDeliver(String paymentMethod, String paymentStatus) {
+        return "PAID".equals(paymentStatus);
+    }
+
     public Set<String> getAllowedActions(String currentStatus, String role, String paymentStatus) {
         if (currentStatus == null) return Set.of();
         Set<String> next = new HashSet<>(TRANSITIONS.getOrDefault(currentStatus, Set.of()));
@@ -64,6 +68,10 @@ public class OrderTransitionService {
 
             String from = order.getOrderStatus();
             if (!canTransition(from, toStatus)) { em.getTransaction().rollback(); return false; }
+            if ("DELIVERED".equals(toStatus) && !canDeliver(order.getPaymentMethod(), order.getPaymentStatus())) {
+                em.getTransaction().rollback();
+                return false;
+            }
 
             if ("CONFIRMED".equals(toStatus)) order.setConfirmedAt(LocalDateTime.now());
             else if ("READY".equals(toStatus)) order.setReadyAt(LocalDateTime.now());
@@ -83,6 +91,7 @@ public class OrderTransitionService {
             }
 
             em.persist(new OrderStatusHistory(orderId, actorUserId, actorRole, from, toStatus, note, LocalDateTime.now()));
+            if ("DELIVERED".equals(toStatus)) new LoyaltyService().awardForDelivery(em, order);
             em.getTransaction().commit();
             return true;
         } catch (RuntimeException e) {

@@ -46,11 +46,8 @@ export default {
   getOrderById(id) {
     return client.get(`/admin/orders/${id}`);
   },
-  getRevenueReport(params) {
-    return client.get('/admin/reports/revenue', { params });
-  },
-  getTopProducts(params) {
-    return client.get('/admin/reports/top-products', { params });
+  getFullReport(params) {
+    return client.get('/admin/reports/full', { params });
   },
   getVariants(productId) {
     return client.get(`/admin/products/${productId}/variants`);

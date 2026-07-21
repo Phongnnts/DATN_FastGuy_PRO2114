@@ -23,9 +23,16 @@ public class WorkShiftService {
             List<String> conditions = new ArrayList<>();
             Map<String, Object> params = new HashMap<>();
             if (userId != null) { conditions.add("ws.user.userId = :userId"); params.put("userId", userId); }
-            if (role != null && !role.isBlank()) { conditions.add("ws.user.role = :role"); params.put("role", role); }
-            if (fromDate != null && !fromDate.isBlank()) { conditions.add("ws.shiftDate >= :fromDate"); params.put("fromDate", LocalDate.parse(fromDate)); }
-            if (toDate != null && !toDate.isBlank()) { conditions.add("ws.shiftDate <= :toDate"); params.put("toDate", LocalDate.parse(toDate)); }
+            if (role != null && !role.isBlank()) {
+                if (!"STAFF".equals(role) && !"SHIPPER".equals(role)) throw new IllegalArgumentException("Invalid role");
+                conditions.add("ws.user.role = :role");
+                params.put("role", role);
+            }
+            LocalDate from = fromDate != null && !fromDate.isBlank() ? parseDate(fromDate, "fromDate") : null;
+            LocalDate to = toDate != null && !toDate.isBlank() ? parseDate(toDate, "toDate") : null;
+            if (from != null && to != null && from.isAfter(to)) throw new IllegalArgumentException("fromDate must not be after toDate");
+            if (from != null) { conditions.add("ws.shiftDate >= :fromDate"); params.put("fromDate", from); }
+            if (to != null) { conditions.add("ws.shiftDate <= :toDate"); params.put("toDate", to); }
             for (String c : conditions) jpql.append(" AND ").append(c);
             jpql.append(" ORDER BY ws.shiftDate DESC, ws.startTime DESC");
             var query = em.createQuery(jpql.toString(), WorkShift.class);
@@ -61,6 +68,7 @@ public class WorkShiftService {
             em.getTransaction().begin();
             WorkShift shift = em.find(WorkShift.class, shiftId, LockModeType.PESSIMISTIC_WRITE);
             if (shift == null) throw new IllegalArgumentException("Shift not found");
+            if (!"SCHEDULED".equals(shift.getStatus()) || shift.getCheckInAt() != null || shift.getCheckOutAt() != null) throw new IllegalArgumentException("Only unattended scheduled shifts can be updated");
             apply(em, shift, data, false);
             em.getTransaction().commit();
             return toMap(shift);
@@ -128,15 +136,30 @@ public class WorkShiftService {
             if (!(value instanceof Number)) throw new IllegalArgumentException("Invalid userId");
             User user = em.find(User.class, ((Number) value).intValue());
             if (user == null || (!"STAFF".equals(user.getRole()) && !"SHIPPER".equals(user.getRole()))) throw new IllegalArgumentException("Shift user must be STAFF or SHIPPER");
+            if (!"ACTIVE".equals(user.getStatus())) throw new IllegalArgumentException("Shift user must be active");
             shift.setUser(user);
         }
-        if (creating || data.containsKey("shiftDate")) shift.setShiftDate(LocalDate.parse(String.valueOf(data.get("shiftDate"))));
-        if (creating || data.containsKey("startTime")) shift.setStartTime(LocalTime.parse(String.valueOf(data.get("startTime"))));
-        if (creating || data.containsKey("endTime")) shift.setEndTime(LocalTime.parse(String.valueOf(data.get("endTime"))));
-        if (shift.getEndTime() == null || shift.getStartTime() == null || !shift.getEndTime().isAfter(shift.getStartTime())) throw new IllegalArgumentException("Invalid shift time");
-        if (data.containsKey("status")) shift.setStatus(String.valueOf(data.get("status")));
-        else if (creating) shift.setStatus("SCHEDULED");
+        if (creating || data.containsKey("shiftDate")) shift.setShiftDate(parseDate(data.get("shiftDate"), "shiftDate"));
+        if (creating || data.containsKey("startTime")) shift.setStartTime(parseTime(data.get("startTime"), "startTime"));
+        if (creating || data.containsKey("endTime")) shift.setEndTime(parseTime(data.get("endTime"), "endTime"));
+        if (shift.getEndTime() == null || shift.getStartTime() == null || !shift.getEndTime().isAfter(shift.getStartTime())) throw new IllegalArgumentException("End time must be after start time");
+        shift.setStatus(creating ? "SCHEDULED" : shift.getStatus());
+        Long overlaps = em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.shiftDate = :shiftDate AND ws.shiftId <> :shiftId AND ws.startTime < :endTime AND ws.endTime > :startTime", Long.class)
+                .setParameter("userId", shift.getUser().getUserId()).setParameter("shiftDate", shift.getShiftDate())
+                .setParameter("shiftId", shift.getShiftId()).setParameter("endTime", shift.getEndTime())
+                .setParameter("startTime", shift.getStartTime()).getSingleResult();
+        if (overlaps > 0) throw new IllegalArgumentException("User already has an overlapping shift");
         return shift;
+    }
+
+    private LocalDate parseDate(Object value, String field) {
+        try { return LocalDate.parse(String.valueOf(value)); }
+        catch (RuntimeException e) { throw new IllegalArgumentException("Invalid " + field); }
+    }
+
+    private LocalTime parseTime(Object value, String field) {
+        try { return LocalTime.parse(String.valueOf(value)); }
+        catch (RuntimeException e) { throw new IllegalArgumentException("Invalid " + field); }
     }
 
     private Map<String, Object> toMap(WorkShift shift) {

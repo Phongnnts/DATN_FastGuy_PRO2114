@@ -9,6 +9,7 @@ const auth = useAuthStore();
 const form = ref({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
 const error = ref('');
 const loading = ref(false);
+const showPassword = ref(false);
 
 async function handleRegister() {
   error.value = '';
@@ -49,28 +50,29 @@ async function handleRegister() {
         </div>
         <form @submit.prevent="handleRegister" class="auth-form">
           <div class="form-group">
-            <label class="form-label">Họ tên</label>
-            <input v-model="form.name" type="text" class="form-input" placeholder="Nguyễn Văn A" minlength="2" maxlength="100" required />
+            <label class="form-label" for="register-name">Họ tên</label>
+            <input id="register-name" v-model="form.name" type="text" class="form-input" autocomplete="name" placeholder="Nguyễn Văn A" minlength="2" maxlength="100" required />
           </div>
           <div class="form-group">
-            <label class="form-label">Email</label>
-            <input v-model="form.email" type="email" class="form-input" placeholder="your@email.com" required />
+            <label class="form-label" for="register-email">Email</label>
+            <input id="register-email" v-model="form.email" type="email" class="form-input" autocomplete="email" placeholder="your@email.com" required />
           </div>
           <div class="form-group">
-            <label class="form-label">Số điện thoại</label>
-            <input v-model="form.phone" type="tel" class="form-input" placeholder="0912345678" required />
+            <label class="form-label" for="register-phone">Số điện thoại</label>
+            <input id="register-phone" v-model="form.phone" type="tel" class="form-input" autocomplete="tel" inputmode="tel" placeholder="0912345678" required />
           </div>
           <div class="form-row-2">
             <div class="form-group">
-              <label class="form-label">Mật khẩu</label>
-              <input v-model="form.password" type="password" class="form-input" placeholder="Tối thiểu 8 ký tự, có chữ và số" minlength="8" maxlength="72" required />
+               <label class="form-label" for="register-password">Mật khẩu</label>
+               <input id="register-password" v-model="form.password" :type="showPassword ? 'text' : 'password'" class="form-input" autocomplete="new-password" placeholder="Tối thiểu 8 ký tự, có chữ và số" minlength="8" maxlength="72" required />
             </div>
             <div class="form-group">
-              <label class="form-label">Xác nhận</label>
-              <input v-model="form.confirmPassword" type="password" class="form-input" placeholder="••••••" minlength="6" maxlength="72" required />
+               <label class="form-label" for="register-confirm">Xác nhận</label>
+               <input id="register-confirm" v-model="form.confirmPassword" :type="showPassword ? 'text' : 'password'" class="form-input" autocomplete="new-password" placeholder="••••••" minlength="8" maxlength="72" required />
             </div>
           </div>
-          <p v-if="error" class="form-error">{{ error }}</p>
+           <label class="show-password"><input v-model="showPassword" type="checkbox" /> Hiện mật khẩu</label>
+           <p v-if="error" class="form-error" role="alert" aria-live="assertive">{{ error }}</p>
           <button type="submit" class="btn btn-primary btn-lg submit-btn" :disabled="loading">
             {{ loading ? 'Đang đăng ký...' : 'Đăng ký' }}
           </button>
@@ -114,10 +116,13 @@ async function handleRegister() {
 .auth-form { display: flex; flex-direction: column; gap: 4px; }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .submit-btn { width: 100%; }
+.show-password { display: flex; align-items: center; gap: 8px; margin: 2px 0 12px; color: var(--text-mid); font-size: 13px; }
+.show-password input { accent-color: var(--primary); }
 .auth-footer {
   text-align: center;
   margin-top: 24px;
   font-size: 14px;
   color: var(--text-mid);
 }
+@media (max-width: 480px) { .auth-page { padding: 24px 10px; } .auth-card { padding: 24px 16px; } .form-row-2 { grid-template-columns: 1fr; gap: 0; } }
 </style>

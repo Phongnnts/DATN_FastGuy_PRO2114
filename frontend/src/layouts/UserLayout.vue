@@ -4,25 +4,15 @@ import { useCartStore } from '@/stores/cart';
 import { useFavoriteStore } from '@/stores/favorite';
 import { useNotificationStore } from '@/stores/notification';
 import { useRouter } from 'vue-router';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import NotificationBell from '@/components/common/NotificationBell.vue';
+import AccountTabs from '@/components/common/AccountTabs.vue';
 
 const auth = useAuthStore();
 const cart = useCartStore();
 const favoriteStore = useFavoriteStore();
 const notificationStore = useNotificationStore();
 const router = useRouter();
-const mobileMenuOpen = ref(false);
-const sidebarHover = ref(false);
-let hoverTimer = null;
-
-function showSidebar() {
-  clearTimeout(hoverTimer);
-  if (window.innerWidth > 768) sidebarHover.value = true;
-}
-function hideSidebar() {
-  hoverTimer = setTimeout(() => { sidebarHover.value = false; }, 300);
-}
 
 function logout() {
   favoriteStore.clear();
@@ -30,17 +20,6 @@ function logout() {
   auth.logout();
   router.push('/');
 }
-
-const sidebarLinks = [
-  { label: 'Thông tin cá nhân', path: '/account/profile', icon: 'bi-person' },
-  { label: 'Đơn hàng', path: '/account/orders', icon: 'bi-box' },
-  { label: 'Lịch sử mua', path: '/account/history', icon: 'bi-clock-history' },
-  { label: 'Món yêu thích', path: '/account/favorites', icon: 'bi-heart' },
-  { label: 'Thành viên', path: '/account/loyalty', icon: 'bi-stars' },
-  { label: 'Hỗ trợ', path: '/account/support', icon: 'bi-headset' },
-  { label: 'Đổi mật khẩu', path: '/account/change-password', icon: 'bi-lock' },
-];
-
 onMounted(() => {
   favoriteStore.fetchFavorites();
   notificationStore.startPolling();
@@ -50,209 +29,53 @@ onUnmounted(() => notificationStore.stopPolling());
 
 <template>
   <div class="user-layout fg-shell fg-shell-user">
-    <nav class="top-bar">
-      <div class="container">
-        <div class="top-bar-inner">
-          <router-link to="/" class="top-bar-brand">
-            <span class="brand-text">Fast<span class="brand-accent">Guy</span></span>
+    <a class="skip-link" href="#account-content">Bỏ qua đến nội dung</a>
+    <header class="site-header">
+      <div class="container header-inner">
+        <router-link to="/" class="brand" aria-label="FastGuy - Trang chủ">Fast<span>Guy</span></router-link>
+        <nav class="header-nav" aria-label="Điều hướng nhanh">
+          <router-link to="/menu" class="menu-link">Thực đơn</router-link>
+          <NotificationBell />
+          <router-link to="/cart" class="icon-btn" aria-label="Giỏ hàng">
+            <i class="bi bi-bag" aria-hidden="true"></i>
+            <span v-if="cart.itemCount" class="badge-dot" aria-hidden="true">{{ cart.itemCount }}</span>
+            <span class="sr-only">{{ cart.itemCount }} sản phẩm</span>
           </router-link>
-          <div class="top-bar-actions">
-            <router-link to="/menu" class="top-bar-link">Thực đơn</router-link>
-            <NotificationBell />
-            <button class="icon-btn" @click="router.push('/cart')" title="Giỏ hàng">
-              <i class="bi bi-bag"></i>
-              <span v-if="cart.itemCount > 0" class="badge-dot">{{ cart.itemCount }}</span>
-            </button>
-            <button class="logout-btn" @click="logout">
-              <i class="bi bi-arrow-right-from-bracket"></i><span>Đăng xuất</span>
-            </button>
-            <button class="mobile-toggle" @click="mobileMenuOpen = !mobileMenuOpen">
-              <i :class="mobileMenuOpen ? 'bi bi-x-lg' : 'bi bi-list'"></i>
-            </button>
-          </div>
-        </div>
+          <router-link to="/account/profile" class="account-link" aria-label="Tài khoản">
+            <i class="bi bi-person-circle" aria-hidden="true"></i><span>{{ auth.user?.fullName || 'Tài khoản' }}</span>
+          </router-link>
+          <button class="logout-btn" aria-label="Đăng xuất" @click="logout"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Đăng xuất</span></button>
+        </nav>
       </div>
-    </nav>
-    <div class="container">
-      <div class="layout-inner" @mouseleave="hideSidebar">
-        <div class="sidebar-trigger" @mouseenter="showSidebar"></div>
-        <aside class="sidebar" :class="{ open: mobileMenuOpen || sidebarHover }" @mouseenter="showSidebar" @mouseleave="hideSidebar">
-          <div class="sidebar-user">
-            <img :src="auth.user?.avatarUrl || 'https://i.pravatar.cc/150?u=default'" class="sidebar-avatar" />
-            <div>
-              <div class="sidebar-name">{{ auth.user?.fullName }}</div>
-              <div class="sidebar-email">{{ auth.user?.email }}</div>
-            </div>
-          </div>
-          <div class="fg-status-chip" style="margin-bottom:12px">My Route</div>
-          <nav class="sidebar-nav">
-            <router-link
-              v-for="link in sidebarLinks"
-              :key="link.path"
-              :to="link.path"
-              class="sidebar-link"
-              @click="mobileMenuOpen = false"
-            >
-              <i :class="link.icon"></i>
-              <span>{{ link.label }}</span>
-            </router-link>
-          </nav>
-        </aside>
-        <div class="content fg-page" @click="mobileMenuOpen = false">
-          <router-view />
-        </div>
-      </div>
+    </header>
+    <div class="container account-shell">
+      <AccountTabs />
+      <main id="account-content" class="content fg-page" tabindex="-1"><router-view /></main>
     </div>
   </div>
 </template>
 
 <style scoped>
-.user-layout {
-  min-height: 100vh;
-  background: var(--bg);
+.user-layout { min-height: 100vh; background: var(--color-bg); }
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: var(--z-toast); padding: 10px 14px; background: var(--color-text); color: white; border-radius: var(--radius-sm); transform: translateY(-150%); }
+.skip-link:focus { transform: translateY(0); }
+.site-header { position: sticky; top: 0; z-index: var(--z-header); height: var(--header-height); background: rgba(255,255,255,.9); backdrop-filter: blur(16px); border-bottom: 1px solid var(--color-border); box-shadow: var(--shadow-xs); }
+.header-inner, .header-nav { height: 100%; display: flex; align-items: center; }
+.header-inner { justify-content: space-between; }
+.header-nav { gap: 6px; }
+.brand { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+.brand span { color: var(--color-accent); }
+.menu-link, .account-link, .logout-btn { min-height: var(--control-height); display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: 14px; font-weight: 600; }
+.menu-link:hover, .account-link:hover, .logout-btn:hover { color: var(--color-text); background: var(--color-surface-muted); }
+.logout-btn:hover { color: var(--red-active); }
+.icon-btn { width: var(--control-height); height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; position: relative; border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: 18px; }
+.icon-btn:hover { background: var(--color-surface-muted); color: var(--color-text); }
+.badge-dot { position: absolute; top: 2px; right: 1px; min-width: 18px; height: 18px; padding: 0 4px; display: grid; place-items: center; border-radius: var(--radius-full); background: var(--color-accent); color: white; font-size: 10px; font-weight: 700; }
+.account-shell { padding-top: var(--space-6); padding-bottom: var(--space-8); }
+.content { min-height: calc(100vh - 180px); padding-top: var(--space-5); }
+@media (max-width: 700px) {
+  .account-link span, .logout-btn span { display: none; }
+  .account-link, .logout-btn { width: var(--control-height); padding: 0; justify-content: center; font-size: 18px; }
 }
-.top-bar {
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--border-light);
-}
-.top-bar-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 56px;
-}
-.top-bar-brand { display: flex; align-items: center; }
-.brand-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
-.brand-accent { color: var(--primary); }
-.top-bar-link {
-  font-size: 14px;
-  color: var(--text-mid);
-  padding: 0 12px;
-  font-weight: 500;
-  transition: color var(--transition-fast);
-}
-.top-bar-link:hover { color: var(--text-dark); }
-.top-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  position: relative;
-  font-size: 16px;
-  color: var(--text-mid);
-  transition: all var(--transition-fast);
-}
-.icon-btn:hover { background: var(--surface); color: var(--text-dark); }
-.logout-btn { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:13px; font-weight:650; }
-.logout-btn:hover { border-color:var(--red-active); color:var(--red-active); }
-.badge-dot {
-  position: absolute;
-  top: 4px;
-  right: 2px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.mobile-toggle {
-  display: none;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font-size: 16px;
-  cursor: pointer;
-  color: var(--text-mid);
-  align-items: center;
-  justify-content: center;
-}
-.layout-inner {
-  display: flex;
-  gap: var(--space-6);
-  padding: var(--space-6) 0;
-}
-.sidebar { width: 240px; flex-shrink: 0; }
-.sidebar-user {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  margin-bottom: var(--space-3);
-  background: #fff;
-}
-.sidebar-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-.sidebar-name { font-size: 14px; font-weight: 600; }
-.sidebar-email { font-size: 12px; color: var(--text-mid); }
-.sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  font-size: 14px;
-  color: var(--text-mid);
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-  font-weight: 450;
-}
-.sidebar-link:hover { background: var(--surface); color: var(--text-dark); }
-.sidebar-link.router-link-active {
-  background: var(--primary-50);
-  color: var(--primary);
-  font-weight: 600;
-}
-.sidebar-link i {
-  font-size: 16px;
-  width: 18px;
-  text-align: center;
-}
-.content { flex: 1; min-width: 0; }
-@media (max-width: 1024px) {
-  .sidebar { width: 200px; }
-  .layout-inner { gap: 16px; }
-}
-@media (max-width: 768px) {
-  .sidebar {
-    display: none;
-    position: fixed;
-    width: 280px;
-    background: #fff;
-    box-shadow: var(--shadow-xl);
-    top: 56px;
-    left: 0;
-    bottom: 0;
-    z-index: 99;
-    padding: 16px;
-    overflow-y: auto;
-    border-right: 1px solid var(--border-light);
-  }
-  .sidebar.open { display: block; }
-  .layout-inner { flex-direction: column; padding: var(--space-4) 0; }
-  .mobile-toggle { display: flex; }
-}
+@media (max-width: 480px) { .menu-link { display: none; } }
 </style>

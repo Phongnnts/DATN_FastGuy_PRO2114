@@ -140,14 +140,19 @@ export const useCartStore = defineStore('cart', () => {
 
   async function removeItem(productId, variantId, modifierOptionIds = []) {
     const key = itemKey(productId, variantId, modifierOptionIds);
-    const item = items.value.find((i) => i.key === key);
-    if (!item) return;
-    items.value = items.value.filter((i) => i.key !== key);
+    const index = items.value.findIndex((i) => i.key === key);
+    if (index < 0) return;
+    const item = items.value[index];
+    items.value.splice(index, 1);
     save();
     const auth = useAuthStore();
     if (auth.isLoggedIn && item.cartItemId) {
       try { await cartApi.removeItem(item.cartItemId); }
-      catch (e) { console.error('Sync remove failed:', e); }
+      catch (e) {
+        items.value.splice(index, 0, item);
+        save();
+        throw e;
+      }
     }
   }
 
@@ -192,6 +197,7 @@ export const useCartStore = defineStore('cart', () => {
     const auth = useAuthStore();
     if (!auth.isLoggedIn) return;
     const localItems = [...items.value];
+    const failedItems = [];
     if (localItems.length > 0) {
       for (const item of localItems) {
         try {
@@ -199,11 +205,17 @@ export const useCartStore = defineStore('cart', () => {
             productId: item.productId,
             variantId: item.variantId,
             quantity: item.quantity,
+            modifierOptionIds: (item.modifiers || []).map((modifier) => modifier.modifierOptionId),
           });
-        } catch (err) {
-          console.error('Cart migration addItem failed:', err);
+        } catch {
+          failedItems.push(item);
         }
       }
+    }
+    if (failedItems.length) {
+      items.value = failedItems;
+      save();
+      throw new Error(`Không thể đồng bộ ${failedItems.length} món trong giỏ hàng`);
     }
     sessionStorage.removeItem(GUEST_KEY);
     await fetchCart();

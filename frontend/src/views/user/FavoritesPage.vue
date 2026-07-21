@@ -23,6 +23,13 @@ onMounted(() => favoriteStore.fetchFavorites());
       <h3>Đang tải món yêu thích...</h3>
     </div>
 
+    <div v-else-if="favoriteStore.error" class="empty-state card" role="alert">
+      <i class="bi bi-exclamation-circle"></i>
+      <h3>Không thể tải món yêu thích</h3>
+      <p>{{ favoriteStore.error }}</p>
+      <button type="button" class="btn btn-outline" @click="favoriteStore.fetchFavorites">Thử lại</button>
+    </div>
+
     <div v-else-if="favoriteStore.items.length === 0" class="empty-state card">
       <i class="bi bi-heart"></i>
       <h3>Chưa có món yêu thích</h3>

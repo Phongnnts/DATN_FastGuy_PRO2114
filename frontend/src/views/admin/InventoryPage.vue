@@ -10,63 +10,97 @@ const adminStore = useAdminStore();
 const router = useRouter();
 const searchTerm = ref('');
 const activeFilter = ref('ALL');
+const categoryFilter = ref('ALL');
+const sortBy = ref('product-asc');
 const savingId = ref(null);
 const draftStock = ref({});
+const loading = ref(true);
+const loadError = ref('');
 
-onMounted(async () => {
-  await adminStore.fetchProducts();
-});
-
-const rows = computed(() => {
-  const result = [];
-  for (const product of adminStore.allProducts) {
-    for (const variant of product.variants || []) {
-      const stock = variant.quantityAvailable === null || variant.quantityAvailable === undefined ? null : Number(variant.quantityAvailable);
-      result.push({
-        productId: product.id,
-        productName: product.name,
-        categoryName: product.categoryName,
-        image: product.image,
-        productStatus: product.status,
-        variantId: variant.variantId,
-        variantName: variant.variantName || 'Mặc định',
-        price: Number(variant.price) || 0,
-        status: variant.status || 'UNAVAILABLE',
-        stock,
-      });
-    }
+async function loadProducts() {
+  loading.value = true;
+  loadError.value = '';
+  try {
+    await adminStore.fetchProducts();
+  } catch (error) {
+    loadError.value = error.message || 'Không thể tải dữ liệu tồn kho';
+  } finally {
+    loading.value = false;
   }
-  return result;
-});
+}
 
-const managedRows = computed(() => rows.value.filter((r) => r.stock !== null));
-const outOfStockRows = computed(() => rows.value.filter((r) => r.stock !== null && r.stock <= 0));
-const lowStockRows = computed(() => rows.value.filter((r) => r.stock !== null && r.stock > 0 && r.stock <= 5));
-const unmanagedRows = computed(() => rows.value.filter((r) => r.stock === null));
-const totalStock = computed(() => managedRows.value.reduce((sum, r) => sum + r.stock, 0));
+onMounted(loadProducts);
+
+const rows = computed(() => adminStore.allProducts.flatMap((product) => (product.variants || []).map((variant) => ({
+  productId: product.id,
+  productName: product.name,
+  categoryId: product.categoryId,
+  categoryName: product.categoryName,
+  image: product.image,
+  productStatus: product.status,
+  variantId: variant.variantId,
+  variantName: variant.variantName || 'Mặc định',
+  sku: variant.sku || variant.SKU || '',
+  price: Number(variant.price) || 0,
+  status: variant.status || 'UNAVAILABLE',
+  stock: variant.quantityAvailable === null || variant.quantityAvailable === undefined ? null : Number(variant.quantityAvailable),
+}))));
+
+const categories = computed(() => [...new Map(rows.value.map((row) => [String(row.categoryId ?? row.categoryName), {
+  id: String(row.categoryId ?? row.categoryName),
+  name: row.categoryName || 'Chưa phân loại',
+}])).values()].sort((a, b) => a.name.localeCompare(b.name, 'vi')));
+const managedRows = computed(() => rows.value.filter((row) => row.stock !== null));
+const outOfStockRows = computed(() => managedRows.value.filter((row) => row.stock <= 0));
+const lowStockRows = computed(() => managedRows.value.filter((row) => row.stock > 0 && row.stock <= 5));
+const unmanagedRows = computed(() => rows.value.filter((row) => row.stock === null));
+const totalStock = computed(() => managedRows.value.reduce((sum, row) => sum + row.stock, 0));
 
 const filteredRows = computed(() => {
-  const q = searchTerm.value.trim().toLowerCase();
-  return rows.value.filter((r) => {
-    const matchesSearch = !q
-      || r.productName.toLowerCase().includes(q)
-      || r.variantName.toLowerCase().includes(q)
-      || (r.categoryName || '').toLowerCase().includes(q);
-    if (!matchesSearch) return false;
-    if (activeFilter.value === 'OUT') return r.stock !== null && r.stock <= 0;
-    if (activeFilter.value === 'LOW') return r.stock !== null && r.stock > 0 && r.stock <= 5;
-    if (activeFilter.value === 'UNMANAGED') return r.stock === null;
-    if (activeFilter.value === 'UNAVAILABLE') return r.status !== 'AVAILABLE' || r.productStatus !== 'AVAILABLE';
+  const query = searchTerm.value.trim().toLocaleLowerCase('vi');
+  const result = rows.value.filter((row) => {
+    const searchable = [row.productName, row.variantName, row.categoryName, row.sku].join(' ').toLocaleLowerCase('vi');
+    const categoryId = String(row.categoryId ?? row.categoryName);
+    if (query && !searchable.includes(query)) return false;
+    if (categoryFilter.value !== 'ALL' && categoryFilter.value !== categoryId) return false;
+    if (activeFilter.value === 'OUT') return row.stock !== null && row.stock <= 0;
+    if (activeFilter.value === 'LOW') return row.stock !== null && row.stock > 0 && row.stock <= 5;
+    if (activeFilter.value === 'UNMANAGED') return row.stock === null;
+    if (activeFilter.value === 'UNAVAILABLE') return row.status !== 'AVAILABLE' || row.productStatus !== 'AVAILABLE';
     return true;
+  });
+  const [field, direction] = sortBy.value.split('-');
+  const multiplier = direction === 'desc' ? -1 : 1;
+  return result.sort((a, b) => {
+    if (field === 'stock') {
+      if (a.stock === null) return 1;
+      if (b.stock === null) return -1;
+      return (a.stock - b.stock) * multiplier;
+    }
+    if (field === 'variant') return a.variantName.localeCompare(b.variantName, 'vi') * multiplier;
+    if (field === 'category') return (a.categoryName || '').localeCompare(b.categoryName || '', 'vi') * multiplier;
+    return a.productName.localeCompare(b.productName, 'vi') * multiplier;
   });
 });
 
 function getDraft(row) {
-  return row.variantId in draftStock.value ? draftStock.value[row.variantId] : row.stock;
+  return Object.hasOwn(draftStock.value, row.variantId) ? draftStock.value[row.variantId] : row.stock;
 }
 
 function setDraft(row, value) {
-  draftStock.value[row.variantId] = value === '' || value === null ? null : Number(value);
+  draftStock.value[row.variantId] = value === '' ? null : value;
+}
+
+function normalizedDraft(row) {
+  const value = getDraft(row);
+  if (value === null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && Number.isInteger(number) && number >= 0 ? number : undefined;
+}
+
+function isChanged(row) {
+  const value = normalizedDraft(row);
+  return value !== undefined && value !== row.stock;
 }
 
 function statusLabel(row) {
@@ -86,195 +120,121 @@ function statusClass(row) {
 }
 
 async function saveStock(row) {
-  const value = getDraft(row);
-  if (value !== null && value !== undefined && Number(value) < 0) return toast.error('Tồn kho không được âm');
+  const value = normalizedDraft(row);
+  if (value === undefined) return toast.error('Tồn kho phải là số nguyên không âm hoặc để trống');
   savingId.value = row.variantId;
   try {
-    await adminStore.updateVariant(row.variantId, {
-      quantityAvailable: value === '' || value === undefined ? null : value,
-    });
-    await adminStore.fetchProducts();
+    await adminStore.updateVariant(row.variantId, { quantityAvailable: value });
     delete draftStock.value[row.variantId];
-  } catch (e) {
-    toast.error(e.message || 'Không thể cập nhật tồn kho');
+    toast.success('Đã cập nhật tồn kho');
+  } catch (error) {
+    toast.error(error.message || 'Không thể cập nhật tồn kho');
   } finally {
     savingId.value = null;
   }
 }
 
 function editProduct(row) {
-  router.push('/admin/products');
+  router.push(`/admin/products?edit=${row.productId}`);
 }
 </script>
 
 <template>
-  <div>
-    <div class="page-header">
+  <main class="inventory-page">
+    <header class="page-header">
       <div>
         <h1>Quản lý tồn kho</h1>
-        <p class="page-subtitle">Theo dõi tồn kho từng biến thể sản phẩm</p>
+        <p class="page-subtitle">Theo dõi và cập nhật tồn kho từng biến thể</p>
       </div>
-      <button class="btn btn-outline" @click="adminStore.fetchProducts()">
-        <i class="bi bi-arrow-clockwise"></i> Làm mới
+      <button class="btn btn-outline" :disabled="loading" @click="loadProducts">
+        <i class="bi bi-arrow-clockwise" :class="{ spin: loading }" aria-hidden="true"></i> Làm mới
       </button>
-    </div>
+    </header>
 
-    <div class="stat-grid inventory-stats">
-      <button class="stat-card" :class="{ active: activeFilter === 'ALL' }" @click="activeFilter = 'ALL'">
-        <div class="stat-icon" style="background:linear-gradient(135deg,#3b82f6,#60a5fa)"><i class="bi bi-boxes"></i></div>
-        <div class="stat-value">{{ rows.length }}</div>
-        <div class="stat-label">Tổng biến thể</div>
+    <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
+      <button class="stat-card" :class="{ active: activeFilter === 'ALL' }" :aria-pressed="activeFilter === 'ALL'" @click="activeFilter = 'ALL'">
+        <span class="stat-icon stat-blue"><i class="bi bi-boxes" aria-hidden="true"></i></span><strong class="stat-value">{{ rows.length }}</strong><span class="stat-label">Tổng biến thể</span>
       </button>
-      <button class="stat-card" :class="{ active: activeFilter === 'LOW' }" @click="activeFilter = 'LOW'">
-        <div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24)"><i class="bi bi-exclamation-triangle"></i></div>
-        <div class="stat-value">{{ lowStockRows.length }}</div>
-        <div class="stat-label">Sắp hết</div>
+      <button class="stat-card" :class="{ active: activeFilter === 'LOW' }" :aria-pressed="activeFilter === 'LOW'" @click="activeFilter = 'LOW'">
+        <span class="stat-icon stat-yellow"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><strong class="stat-value">{{ lowStockRows.length }}</strong><span class="stat-label">Sắp hết</span>
       </button>
-      <button class="stat-card" :class="{ active: activeFilter === 'OUT' }" @click="activeFilter = 'OUT'">
-        <div class="stat-icon" style="background:linear-gradient(135deg,#ef4444,#f87171)"><i class="bi bi-x-circle"></i></div>
-        <div class="stat-value">{{ outOfStockRows.length }}</div>
-        <div class="stat-label">Hết hàng</div>
+      <button class="stat-card" :class="{ active: activeFilter === 'OUT' }" :aria-pressed="activeFilter === 'OUT'" @click="activeFilter = 'OUT'">
+        <span class="stat-icon stat-red"><i class="bi bi-x-circle" aria-hidden="true"></i></span><strong class="stat-value">{{ outOfStockRows.length }}</strong><span class="stat-label">Hết hàng</span>
       </button>
-      <button class="stat-card" :class="{ active: activeFilter === 'UNMANAGED' }" @click="activeFilter = 'UNMANAGED'">
-        <div class="stat-icon" style="background:linear-gradient(135deg,#06b6d4,#22d3ee)"><i class="bi bi-infinity"></i></div>
-        <div class="stat-value">{{ unmanagedRows.length }}</div>
-        <div class="stat-label">Chưa quản lý</div>
+      <button class="stat-card" :class="{ active: activeFilter === 'UNMANAGED' }" :aria-pressed="activeFilter === 'UNMANAGED'" @click="activeFilter = 'UNMANAGED'">
+        <span class="stat-icon stat-cyan"><i class="bi bi-infinity" aria-hidden="true"></i></span><strong class="stat-value">{{ unmanagedRows.length }}</strong><span class="stat-label">Không giới hạn</span>
       </button>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:linear-gradient(135deg,#10b981,#34d399)"><i class="bi bi-stack"></i></div>
-        <div class="stat-value">{{ totalStock }}</div>
-        <div class="stat-label">Tổng tồn đang quản lý</div>
+      <div class="stat-card stat-total">
+        <span class="stat-icon stat-green"><i class="bi bi-stack" aria-hidden="true"></i></span><strong class="stat-value">{{ totalStock }}</strong><span class="stat-label">Tổng đơn vị tồn</span>
       </div>
-    </div>
+    </section>
 
-    <div class="card card-flat">
+    <section class="card card-flat" aria-label="Danh sách tồn kho">
       <div class="toolbar">
-        <div class="search-box">
-          <i class="bi bi-search"></i>
-          <input v-model="searchTerm" class="form-input" placeholder="Tìm món, biến thể, danh mục..." />
+        <label class="search-box">
+          <span class="sr-only">Tìm kiếm tồn kho</span><i class="bi bi-search" aria-hidden="true"></i>
+          <input v-model="searchTerm" class="form-input" type="search" placeholder="Tìm sản phẩm, biến thể, SKU, danh mục..." />
+        </label>
+        <div class="filters">
+          <label><span class="sr-only">Danh mục</span><select v-model="categoryFilter" class="form-select"><option value="ALL">Mọi danh mục</option><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></label>
+          <label><span class="sr-only">Trạng thái kho</span><select v-model="activeFilter" class="form-select"><option value="ALL">Mọi trạng thái</option><option value="LOW">Sắp hết</option><option value="OUT">Hết hàng</option><option value="UNMANAGED">Không giới hạn</option><option value="UNAVAILABLE">Ngừng bán</option></select></label>
+          <label><span class="sr-only">Sắp xếp</span><select v-model="sortBy" class="form-select"><option value="product-asc">Sản phẩm A–Z</option><option value="product-desc">Sản phẩm Z–A</option><option value="variant-asc">Biến thể A–Z</option><option value="category-asc">Danh mục A–Z</option><option value="stock-asc">Tồn kho tăng dần</option><option value="stock-desc">Tồn kho giảm dần</option></select></label>
         </div>
-        <select v-model="activeFilter" class="form-select filter-select">
-          <option value="ALL">Tất cả</option>
-          <option value="LOW">Sắp hết</option>
-          <option value="OUT">Hết hàng</option>
-          <option value="UNMANAGED">Chưa quản lý tồn</option>
-          <option value="UNAVAILABLE">Ngừng bán</option>
-        </select>
       </div>
+      <div class="result-count" aria-live="polite">{{ filteredRows.length }} / {{ rows.length }} biến thể</div>
 
-      <div class="table-wrapper">
+      <div v-if="loading" class="state-panel" role="status"><i class="bi bi-arrow-repeat spin" aria-hidden="true"></i><span>Đang tải dữ liệu tồn kho...</span></div>
+      <div v-else-if="loadError" class="state-panel error-panel" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><strong>{{ loadError }}</strong><button class="btn btn-outline btn-sm" @click="loadProducts">Thử lại</button></div>
+      <div v-else-if="filteredRows.length === 0" class="state-panel"><i class="bi bi-inbox" aria-hidden="true"></i><strong>Không tìm thấy biến thể</strong><span>Điều chỉnh từ khóa hoặc bộ lọc.</span></div>
+      <div v-else class="table-wrapper">
         <table class="table">
-          <thead>
-            <tr>
-              <th>Sản phẩm</th>
-              <th>Biến thể</th>
-              <th>Giá</th>
-              <th>Trạng thái</th>
-              <th style="width: 220px">Tồn kho</th>
-              <th></th>
-            </tr>
-          </thead>
+          <thead><tr><th scope="col">Sản phẩm</th><th scope="col">Biến thể</th><th scope="col">Giá</th><th scope="col">Trạng thái</th><th scope="col">Tồn kho</th><th scope="col"><span class="sr-only">Thao tác</span></th></tr></thead>
           <tbody>
             <tr v-for="row in filteredRows" :key="row.variantId">
-              <td>
-                <div class="product-cell">
-                  <img :src="row.image" :alt="row.productName" />
-                  <div>
-                    <strong>{{ row.productName }}</strong>
-                    <div class="muted">{{ row.categoryName || 'Chưa phân loại' }}</div>
-                  </div>
-                </div>
-              </td>
-              <td>{{ row.variantName }}</td>
-              <td>{{ formatPrice(row.price) }}</td>
-              <td><span class="badge" :class="statusClass(row)">{{ statusLabel(row) }}</span></td>
-              <td>
-                <div class="stock-edit">
-                  <input
-                    class="form-input"
-                    type="number"
-                    min="0"
-                    :value="getDraft(row)"
-                    placeholder="Trống = không giới hạn"
-                    @input="setDraft(row, $event.target.value)"
-                  />
-                  <button class="btn btn-sm btn-primary" :disabled="savingId === row.variantId" @click="saveStock(row)">
-                    <i v-if="savingId === row.variantId" class="bi bi-arrow-repeat spin"></i>
-                    <span v-else>Lưu</span>
-                  </button>
-                </div>
-              </td>
-              <td>
-                <button class="btn btn-sm btn-ghost" @click="editProduct(row)">
-                  <i class="bi bi-pencil"></i>
-                </button>
-              </td>
-            </tr>
-            <tr v-if="filteredRows.length === 0">
-              <td colspan="6" class="empty-row">Không có dữ liệu tồn kho</td>
+              <td data-label="Sản phẩm"><div class="product-cell"><img :src="row.image" :alt="row.productName" loading="lazy" /><div><strong>{{ row.productName }}</strong><div class="muted">{{ row.categoryName || 'Chưa phân loại' }}</div></div></div></td>
+              <td data-label="Biến thể"><strong>{{ row.variantName }}</strong><div v-if="row.sku" class="muted">SKU: {{ row.sku }}</div></td>
+              <td data-label="Giá">{{ formatPrice(row.price) }}</td>
+              <td data-label="Trạng thái"><span class="badge" :class="statusClass(row)">{{ statusLabel(row) }}</span></td>
+              <td data-label="Tồn kho"><div class="stock-edit"><label><span class="sr-only">Tồn kho {{ row.productName }} - {{ row.variantName }}</span><input class="form-input" type="number" min="0" step="1" :value="getDraft(row)" :aria-invalid="normalizedDraft(row) === undefined" placeholder="Không giới hạn" @input="setDraft(row, $event.target.value)" /></label><button class="btn btn-sm btn-primary" :disabled="savingId === row.variantId || !isChanged(row)" @click="saveStock(row)"><i v-if="savingId === row.variantId" class="bi bi-arrow-repeat spin" aria-hidden="true"></i><span v-else>Lưu</span></button></div></td>
+              <td data-label="Thao tác"><button class="btn btn-sm btn-ghost" :aria-label="`Sửa sản phẩm ${row.productName}`" @click="editProduct(row)"><i class="bi bi-pencil" aria-hidden="true"></i></button></td>
             </tr>
           </tbody>
         </table>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 </template>
 
 <style scoped>
-.page-subtitle {
-  margin-top: 4px;
-  color: var(--text-mid);
-  font-size: 14px;
-}
-.inventory-stats .stat-card {
-  text-align: left;
-  border: 1px solid var(--border-light);
-  cursor: pointer;
-  background: #fff;
-}
-.inventory-stats .stat-card.active {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-50);
-}
-.toolbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.search-box { max-width: 420px; flex: 1; }
-.filter-select { width: 200px; }
-.product-cell {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.product-cell img {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-  background: var(--surface);
-}
-.muted {
-  color: var(--text-mid);
-  font-size: 12px;
-  margin-top: 2px;
-}
-.stock-edit {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.stock-edit .form-input { min-width: 140px; }
-.empty-row {
-  text-align: center;
-  color: var(--text-mid);
-  padding: 32px;
-}
-@media (max-width: 768px) {
-  .toolbar { flex-direction: column; align-items: stretch; }
-  .filter-select { width: 100%; }
-}
+.inventory-page { display: grid; gap: 24px; }
+.page-subtitle { margin: 4px 0 0; color: var(--text-mid); font-size: 14px; }
+.inventory-stats .stat-card { text-align: left; border: 1px solid var(--border-light); background: #fff; }
+.inventory-stats button.stat-card { cursor: pointer; }
+.inventory-stats button.stat-card:hover { border-color: var(--primary); transform: translateY(-1px); }
+.inventory-stats .stat-card.active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.stat-icon { color: #fff; }
+.stat-blue { background: linear-gradient(135deg,#2563eb,#60a5fa); }
+.stat-yellow { background: linear-gradient(135deg,#d97706,#fbbf24); }
+.stat-red { background: linear-gradient(135deg,#dc2626,#f87171); }
+.stat-cyan { background: linear-gradient(135deg,#0891b2,#22d3ee); }
+.stat-green { background: linear-gradient(135deg,#059669,#34d399); }
+.stat-total { cursor: default; }
+.toolbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.search-box { position: relative; max-width: 440px; flex: 1; }
+.search-box i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-mid); }
+.search-box .form-input { width: 100%; padding-left: 40px; }
+.filters { display: flex; gap: 8px; }
+.filters .form-select { min-width: 160px; }
+.result-count { margin: 12px 0; color: var(--text-mid); font-size: 13px; }
+.product-cell { display: flex; gap: 12px; align-items: center; min-width: 220px; }
+.product-cell img { width: 46px; height: 46px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface); }
+.muted { color: var(--text-mid); font-size: 12px; margin-top: 3px; }
+.stock-edit { display: flex; gap: 8px; align-items: center; min-width: 210px; }
+.stock-edit .form-input { width: 145px; }
+.state-panel { min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-mid); text-align: center; }
+.state-panel > i { font-size: 32px; }
+.error-panel { color: var(--danger, #dc2626); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 1024px) { .toolbar { align-items: stretch; flex-direction: column; } .search-box { max-width: none; } .filters { display: grid; grid-template-columns: repeat(3, 1fr); } .filters .form-select { width: 100%; min-width: 0; } }
+@media (max-width: 680px) { .inventory-page { gap: 16px; } .page-header { align-items: flex-start; } .filters { grid-template-columns: 1fr; } .table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } .product-cell { min-width: 0; } .stock-edit { min-width: 0; } .stock-edit label { min-width: 0; } .stock-edit .form-input { width: 100%; } }
 </style>

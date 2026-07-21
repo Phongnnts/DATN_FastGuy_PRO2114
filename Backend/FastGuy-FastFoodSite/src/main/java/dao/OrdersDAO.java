@@ -6,6 +6,7 @@ import jakarta.persistence.Query;
 import utils.DatabaseUtil;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -111,7 +112,7 @@ public class OrdersDAO {
                     "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID'",
                     BigDecimal.class)
                     .getSingleResult();
-            return result != null ? result.doubleValue() : 0;
+            return result != null ? result.doubleValue() : 0.0;
         } finally {
             em.close();
         }
@@ -139,12 +140,12 @@ public class OrdersDAO {
             LocalDateTime start = LocalDate.now().atStartOfDay();
             LocalDateTime end = LocalDate.now().plusDays(1).atStartOfDay();
             BigDecimal result = em.createQuery(
-                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt BETWEEN :start AND :end",
+                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
                     BigDecimal.class)
                     .setParameter("start", start)
                     .setParameter("end", end)
                     .getSingleResult();
-            return result != null ? result.doubleValue() : 0;
+            return result != null ? result.doubleValue() : 0.0;
         } finally {
             em.close();
         }
@@ -157,7 +158,7 @@ public class OrdersDAO {
                     "SELECT MONTH(o.delivered_at) AS m, YEAR(o.delivered_at) AS y, SUM(o.final_amount) AS rev " +
                     "FROM Orders o WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
                     "GROUP BY YEAR(o.delivered_at), MONTH(o.delivered_at) " +
-                    "ORDER BY y DESC, m DESC")
+                    "ORDER BY y ASC, m ASC")
                     .getResultList();
             List<Map<String, Object>> result = new ArrayList<>();
             for (Object[] row : rows) {
@@ -181,7 +182,7 @@ public class OrdersDAO {
                     "FROM Orders o WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
                     "AND o.delivered_at >= ?1 AND o.delivered_at < ?2 " +
                     "GROUP BY YEAR(o.delivered_at), MONTH(o.delivered_at) " +
-                    "ORDER BY y DESC, m DESC")
+                    "ORDER BY y ASC, m ASC")
                     .setParameter(1, start)
                     .setParameter(2, end)
                     .getResultList();
@@ -206,7 +207,7 @@ public class OrdersDAO {
                     "SELECT TOP " + limit + " p.name, SUM(oi.quantity) AS sold " +
                     "FROM OrderItem oi JOIN Product p ON oi.product_id = p.product_id " +
                     "JOIN Orders o ON oi.order_id = o.order_id " +
-                    "WHERE o.order_status = 'DELIVERED' " +
+                    "WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
                     "GROUP BY p.name ORDER BY sold DESC");
             List<Object[]> rows = query.getResultList();
             List<Map<String, Object>> result = new ArrayList<>();
@@ -273,12 +274,12 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             BigDecimal result = em.createQuery(
-                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt BETWEEN :start AND :end",
+                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
                     BigDecimal.class)
                     .setParameter("start", start)
                     .setParameter("end", end)
                     .getSingleResult();
-            return result != null ? result.doubleValue() : 0;
+            return result != null ? result.doubleValue() : 0.0;
         } finally {
             em.close();
         }
@@ -288,9 +289,22 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT COUNT(o) FROM Orders o WHERE o.orderStatus = :status AND o.deliveredAt BETWEEN :start AND :end",
+                    "SELECT COUNT(o) FROM Orders o WHERE o.orderStatus = :status AND o.deliveredAt >= :start AND o.deliveredAt < :end",
                     Long.class)
                     .setParameter("status", status)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countAllByDateRange(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT COUNT(o) FROM Orders o WHERE o.createdAt >= :start AND o.createdAt < :end", Long.class)
                     .setParameter("start", start)
                     .setParameter("end", end)
                     .getSingleResult();
@@ -306,7 +320,7 @@ public class OrdersDAO {
                     "SELECT TOP " + limit + " p.name, SUM(oi.quantity) AS sold, SUM(oi.quantity * oi.unit_price) AS rev " +
                     "FROM OrderItem oi JOIN Product p ON oi.product_id = p.product_id " +
                     "JOIN Orders o ON oi.order_id = o.order_id " +
-                    "WHERE o.delivered_at BETWEEN :start AND :end AND o.order_status = 'DELIVERED' " +
+                    "WHERE o.delivered_at >= :start AND o.delivered_at < :end AND o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
                     "GROUP BY p.name ORDER BY sold DESC")
                     .setParameter("start", java.sql.Timestamp.valueOf(start))
                     .setParameter("end", java.sql.Timestamp.valueOf(end))
@@ -334,6 +348,113 @@ public class OrdersDAO {
                     .setParameter("sid", shipperId)
                     .setParameter("status", status)
                     .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map<String, Object>> revenueByDay(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Object[]> rows = em.createNativeQuery(
+                    "SELECT CAST(o.delivered_at AS DATE) AS d, SUM(o.final_amount) AS rev, COUNT(*) AS cnt " +
+                    "FROM Orders o WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
+                    "AND o.delivered_at >= ?1 AND o.delivered_at < ?2 " +
+                    "GROUP BY CAST(o.delivered_at AS DATE) ORDER BY d")
+                    .setParameter(1, Timestamp.valueOf(start)).setParameter(2, Timestamp.valueOf(end)).getResultList();
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Object[] row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("date", String.valueOf(row[0]));
+                item.put("revenue", ((Number) row[1]).doubleValue());
+                item.put("orders", ((Number) row[2]).intValue());
+                result.add(item);
+            }
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map<String, Object>> ordersByStatusInPeriod(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Object[]> rows = em.createNativeQuery(
+                    "SELECT o.order_status AS s, COUNT(*) AS cnt " +
+                    "FROM Orders o WHERE o.created_at >= ?1 AND o.created_at < ?2 " +
+                    "GROUP BY o.order_status ORDER BY cnt DESC")
+                    .setParameter(1, Timestamp.valueOf(start)).setParameter(2, Timestamp.valueOf(end)).getResultList();
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Object[] row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("status", String.valueOf(row[0]));
+                item.put("count", ((Number) row[1]).intValue());
+                result.add(item);
+            }
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map<String, Object>> revenueByCategory(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Object[]> rows = em.createNativeQuery(
+                    "SELECT c.name AS cat, SUM(oi.total_price) AS rev " +
+                    "FROM OrderItem oi " +
+                    "JOIN Orders o ON oi.order_id = o.order_id " +
+                    "JOIN Product p ON oi.product_id = p.product_id " +
+                    "JOIN Category c ON p.category_id = c.category_id " +
+                    "WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
+                    "AND o.delivered_at >= ?1 AND o.delivered_at < ?2 " +
+                    "GROUP BY c.name ORDER BY rev DESC")
+                    .setParameter(1, Timestamp.valueOf(start)).setParameter(2, Timestamp.valueOf(end)).getResultList();
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Object[] row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("category", String.valueOf(row[0]));
+                item.put("revenue", ((Number) row[1]).doubleValue());
+                result.add(item);
+            }
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map<String, Object>> paymentMethodStats(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Object[]> rows = em.createNativeQuery(
+                    "SELECT o.payment_method AS pm, COUNT(*) AS cnt, SUM(o.final_amount) AS rev " +
+                    "FROM Orders o WHERE o.order_status = 'DELIVERED' AND o.payment_status = 'PAID' " +
+                    "AND o.delivered_at >= ?1 AND o.delivered_at < ?2 " +
+                    "GROUP BY o.payment_method")
+                    .setParameter(1, Timestamp.valueOf(start)).setParameter(2, Timestamp.valueOf(end)).getResultList();
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Object[] row : rows) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("method", String.valueOf(row[0]));
+                item.put("count", ((Number) row[1]).intValue());
+                item.put("revenue", ((Number) row[2]).doubleValue());
+                result.add(item);
+            }
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public double avgOrderValue(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            Double result = em.createQuery(
+                    "SELECT AVG(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
+                    Double.class)
+                    .setParameter("start", start).setParameter("end", end)
+                    .getSingleResult();
+            return result != null ? result : 0.0;
         } finally {
             em.close();
         }

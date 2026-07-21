@@ -16,11 +16,13 @@ const router = useRouter()
 const cart = useCartStore()
 const productStore = useProductStore()
 const order = ref(null)
+const loading = ref(true)
 const loadError = ref('')
 const orderReview = ref(null)
 const reviewForm = ref({ rating: 5, comment: '' })
 const cancelForm = ref({ reason: '' })
 const submitting = ref(false)
+const cancelling = ref(false)
 const showReviewForm = ref(false)
 const showCancelForm = ref(false)
 const reordering = ref(false)
@@ -30,9 +32,15 @@ const isDelivered = computed(() => order.value?.status === 'DELIVERED')
 const isCancelled = computed(() => order.value?.status === 'CANCELLED')
 const canCancel = computed(() => order.value?.status === 'PENDING' || order.value?.status === 'WAITING_STOCK_CONFIRM')
 const waitingStockConfirm = computed(() => order.value?.status === 'WAITING_STOCK_CONFIRM')
+const paymentLabel = computed(() => ({ PAID: 'Đã thanh toán', UNPAID: 'Chưa thanh toán', PENDING: 'Đang xử lý', FAILED: 'Thanh toán thất bại', REFUNDED: 'Đã hoàn tiền' })[order.value?.paymentStatus] || order.value?.paymentStatus || 'Chưa thanh toán')
+const refundLabel = computed(() => ({ PENDING: 'Đang xử lý', PROCESSING: 'Đang hoàn tiền', COMPLETED: 'Đã hoàn tiền', FAILED: 'Hoàn tiền thất bại' })[order.value?.refundStatus] || order.value?.refundStatus)
 let statusPolling = null
 
-onMounted(async () => {
+onMounted(loadOrder)
+
+async function loadOrder() {
+  loading.value = true
+  loadError.value = ''
   try {
     const data = await orderApi.getById(route.params.id)
     if (data) {
@@ -77,8 +85,10 @@ onMounted(async () => {
     startStatusPolling()
   } catch (e) {
     loadError.value = e.message || 'Không thể tải chi tiết đơn hàng'
+  } finally {
+    loading.value = false
   }
-})
+}
 
 onUnmounted(() => {
   if (statusPolling) { clearInterval(statusPolling); statusPolling = null }
@@ -104,7 +114,7 @@ function startStatusPolling() {
 async function loadReview(orderId) {
   try {
     const data = await reviewApi.getByOrder(orderId)
-    orderReview.value = data
+    orderReview.value = data.reviewed === true ? data.review : null
   } catch {}
 }
 
@@ -115,7 +125,7 @@ async function submitReview() {
     await reviewApi.create({
       orderId: order.value.id,
       rating: Number(reviewForm.value.rating),
-      comment: reviewForm.value.comment || '',
+      comment: reviewForm.value.comment.trim() || null,
     })
     await loadReview(order.value.id)
     showReviewForm.value = false
@@ -145,7 +155,7 @@ async function reorder() {
         unavailable.push(item.productName)
       }
     }
-    if (unavailable.length) toast.error(`Không thể thêm: ${unavailable.join(', ')}`)
+    if (unavailable.length) toast.error(`Không thể thêm: ${unavailable.join(', ')}. Tùy chọn cũ có thể không còn khả dụng.`)
     if (unavailable.length < order.value.items.length) router.push('/cart')
   } finally {
     reordering.value = false
@@ -154,6 +164,7 @@ async function reorder() {
 
 async function cancelOrder() {
   if (!canCancel.value || !order.value) return;
+  cancelling.value = true;
   try {
     await orderApi.cancel(order.value.id, { reason: cancelForm.value.reason });
     order.value.status = 'CANCELLED';
@@ -168,12 +179,16 @@ async function cancelOrder() {
     showCancelForm.value = false;
   } catch (e) {
     toast.error(e.message || 'Không thể hủy đơn hàng');
+  } finally {
+    cancelling.value = false;
   }
 }
 </script>
 
 <template>
-  <div class="order-detail-page" v-if="order">
+  <div v-if="loading" class="empty-state detail-state" role="status"><i class="bi bi-arrow-repeat spin" aria-hidden="true"></i><h3>Đang tải đơn hàng...</h3></div>
+  <div v-else-if="loadError" class="empty-state detail-state" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><h3>{{ loadError }}</h3><button class="btn btn-primary" @click="loadOrder">Thử lại</button></div>
+  <div class="order-detail-page" v-else-if="order">
     <div class="card">
       <div v-if="justCreated" class="order-success">
         <i class="bi bi-check-circle-fill"></i> Đặt đơn thành công. Mã đơn: <strong>{{ order.orderCode }}</strong>
@@ -190,11 +205,11 @@ async function cancelOrder() {
         <p><i class="bi bi-geo-alt"></i> {{ order.shippingAddress }}</p>
         <p v-if="order.note"><i class="bi bi-chat-dots"></i> Ghi chú: {{ order.note }}</p>
         <p><i class="bi bi-credit-card"></i> {{ order.paymentMethod === 'COD' ? 'Thanh toán khi nhận hàng' : 'Thanh toán PayOS' }}</p>
-        <p><i class="bi bi-receipt"></i> Trạng thái: {{ order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán' }}</p>
+        <p><i class="bi bi-receipt"></i> Trạng thái thanh toán: {{ paymentLabel }}</p>
       </div>
       <div class="detail-section">
         <h4>Sản phẩm</h4>
-        <div v-for="item in order.items" :key="item.productId" class="detail-item">
+        <div v-for="(item, index) in order.items" :key="`${item.productId}-${item.variantId || 'default'}-${index}`" class="detail-item">
           <img :src="item.image" :alt="item.productName" class="detail-item-img" />
           <div class="detail-item-info">
             <div class="detail-item-name">{{ item.productName }}</div>
@@ -232,7 +247,7 @@ async function cancelOrder() {
         <h4>Đánh giá đơn hàng</h4>
         <div v-if="orderReview" class="review-done">
           <StarRating :modelValue="orderReview.rating" readonly :size="18" />
-          <p class="review-done-comment">{{ orderReview.comment || 'Ngon, sẽ ủng hộ tiếp.' }}</p>
+          <p v-if="orderReview.comment" class="review-done-comment">{{ orderReview.comment }}</p>
           <span class="badge badge-success">Đã đánh giá</span>
         </div>
         <div v-else-if="showReviewForm" class="review-form-block">
@@ -256,7 +271,7 @@ async function cancelOrder() {
         <h4>Thông tin hủy đơn</h4>
         <p v-if="order.failureReason"><i class="bi bi-chat-left-text"></i> Lý do: {{ order.failureReason }}</p>
         <p v-if="order.cancelledBy"><i class="bi bi-person-x"></i> Người hủy: {{ order.cancelledBy === 'STAFF' ? 'Nhân viên' : 'Bạn' }}</p>
-        <p v-if="order.refundStatus"><i class="bi bi-arrow-return-left"></i> Hoàn tiền: {{ order.refundStatus }}{{ order.refundNote ? ' - ' + order.refundNote : '' }}</p>
+        <p v-if="order.refundStatus"><i class="bi bi-arrow-return-left"></i> Hoàn tiền: {{ refundLabel }}{{ order.refundNote ? ' - ' + order.refundNote : '' }}</p>
         <p v-if="order.refundAmount !== null"><i class="bi bi-cash-stack"></i> Số tiền hoàn: {{ formatPrice(order.refundAmount) }}</p>
         <p v-if="order.refundedAt"><i class="bi bi-calendar-check"></i> Ngày hoàn: {{ formatDate(order.refundedAt) }}</p>
       </div>
@@ -275,7 +290,7 @@ async function cancelOrder() {
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
           <button class="btn btn-outline" @click="showCancelForm = false">Quay lại</button>
-          <button class="btn btn-danger" :disabled="!cancelForm.reason.trim()" @click="cancelOrder">Xác nhận hủy</button>
+          <button class="btn btn-danger" :disabled="!cancelForm.reason.trim() || cancelling" @click="cancelOrder">{{ cancelling ? 'Đang hủy...' : 'Xác nhận hủy' }}</button>
         </div>
       </div>
     </div>
@@ -283,7 +298,6 @@ async function cancelOrder() {
   <div v-else class="empty-state" style="padding:60px 0">
     <i class="bi bi-box"></i>
     <h3>{{ loadError || 'Không tìm thấy đơn hàng' }}</h3>
-    <button v-if="loadError" class="btn btn-primary" @click="router.go(0)">Thử lại</button>
   </div>
 </template>
 
@@ -316,4 +330,6 @@ async function cancelOrder() {
 .review-done-comment { font-size: 14px; color: var(--text-mid); margin: 0; }
 .review-form-block { display: flex; flex-direction: column; gap: 10px; }
 .review-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.detail-state { min-height: 320px; }.spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) { .order-detail-page { padding: 16px 0; }.detail-header { gap: 12px; }.detail-item { align-items: flex-start; flex-wrap: wrap; }.detail-item-info { min-width: calc(100% - 76px); }.detail-item-total { margin-left: auto; }.review-form-actions, .detail-section .btn { width: 100%; }.review-form-actions .btn { flex: 1; } }
 </style>

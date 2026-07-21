@@ -25,6 +25,28 @@ if col_length('Orders', 'payos_payment_link_id') is null alter table Orders add 
 if col_length('Orders', 'payos_checkout_url') is null alter table Orders add payos_checkout_url varchar(500) null;
 go
 
+if object_id('Review', 'U') is null
+begin
+    create table Review (
+        review_id int identity primary key,
+        user_id int not null references Users(user_id),
+        order_id int not null references Orders(order_id),
+        rating int not null,
+        comment nvarchar(1000) null,
+        created_at datetime2 not null constraint DF_Review_CreatedAt default getdate(),
+        updated_at datetime2 not null constraint DF_Review_UpdatedAt default getdate(),
+        constraint CK_Review_Rating check (rating between 1 and 5)
+    );
+end;
+if col_length('Review', 'updated_at') is null
+    alter table Review add updated_at datetime2 null constraint DF_Review_UpdatedAt default getdate();
+update Review set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null;
+if not exists (select 1 from sys.check_constraints where name = 'CK_Review_Rating' and parent_object_id = object_id('Review'))
+    alter table Review with check add constraint CK_Review_Rating check (rating between 1 and 5);
+if not exists (select 1 from sys.indexes where name = 'UQ_Review_User_Order' and object_id = object_id('Review'))
+    create unique index UQ_Review_User_Order on Review(user_id, order_id);
+go
+
 if object_id('PasswordResetToken', 'U') is null
 begin
     create table PasswordResetToken (
@@ -155,11 +177,15 @@ begin
         staff_id int null references Users(user_id),
         resolution nvarchar(2000) null,
         created_at datetime2 default getdate(),
+        updated_at datetime2 default getdate(),
         resolved_at datetime2 null,
         constraint CK_SupportTicket_Category check (category in ('MISSING_ITEM', 'COLD_FOOD', 'WRONG_ITEM', 'LATE_DELIVERY', 'OTHER')),
         constraint CK_SupportTicket_Status check (status in ('OPEN', 'PROCESSING', 'RESOLVED'))
     );
 end;
+
+if col_length('SupportTicket', 'updated_at') is null
+    alter table SupportTicket add updated_at datetime2 null constraint DF_SupportTicket_UpdatedAt default getdate();
 
 if not exists (select 1 from sys.indexes where name = 'IX_SupportTicket_User' and object_id = object_id('SupportTicket'))
     create index IX_SupportTicket_User on SupportTicket(user_id, created_at);
@@ -286,4 +312,54 @@ begin
     close cur;
     deallocate cur;
 end
+go
+
+if object_id('CouponRedemption', 'U') is null
+begin
+    create table CouponRedemption (
+        redemption_id int identity primary key,
+        coupon_id int not null references Coupon(coupon_id),
+        user_id int not null references Users(user_id),
+        order_id int null references Orders(order_id),
+        claimed_at datetime2 null,
+        used_at datetime2 null,
+        discount_amount decimal(18,2) null,
+        created_at datetime2 null default getdate(),
+        updated_at datetime2 null default getdate()
+    );
+end;
+if object_id('ClaimedCoupon', 'U') is not null
+begin
+    insert into CouponRedemption(coupon_id, user_id, claimed_at, created_at, updated_at)
+    select cc.coupon_id, cc.user_id, min(coalesce(cc.claimed_at, getdate())), min(coalesce(cc.claimed_at, getdate())), getdate()
+    from ClaimedCoupon cc
+    where exists (select 1 from Coupon c where c.coupon_id = cc.coupon_id)
+      and exists (select 1 from Users u where u.user_id = cc.user_id)
+      and not exists (select 1 from CouponRedemption cr where cr.coupon_id = cc.coupon_id and cr.user_id = cc.user_id)
+    group by cc.coupon_id, cc.user_id;
+end;
+if object_id('CouponUsage', 'U') is not null
+begin
+    update cr set order_id = x.order_id, used_at = x.used_at, discount_amount = x.discount_amount, updated_at = getdate()
+    from CouponRedemption cr
+    join (select *, row_number() over(partition by coupon_id, user_id order by used_at desc, coupon_usage_id desc) rn from CouponUsage where user_id is not null) x
+      on x.coupon_id = cr.coupon_id and x.user_id = cr.user_id and x.rn = 1
+    where cr.used_at is null and exists (select 1 from Orders o where o.order_id = x.order_id);
+    insert into CouponRedemption(coupon_id, user_id, order_id, claimed_at, used_at, discount_amount, created_at, updated_at)
+    select x.coupon_id, x.user_id, x.order_id, x.used_at, x.used_at, x.discount_amount, x.used_at, getdate()
+    from (select *, row_number() over(partition by coupon_id, user_id order by used_at desc, coupon_usage_id desc) rn from CouponUsage where user_id is not null) x
+    where x.rn = 1
+      and exists (select 1 from Coupon c where c.coupon_id = x.coupon_id)
+      and exists (select 1 from Users u where u.user_id = x.user_id)
+      and exists (select 1 from Orders o where o.order_id = x.order_id)
+      and not exists (select 1 from CouponRedemption cr where cr.coupon_id = x.coupon_id and cr.user_id = x.user_id);
+end;
+;with ranked as (select redemption_id, row_number() over(partition by user_id, coupon_id order by case when used_at is null then 0 else 1 end, used_at desc, redemption_id) rn from CouponRedemption)
+delete from ranked where rn > 1;
+;with ranked as (select redemption_id, row_number() over(partition by order_id order by used_at desc, redemption_id) rn from CouponRedemption where order_id is not null)
+update cr set order_id = null, used_at = null, discount_amount = null, updated_at = getdate() from CouponRedemption cr join ranked r on r.redemption_id = cr.redemption_id where r.rn > 1;
+if not exists (select 1 from sys.indexes where name = 'UQ_CouponRedemption_User_Coupon' and object_id = object_id('CouponRedemption')) create unique index UQ_CouponRedemption_User_Coupon on CouponRedemption(user_id, coupon_id);
+if not exists (select 1 from sys.indexes where name = 'UQ_CouponRedemption_Order' and object_id = object_id('CouponRedemption')) create unique index UQ_CouponRedemption_Order on CouponRedemption(order_id) where order_id is not null;
+-- Legacy tables retain redemption history that the one-row-per-user model cannot represent.
+-- Drop them only after an audited archival migration is available.
 go

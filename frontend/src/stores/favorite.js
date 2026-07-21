@@ -6,6 +6,7 @@ export const useFavoriteStore = defineStore('favorite', () => {
   const items = ref([]);
   const ids = ref(new Set());
   const loading = ref(false);
+  const error = ref('');
 
   const count = computed(() => ids.value.size);
 
@@ -16,9 +17,12 @@ export const useFavoriteStore = defineStore('favorite', () => {
 
   async function fetchFavorites() {
     loading.value = true;
+    error.value = '';
     try {
       const data = await favoriteApi.getAll();
       sync(Array.isArray(data) ? data : []);
+    } catch (e) {
+      error.value = e.message || 'Không thể tải món yêu thích.';
     } finally {
       loading.value = false;
     }
@@ -56,5 +60,5 @@ export const useFavoriteStore = defineStore('favorite', () => {
     ids.value = new Set();
   }
 
-  return { items, ids, loading, count, fetchFavorites, check, toggle, isFavorite, clear };
+  return { items, ids, loading, error, count, fetchFavorites, check, toggle, isFavorite, clear };
 });

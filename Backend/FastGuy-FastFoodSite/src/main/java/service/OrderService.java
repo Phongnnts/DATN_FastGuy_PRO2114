@@ -449,7 +449,7 @@ public class OrderService {
 
         Coupon coupon = coupons.get(0);
         if (!Boolean.TRUE.equals(coupon.getIsActive())) throw new IllegalArgumentException("Mã giảm giá đã bị vô hiệu hóa");
-        if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) throw new IllegalArgumentException("Mã giảm giá đã hết hạn");
+        if (coupon.getExpiresAt() != null && !coupon.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Mã giảm giá đã hết hạn");
         if (coupon.getMaxUses() > 0 && coupon.getUsedCount() >= coupon.getMaxUses()) throw new IllegalArgumentException("Mã giảm giá đã hết lượt sử dụng");
         BigDecimal minOrder = coupon.getMinOrder() != null ? coupon.getMinOrder() : BigDecimal.ZERO;
         if (totalAmount.compareTo(minOrder) < 0) throw new IllegalArgumentException("Đơn hàng tối thiểu " + minOrder.toPlainString() + "đ");

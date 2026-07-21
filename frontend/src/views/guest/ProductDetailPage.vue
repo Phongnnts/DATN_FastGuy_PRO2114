@@ -1,12 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useProductStore } from '@/stores/product';
 import { useCartStore } from '@/stores/cart';
 import { useAuthStore } from '@/stores/auth';
 import { useFavoriteStore } from '@/stores/favorite';
 import { formatPrice } from '@/utils/format';
-import StarRating from '@/components/common/StarRating.vue';
 import { useToast } from '@/stores/toast';
 
 const toast = useToast();
@@ -21,6 +20,8 @@ const selectedVariant = ref(null);
 const activeImageIndex = ref(0);
 const loading = ref(true);
 const selectedModifiers = ref([]);
+const loadError = ref('');
+const modifierErrors = ref({});
 
 const product = computed(() => productStore.currentProduct);
 const selectedStock = computed(() => selectedVariant.value?.quantityAvailable == null ? null : Number(selectedVariant.value.quantityAvailable));
@@ -33,19 +34,29 @@ const galleryImages = computed(() => {
 });
 const oldPrice = computed(() => product.value?.discountPrice ? product.value.price : null);
 
-onMounted(async () => {
+async function loadProduct(id) {
   loading.value = true;
+  loadError.value = '';
+  selectedVariant.value = null;
+  selectedModifiers.value = [];
+  activeImageIndex.value = 0;
+  quantity.value = 1;
   try {
     if (!productStore.fetched) await productStore.init();
-    await productStore.fetchById(route.params.id);
-    if (product.value?.variants?.length) {
-      selectedVariant.value = product.value.variants.find((variant) => variant.isDefault) || product.value.variants[0];
-    }
+    await productStore.fetchById(id);
+    selectedVariant.value = product.value?.variants?.find((variant) => {
+      const stock = variant.quantityAvailable == null ? null : Number(variant.quantityAvailable);
+      return variant.status === 'AVAILABLE' && (stock === null || stock > 0);
+    }) || null;
     if (auth.isLoggedIn && product.value?.productId) await favoriteStore.check(product.value.productId);
+  } catch (error) {
+    loadError.value = error.message || 'Không thể tải sản phẩm';
   } finally {
     loading.value = false;
   }
-});
+}
+
+watch(() => route.params.id, loadProduct, { immediate: true });
 
 function selectVariant(variant) {
   const stock = variant.quantityAvailable == null ? null : Number(variant.quantityAvailable);
@@ -64,10 +75,14 @@ function toggleModifier(group, option) {
 }
 
 function modifiersValid() {
-  return (product.value?.modifierGroups || []).every((group) => {
+  const errors = {};
+  for (const group of product.value?.modifierGroups || []) {
     const count = selectedModifiers.value.filter((item) => item.modifierGroupId === group.modifierGroupId).length;
-    return count >= group.minSelections && count <= group.maxSelections;
-  });
+    if (count < group.minSelections) errors[group.modifierGroupId] = `Vui lòng chọn ít nhất ${group.minSelections}`;
+    if (count > group.maxSelections) errors[group.modifierGroupId] = `Chỉ được chọn tối đa ${group.maxSelections}`;
+  }
+  modifierErrors.value = errors;
+  return Object.keys(errors).length === 0;
 }
 
 async function toggleFavorite() {
@@ -95,6 +110,10 @@ async function placeInCart(destination) {
     <div class="empty-state"><i class="bi bi-arrow-repeat spin"></i><h3>Đang tải sản phẩm...</h3></div>
   </div>
 
+  <div v-else-if="loadError" class="container loading-page" role="alert">
+    <div class="empty-state"><i class="bi bi-exclamation-circle"></i><h3>{{ loadError }}</h3><button class="btn btn-primary" @click="loadProduct(route.params.id)">Thử lại</button></div>
+  </div>
+
   <div v-else-if="product" class="product-page">
     <div class="container">
       <div class="product-breadcrumb">
@@ -116,6 +135,8 @@ async function placeInCart(destination) {
               :key="image + index"
               class="gallery-thumb"
               :class="{ active: activeImageIndex === index }"
+              :aria-label="`Xem ảnh ${index + 1} của ${product.name}`"
+              :aria-pressed="activeImageIndex === index"
               @click="activeImageIndex = index"
             ><img :src="image" :alt="`Ảnh ${index + 1}`" /></button>
           </div>
@@ -124,16 +145,13 @@ async function placeInCart(destination) {
         <section class="product-purchase-panel">
           <div class="detail-topline">
             <span class="hot-label"><i class="bi bi-lightning-charge-fill"></i> HOT</span>
-            <button class="favorite-detail-btn" type="button" @click="toggleFavorite">
+            <button class="favorite-detail-btn" type="button" :aria-label="favoriteStore.isFavorite(product.productId) ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'" @click="toggleFavorite">
               <i :class="favoriteStore.isFavorite(product.productId) ? 'bi bi-heart-fill' : 'bi bi-heart'"></i>
               {{ favoriteStore.isFavorite(product.productId) ? 'Đã thích' : 'Yêu thích' }}
             </button>
           </div>
           <h1>{{ product.name }}</h1>
-          <div class="rating-row">
-            <StarRating :modelValue="product.rating || 5" readonly :size="18" />
-            <span>{{ product.reviewCount || 0 }} đánh giá</span>
-          </div>
+
           <p class="product-description">{{ product.description || 'Món ngon được chuẩn bị nóng hổi từ bếp FastGuy.' }}</p>
 
           <div class="price-row">
@@ -161,11 +179,12 @@ async function placeInCart(destination) {
 
           <div v-for="group in product.modifierGroups" :key="group.modifierGroupId" class="selection-group">
             <div class="selection-title"><span>{{ group.name }}</span><small>{{ group.minSelections ? `Chọn ${group.minSelections}-${group.maxSelections}` : `Tối đa ${group.maxSelections}` }}</small></div>
-            <div class="variant-grid">
-              <button v-for="option in group.options" :key="option.modifierOptionId" class="variant-option" :class="{ active: selectedModifiers.some(item => item.modifierOptionId === option.modifierOptionId) }" @click="toggleModifier(group, option)">
+            <div class="variant-grid" role="group" :aria-describedby="`modifier-help-${group.modifierGroupId}`">
+              <button v-for="option in group.options" :key="option.modifierOptionId" class="variant-option" :class="{ active: selectedModifiers.some(item => item.modifierOptionId === option.modifierOptionId) }" :aria-pressed="selectedModifiers.some(item => item.modifierOptionId === option.modifierOptionId)" @click="toggleModifier(group, option)">
                 <strong>{{ option.name }}</strong><span>+{{ formatPrice(option.price) }}</span>
               </button>
             </div>
+            <small :id="`modifier-help-${group.modifierGroupId}`" :class="{ 'modifier-error': modifierErrors[group.modifierGroupId] }">{{ modifierErrors[group.modifierGroupId] || `${group.minSelections ? 'Bắt buộc. ' : ''}Tối đa ${group.maxSelections} lựa chọn` }}</small>
           </div>
           <div v-if="product.combo" class="selection-group">
             <div class="selection-title"><span>Combo gồm</span><small>Cố định</small></div>
@@ -179,9 +198,9 @@ async function placeInCart(destination) {
 
           <div class="purchase-row">
             <div class="quantity-control">
-              <button @click="quantity = Math.max(1, quantity - 1)"><i class="bi bi-dash"></i></button>
-              <span>{{ quantity }}</span>
-              <button :disabled="selectedStock != null && quantity >= selectedStock" @click="quantity = selectedStock == null ? quantity + 1 : Math.min(selectedStock, quantity + 1)"><i class="bi bi-plus"></i></button>
+              <button aria-label="Giảm số lượng" :disabled="quantity <= 1" @click="quantity = Math.max(1, quantity - 1)"><i class="bi bi-dash"></i></button>
+              <span aria-live="polite">{{ quantity }}</span>
+              <button aria-label="Tăng số lượng" :disabled="selectedStock != null && quantity >= selectedStock" @click="quantity = selectedStock == null ? quantity + 1 : Math.min(selectedStock, quantity + 1)"><i class="bi bi-plus"></i></button>
             </div>
             <button class="add-cart-btn" :disabled="!selectedAvailable" @click="placeInCart('/cart')">Thêm vào giỏ - {{ formatPrice(effectivePrice * quantity) }}</button>
           </div>

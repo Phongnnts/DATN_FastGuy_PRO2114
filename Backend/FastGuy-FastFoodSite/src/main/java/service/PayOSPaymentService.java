@@ -53,7 +53,7 @@ public class PayOSPaymentService {
             if (info.containsKey("error")) return false;
 
             String status = String.valueOf(info.getOrDefault("status", ""));
-            if ("PAID".equals(status) || "PROCESSING".equals(status)) {
+            if ("PAID".equals(status)) {
                 em.getTransaction().begin();
                 Orders locked = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
                 if (!"PAID".equals(locked.getPaymentStatus())) {

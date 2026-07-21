@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,18 +73,23 @@ public class AdminOrderServlet extends HttpServlet {
         if (path == null || path.equals("/")) {
             String fromDate = req.getParameter("fromDate");
             String toDate = req.getParameter("toDate");
-            List<Map<String, Object>> allData = getOrdersData();
-            if (fromDate != null && !fromDate.isBlank() && toDate != null && !toDate.isBlank()) {
-                LocalDate from = LocalDate.parse(fromDate);
-                LocalDate to = LocalDate.parse(toDate);
-                allData = allData.stream().filter(m -> {
+            try {
+                LocalDate from = fromDate == null || fromDate.isBlank() ? null : LocalDate.parse(fromDate);
+                LocalDate to = toDate == null || toDate.isBlank() ? null : LocalDate.parse(toDate);
+                if (from != null && to != null && from.isAfter(to)) {
+                    ApiResponse.error(resp, "fromDate must not be after toDate", 400);
+                    return;
+                }
+                List<Map<String, Object>> allData = getOrdersData().stream().filter(m -> {
                     String created = (String) m.get("createdAt");
                     if (created == null) return false;
-                    LocalDate d = LocalDateTime.parse(created.replace("Z", "")).toLocalDate();
-                    return !d.isBefore(from) && !d.isAfter(to);
-                }).collect(Collectors.toList());
+                    LocalDate date = LocalDateTime.parse(created.replace("Z", "")).toLocalDate();
+                    return (from == null || !date.isBefore(from)) && (to == null || !date.isAfter(to));
+                }).sorted(Comparator.comparing(m -> (String) m.get("createdAt"), Comparator.nullsLast(Comparator.reverseOrder()))).collect(Collectors.toList());
+                ApiResponse.ok(resp, allData);
+            } catch (DateTimeParseException e) {
+                ApiResponse.error(resp, "Invalid date format, expected yyyy-MM-dd", 400);
             }
-            ApiResponse.ok(resp, allData);
             return;
         }
 

@@ -66,15 +66,45 @@ public class AdminService {
         return data;
     }
 
-    public double getRevenueByDateRange(LocalDateTime start, LocalDateTime end) {
-        return ordersDAO.sumRevenueByDateRange(start, end);
-    }
+    public Map<String, Object> getFullReport(String period, String startDate, String endDate) {
+        boolean hasStart = startDate != null && !startDate.isBlank();
+        boolean hasEnd = endDate != null && !endDate.isBlank();
+        if (hasStart != hasEnd) throw new IllegalArgumentException("Vui lòng chọn đủ từ ngày và đến ngày");
 
-    public long getOrdersByDateRange(LocalDateTime start, LocalDateTime end) {
-        return ordersDAO.countByStatusAndDateRange("DELIVERED", start, end);
-    }
+        LocalDate today = LocalDate.now();
+        LocalDateTime start;
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        if (hasStart) {
+            LocalDate from = LocalDate.parse(startDate);
+            LocalDate to = LocalDate.parse(endDate);
+            if (from.isAfter(to)) throw new IllegalArgumentException("Từ ngày không được sau đến ngày");
+            if (to.isAfter(today)) throw new IllegalArgumentException("Đến ngày không được sau hôm nay");
+            start = from.atStartOfDay();
+            end = to.plusDays(1).atStartOfDay();
+        } else {
+            String selectedPeriod = period == null || period.isBlank() ? "6m" : period;
+            switch (selectedPeriod) {
+                case "7d": start = today.minusDays(6).atStartOfDay(); break;
+                case "30d": start = today.minusDays(29).atStartOfDay(); break;
+                case "6m": start = today.minusMonths(6).atStartOfDay(); break;
+                case "1y": start = today.minusYears(1).atStartOfDay(); break;
+                default: throw new IllegalArgumentException("Kỳ báo cáo không hợp lệ");
+            }
+        }
 
-    public java.util.List<Map<String, Object>> getRevenueByCustomRange(LocalDateTime start, LocalDateTime end) {
-        return ordersDAO.sumRevenueByCustomRange(start, end);
+        Map<String, Object> data = new HashMap<>();
+        data.put("revenueByMonth", ordersDAO.sumRevenueByCustomRange(start, end));
+        data.put("revenueByDay", ordersDAO.revenueByDay(start, end));
+        data.put("periodRevenue", ordersDAO.sumRevenueByDateRange(start, end));
+        data.put("periodOrders", ordersDAO.countByStatusAndDateRange("DELIVERED", start, end));
+        data.put("totalOrdersInPeriod", ordersDAO.countAllByDateRange(start, end));
+        data.put("avgOrderValue", ordersDAO.avgOrderValue(start, end));
+        data.put("topProducts", ordersDAO.findTopProductsByDateRange(start, end, 10));
+        data.put("ordersByStatus", ordersDAO.ordersByStatusInPeriod(start, end));
+        data.put("revenueByCategory", ordersDAO.revenueByCategory(start, end));
+        data.put("paymentMethodStats", ordersDAO.paymentMethodStats(start, end));
+        data.put("revenueToday", ordersDAO.sumRevenueToday());
+        data.put("ordersToday", ordersDAO.countToday());
+        return data;
     }
 }

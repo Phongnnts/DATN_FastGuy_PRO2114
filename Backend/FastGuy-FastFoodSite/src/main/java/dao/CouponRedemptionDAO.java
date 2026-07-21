@@ -35,8 +35,9 @@ public class CouponRedemptionDAO {
     public boolean hasUnused(int couponId, int userId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            return em.createQuery("SELECT 1 FROM CouponRedemption cr WHERE cr.couponId = :couponId AND cr.userId = :userId AND cr.usedAt IS NULL", CouponRedemption.class)
-                    .setParameter("couponId", couponId).setParameter("userId", userId).setMaxResults(1).getResultList().size() > 0;
+            Long count = em.createQuery("SELECT COUNT(cr) FROM CouponRedemption cr WHERE cr.couponId = :couponId AND cr.userId = :userId AND cr.usedAt IS NULL", Long.class)
+                    .setParameter("couponId", couponId).setParameter("userId", userId).getSingleResult();
+            return count > 0;
         } finally {
             em.close();
         }

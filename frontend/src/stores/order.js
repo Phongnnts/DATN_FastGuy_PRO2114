@@ -109,11 +109,12 @@ export const useOrderStore = defineStore('order', () => {
         paymentStatus: data.paymentStatus,
         createdAt: data.createdAt,
         items: (data.items || []).map((item) => ({
-          productId: `${item.name}-${item.quantity}`,
-          productName: item.name,
+          productId: item.productId || `${item.name}-${item.quantity}`,
+          productName: item.productName || item.name,
           quantity: item.quantity,
-          image: '',
+          image: item.image || item.imageUrl || '',
         })),
+        checkoutUrl: data.checkoutUrl || '',
         statusHistory: (data.statusHistory || []).map((entry) => ({
           status: entry.status,
           time: entry.timestamp,

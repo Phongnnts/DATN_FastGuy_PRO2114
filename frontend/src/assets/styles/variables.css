@@ -75,6 +75,22 @@
   --space-10: 40px;
   --space-12: 48px;
   --space-16: 64px;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--bg-card);
+  --color-surface-muted: var(--surface);
+  --color-text: var(--text-dark);
+  --color-text-muted: var(--text-mid);
+  --color-border: var(--border);
+  --color-accent: var(--role-accent, var(--primary));
+  --control-height: 44px;
+  --header-height: 64px;
+  --z-header: 100;
+  --z-backdrop: 200;
+  --z-drawer: 210;
+  --z-dropdown: 300;
+  --z-modal: 400;
+  --z-toast: 500;
 }
 
 *, *::before, *::after {

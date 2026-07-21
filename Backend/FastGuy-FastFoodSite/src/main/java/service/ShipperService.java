@@ -127,6 +127,10 @@ public class ShipperService {
                 em.getTransaction().rollback();
                 return "COD collected amount must exactly match final amount";
             }
+            if (!"COD".equals(order.getPaymentMethod()) && !"PAID".equals(order.getPaymentStatus())) {
+                em.getTransaction().rollback();
+                return "Order must be paid before delivery";
+            }
             order.setOrderStatus("DELIVERED");
             order.setDeliveredAt(LocalDateTime.now());
             if ("COD".equals(order.getPaymentMethod())) {
@@ -135,12 +139,13 @@ public class ShipperService {
                 order.setPaymentStatus("PAID");
                 order.setPaidAt(LocalDateTime.now());
             }
+            int earnedPoints = loyaltyService.awardForDelivery(em, order);
             em.getTransaction().commit();
             orderStatusHistoryService.record(orderId, shipperId, "SHIPPER", "PICKED_UP", "DELIVERED", "Đã giao hàng");
             if (order.getUser() != null) {
                 notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đã giao", "Đơn " + order.getOrderCode() + " đã được giao thành công", "ORDER_STATUS", "/account/orders/" + orderId);
+                if (earnedPoints > 0) notificationService.notifyUser(order.getUser().getUserId(), "Điểm thưởng", "Bạn nhận được " + earnedPoints + " điểm từ đơn " + order.getOrderCode(), "LOYALTY_EARN", "/account/profile");
             }
-            loyaltyService.awardForDelivery(orderId);
             return null;
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();

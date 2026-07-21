@@ -44,34 +44,14 @@ public class AdminServlet extends HttpServlet {
         if (path == null || path.equals("/") || path.equals("/dashboard")) {
             var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
             ApiResponse.ok(resp, data);
-        } else if (path.equals("/reports/revenue")) {
+        } else if (path.equals("/reports/full")) {
             String startDate = req.getParameter("startDate");
             String endDate = req.getParameter("endDate");
-            Map<String, Object> result = new HashMap<>();
-            if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
-                LocalDateTime start = LocalDate.parse(startDate).atStartOfDay();
-                LocalDateTime end = LocalDate.parse(endDate).plusDays(1).atStartOfDay();
-                result.put("revenueByMonth", adminService.getRevenueByCustomRange(start, end));
-                result.put("periodRevenue", adminService.getRevenueByDateRange(start, end));
-                result.put("periodOrders", adminService.getOrdersByDateRange(start, end));
-            } else {
-                var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
-                result.put("revenueByMonth", data.get("revenueByMonth"));
-                result.put("periodRevenue", data.get("periodRevenue"));
-                result.put("periodOrders", data.get("periodOrders"));
-                result.put("totalRevenue", data.get("totalRevenue"));
-                result.put("revenueToday", data.get("revenueToday"));
-                result.put("ordersToday", data.get("ordersToday"));
+            try {
+                ApiResponse.ok(resp, adminService.getFullReport(period, startDate, endDate));
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
             }
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/reports/top-products")) {
-            var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
-            java.util.Map<String, Object> result = new java.util.HashMap<>();
-            result.put("topProducts", data.get("topProducts"));
-            result.put("periodTopProducts", data.get("periodTopProducts"));
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/orders")) {
-            ApiResponse.ok(resp, new AdminOrderServlet().getOrdersData());
         } else {
             ApiResponse.error(resp, "Not found", 404);
         }

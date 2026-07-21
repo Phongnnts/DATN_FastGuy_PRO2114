@@ -19,12 +19,15 @@ public class AdminShiftServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         if (!admin(req, resp)) return;
         resp.setContentType("application/json;charset=UTF-8");
-        String userIdParam = req.getParameter("userId");
-        Integer userId = userIdParam != null && !userIdParam.isBlank() ? Integer.parseInt(userIdParam) : null;
-        String role = req.getParameter("role");
-        String fromDate = req.getParameter("fromDate");
-        String toDate = req.getParameter("toDate");
-        ApiResponse.ok(resp, workShiftService.list(userId, role, fromDate, toDate));
+        try {
+            String userIdParam = req.getParameter("userId");
+            Integer userId = userIdParam != null && !userIdParam.isBlank() ? Integer.parseInt(userIdParam) : null;
+            ApiResponse.ok(resp, workShiftService.list(userId, req.getParameter("role"), req.getParameter("fromDate"), req.getParameter("toDate")));
+        } catch (NumberFormatException e) {
+            ApiResponse.error(resp, "Invalid userId", 400);
+        } catch (IllegalArgumentException e) {
+            ApiResponse.error(resp, e.getMessage(), 400);
+        }
     }
 
     @Override
@@ -44,6 +47,7 @@ public class AdminShiftServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         try {
             String path = req.getPathInfo();
+            if (path == null || !path.matches("/\\d+")) throw new NumberFormatException();
             int shiftId = Integer.parseInt(path.substring(1));
             ApiResponse.ok(resp, workShiftService.update(shiftId, utils.JsonUtil.fromJson(req.getReader(), Map.class)), "Shift updated");
         } catch (NumberFormatException e) {
@@ -59,6 +63,7 @@ public class AdminShiftServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         try {
             String path = req.getPathInfo();
+            if (path == null || !path.matches("/\\d+")) throw new NumberFormatException();
             int shiftId = Integer.parseInt(path.substring(1));
             workShiftService.delete(shiftId);
             ApiResponse.ok(resp, null, "Shift deleted");

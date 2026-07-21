@@ -19,6 +19,11 @@ export const useProductStore = defineStore('product', () => {
   const currentProduct = ref(null);
   const loading = ref(false);
   const error = ref('');
+  const catalog = ref([]);
+  const catalogLoading = ref(false);
+  const catalogError = ref('');
+  const catalogMeta = ref({ totalItems: 0, totalPages: 0, page: 0, size: 12 });
+  let catalogRequest = 0;
   const searchQuery = ref('');
   const selectedCategory = ref(null);
   const fetched = ref(false);
@@ -39,9 +44,14 @@ export const useProductStore = defineStore('product', () => {
     return result;
   });
 
-  const featuredProducts = computed(() =>
-    allProducts.value.filter((p) => p.featured),
-  );
+  const featured = ref([]);
+  const bestSellers = ref([]);
+  const featuredLoading = ref(false);
+  const featuredError = ref('');
+  const featuredProducts = computed(() => featured.value.length ? featured.value : allProducts.value
+    .filter((p) => p.inStock && p.isAvailableNow !== false)
+    .sort((a, b) => b.productId - a.productId)
+    .slice(0, 8));
   const inStockProducts = computed(() =>
     allProducts.value.filter((p) => p.inStock),
   );
@@ -72,6 +82,9 @@ export const useProductStore = defineStore('product', () => {
       description: p.description || '',
       rating: p.rating || 0,
       reviewCount: p.reviewCount || 0,
+      soldCount: Number(p.soldCount ?? p.totalSold) || 0,
+      bestSeller: Boolean(p.bestSeller ?? p.isBestSeller),
+      productType: p.productType || (p.combo ? 'COMBO' : 'SIMPLE'),
        availableFrom: p.availableFrom || '',
        availableTo: p.availableTo || '',
        isAvailableNow: p.isAvailableNow !== undefined ? p.isAvailableNow : true,
@@ -97,6 +110,49 @@ export const useProductStore = defineStore('product', () => {
     };
   }
 
+  function listFrom(data) {
+    if (Array.isArray(data)) return data;
+    return data?.content || data?.items || data?.data || [];
+  }
+
+  async function fetchCatalog(params = {}) {
+    const request = ++catalogRequest;
+    catalogLoading.value = true;
+    catalogError.value = '';
+    try {
+      const data = await productApi.getAll(params);
+      if (request !== catalogRequest) return;
+      catalog.value = listFrom(data).map(mapProduct);
+      catalogMeta.value = {
+        totalItems: Number(data?.totalItems) || 0,
+        totalPages: Number(data?.totalPages) || 0,
+        page: Number(data?.page) || 0,
+        size: Number(data?.size) || Number(params.size) || 12,
+      };
+    } catch (e) {
+      if (request !== catalogRequest) return;
+      catalog.value = [];
+      catalogError.value = e.message || 'Không thể tải thực đơn';
+    } finally {
+      if (request === catalogRequest) catalogLoading.value = false;
+    }
+  }
+
+  async function fetchFeatured() {
+    featuredLoading.value = true;
+    featuredError.value = '';
+    try {
+      bestSellers.value = listFrom(await productApi.getBestSellers()).map(mapProduct);
+      featured.value = bestSellers.value;
+    } catch (e) {
+      bestSellers.value = [];
+      featured.value = [];
+      featuredError.value = e.message || 'Không thể tải món bán chạy';
+    } finally {
+      featuredLoading.value = false;
+    }
+  }
+
   async function init() {
     if (fetched.value) return;
     loading.value = true;
@@ -106,12 +162,8 @@ export const useProductStore = defineStore('product', () => {
         productApi.getAll(),
         productApi.getCategories(),
       ]);
-      if (productsData && Array.isArray(productsData)) {
-        allProducts.value = productsData.map(mapProduct);
-      }
-      if (categoriesData && Array.isArray(categoriesData)) {
-        allCategories.value = categoriesData.map(mapCategory);
-      }
+      allProducts.value = listFrom(productsData).map(mapProduct);
+      allCategories.value = listFrom(categoriesData).map(mapCategory);
       fetched.value = true;
     } catch (e) {
       error.value = e.message || 'Không thể tải dữ liệu';
@@ -157,16 +209,26 @@ export const useProductStore = defineStore('product', () => {
     currentProduct,
     loading,
     error,
+    catalog,
+    catalogLoading,
+    catalogError,
+    catalogMeta,
     searchQuery,
     selectedCategory,
     fetched,
     filteredProducts,
+    featured,
+    bestSellers,
     featuredProducts,
+    featuredLoading,
+    featuredError,
     inStockProducts,
     fetchById,
     fetchByCategory,
     search,
     clearFilters,
+    fetchCatalog,
+    fetchFeatured,
     init,
   };
 });

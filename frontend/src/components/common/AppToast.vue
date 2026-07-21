@@ -1,11 +1,11 @@
 <template>
-  <div class="toast-container" aria-live="polite">
+  <div class="toast-container" aria-live="polite" aria-relevant="additions removals">
     <transition-group name="toast">
       <div
         v-for="t in toasts"
         :key="t.id"
         :class="['toast-item', 'toast-' + t.type]"
-        role="status"
+        :role="t.type === 'error' ? 'alert' : 'status'"
       >
         <span class="toast-icon">
           <i v-if="t.type === 'success'" class="bi bi-check-circle-fill"></i>
@@ -14,7 +14,7 @@
           <i v-else class="bi bi-info-circle-fill"></i>
         </span>
         <span class="toast-message">{{ t.message }}</span>
-        <button class="toast-dismiss" @click="dismiss(t.id)" aria-label="Dismiss">
+        <button class="toast-dismiss" @click="dismiss(t.id)" aria-label="Đóng thông báo">
           <i class="bi bi-x-lg"></i>
         </button>
       </div>
@@ -32,7 +32,7 @@ const { toasts, dismiss } = useToastStore();
   position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 9999;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -55,11 +55,13 @@ const { toasts, dismiss } = useToastStore();
 .toast-icon { font-size: 18px; flex-shrink: 0; }
 .toast-message { flex: 1; }
 .toast-dismiss {
+  width: var(--control-height);
+  height: var(--control-height);
+  margin: -10px -12px -10px 0;
   background: none;
   border: none;
-  color: rgba(255,255,255,0.7);
+  color: rgba(255,255,255,0.8);
   cursor: pointer;
-  padding: 0 4px;
   font-size: 12px;
 }
 .toast-dismiss:hover { color: #fff; }
@@ -67,4 +69,8 @@ const { toasts, dismiss } = useToastStore();
 .toast-leave-active { transition: all 0.2s ease; }
 .toast-enter-from { opacity: 0; transform: translateX(40px); }
 .toast-leave-to { opacity: 0; transform: translateX(40px); }
+@media (max-width: 480px) {
+  .toast-container { top: 8px; right: 8px; left: 8px; max-width: none; }
+  .toast-item { width: 100%; }
+}
 </style>

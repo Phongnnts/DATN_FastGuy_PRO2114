@@ -14,11 +14,17 @@ const show = computed(() => auth.isLoggedIn);
 
 onMounted(() => {
   document.addEventListener('click', handleOutside);
+  document.addEventListener('keydown', handleKeydown);
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', handleOutside);
+  document.removeEventListener('keydown', handleKeydown);
 });
+
+function handleKeydown(e) {
+  if (e.key === 'Escape') notificationStore.close();
+}
 
 function handleOutside(e) {
   if (wrapper.value && !wrapper.value.contains(e.target)) {
@@ -39,11 +45,11 @@ async function go(item) {
 
 <template>
   <div v-if="show" class="notif-wrapper" ref="wrapper">
-    <button class="top-bar-btn" type="button" aria-label="Thông báo" @click="notificationStore.toggle()">
+    <button class="top-bar-btn" type="button" aria-label="Thông báo" aria-controls="notification-panel" :aria-expanded="notificationStore.open" @click="notificationStore.toggle()">
       <i class="bi bi-bell"></i>
       <span v-if="notificationStore.unreadCount > 0" class="notif-badge">{{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}</span>
     </button>
-    <div v-if="notificationStore.open" class="notif-dropdown card-flat">
+    <div v-if="notificationStore.open" id="notification-panel" class="notif-dropdown card-flat" role="region" aria-label="Danh sách thông báo">
       <div class="notif-header">
         <h4>Thông báo</h4>
         <button class="btn btn-sm btn-ghost" @click="notificationStore.markAllRead()">Đánh dấu đã đọc</button>
@@ -70,6 +76,18 @@ async function go(item) {
 .notif-wrapper {
   position: relative;
 }
+.top-bar-btn {
+  position: relative;
+  width: var(--control-height);
+  height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 18px;
+}
+.top-bar-btn:hover { background: var(--color-surface-muted); color: var(--color-text); }
 .notif-badge {
   position: absolute;
   top: -2px;
@@ -93,7 +111,7 @@ async function go(item) {
   max-height: 420px;
   display: flex;
   flex-direction: column;
-  z-index: 100;
+  z-index: var(--z-dropdown);
 }
 .notif-header {
   display: flex;
@@ -157,8 +175,12 @@ async function go(item) {
 }
 @media (max-width: 480px) {
   .notif-dropdown {
-    width: 280px;
-    right: -10px;
+    position: fixed;
+    top: calc(var(--header-height) + 8px);
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100dvh - var(--header-height) - 20px);
   }
 }
 </style>

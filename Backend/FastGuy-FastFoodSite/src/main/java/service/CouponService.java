@@ -39,7 +39,7 @@ public class CouponService {
             return result;
         }
 
-        if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) {
+        if (coupon.getExpiresAt() != null && !coupon.getExpiresAt().isAfter(LocalDateTime.now())) {
             result.put("valid", false);
             result.put("message", "Mã giảm giá đã hết hạn");
             return result;
@@ -112,13 +112,13 @@ public class CouponService {
             em.getTransaction().begin();
             Coupon coupon = em.find(Coupon.class, couponId, LockModeType.PESSIMISTIC_WRITE);
             if (coupon == null) { em.getTransaction().rollback(); return "Mã giảm giá không tồn tại"; }
-            if (!Boolean.TRUE.equals(coupon.getIsActive())) { em.getTransaction().rollback(); return "Mã giảm giá không khả dụng"; }
-            if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) { em.getTransaction().rollback(); return "Mã đã hết hạn"; }
+            if (!Boolean.TRUE.equals(coupon.getIsPublic()) || !Boolean.TRUE.equals(coupon.getIsActive())) { em.getTransaction().rollback(); return "Mã giảm giá không khả dụng"; }
+            if (coupon.getExpiresAt() != null && !coupon.getExpiresAt().isAfter(LocalDateTime.now())) { em.getTransaction().rollback(); return "Mã đã hết hạn"; }
             if (coupon.getMaxUses() > 0 && coupon.getUsedCount() >= coupon.getMaxUses()) { em.getTransaction().rollback(); return "Mã đã hết lượt"; }
 
-            boolean exists = em.createQuery("SELECT 1 FROM CouponRedemption cr WHERE cr.couponId = :cid AND cr.userId = :uid", CouponRedemption.class)
-                    .setParameter("cid", couponId).setParameter("uid", userId).setMaxResults(1).getResultList().size() > 0;
-            if (exists) { em.getTransaction().rollback(); return "Bạn đã nhận mã này rồi"; }
+            Long count = em.createQuery("SELECT COUNT(cr) FROM CouponRedemption cr WHERE cr.couponId = :cid AND cr.userId = :uid", Long.class)
+                    .setParameter("cid", couponId).setParameter("uid", userId).getSingleResult();
+            if (count > 0) { em.getTransaction().rollback(); return "Bạn đã nhận mã này rồi"; }
 
             CouponRedemption cr = new CouponRedemption();
             cr.setCouponId(couponId);
@@ -159,8 +159,10 @@ public class CouponService {
     }
 
     public List<Map<String, Object>> getClaimedCoupons(int userId) {
+        LocalDateTime now = LocalDateTime.now();
         return redemptionDAO.findUnusedByUserId(userId).stream().map(cr -> {
             Coupon c = couponDAO.findById(cr.getCouponId());
+            if (c == null || !Boolean.TRUE.equals(c.getIsActive()) || (c.getExpiresAt() != null && !c.getExpiresAt().isAfter(now)) || (c.getMaxUses() > 0 && c.getUsedCount() >= c.getMaxUses())) return null;
             Map<String, Object> m = new HashMap<>();
             m.put("claimedId", cr.getRedemptionId());
             m.put("couponId", cr.getCouponId());
@@ -172,7 +174,7 @@ public class CouponService {
             m.put("description", c != null ? getDescription(c) : "");
             m.put("claimedAt", cr.getClaimedAt() != null ? cr.getClaimedAt().toString() : null);
             return m;
-        }).collect(Collectors.toList());
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     private String getDescription(Coupon c) {
