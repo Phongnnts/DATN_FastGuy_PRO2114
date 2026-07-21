@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.OrderTransitionService;
 import service.StaffOrderService;
+import service.StaffShiftAccessService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
@@ -26,13 +27,14 @@ public class StaffOrderServlet extends HttpServlet {
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private OrdersDAO ordersDAO = new OrdersDAO();
     private service.OrderStatusHistoryService orderStatusHistoryService = new service.OrderStatusHistoryService();
+    private StaffShiftAccessService staffShiftAccessService = new StaffShiftAccessService();
     private ObjectMapper mapper = new ObjectMapper();
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int staffId = getStaffId(req, resp);
-        if (staffId < 0) return;
+        if (staffId < 0 || !requireCheckedInShift(req, resp, staffId)) return;
         String path = req.getPathInfo();
         if (path != null && path.contains("/notes")) {
             String orderIdStr = path.substring(1, path.indexOf("/notes"));
@@ -57,6 +59,25 @@ public class StaffOrderServlet extends HttpServlet {
         }
     }
 
+    public static boolean requiresCheckedInShift(String method, String pathInfo) {
+        return !("GET".equals(method) && "/history".equals(pathInfo));
+    }
+
+    public static boolean hasRouteAccess(String method, String pathInfo, boolean validIdentity, boolean checkedIn) {
+        return validIdentity && (!requiresCheckedInShift(method, pathInfo) || checkedIn);
+    }
+
+    private boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int staffId) throws IOException {
+        boolean validIdentity = staffShiftAccessService.hasValidStaffIdentity(staffId);
+        if (!validIdentity) {
+            ApiResponse.error(resp, "Forbidden", 403);
+            return false;
+        }
+        if (!requiresCheckedInShift(req.getMethod(), req.getPathInfo()) || staffShiftAccessService.hasCheckedInShift(staffId)) return true;
+        ApiResponse.error(resp, "Checked-in shift required", 403);
+        return false;
+    }
+
     private int getStaffId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -76,7 +97,7 @@ public class StaffOrderServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int staffId = getStaffId(req, resp);
-        if (staffId < 0) return;
+        if (staffId < 0 || !requireCheckedInShift(req, resp, staffId)) return;
 
         try {
             String path = req.getPathInfo();
@@ -155,7 +176,7 @@ public class StaffOrderServlet extends HttpServlet {
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int staffId = getStaffId(req, resp);
-        if (staffId < 0) return;
+        if (staffId < 0 || !requireCheckedInShift(req, resp, staffId)) return;
 
         String path = req.getPathInfo();
         if (path == null) {
@@ -186,7 +207,7 @@ public class StaffOrderServlet extends HttpServlet {
             }
             Object rawStatus = body.get("status");
             String status = rawStatus instanceof String ? (String) rawStatus : null;
-            if (status == null || (!"PENDING".equals(status) && !"CONFIRMED".equals(status) && !"PREPARING".equals(status) && !"READY".equals(status) && !"CANCELLED".equals(status))) {
+            if (status == null || (!"CONFIRMED".equals(status) && !"PREPARING".equals(status) && !"READY".equals(status) && !"CANCELLED".equals(status))) {
                 ApiResponse.error(resp, "Invalid status", 400);
                 return;
             }
@@ -201,10 +222,7 @@ public class StaffOrderServlet extends HttpServlet {
             }
             boolean ok = staffOrderService.updateStatus(orderId, status, staffId, failureReason);
             if (!ok) {
-                String message = "PENDING".equals(status)
-                        ? "Không thể xác nhận tồn kho hoặc tạo link PayOS. Đơn vẫn chờ xác nhận."
-                        : "Cannot update status: invalid transition";
-                ApiResponse.error(resp, message, 400);
+                ApiResponse.error(resp, "Cannot update status: invalid transition", 400);
                 return;
             }
             ApiResponse.ok(resp, null, "Status updated");
