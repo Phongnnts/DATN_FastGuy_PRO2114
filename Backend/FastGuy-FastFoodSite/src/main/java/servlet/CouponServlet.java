@@ -62,15 +62,24 @@ public class CouponServlet extends HttpServlet {
         Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
 
-        String code = (String) body.get("code");
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        BigDecimal shippingFee = BigDecimal.ZERO;
-        if (body.containsKey("totalAmount")) {
-            totalAmount = BigDecimal.valueOf(((Number) body.get("totalAmount")).doubleValue());
+        Object rawCode = body.get("code");
+        Object rawTotalAmount = body.get("totalAmount");
+        Object rawShippingFee = body.get("shippingFee");
+        if (!(rawCode instanceof String) || !(rawTotalAmount instanceof Number) || (rawShippingFee != null && !(rawShippingFee instanceof Number))) {
+            ApiResponse.error(resp, "Invalid data", 400);
+            return;
         }
-        if (body.containsKey("shippingFee")) {
-            shippingFee = BigDecimal.valueOf(((Number) body.get("shippingFee")).doubleValue());
+        BigDecimal totalAmount;
+        BigDecimal shippingFee;
+        try {
+            totalAmount = new BigDecimal(rawTotalAmount.toString());
+            shippingFee = rawShippingFee == null ? BigDecimal.ZERO : new BigDecimal(rawShippingFee.toString());
+        } catch (NumberFormatException e) {
+            ApiResponse.error(resp, "Invalid data", 400);
+            return;
         }
+        if (totalAmount.signum() < 0 || shippingFee.signum() < 0) { ApiResponse.error(resp, "Invalid data", 400); return; }
+        String code = (String) rawCode;
 
         Integer userId = null;
         String authHeader = req.getHeader("Authorization");
@@ -90,8 +99,10 @@ public class CouponServlet extends HttpServlet {
 
         Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+        Object rawCouponId = body.get("couponId");
+        if (!(rawCouponId instanceof Number)) { ApiResponse.error(resp, "Missing couponId", 400); return; }
 
-        int couponId = ((Number) body.get("couponId")).intValue();
+        int couponId = ((Number) rawCouponId).intValue();
         String err = couponService.claim(couponId, userId);
         if (err != null) {
             ApiResponse.error(resp, err, 400);

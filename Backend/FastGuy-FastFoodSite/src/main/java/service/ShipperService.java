@@ -4,6 +4,9 @@ import dao.OrdersDAO;
 import dao.UserDAO;
 import entity.Orders;
 import entity.User;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import utils.DatabaseUtil;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -53,70 +56,115 @@ public class ShipperService {
     }
 
     public boolean assignShipper(int orderId, int shipperId) {
-        Orders order = ordersDAO.findById(orderId);
-        if (order == null || !"READY".equals(order.getOrderStatus())) return false;
-        if (order.getShipper() != null) return false;
-        User shipper = userDAO.findById(shipperId);
-        if (shipper == null) return false;
-        order.setShipper(shipper);
-        order.setAssignedAt(LocalDateTime.now());
-        ordersDAO.save(order);
-        return true;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null || !"READY".equals(order.getOrderStatus()) || order.getShipper() != null) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            User shipper = em.find(User.class, shipperId);
+            if (shipper == null) { em.getTransaction().rollback(); return false; }
+            order.setShipper(shipper);
+            order.setAssignedAt(LocalDateTime.now());
+            em.getTransaction().commit();
+            return true;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
     }
 
     public boolean pickUpOrder(int orderId, int shipperId) {
-        Orders order = ordersDAO.findById(orderId);
-        if (order == null || !"READY".equals(order.getOrderStatus())) return false;
-        if (order.getShipper() != null && order.getShipper().getUserId() != shipperId) return false;
-        User shipper = userDAO.findById(shipperId);
-        if (shipper == null) return false;
-        order.setOrderStatus("PICKED_UP");
-        if (order.getShipper() == null) order.setShipper(shipper);
-        order.setPickedUpAt(LocalDateTime.now());
-        ordersDAO.save(order);
-        orderStatusHistoryService.record(orderId, shipperId, "SHIPPER", "READY", "PICKED_UP", "Đã lấy hàng");
-        if (order.getUser() != null) {
-            notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đang giao", "Đơn " + order.getOrderCode() + " đã được shipper lấy hàng", "ORDER_STATUS", "/account/orders/" + orderId);
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null || !"READY".equals(order.getOrderStatus())) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            if (order.getShipper() != null && order.getShipper().getUserId() != shipperId) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            User shipper = em.find(User.class, shipperId);
+            if (shipper == null) { em.getTransaction().rollback(); return false; }
+            order.setOrderStatus("PICKED_UP");
+            if (order.getShipper() == null) order.setShipper(shipper);
+            order.setPickedUpAt(LocalDateTime.now());
+            em.getTransaction().commit();
+            orderStatusHistoryService.record(orderId, shipperId, "SHIPPER", "READY", "PICKED_UP", "Đã lấy hàng");
+            if (order.getUser() != null) {
+                notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đang giao", "Đơn " + order.getOrderCode() + " đã được shipper lấy hàng", "ORDER_STATUS", "/account/orders/" + orderId);
+            }
+            return true;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-        return true;
     }
 
     public String deliverOrder(int orderId, int shipperId, BigDecimal collectedAmount) {
-        Orders order = ordersDAO.findById(orderId);
-        if (order == null || !"PICKED_UP".equals(order.getOrderStatus())) return "Order must be picked up before delivery";
-        if (order.getShipper() == null || order.getShipper().getUserId() != shipperId) return "Order is not assigned to this shipper";
-        if ("COD".equals(order.getPaymentMethod()) && (collectedAmount == null || order.getFinalAmount() == null || collectedAmount.compareTo(order.getFinalAmount()) != 0)) {
-            return "COD collected amount must exactly match final amount";
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null || !"PICKED_UP".equals(order.getOrderStatus())) {
+                em.getTransaction().rollback();
+                return "Order must be picked up before delivery";
+            }
+            if (order.getShipper() == null || order.getShipper().getUserId() != shipperId) {
+                em.getTransaction().rollback();
+                return "Order is not assigned to this shipper";
+            }
+            if ("COD".equals(order.getPaymentMethod()) && (collectedAmount == null || order.getFinalAmount() == null || collectedAmount.compareTo(order.getFinalAmount()) != 0)) {
+                em.getTransaction().rollback();
+                return "COD collected amount must exactly match final amount";
+            }
+            if (!"COD".equals(order.getPaymentMethod()) && !"PAID".equals(order.getPaymentStatus())) {
+                em.getTransaction().rollback();
+                return "Order must be paid before delivery";
+            }
+            order.setOrderStatus("DELIVERED");
+            order.setDeliveredAt(LocalDateTime.now());
+            if ("COD".equals(order.getPaymentMethod())) {
+                order.setCodCollectedAmount(collectedAmount);
+                order.setCodCollectedAt(LocalDateTime.now());
+                order.setPaymentStatus("PAID");
+                order.setPaidAt(LocalDateTime.now());
+            }
+            int earnedPoints = loyaltyService.awardForDelivery(em, order);
+            em.getTransaction().commit();
+            orderStatusHistoryService.record(orderId, shipperId, "SHIPPER", "PICKED_UP", "DELIVERED", "Đã giao hàng");
+            if (order.getUser() != null) {
+                notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đã giao", "Đơn " + order.getOrderCode() + " đã được giao thành công", "ORDER_STATUS", "/account/orders/" + orderId);
+                if (earnedPoints > 0) notificationService.notifyUser(order.getUser().getUserId(), "Điểm thưởng", "Bạn nhận được " + earnedPoints + " điểm từ đơn " + order.getOrderCode(), "LOYALTY_EARN", "/account/profile");
+            }
+            return null;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-        order.setOrderStatus("DELIVERED");
-        order.setDeliveredAt(LocalDateTime.now());
-        if ("COD".equals(order.getPaymentMethod())) {
-            order.setCodCollectedAmount(collectedAmount);
-            order.setCodCollectedAt(LocalDateTime.now());
-            order.setPaymentStatus("PAID");
-            order.setPaidAt(LocalDateTime.now());
-        }
-        ordersDAO.save(order);
-        orderStatusHistoryService.record(orderId, shipperId, "SHIPPER", "PICKED_UP", "DELIVERED", "Đã giao hàng");
-        if (order.getUser() != null) {
-            notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đã giao", "Đơn " + order.getOrderCode() + " đã được giao thành công", "ORDER_STATUS", "/account/orders/" + orderId);
-        }
-        loyaltyService.awardForDelivery(orderId);
-        return null;
     }
 
     public boolean cancelOrder(int orderId, int shipperId, String reason) {
-        Orders order = ordersDAO.findById(orderId);
-        if (order == null) return false;
-        if (order.getShipper() == null || order.getShipper().getUserId() != shipperId) return false;
-        if (!"PICKED_UP".equals(order.getOrderStatus())) return false;
-
         boolean ok = orderService.cancelOrder(orderId, null, null, reason, false);
         if (!ok) return false;
-
-        order = ordersDAO.findById(orderId);
-        if (order.getUser() != null) {
-            notificationService.notifyUser(order.getUser().getUserId(), "Đơn giao hàng thất bại", "Đơn " + order.getOrderCode() + " đã bị hủy bởi shipper", "ORDER_CANCELLED", "/account/orders/" + orderId);
+        Orders order = ordersDAO.findById(orderId);
+        if (order != null) {
+            order.setCancelledBy("SHIPPER");
+            ordersDAO.save(order);
+            if (order.getUser() != null) {
+                notificationService.notifyUser(order.getUser().getUserId(), "Đơn giao hàng thất bại", "Đơn " + order.getOrderCode() + " đã bị hủy bởi shipper", "ORDER_CANCELLED", "/account/orders/" + orderId);
+            }
         }
         return true;
     }

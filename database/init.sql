@@ -201,16 +201,6 @@ create table Coupon (
 );
 create unique index UQ__Coupon__357D4CF93B725CDD on Coupon(code);
 
-create table ClaimedCoupon (
-    claimed_id int identity primary key,
-    coupon_id int not null references Coupon(coupon_id),
-    user_id int not null references Users(user_id),
-    claimed_at datetime2 default getdate(),
-    used_at datetime2
-);
-create unique index idx_claimedcoupon_user_coupon on ClaimedCoupon(user_id, coupon_id);
-
-
 create table Orders (
     order_id int identity primary key,
     order_code varchar(50) not null,
@@ -293,15 +283,19 @@ create table WorkShift (
 create index IX_WorkShift_User_Date on WorkShift(user_id, shift_date);
 create index IX_WorkShift_Date on WorkShift(shift_date);
 
-create table CouponUsage (
-    coupon_usage_id int identity primary key,
+create table CouponRedemption (
+    redemption_id int identity primary key,
     coupon_id int not null references Coupon(coupon_id),
-    user_id int references Users(user_id),
-    order_id int not null references Orders(order_id),
-    discount_amount decimal(10,2) not null,
-    used_at datetime2 default getdate()
+    user_id int not null references Users(user_id),
+    order_id int references Orders(order_id),
+    claimed_at datetime2 not null default getdate(),
+    used_at datetime2,
+    discount_amount decimal(18,2),
+    created_at datetime2 not null default getdate(),
+    updated_at datetime2 not null default getdate()
 );
-create unique index idx_couponusage_order on CouponUsage(order_id);
+create unique index UQ_CouponRedemption_User_Coupon on CouponRedemption(user_id, coupon_id);
+create unique index UQ_CouponRedemption_Order on CouponRedemption(order_id) where order_id is not null;
 
 create table OrderItem (
     order_item_id int identity primary key,
@@ -336,7 +330,9 @@ create table Review (
     order_id int not null references Orders(order_id),
     rating int not null,
     comment nvarchar(1000),
-    created_at datetime2 default getdate()
+    created_at datetime2 not null default getdate(),
+    updated_at datetime2 not null default getdate(),
+    constraint CK_Review_Rating check (rating between 1 and 5)
 );
 create unique index UQ_Review_User_Order on Review(user_id, order_id);
 
@@ -351,6 +347,7 @@ create table SupportTicket (
     staff_id int references Users(user_id),
     resolution nvarchar(2000),
     created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate(),
     resolved_at datetime2,
     constraint CK_SupportTicket_Category check (category in ('MISSING_ITEM', 'COLD_FOOD', 'WRONG_ITEM', 'LATE_DELIVERY', 'OTHER')),
     constraint CK_SupportTicket_Status check (status in ('OPEN', 'PROCESSING', 'RESOLVED'))

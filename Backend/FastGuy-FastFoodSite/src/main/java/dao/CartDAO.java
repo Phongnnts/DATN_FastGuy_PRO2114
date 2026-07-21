@@ -5,6 +5,7 @@ import entity.CartItem;
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class CartDAO {
@@ -41,7 +42,7 @@ public class CartDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT ci FROM CartItem ci WHERE ci.cart.cartId = :cid ORDER BY ci.cartItemId",
+                    "SELECT ci FROM CartItem ci LEFT JOIN FETCH ci.product LEFT JOIN FETCH ci.variant WHERE ci.cart.cartId = :cid ORDER BY ci.cartItemId",
                     CartItem.class)
                     .setParameter("cid", cartId)
                     .getResultList();
@@ -87,11 +88,12 @@ public class CartDAO {
             em.getTransaction().begin();
             CartItem item = em.find(CartItem.class, cartItemId);
             if (item != null) {
+                item.clearModifiers();
                 em.remove(item);
             }
             em.getTransaction().commit();
         } catch (Exception e) {
-            em.getTransaction().rollback();
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
             e.printStackTrace();
         } finally {
             em.close();
@@ -102,12 +104,18 @@ public class CartDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
-            em.createQuery("DELETE FROM CartItem ci WHERE ci.cart.cartId = :cid")
+            List<CartItem> items = new ArrayList<>(em.createQuery(
+                    "SELECT ci FROM CartItem ci WHERE ci.cart.cartId = :cid",
+                    CartItem.class)
                     .setParameter("cid", cartId)
-                    .executeUpdate();
+                    .getResultList());
+            for (CartItem item : items) {
+                item.clearModifiers();
+                em.remove(item);
+            }
             em.getTransaction().commit();
         } catch (Exception e) {
-            em.getTransaction().rollback();
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
             e.printStackTrace();
         } finally {
             em.close();

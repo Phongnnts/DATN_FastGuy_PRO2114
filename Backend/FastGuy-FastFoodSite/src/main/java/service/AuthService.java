@@ -2,15 +2,15 @@ package service;
 
 import java.util.Map;
 
-import dao.RoleDAO;
 import dao.UserDAO;
-import entity.Role;
 import entity.User;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import utils.DatabaseUtil;
 import utils.PasswordUtil;
 
 public class AuthService {
     private UserDAO userDAO = new UserDAO();
-    private RoleDAO roleDAO = new RoleDAO();
 
     public User login(String login, String password) {
         User user = userDAO.findByPhone(login);
@@ -30,28 +30,34 @@ public class AuthService {
     }
 
     public User register(String fullName, String phone, String email, String password) {
-        if (userDAO.findByPhone(phone) != null) {
-            return null;
-        }
-        if (email != null && !email.isEmpty() && userDAO.findByEmail(email) != null) {
-            return null;
-        }
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            User existing = em.createQuery("SELECT u FROM User u WHERE u.phone = :phone", User.class)
+                    .setParameter("phone", phone).setMaxResults(1).getResultStream().findFirst().orElse(null);
+            if (existing != null) { em.getTransaction().rollback(); return null; }
+            if (email != null && !email.isEmpty()) {
+                existing = em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+                        .setParameter("email", email).setMaxResults(1).getResultStream().findFirst().orElse(null);
+                if (existing != null) { em.getTransaction().rollback(); return null; }
+            }
 
-        Role userRole = roleDAO.findByName("USER");
-        if (userRole == null) {
-            return null;
+            User user = new User();
+            user.setFullName(fullName);
+            user.setPhone(phone);
+            user.setEmail(email);
+            user.setPasswordHash(PasswordUtil.hash(password));
+            user.setRole("USER");
+            user.setStatus("ACTIVE");
+            em.persist(user);
+            em.getTransaction().commit();
+            return user;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-
-        User user = new User();
-        user.setFullName(fullName);
-        user.setPhone(phone);
-        user.setEmail(email);
-        user.setPasswordHash(PasswordUtil.hash(password));
-        user.setRole(userRole);
-        user.setStatus("ACTIVE");
-
-        userDAO.save(user);
-        return user;
     }
 
     public User getProfile(int userId) {
@@ -59,16 +65,25 @@ public class AuthService {
     }
 
     public void changePassword(int userId, String currentPassword, String newPassword) {
-        User user = userDAO.findById(userId);
-        if (user == null) throw new IllegalArgumentException("Không tìm thấy người dùng");
-        if (!PasswordUtil.check(currentPassword, user.getPasswordHash())) {
-            throw new IllegalArgumentException("Mật khẩu hiện tại không đúng");
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            User user = em.find(User.class, userId, LockModeType.PESSIMISTIC_WRITE);
+            if (user == null) throw new IllegalArgumentException("Không tìm thấy người dùng");
+            if (!PasswordUtil.check(currentPassword, user.getPasswordHash())) {
+                throw new IllegalArgumentException("Mật khẩu hiện tại không đúng");
+            }
+            if (!isStrongPassword(newPassword)) {
+                throw new IllegalArgumentException("Mật khẩu mới phải từ 8 ký tự, có ít nhất 1 chữ và 1 số");
+            }
+            user.setPasswordHash(PasswordUtil.hash(newPassword));
+            em.getTransaction().commit();
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-        if (!isStrongPassword(newPassword)) {
-            throw new IllegalArgumentException("Mật khẩu mới phải từ 8 ký tự, có ít nhất 1 chữ và 1 số");
-        }
-        user.setPasswordHash(PasswordUtil.hash(newPassword));
-        userDAO.save(user);
     }
 
     public static boolean isStrongPassword(String pw) {
@@ -79,30 +94,42 @@ public class AuthService {
     }
 
     public User updateProfile(int userId, Map<String, Object> data) {
-        User user = userDAO.findById(userId);
-        if (user == null) return null;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            User user = em.find(User.class, userId, LockModeType.PESSIMISTIC_WRITE);
+            if (user == null) { em.getTransaction().rollback(); return null; }
 
-        String fullName = (String) data.get("fullName");
-        String phone = (String) data.get("phone");
-        String email = (String) data.get("email");
+            String fullName = (String) data.get("fullName");
+            String phone = (String) data.get("phone");
+            String email = (String) data.get("email");
 
-        if (fullName != null && !fullName.isEmpty()) {
-            user.setFullName(fullName);
-        }
-        if (phone != null && !phone.isEmpty()) {
-            if (userDAO.findByPhone(phone) != null && !phone.equals(user.getPhone())) {
-                return null;
+            if (fullName != null && !fullName.isEmpty()) {
+                user.setFullName(fullName);
             }
-            user.setPhone(phone);
-        }
-        if (email != null && !email.isEmpty()) {
-            if (userDAO.findByEmail(email) != null && !email.equals(user.getEmail())) {
-                return null;
+            if (phone != null && !phone.isEmpty()) {
+                if (!phone.equals(user.getPhone())) {
+                    User dup = em.createQuery("SELECT u FROM User u WHERE u.phone = :phone", User.class)
+                            .setParameter("phone", phone).setMaxResults(1).getResultStream().findFirst().orElse(null);
+                    if (dup != null) { em.getTransaction().rollback(); return null; }
+                }
+                user.setPhone(phone);
             }
-            user.setEmail(email);
+            if (email != null && !email.isEmpty()) {
+                if (!email.equals(user.getEmail())) {
+                    User dup = em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+                            .setParameter("email", email).setMaxResults(1).getResultStream().findFirst().orElse(null);
+                    if (dup != null) { em.getTransaction().rollback(); return null; }
+                }
+                user.setEmail(email);
+            }
+            em.getTransaction().commit();
+            return user;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-
-        userDAO.save(user);
-        return user;
     }
 }

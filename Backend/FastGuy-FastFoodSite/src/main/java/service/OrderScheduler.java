@@ -15,8 +15,6 @@ public class OrderScheduler {
     private static ScheduledExecutorService scheduler;
     private static final OrdersDAO ordersDAO = new OrdersDAO();
     private static final OrderService orderService = new OrderService();
-    private static final NotificationService notificationService = new NotificationService();
-    private static final OrderStatusHistoryService historyService = new OrderStatusHistoryService();
 
     public static void start() {
         if (scheduler != null) return;
@@ -54,21 +52,7 @@ public class OrderScheduler {
 
             for (Orders order : staleOrders) {
                 try {
-                    boolean ok = orderService.cancelOrder(order.getOrderId(), null, null, "Hết thời gian thanh toán (15 phút)", false);
-                    if (ok) {
-                        if (order.getUser() != null) {
-                            notificationService.notifyUser(order.getUser().getUserId(),
-                                    "Đơn hàng đã bị hủy",
-                                    "Đơn " + order.getOrderCode() + " đã bị hủy do chưa thanh toán sau 15 phút",
-                                    "ORDER_CANCELLED",
-                                    "/account/orders/" + order.getOrderId());
-                        }
-                        notificationService.notifyRole("STAFF",
-                                "Đơn hàng hết hạn thanh toán",
-                                "Đơn " + order.getOrderCode() + " đã tự hủy do chưa thanh toán",
-                                "ORDER_CANCELLED",
-                                "/staff/orders/" + order.getOrderId());
-                    }
+                    orderService.cancelOrder(order.getOrderId(), null, null, "Hết thời gian thanh toán (15 phút)", false);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

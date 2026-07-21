@@ -5,6 +5,9 @@ import dao.OrdersDAO;
 import dao.UserDAO;
 import entity.Orders;
 import entity.User;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import utils.DatabaseUtil;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -48,67 +51,90 @@ public class StaffOrderService {
     }
 
     public boolean assignShipper(int orderId, int shipperId) {
-        Orders order = ordersDAO.findById(orderId);
-        if (order == null || !"READY".equals(order.getOrderStatus())) return false;
-        if (order.getShipper() != null) return false;
-        User shipper = userDAO.findById(shipperId);
-        if (shipper == null) return false;
-        if (shipper.getRole() == null || !"SHIPPER".equals(shipper.getRole().getRoleName())) return false;
-        order.setShipper(shipper);
-        order.setAssignedAt(LocalDateTime.now());
-        ordersDAO.save(order);
-        orderStatusHistoryService.record(orderId, shipperId, "SHIPPER", order.getOrderStatus(), order.getOrderStatus(), "Gán shipper " + shipper.getFullName());
-        notificationService.notifyUser(shipperId, "Đơn giao mới", "Bạn được gán đơn " + order.getOrderCode(), "ORDER_ASSIGNED", "/shipper/orders/" + orderId);
-        return true;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null || !"READY".equals(order.getOrderStatus()) || order.getShipper() != null) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            User shipper = em.find(User.class, shipperId);
+            if (shipper == null || !"SHIPPER".equals(shipper.getRole())) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            order.setShipper(shipper);
+            order.setAssignedAt(LocalDateTime.now());
+            em.getTransaction().commit();
+            orderStatusHistoryService.record(orderId, shipperId, "SHIPPER", "READY", "READY", "Gán shipper " + shipper.getFullName());
+            notificationService.notifyUser(shipperId, "Đơn giao mới", "Bạn được gán đơn " + order.getOrderCode(), "ORDER_ASSIGNED", "/shipper/orders/" + orderId);
+            return true;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
     }
 
     public boolean updateStatus(int orderId, String status, int staffId, String failureReason) {
-        Orders order = ordersDAO.findById(orderId);
-        if (order == null) return false;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return false; }
 
-        String current = order.getOrderStatus();
+            String current = order.getOrderStatus();
 
-        switch (status) {
-            case "PENDING":
-                if (!"WAITING_STOCK_CONFIRM".equals(current)) return false;
-                if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
-                    if (!payOSPaymentService.isConfigured()) return false;
-                    boolean confirmed = orderService.confirmStock(orderId, staffId);
-                    if (!confirmed) return false;
-                    if (payOSPaymentService.createPaymentLink(orderId) != null) return true;
-                    orderService.revertStockConfirmation(orderId, staffId, "Không thể tạo link PayOS, vui lòng xác nhận lại");
+            switch (status) {
+                case "PENDING":
+                    if (!"WAITING_STOCK_CONFIRM".equals(current)) { em.getTransaction().rollback(); return false; }
+                    if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
+                        if (!payOSPaymentService.isConfigured()) { em.getTransaction().rollback(); return false; }
+                        em.getTransaction().commit();
+                        boolean confirmed = orderService.confirmStock(orderId, staffId);
+                        if (!confirmed) return false;
+                        if (payOSPaymentService.createPaymentLink(orderId) != null) return true;
+                        orderService.revertStockConfirmation(orderId, staffId, "Không thể tạo link PayOS, vui lòng xác nhận lại");
+                        return false;
+                    }
+                    order.setConfirmedAt(LocalDateTime.now());
+                    break;
+                case "CONFIRMED":
+                    if (!"PENDING".equals(current)) { em.getTransaction().rollback(); return false; }
+                    order.setConfirmedAt(LocalDateTime.now());
+                    break;
+                case "PREPARING":
+                    if (!"CONFIRMED".equals(current)) { em.getTransaction().rollback(); return false; }
+                    break;
+                case "READY":
+                    if (!"PREPARING".equals(current)) { em.getTransaction().rollback(); return false; }
+                    order.setReadyAt(LocalDateTime.now());
+                    break;
+                case "CANCELLED":
+                    em.getTransaction().rollback();
+                    return orderService.cancelOrder(orderId, null, staffId, failureReason, false);
+                default:
+                    em.getTransaction().rollback();
                     return false;
-                }
-                order.setConfirmedAt(LocalDateTime.now());
-                break;
-            case "CONFIRMED":
-                if (!"PENDING".equals(current)) return false;
-                order.setConfirmedAt(LocalDateTime.now());
-                break;
-            case "PREPARING":
-                if (!"CONFIRMED".equals(current)) return false;
-                break;
-            case "READY":
-                if (!"PREPARING".equals(current)) return false;
-                order.setReadyAt(LocalDateTime.now());
-                break;
-            case "CANCELLED":
-                return orderService.cancelOrder(orderId, null, staffId, failureReason, false);
-            default:
-                return false;
-        }
+            }
 
-        order.setOrderStatus(status);
-        User staffUser = userDAO.findById(staffId);
-        if (staffUser != null) {
-            order.setStaff(staffUser);
+            order.setOrderStatus(status);
+            User staffUser = em.find(User.class, staffId);
+            if (staffUser != null) order.setStaff(staffUser);
+            em.getTransaction().commit();
+            orderStatusHistoryService.record(orderId, staffId, "STAFF", current, status, failureReason);
+            if (order.getUser() != null) {
+                notificationService.notifyUser(order.getUser().getUserId(), "Cập nhật đơn hàng", "Đơn " + order.getOrderCode() + " chuyển sang " + status, "ORDER_STATUS", "/account/orders/" + orderId);
+            }
+            return true;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-        ordersDAO.save(order);
-        orderStatusHistoryService.record(orderId, staffId, "STAFF", current, status, failureReason);
-        if (order.getUser() != null) {
-            notificationService.notifyUser(order.getUser().getUserId(), "Cập nhật đơn hàng", "Đơn " + order.getOrderCode() + " chuyển sang " + status, "ORDER_STATUS", "/account/orders/" + orderId);
-        }
-        return true;
     }
 
     public boolean updateStatus(int orderId, String status, int staffId) {

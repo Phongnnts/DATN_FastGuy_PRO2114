@@ -1,8 +1,7 @@
 package servlet;
 
-import dao.RoleDAO;
 import dao.UserDAO;
-import entity.Role;
+import dao.OrdersDAO;
 import entity.User;
 import jakarta.persistence.PersistenceException;
 import jakarta.servlet.annotation.WebServlet;
@@ -26,7 +25,7 @@ import java.util.stream.Collectors;
 public class AdminUserServlet extends HttpServlet {
     private static final Set<String> ROLES = Set.of("USER", "STAFF", "SHIPPER", "ADMIN");
     private final UserDAO userDAO = new UserDAO();
-    private final RoleDAO roleDAO = new RoleDAO();
+    private final OrdersDAO ordersDAO = new OrdersDAO();
 
     private boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String auth = req.getHeader("Authorization");
@@ -39,16 +38,41 @@ public class AdminUserServlet extends HttpServlet {
         Map<String, Object> result = new HashMap<>();
         result.put("userId", user.getUserId()); result.put("fullName", user.getFullName() == null ? "" : user.getFullName());
         result.put("email", user.getEmail() == null ? "" : user.getEmail()); result.put("phone", user.getPhone() == null ? "" : user.getPhone());
-        result.put("roleName", user.getRole() == null ? "" : user.getRole().getRoleName()); result.put("status", user.getStatus()); result.put("loyaltyPoints", user.getLoyaltyPoints());
+        result.put("roleName", user.getRole() != null ? user.getRole() : ""); result.put("status", user.getStatus()); result.put("loyaltyPoints", user.getLoyaltyPoints());
         return result;
     }
 
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8"); if (!checkAdmin(req, resp)) return;
         String path = req.getPathInfo();
-        if (path == null || path.equals("/")) { List<Map<String, Object>> list = userDAO.findAll().stream().map(this::toMap).collect(Collectors.toList()); ApiResponse.ok(resp, list); return; }
-        try { User user = userDAO.findById(Integer.parseInt(path.substring(1))); if (user == null) { ApiResponse.error(resp, "Not found", 404); return; } ApiResponse.ok(resp, toMap(user)); }
-        catch (NumberFormatException e) { ApiResponse.error(resp, "Invalid ID", 400); }
+        if (path == null || path.equals("/")) {
+            String roleFilter = req.getParameter("role");
+            List<Map<String, Object>> list = userDAO.findAll().stream().map(this::toMap).collect(Collectors.toList());
+            if (roleFilter != null && !roleFilter.isBlank()) {
+                String rf = roleFilter.toUpperCase();
+                list = list.stream().filter(m -> rf.equals(m.get("roleName"))).collect(Collectors.toList());
+            }
+            ApiResponse.ok(resp, list); return;
+        }
+        String[] parts = path.split("/");
+        try {
+            int userId = Integer.parseInt(parts[1]);
+            User user = userDAO.findById(userId);
+            if (user == null) { ApiResponse.error(resp, "Not found", 404); return; }
+            if (parts.length >= 3 && "orders".equals(parts[2])) {
+                List<Map<String, Object>> orders = ordersDAO.findByUserId(userId).stream().map(o -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("orderId", o.getOrderId()); m.put("orderCode", o.getOrderCode());
+                    m.put("status", o.getOrderStatus()); m.put("finalAmount", o.getFinalAmount());
+                    m.put("paymentMethod", o.getPaymentMethod()); m.put("paymentStatus", o.getPaymentStatus());
+                    m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+                    return m;
+                }).collect(Collectors.toList());
+                ApiResponse.ok(resp, orders);
+            } else {
+                ApiResponse.ok(resp, toMap(user));
+            }
+        } catch (NumberFormatException e) { ApiResponse.error(resp, "Invalid ID", 400); }
     }
 
     @Override protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -66,6 +90,26 @@ public class AdminUserServlet extends HttpServlet {
 
     @Override protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8"); if (!checkAdmin(req, resp)) return;
+        String path = req.getPathInfo();
+        String[] parts = path != null ? path.split("/") : new String[0];
+
+        if (parts.length >= 3 && "status".equals(parts[2])) {
+            try {
+                int userId = Integer.parseInt(parts[1]);
+                User user = userDAO.findById(userId);
+                if (user == null) { ApiResponse.error(resp, "Not found", 404); return; }
+                Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+                String status = body != null ? (String) body.get("status") : null;
+                if (status == null || (!"ACTIVE".equals(status) && !"INACTIVE".equals(status))) {
+                    ApiResponse.error(resp, "Status must be ACTIVE or INACTIVE", 400); return;
+                }
+                user.setStatus(status);
+                userDAO.save(user);
+                ApiResponse.ok(resp, toMap(user), "Status updated");
+            } catch (NumberFormatException e) { ApiResponse.error(resp, "Invalid ID", 400); }
+            return;
+        }
+
         try {
             User user = userDAO.findById(id(req)); if (user == null) { ApiResponse.error(resp, "Not found", 404); return; }
             Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class); if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
@@ -90,7 +134,7 @@ public class AdminUserServlet extends HttpServlet {
         if (creating || body.containsKey("fullName")) { Object raw = body.get("fullName"); if (!(raw instanceof String value) || value.trim().length() < 2 || value.trim().length() > 100) throw new IllegalArgumentException("Họ tên phải từ 2 đến 100 ký tự"); user.setFullName(value.trim()); }
         if (creating || body.containsKey("email")) { Object raw = body.get("email"); if (!(raw instanceof String value) || !value.trim().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) throw new IllegalArgumentException("Email không hợp lệ"); user.setEmail(value.trim().toLowerCase()); }
         if (body.containsKey("phone")) { Object raw = body.get("phone"); if (raw != null && !(raw instanceof String)) throw new IllegalArgumentException("Số điện thoại không hợp lệ"); user.setPhone(raw == null ? null : ((String) raw).trim()); }
-        if (creating || body.containsKey("roleName")) { Object raw = body.getOrDefault("roleName", "USER"); if (!(raw instanceof String name) || !ROLES.contains(name)) throw new IllegalArgumentException("Vai trò không hợp lệ"); Role role = roleDAO.findByName(name); if (role == null) throw new IllegalArgumentException("Vai trò không tồn tại"); user.setRole(role); }
+        if (creating || body.containsKey("roleName")) { Object raw = body.getOrDefault("roleName", "USER"); if (!(raw instanceof String name) || !ROLES.contains(name)) throw new IllegalArgumentException("Vai trò không hợp lệ"); user.setRole(name); }
         if (creating || body.containsKey("password")) { Object raw = body.get("password"); if (!(raw instanceof String password) || password.length() < 6 || password.length() > 72) throw new IllegalArgumentException("Mật khẩu phải từ 6 đến 72 ký tự"); user.setPasswordHash(PasswordUtil.hash(password)); }
     }
 }

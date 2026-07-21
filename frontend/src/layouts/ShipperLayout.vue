@@ -2,24 +2,41 @@
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
 import { useRouter, useRoute } from 'vue-router';
-import { onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { shiftApi } from '@/api';
 import NotificationBell from '@/components/common/NotificationBell.vue';
 
 const auth = useAuthStore();
 const notificationStore = useNotificationStore();
 const router = useRouter();
 const route = useRoute();
+const hasTodayShift = ref(true);
 
-const navItems = [
-  { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
-  { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
-];
+const navItems = computed(() => {
+  if (!hasTodayShift.value) {
+    return [{ path: '/shipper/orders', name: 'Ca làm', icon: 'bi-calendar-week' }];
+  }
+  return [
+    { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
+    { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
+  ];
+});
 
 function activeClass(path) {
   return route.path === path ? 'active' : '';
 }
 
-onMounted(() => notificationStore.startPolling());
+async function checkShift() {
+  try {
+    const data = await shiftApi.hasToday();
+    hasTodayShift.value = data?.hasShift ?? false;
+  } catch { hasTodayShift.value = true; }
+}
+
+onMounted(async () => {
+  await checkShift();
+  notificationStore.startPolling();
+});
 onUnmounted(() => notificationStore.stopPolling());
 
 function logout() {
@@ -45,6 +62,13 @@ function logout() {
       </div>
     </header>
     <main class="shipper-main fg-page">
+      <div v-if="!hasTodayShift" class="no-shift-banner">
+        <i class="bi bi-calendar-x"></i>
+        <div>
+          <strong>Bạn chưa được phân ca hôm nay</strong>
+          <p>Liên hệ quản lý để được xếp ca.</p>
+        </div>
+      </div>
       <router-view />
     </main>
     <nav class="shipper-nav">
@@ -161,4 +185,8 @@ function logout() {
   color: var(--primary);
   font-weight: 600;
 }
+.no-shift-banner { display:flex; align-items:center; gap:12px; padding:14px 16px; margin-bottom:16px; border-radius:var(--radius); background:#fef3c7; color:#92400e; font-size:14px; }
+.no-shift-banner i { font-size:28px; flex-shrink:0; }
+.no-shift-banner strong { display:block; margin-bottom:2px; }
+.no-shift-banner p { margin:0; font-size:13px; opacity:.8; }
 </style>

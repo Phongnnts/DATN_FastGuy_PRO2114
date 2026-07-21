@@ -1,8 +1,7 @@
 package servlet;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 import entity.User;
@@ -12,6 +11,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.AuthService;
+import service.CartService;
 import service.PasswordResetService;
 import utils.ApiResponse;
 import utils.JsonUtil;
@@ -22,6 +22,7 @@ public class AuthServlet extends HttpServlet {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     private static final Pattern PHONE_PATTERN = Pattern.compile("^(0|\\+84)(3|5|7|8|9)[0-9]{8}$");
     private AuthService authService = new AuthService();
+    private CartService cartService = new CartService();
     private PasswordResetService passwordResetService = new PasswordResetService();
 
     @Override
@@ -79,7 +80,7 @@ public class AuthServlet extends HttpServlet {
             } else if (path.equals("/reset-password")) {
                 handleResetPassword(body, resp);
             } else if (path.equals("/cart/migrate")) {
-                ApiResponse.ok(resp, null, "Cart migrated");
+                handleCartMigrate(req, body, resp);
             } else {
                 resp.sendError(404);
             }
@@ -126,12 +127,12 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        String token = JwtUtil.generate(user.getUserId(), user.getRole().getRoleName());
+        String token = JwtUtil.generate(user.getUserId(), user.getRole());
 
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getUserId());
-        data.put("role", user.getRole().getRoleName());
+        data.put("role", user.getRole());
         data.put("fullName", user.getFullName());
         data.put("avatarUrl", user.getAvatarUrl());
 
@@ -156,12 +157,12 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        String token = JwtUtil.generate(user.getUserId(), user.getRole().getRoleName());
+        String token = JwtUtil.generate(user.getUserId(), user.getRole());
 
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("userId", user.getUserId());
-        data.put("role", user.getRole().getRoleName());
+        data.put("role", user.getRole());
         data.put("fullName", user.getFullName());
 
         resp.setStatus(201);
@@ -246,7 +247,7 @@ public class AuthServlet extends HttpServlet {
         data.put("email", user.getEmail());
         data.put("phone", user.getPhone());
         data.put("avatarUrl", user.getAvatarUrl());
-        data.put("role", user.getRole().getRoleName());
+        data.put("role", user.getRole());
         data.put("status", user.getStatus());
         data.put("loyaltyPoints", user.getLoyaltyPoints());
         data.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
@@ -324,5 +325,40 @@ public class AuthServlet extends HttpServlet {
         resp.setHeader("Access-Control-Allow-Origin", "*");
         resp.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void handleCartMigrate(HttpServletRequest req, Map<String, Object> body, HttpServletResponse resp) throws IOException {
+        int userId = getUserIdFromToken(req);
+        if (userId < 0) { JsonUtil.write(resp, ApiResponse.error("Unauthorized")); return; }
+
+        List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
+        if (items == null || items.isEmpty()) { ApiResponse.ok(resp, (Object) null); return; }
+
+        List<Object> migrated = new ArrayList<>();
+        List<Map<String, Object>> rejected = new ArrayList<>();
+        User user = new User() {{ setUserId(userId); }};
+
+        for (Map<String, Object> item : items) {
+            int productId = ((Number) item.get("productId")).intValue();
+            int variantId = ((Number) item.get("variantId")).intValue();
+            int quantity = item.get("quantity") instanceof Number ? ((Number) item.get("quantity")).intValue() : 1;
+            List<Integer> modifierOptionIds = null;
+            if (item.get("modifierOptionIds") instanceof List) {
+                modifierOptionIds = ((List<?>) item.get("modifierOptionIds")).stream()
+                        .map(id -> ((Number) id).intValue()).collect(java.util.stream.Collectors.toList());
+            }
+            boolean ok = cartService.addItem(user, productId, variantId, quantity, modifierOptionIds);
+            if (ok) {
+                migrated.add(productId);
+            } else {
+                rejected.add(Map.of("productId", productId, "variantId", variantId, "message", "Cannot migrate item"));
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("migrated", migrated);
+        result.put("rejected", rejected);
+        ApiResponse.ok(resp, (Object) result);
     }
 }

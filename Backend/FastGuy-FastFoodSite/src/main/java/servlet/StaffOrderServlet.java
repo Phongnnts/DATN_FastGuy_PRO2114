@@ -15,6 +15,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.OrderTransitionService;
 import service.StaffOrderService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -224,12 +225,6 @@ public class StaffOrderServlet extends HttpServlet {
                 return;
             }
             ApiResponse.ok(resp, null, "Shipper assigned");
-        } else if ("assign".equals(action)) {
-            ApiResponse.ok(resp, null, "Assigned");
-        } else if ("export".equals(action)) {
-            resp.setContentType("text/csv;charset=UTF-8");
-            resp.setHeader("Content-Disposition", "attachment; filename=orders.csv");
-            resp.getWriter().write("orderCode,status,total\n");
         } else {
             resp.sendError(404);
         }
@@ -263,7 +258,6 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("finalAmount", o.getFinalAmount());
         m.put("refundAmount", o.getRefundAmount());
         m.put("refundedAt", o.getRefundedAt());
-        m.put("paymentStatus", o.getPaymentStatus());
         m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);
         m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
@@ -337,7 +331,22 @@ public class StaffOrderServlet extends HttpServlet {
         }
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         m.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
-        m.put("internalNotes", new java.util.ArrayList<>());
+        String noteRaw = o.getInternalNote();
+        List<Map<String, String>> notes = new java.util.ArrayList<>();
+        if (noteRaw != null && !noteRaw.isBlank()) {
+            for (String block : noteRaw.split("\n---\n")) {
+                String trimmed = block.trim();
+                if (!trimmed.isEmpty()) {
+                    Map<String, String> nm = new HashMap<>();
+                    nm.put("content", trimmed);
+                    notes.add(nm);
+                }
+            }
+        }
+        m.put("internalNotes", notes);
+
+        OrderTransitionService transitionService = new OrderTransitionService();
+        m.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "STAFF", o.getPaymentStatus()));
 
         return m;
     }

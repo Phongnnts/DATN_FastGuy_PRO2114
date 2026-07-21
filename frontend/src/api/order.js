@@ -25,4 +25,7 @@ export default {
   guestCheckout(data) {
     return client.post('/orders/guest-checkout', data);
   },
+  verifyPayment(orderId) {
+    return client.get(`/orders/verify-payment/${orderId}`);
+  },
 };

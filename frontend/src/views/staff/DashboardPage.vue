@@ -31,7 +31,7 @@ onUnmounted(() => { clearInterval(refreshTimer); destroyChart(); });
 </script>
 
 <template>
-  <div><div class="page-header"><div><h1>Tổng quan</h1><p>Theo dõi hàng đợi và tiến độ vận hành.</p></div><button class="btn btn-sm btn-outline" @click="load"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div>
+  <div><div class="page-header"><div><h1>Tổng quan</h1><p>Theo dõi hàng đợi và tiến độ vận hành.</p></div><div style="display:flex;gap:8px"><router-link to="/staff/shifts" class="btn btn-sm btn-outline"><i class="bi bi-calendar-week"></i> Ca làm</router-link><button class="btn btn-sm btn-outline" @click="load"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div></div>
     <div v-if="loading" class="staff-state"><span class="spinner"></span> Đang tải tổng quan...</div>
     <div v-else-if="loadError" class="staff-state staff-error"><span>{{ loadError }}</span><button class="btn btn-sm btn-outline" @click="load">Thử lại</button></div>
     <template v-else-if="data"><ShiftStatus role="STAFF" />

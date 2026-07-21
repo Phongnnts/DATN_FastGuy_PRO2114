@@ -10,7 +10,10 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "Orders")
@@ -35,10 +38,6 @@ public class Orders {
 
     @Column(name = "customer_address")
     private String customerAddress;
-
-    @ManyToOne
-    @JoinColumn(name = "zone_id")
-    private DeliveryZone zone;
 
     @Column(name = "to_province_name")
     private String toProvinceName;
@@ -79,28 +78,28 @@ public class Orders {
     @Column(name = "shipping_provider")
     private String shippingProvider;
 
-    @Column(name = "shipping_service_id")
+    @Transient
     private Integer shippingServiceId;
 
-    @Column(name = "shipping_service_type_id")
+    @Transient
     private Integer shippingServiceTypeId;
 
-    @Column(name = "expected_delivery_time")
+    @Transient
     private LocalDateTime expectedDeliveryTime;
 
-    @Column(name = "ghn_order_code")
+    @Transient
     private String ghnOrderCode;
 
-    @Column(name = "ghn_tracking_url")
+    @Transient
     private String ghnTrackingUrl;
 
-    @Column(name = "ghn_status")
+    @Transient
     private String ghnStatus;
 
-    @Column(name = "from_district_id")
+    @Transient
     private Integer fromDistrictId;
 
-    @Column(name = "from_ward_code")
+    @Transient
     private String fromWardCode;
 
     @Column(name = "payment_method")
@@ -180,6 +179,15 @@ public class Orders {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate
+    void preUpdate() { updatedAt = LocalDateTime.now(); }
+
     public Orders() {}
 
     public int getOrderId() { return orderId; }
@@ -194,8 +202,6 @@ public class Orders {
     public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
     public String getCustomerAddress() { return customerAddress; }
     public void setCustomerAddress(String customerAddress) { this.customerAddress = customerAddress; }
-    public DeliveryZone getZone() { return zone; }
-    public void setZone(DeliveryZone zone) { this.zone = zone; }
     public String getToProvinceName() { return toProvinceName; }
     public void setToProvinceName(String toProvinceName) { this.toProvinceName = toProvinceName; }
     public String getToDistrictName() { return toDistrictName; }

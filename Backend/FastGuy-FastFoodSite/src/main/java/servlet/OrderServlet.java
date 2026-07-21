@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.OrderService;
+import service.OrderTransitionService;
 import service.PayOSPaymentService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -73,6 +74,20 @@ public class OrderServlet extends HttpServlet {
             return;
         }
 
+        // Verify PayOS payment — no auth needed (called from payment-return page)
+        if (path != null && path.startsWith("/verify-payment/")) {
+            try {
+                int orderId = Integer.parseInt(path.substring("/verify-payment/".length()));
+                boolean paid = payOSPaymentService.verifyPayment(orderId);
+                Map<String, Object> result = new HashMap<>();
+                result.put("paid", paid);
+                ApiResponse.ok(resp, result);
+            } catch (NumberFormatException e) {
+                ApiResponse.error(resp, "Invalid order ID", 400);
+            }
+            return;
+        }
+
         // Cac endpoint con lai can auth
         int userId = getUserId(req, resp);
         if (userId < 0) return;
@@ -82,7 +97,7 @@ public class OrderServlet extends HttpServlet {
             try {
                 int orderId = Integer.parseInt(idStr);
                 Orders order = ordersDAO.findById(orderId);
-                if (order == null || order.getUser().getUserId() != userId) {
+                if (order == null || (order.getUser() != null && order.getUser().getUserId() != userId)) {
                     ApiResponse.error(resp, "Not found", 404);
                     return;
                 }
@@ -117,7 +132,7 @@ public class OrderServlet extends HttpServlet {
         try {
             int orderId = Integer.parseInt(path.substring(1));
             Orders order = ordersDAO.findById(orderId);
-            if (order == null || order.getUser().getUserId() != userId) {
+            if (order == null || (order.getUser() != null && order.getUser().getUserId() != userId)) {
                 ApiResponse.error(resp, "Order not found", 404);
                 return;
             }
@@ -341,6 +356,9 @@ public class OrderServlet extends HttpServlet {
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
 
+        OrderTransitionService transitionService = new OrderTransitionService();
+        data.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "USER", o.getPaymentStatus()));
+
         return data;
     }
 
@@ -464,7 +482,8 @@ public class OrderServlet extends HttpServlet {
     }
 
     private void addTransferData(Map<String, Object> data, Orders order) {
-        if (!"BANK_TRANSFER".equals(order.getPaymentMethod()) || !"PENDING".equals(order.getOrderStatus())) return;
+        if (!"BANK_TRANSFER".equals(order.getPaymentMethod())) return;
+        if (!"PENDING".equals(order.getOrderStatus()) && !"WAITING_STOCK_CONFIRM".equals(order.getOrderStatus())) return;
         String checkoutUrl = order.getPayosCheckoutUrl();
         if (checkoutUrl != null && !checkoutUrl.isBlank()) data.put("checkoutUrl", checkoutUrl);
     }

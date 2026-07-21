@@ -1,6 +1,11 @@
 package servlet;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.HashMap;
+import java.util.Map;
 
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -39,24 +44,14 @@ public class AdminServlet extends HttpServlet {
         if (path == null || path.equals("/") || path.equals("/dashboard")) {
             var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
             ApiResponse.ok(resp, data);
-        } else if (path.equals("/reports/revenue")) {
-            var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
-            java.util.Map<String, Object> result = new java.util.HashMap<>();
-            result.put("revenueByMonth", data.get("revenueByMonth"));
-            result.put("periodRevenue", data.get("periodRevenue"));
-            result.put("periodOrders", data.get("periodOrders"));
-            result.put("totalRevenue", data.get("totalRevenue"));
-            result.put("revenueToday", data.get("revenueToday"));
-            result.put("ordersToday", data.get("ordersToday"));
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/reports/top-products")) {
-            var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
-            java.util.Map<String, Object> result = new java.util.HashMap<>();
-            result.put("topProducts", data.get("topProducts"));
-            result.put("periodTopProducts", data.get("periodTopProducts"));
-            ApiResponse.ok(resp, result);
-        } else if (path.equals("/orders")) {
-            ApiResponse.ok(resp, new AdminOrderServlet().getOrdersData());
+        } else if (path.equals("/reports/full")) {
+            String startDate = req.getParameter("startDate");
+            String endDate = req.getParameter("endDate");
+            try {
+                ApiResponse.ok(resp, adminService.getFullReport(period, startDate, endDate));
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+            }
         } else {
             ApiResponse.error(resp, "Not found", 404);
         }

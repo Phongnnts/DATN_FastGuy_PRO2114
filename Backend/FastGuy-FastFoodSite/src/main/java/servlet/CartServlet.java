@@ -117,7 +117,13 @@ public class CartServlet extends HttpServlet {
             return;
         }
 
-        int cartItemId = Integer.parseInt(path.substring(1));
+        int cartItemId;
+        try {
+            cartItemId = Integer.parseInt(path.substring(1));
+        } catch (NumberFormatException e) {
+            ApiResponse.error(resp, "Invalid cartItemId", 400);
+            return;
+        }
         boolean ok = cartService.removeItem(cartItemId, userId);
         if (!ok) {
             ApiResponse.error(resp, "Item not found", 404);

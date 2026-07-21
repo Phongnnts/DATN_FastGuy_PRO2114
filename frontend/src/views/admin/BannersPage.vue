@@ -1,7 +1,9 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import bannerApi from '@/api/banner';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const banners = ref([]);
 const loading = ref(true);
 const error = ref('');
@@ -14,9 +16,9 @@ function defaultForm() { return { title: '', subtitle: '', imageUrl: '', link: '
 async function load() { loading.value = true; error.value = ''; try { banners.value = await bannerApi.getAll() || []; } catch (e) { error.value = e.message || 'Không thể tải banner'; } finally { loading.value = false; } }
 function create() { editing.value = null; form.value = defaultForm(); showModal.value = true; }
 function edit(banner) { editing.value = banner; form.value = { title: banner.title || '', subtitle: banner.subtitle || '', imageUrl: banner.imageUrl || '', link: banner.link || '', sortOrder: Number(banner.sortOrder || 0), isActive: banner.isActive !== false }; showModal.value = true; }
-async function save() { if (!form.value.title.trim() || !form.value.imageUrl.trim()) return alert('Nhập tiêu đề và URL ảnh'); saving.value = true; try { const data = { ...form.value, title: form.value.title.trim(), imageUrl: form.value.imageUrl.trim(), sortOrder: Number(form.value.sortOrder || 0) }; if (editing.value) await bannerApi.update(editing.value.bannerId, data); else await bannerApi.create(data); showModal.value = false; await load(); } catch (e) { alert(e.message || 'Không thể lưu banner'); } finally { saving.value = false; } }
-async function toggle(banner) { const previous = banner.isActive; banner.isActive = !previous; try { await bannerApi.update(banner.bannerId, { isActive: banner.isActive }); } catch (e) { banner.isActive = previous; alert(e.message || 'Không thể cập nhật banner'); } }
-async function remove(banner) { if (!confirm(`Xóa banner "${banner.title}"?`)) return; try { await bannerApi.delete(banner.bannerId); await load(); } catch (e) { alert(e.message || 'Không thể xóa banner'); } }
+async function save() { if (!form.value.title.trim() || !form.value.imageUrl.trim()) return toast.error('Nhập tiêu đề và URL ảnh'); saving.value = true; try { const data = { ...form.value, title: form.value.title.trim(), imageUrl: form.value.imageUrl.trim(), sortOrder: Number(form.value.sortOrder || 0) }; if (editing.value) await bannerApi.update(editing.value.bannerId, data); else await bannerApi.create(data); showModal.value = false; await load(); } catch (e) { toast.error(e.message || 'Không thể lưu banner'); } finally { saving.value = false; } }
+async function toggle(banner) { const previous = banner.isActive; banner.isActive = !previous; try { await bannerApi.update(banner.bannerId, { isActive: banner.isActive }); } catch (e) { banner.isActive = previous; toast.error(e.message || 'Không thể cập nhật banner'); } }
+async function remove(banner) { if (!confirm(`Xóa banner "${banner.title}"?`)) return; try { await bannerApi.delete(banner.bannerId); await load(); } catch (e) { toast.error(e.message || 'Không thể xóa banner'); } }
 onMounted(load);
 </script>
 

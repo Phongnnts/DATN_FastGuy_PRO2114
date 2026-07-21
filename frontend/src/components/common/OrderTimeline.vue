@@ -28,12 +28,13 @@ function getStatusClass(entry) {
 </script>
 
 <template>
-  <div class="route-timeline">
-    <div
+  <ol class="route-timeline" aria-label="Tiến trình đơn hàng">
+    <li
       v-for="(entry, index) in history"
-      :key="index"
+      :key="`${entry.status}-${entry.time || index}`"
       class="route-step"
       :class="getStatusClass(entry)"
+      :aria-current="getStatusClass(entry) === 'active' ? 'step' : undefined"
     >
       <div class="route-dot"><i class="bi bi-geo-alt-fill"></i></div>
       <div class="route-content">
@@ -41,14 +42,16 @@ function getStatusClass(entry) {
         <p v-if="entry.note">{{ entry.note }}</p>
         <div class="time">{{ formatTime(entry.time) }}</div>
       </div>
-    </div>
-  </div>
+    </li>
+  </ol>
 </template>
 
 <style scoped>
 .route-timeline {
   position: relative;
   padding-left: 36px;
+  margin: 0;
+  list-style: none;
 }
 .route-timeline::before {
   content: '';

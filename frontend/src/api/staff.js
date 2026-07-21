@@ -35,6 +35,6 @@ export default {
     return client.get('/staff/orders/history', { params });
   },
   exportOrders(params) {
-    return client.put('/staff/orders/export', null, { params, responseType: 'blob' });
+    return client.get('/staff/orders/export', { params, responseType: 'blob' });
   },
 };

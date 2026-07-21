@@ -8,6 +8,9 @@ import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
 import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
+import { useToast } from '@/stores/toast';
+
+const toast = useToast();
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -35,6 +38,8 @@ const showMyCoupons = ref(true);
 const note = ref('');
 const submitting = ref(false);
 const storeConfig = ref(null);
+const currentStep = ref(1);
+const shippingError = ref('');
 
 const provinces = ref([]);
 const districts = ref([]);
@@ -47,6 +52,7 @@ const shippingFee = ref(null);
 const feeLoading = ref(false);
 const expectedDelivery = ref('');
 const createdOrderId = ref(null);
+let pendingDistrictId = null;
 let pendingWardCode = null;
 
 const serviceFee = computed(() => Number(storeConfig.value?.serviceFee) || 0);
@@ -67,9 +73,10 @@ onMounted(async () => {
       id: p.ProvinceID || p.province_id || p.provinceId,
       name: p.ProvinceName || p.province_name || p.provinceName,
     }));
-    // FastGuy only delivers within Ho Chi Minh City.
-    const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
-    if (hcm) selectedProvince.value = hcm.id;
+    if (isGuest.value) {
+      const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
+      if (hcm) selectedProvince.value = hcm.id;
+    }
 
     if (!isGuest.value) {
       const addrData = await userApi.getAddresses();
@@ -99,6 +106,10 @@ watch(selectedProvince, async (id) => {
       id: d.DistrictID || d.district_id || d.districtId,
       name: d.DistrictName || d.district_name || d.districtName,
     }));
+    if (pendingDistrictId && districts.value.some(d => d.id === pendingDistrictId)) {
+      selectedDistrict.value = pendingDistrictId;
+    }
+    pendingDistrictId = null;
   } catch {
     districts.value = [];
   }
@@ -125,8 +136,9 @@ watch(selectedDistrict, async (id) => {
   }
 });
 
-watch(selectedWard, async (code) => {
+async function calculateShipping(code = selectedWard.value) {
   shippingFee.value = null;
+  shippingError.value = '';
   if (!code || !selectedDistrict.value) return;
   feeLoading.value = true;
   try {
@@ -142,12 +154,15 @@ watch(selectedWard, async (code) => {
     if (!Number.isFinite(feeResp) || feeResp < 0) throw new Error('GHN không trả về phí giao hàng hợp lệ');
     shippingFee.value = feeResp;
     if (result.expectedDeliveryTime) expectedDelivery.value = result.expectedDeliveryTime;
-    } catch {
-      shippingFee.value = null;
-    } finally {
+  } catch {
+    shippingFee.value = null;
+    shippingError.value = 'Không thể tính phí giao hàng.';
+  } finally {
     feeLoading.value = false;
   }
-});
+}
+
+watch(selectedWard, calculateShipping);
 
 function selectAddress(addr) {
   selectedAddressId.value = addr.addressId;
@@ -155,10 +170,9 @@ function selectAddress(addr) {
   street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
-  if (addr.ghnDistrictId) {
-    pendingWardCode = addr.ghnWardCode || null;
-    selectedDistrict.value = addr.ghnDistrictId;
-  }
+  pendingDistrictId = addr.ghnDistrictId || null;
+  pendingWardCode = addr.ghnWardCode || null;
+  selectedProvince.value = addr.ghnProvinceId || null;
 }
 
 function useManualEntry() {
@@ -222,15 +236,18 @@ function getWardName() {
   return wards.value.find(w => w.code === selectedWard.value)?.name || selectedAddress()?.wardName || '';
 }
 
+let couponVerification = 0;
+
 async function verifyCoupon() {
   if (!couponCode.value.trim()) return;
+  const verification = ++couponVerification;
   verifyingCoupon.value = true;
   couponError.value = '';
   appliedCoupon.value = null;
   couponDiscount.value = 0;
   try {
-    const total = cart.items.reduce((s, i) => s + (i.price * i.quantity), 0);
-    const res = await couponApi.verify(couponCode.value, total, shippingFee.value || 0);
+    const res = await couponApi.verify(couponCode.value, cart.subtotal, shippingFee.value || 0);
+    if (verification !== couponVerification) return;
     if (res.valid) {
       appliedCoupon.value = res;
       couponDiscount.value = res.discount;
@@ -238,11 +255,15 @@ async function verifyCoupon() {
       couponError.value = res.message || 'Mã không hợp lệ';
     }
   } catch {
-    couponError.value = 'Lỗi kiểm tra mã';
+    if (verification === couponVerification) couponError.value = 'Lỗi kiểm tra mã';
   } finally {
-    verifyingCoupon.value = false;
+    if (verification === couponVerification) verifyingCoupon.value = false;
   }
 }
+
+watch([() => cart.subtotal, shippingFee], () => {
+  if (appliedCoupon.value) verifyCoupon();
+});
 
 function cancelCoupon() {
   couponCode.value = '';
@@ -262,11 +283,12 @@ function selectClaimedCoupon(c) {
 }
 
 async function placeOrder() {
-  if (isStoreClosed.value) return alert('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
-  if (hasInvalidItems.value) return alert('Có món đã hết hàng hoặc vượt tồn kho, vui lòng cập nhật giỏ hàng');
-  if (!canPlaceOrder()) return alert('Vui lòng điền đầy đủ thông tin giao hàng');
+  if (submitting.value) return;
+  if (isStoreClosed.value) return toast.error('Cua hang hien da dong cua. Vui long quay lai trong gio hoat dong');
+  if (hasInvalidItems.value) return toast.error('Co mon da het hang hoac vuot ton kho, vui long cap nhat gio hang');
+  if (!canPlaceOrder()) return toast.error('Vui long dien day du thong tin giao hang');
   const fullAddress = getFullAddress();
-  if (!fullAddress) return alert('Vui lòng nhập địa chỉ');
+  if (!fullAddress) return toast.error('Vui long nhap dia chi');
   submitting.value = true;
   try {
     if (isGuest.value) {
@@ -322,7 +344,7 @@ async function placeOrder() {
     }
     router.push(`/account/orders/${createdOrderId.value}?created=1`);
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   } finally {
     submitting.value = false;
   }
@@ -334,11 +356,10 @@ async function placeOrder() {
   <div class="checkout-page">
     <div class="container">
       <div class="checkout-breadcrumb"><router-link to="/">Trang chủ</router-link><i class="bi bi-chevron-right"></i><router-link to="/cart">Giỏ hàng</router-link><i class="bi bi-chevron-right"></i><strong>Thanh toán</strong></div>
-      <div class="checkout-stepper">
-        <div class="step complete"><span><i class="bi bi-check-lg"></i></span><strong>Giỏ hàng</strong></div><div class="step-line"></div>
-        <div class="step active"><span>2</span><strong>Thông tin giao</strong></div><div class="step-line"></div>
-        <div class="step"><span>3</span><strong>Thanh toán</strong></div><div class="step-line"></div>
-        <div class="step"><span>4</span><strong>Hoàn tất</strong></div>
+      <div class="checkout-stepper" aria-label="Các bước thanh toán">
+        <div class="step" :class="{ active: currentStep === 1, complete: currentStep > 1 }" :aria-current="currentStep === 1 ? 'step' : undefined"><span><i v-if="currentStep > 1" class="bi bi-check-lg"></i><template v-else>1</template></span><strong>Địa chỉ</strong></div><div class="step-line"></div>
+        <div class="step" :class="{ active: currentStep === 2, complete: currentStep > 2 }" :aria-current="currentStep === 2 ? 'step' : undefined"><span><i v-if="currentStep > 2" class="bi bi-check-lg"></i><template v-else>2</template></span><strong>Ưu đãi</strong></div><div class="step-line"></div>
+        <div class="step" :class="{ active: currentStep === 3 }" :aria-current="currentStep === 3 ? 'step' : undefined"><span>3</span><strong>Thanh toán</strong></div>
       </div>
     <div class="checkout-layout" v-if="cart.items.length > 0">
         <div class="checkout-main">
@@ -346,8 +367,8 @@ async function placeOrder() {
             <i :class="isStoreClosed ? 'bi bi-shop-window' : 'bi bi-check-circle-fill'"></i>
             <span>{{ isStoreClosed ? 'Cửa hàng hiện đã đóng cửa' : 'Cửa hàng đang mở cửa' }} · {{ storeConfig.openTime }} - {{ storeConfig.closeTime }}</span>
           </div>
-          <div class="card mb-3 checkout-block">
-          <h3><i class="bi bi-geo-alt"></i> Thông tin nhận hàng</h3>
+          <div v-show="currentStep === 1" class="card mb-3 checkout-block">
+           <h3><i class="bi bi-geo-alt"></i> Thông tin nhận hàng</h3>
 
           <div v-if="!isGuest && savedAddresses.length > 0 && !useNewAddress" class="saved-addresses">
             <div
@@ -355,7 +376,12 @@ async function placeOrder() {
               :key="addr.addressId"
               class="saved-address-item"
               :class="{ selected: selectedAddressId === addr.addressId }"
+              role="radio"
+              tabindex="0"
+              :aria-checked="selectedAddressId === addr.addressId"
               @click="selectAddress(addr)"
+              @keydown.space.prevent="selectAddress(addr)"
+              @keydown.enter="selectAddress(addr)"
             >
               <div class="saved-address-radio">
                 <div class="radio-circle" :class="{ checked: selectedAddressId === addr.addressId }"></div>
@@ -413,7 +439,8 @@ async function placeOrder() {
             <i class="bi bi-geo-alt"></i>
             <span>{{ getFullAddress() }}</span>
           </div>
-          <div v-if="feeLoading" class="fee-loading" style="margin-top:8px;font-size:13px;color:var(--text-mid)">
+           <div v-if="shippingError" class="shipping-error" role="alert">{{ shippingError }} <button type="button" @click="calculateShipping()">Thử lại</button></div>
+           <div v-if="feeLoading" class="fee-loading" style="margin-top:8px;font-size:13px;color:var(--text-mid)">
             <i class="bi bi-arrow-repeat spin"></i> Đang tính phí giao hàng...
           </div>
           <div v-else-if="shippingFee !== null" class="fee-result" style="margin-top:8px">
@@ -427,15 +454,22 @@ async function placeOrder() {
             <i class="bi bi-receipt"></i> Phí phục vụ: <strong>{{ formatPrice(serviceFee) }}</strong>
           </div>
         </div>
-        <div class="card mb-3 checkout-block">
-          <h3><i class="bi bi-credit-card"></i> Phương thức thanh toán</h3>
+         <div v-show="currentStep === 3" class="card mb-3 checkout-block">
+           <h3><i class="bi bi-credit-card"></i> Phương thức thanh toán</h3>
           <div class="payment-selector">
             <div
               v-for="(label, key) in PAYMENT_METHOD_LABEL"
               :key="key"
-              class="payment-option"
-              :class="{ selected: paymentMethod === key }"
-              @click="paymentMethod = key"
+               class="payment-option"
+               :class="{ selected: paymentMethod === key }"
+               role="radio"
+                :tabindex="paymentMethod === key ? 0 : -1"
+                :aria-checked="paymentMethod === key"
+                @click="paymentMethod = key"
+                @keydown.space.prevent="paymentMethod = key"
+                @keydown.enter="paymentMethod = key"
+                @keydown.right.prevent="paymentMethod = key === 'COD' ? 'BANK_TRANSFER' : 'COD'"
+                @keydown.left.prevent="paymentMethod = key === 'COD' ? 'BANK_TRANSFER' : 'COD'"
             >
               <i
                 :class="
@@ -456,8 +490,8 @@ async function placeOrder() {
             <p style="color:var(--text-mid);font-size:13px;margin-top:4px">Cửa hàng xác nhận tồn kho trước, sau đó bạn sẽ nhận được link PayOS để thanh toán an toàn.</p>
           </div>
         </div>
-        <div class="card mb-3 checkout-block">
-          <h3><i class="bi bi-chat-left-text"></i> Ghi chú cho cửa hàng</h3>
+         <div v-show="currentStep === 3" class="card mb-3 checkout-block">
+           <h3><i class="bi bi-chat-left-text"></i> Ghi chú cho cửa hàng</h3>
           <textarea
             v-model="note"
             class="form-textarea"
@@ -466,7 +500,7 @@ async function placeOrder() {
           ></textarea>
         </div>
       </div>
-      <div class="checkout-sidebar">
+       <div v-show="currentStep >= 2" class="checkout-sidebar">
         <div class="card order-summary-card">
           <h3>Đơn hàng</h3>
           <div class="checkout-items">
@@ -585,6 +619,10 @@ async function placeOrder() {
           </button>
         </div>
       </div>
+      <div class="checkout-actions">
+        <button v-if="currentStep > 1" type="button" class="btn btn-outline" @click="currentStep--">Quay lại</button>
+        <button v-if="currentStep < 3" type="button" class="btn btn-primary" :disabled="currentStep === 1 && !canPlaceOrder()" @click="currentStep++">Tiếp tục</button>
+      </div>
     </div>
     <div v-else class="empty-state" style="padding: 60px 0">
       <i class="bi bi-cart3"></i>
@@ -596,6 +634,9 @@ async function placeOrder() {
 </template>
 
 <style scoped>
+.checkout-actions { display: flex; justify-content: space-between; gap: 12px; grid-column: 1 / -1; }
+.shipping-error { margin-top: 8px; color: var(--red-active); font-size: 13px; }
+.shipping-error button { color: var(--primary-dark); font-weight: 700; text-decoration: underline; }
 .store-status {
   display: flex;
   align-items: center;
@@ -994,12 +1035,13 @@ async function placeOrder() {
 .checkout-page { min-height: 100vh; padding: 22px 0 56px; background: #fff8f0; }
 .checkout-breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--text-mid); font-size: 12px; margin-bottom: 18px; }
 .checkout-breadcrumb a { color: var(--text-dark); font-weight: 600; }.checkout-breadcrumb i { color: var(--text-light); font-size: 10px; }
-.checkout-stepper { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto; align-items: center; gap: 12px; padding: 18px 24px; margin-bottom: 16px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: #fff; }
+.checkout-stepper { display: grid; grid-template-columns: auto 1fr auto 1fr auto; align-items: center; gap: 12px; padding: 18px 24px; margin-bottom: 16px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: #fff; }
 .checkout-stepper .step { display: grid; justify-items: center; gap: 6px; color: var(--text-mid); font-size: 12px; white-space: nowrap; }.checkout-stepper .step span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e9eef8; font-size: 12px; font-weight: 800; }.checkout-stepper .step.complete { color: var(--primary-dark); }.checkout-stepper .step.complete span { background: #ffc89b; color: var(--primary-dark); }.checkout-stepper .step.active { color: var(--primary-dark); }.checkout-stepper .step.active span { background: var(--primary-dark); color: #fff; }.checkout-stepper .step-line { height: 1px; background: linear-gradient(90deg, var(--primary-100), var(--border)); }
 .checkout-layout { grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; }.checkout-main { min-width: 0; }.checkout-block { border-radius: var(--radius-lg); }.checkout-main h3, .checkout-sidebar h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; }.checkout-main h3 > i { color: var(--primary-dark); }
 .saved-address-item { border: 1px solid var(--border); border-radius: var(--radius); }.saved-address-item.selected { border-color: var(--primary-dark); background: var(--primary-light); box-shadow: 0 0 0 3px var(--primary-50); }.saved-address-item:hover { border-color: var(--primary); }.radio-circle.checked { border-color: var(--primary-dark); background: var(--primary-dark); }
 .payment-option { border: 1px solid var(--border); border-radius: var(--radius); }.payment-option.selected { border-color: var(--primary-dark); background: #fff0e8; box-shadow: 0 0 0 3px var(--primary-50); }.payment-option:hover { border-color: var(--primary); }.payment-option i:first-child, .selected-icon { color: var(--primary-dark) !important; }
 .order-summary-card { border-radius: var(--radius-lg); overflow: hidden; }.order-summary-card::before { content: ''; display: block; height: 4px; margin: -24px -24px 18px; background: linear-gradient(90deg, var(--primary-dark), var(--route-amber)); }.checkout-sidebar .card { top: 82px; }.checkout-item { border-bottom-color: var(--border-light); }.checkout-item img { border-radius: var(--radius-sm); }.checkout-summary { border-top: 1px dashed var(--border); padding-top: 12px; }.checkout-summary .summary-row:last-child span:last-child { color: var(--primary-dark); font-size: 24px; letter-spacing: -.03em; }.checkout-btn { min-height: 48px; border-radius: var(--radius-full); background: linear-gradient(135deg, var(--primary-dark), var(--route-orange)); box-shadow: 0 12px 22px rgba(212,97,58,.2); }.checkout-coupon { border-color: var(--border-light); border-radius: var(--radius); }.coupon-header { border-bottom-color: var(--border-light); }.coupon-header i, .my-coupons-toggle i:first-child { color: var(--primary-dark); }.coupon-input { border: 1px solid var(--border); border-radius: var(--radius-sm); }.coupon-input:focus { border-color: var(--primary-dark); }.coupon-btn { border-radius: var(--radius-sm); background: var(--primary-dark); }.coupon-btn:hover { background: var(--route-orange); }
-@media (max-width: 768px) { .checkout-stepper { grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 14px 8px; }.checkout-stepper .step { white-space: normal; text-align: center; font-size: 10px; }.checkout-stepper .step-line { display: none; }.checkout-layout { grid-template-columns: 1fr; }.checkout-sidebar .card { position: static; }.checkout-page { padding-top: 16px; } }
+@media (max-width: 768px) { .checkout-stepper { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 14px 8px; }.checkout-stepper .step { white-space: normal; text-align: center; font-size: 10px; }.checkout-stepper .step-line { display: none; }.checkout-layout { grid-template-columns: 1fr; }.checkout-sidebar .card { position: static; }.checkout-page { padding-top: 16px; } }
 @media (max-width: 380px) { .coupon-input-group { flex-direction: column; }.coupon-btn { width: 100%; } }
+@media (max-width: 768px) { .checkout-actions { position: sticky; bottom: 0; z-index: 5; margin: 0 -12px -12px; padding: 12px; background: #fff; border-top: 1px solid var(--border); }.checkout-actions .btn { flex: 1; } }
 </style>

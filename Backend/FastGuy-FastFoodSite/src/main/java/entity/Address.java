@@ -9,6 +9,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 @Entity
@@ -50,10 +52,6 @@ public class Address {
     @Column(name = "ghn_ward_code")
     private String ghnWardCode;
 
-    @ManyToOne
-    @JoinColumn(name = "zone_id")
-    private DeliveryZone zone;
-
     @Column(name = "city")
     private String city;
 
@@ -62,6 +60,15 @@ public class Address {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate
+    void preUpdate() { updatedAt = LocalDateTime.now(); }
 
     public Address() {}
 
@@ -87,8 +94,6 @@ public class Address {
     public void setGhnDistrictId(Integer ghnDistrictId) { this.ghnDistrictId = ghnDistrictId; }
     public String getGhnWardCode() { return ghnWardCode; }
     public void setGhnWardCode(String ghnWardCode) { this.ghnWardCode = ghnWardCode; }
-    public DeliveryZone getZone() { return zone; }
-    public void setZone(DeliveryZone zone) { this.zone = zone; }
     public String getCity() { return city; }
     public void setCity(String city) { this.city = city; }
     public Boolean getIsDefault() { return isDefault; }

@@ -2,8 +2,8 @@
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
 import { useRouter } from 'vue-router';
-import { ref, onMounted, onUnmounted } from 'vue';
-import { staffApi } from '@/api';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { staffApi, shiftApi } from '@/api';
 import NotificationBell from '@/components/common/NotificationBell.vue';
 
 const auth = useAuthStore();
@@ -11,6 +11,7 @@ const notificationStore = useNotificationStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 const pendingCount = ref(0);
+const hasTodayShift = ref(true);
 
 let refreshTimer;
 
@@ -21,10 +22,33 @@ async function refreshPendingCount() {
   } catch {}
 }
 
-onMounted(() => {
+async function checkShift() {
+  try {
+    const data = await shiftApi.hasToday();
+    hasTodayShift.value = data?.hasShift ?? false;
+  } catch { hasTodayShift.value = true; }
+}
+
+const sidebarLinks = computed(() => {
+  if (!hasTodayShift.value) {
+    return [{ label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' }];
+  }
+  return [
+    { label: 'Tổng quan', path: '/staff', icon: 'bi-speedometer2' },
+    { label: 'Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
+    { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
+    { label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' },
+    { label: 'Hỗ trợ', path: '/staff/support', icon: 'bi-headset' },
+  ];
+});
+
+onMounted(async () => {
+  await checkShift();
   notificationStore.startPolling();
-  refreshPendingCount();
-  refreshTimer = setInterval(refreshPendingCount, 30000);
+  if (hasTodayShift.value) {
+    refreshPendingCount();
+    refreshTimer = setInterval(refreshPendingCount, 30000);
+  }
 });
 
 onUnmounted(() => {
@@ -37,13 +61,6 @@ function logout() {
   auth.logout();
   router.push('/');
 }
-
-const sidebarLinks = [
-  { label: 'Tổng quan', path: '/staff', icon: 'bi-speedometer2' },
-  { label: 'Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
-  { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
-  { label: 'Hỗ trợ', path: '/staff/support', icon: 'bi-headset' },
-];
 </script>
 
 <template>
@@ -95,6 +112,13 @@ const sidebarLinks = [
         </div>
       </div>
       <div class="page-content fg-page">
+        <div v-if="!hasTodayShift" class="no-shift-banner">
+          <i class="bi bi-calendar-x"></i>
+          <div>
+            <strong>Bạn chưa được phân ca hôm nay</strong>
+            <p>Vui lòng xem lịch làm việc để biết thêm chi tiết.</p>
+          </div>
+        </div>
         <router-view />
       </div>
     </div>
@@ -136,6 +160,10 @@ const sidebarLinks = [
 .logout-btn { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:13px; font-weight:650; }
 .logout-btn:hover { border-color:var(--red-active); color:var(--red-active); }
 .sidebar-overlay { display: none; }
+.no-shift-banner { display:flex; align-items:center; gap:12px; padding:14px 16px; margin-bottom:16px; border-radius:var(--radius); background:#fef3c7; color:#92400e; font-size:14px; }
+.no-shift-banner i { font-size:28px; flex-shrink:0; }
+.no-shift-banner strong { display:block; margin-bottom:2px; }
+.no-shift-banner p { margin:0; font-size:13px; opacity:.8; }
 @media (max-width: 768px) {
   .mobile-toggle-sidebar { display: flex; }
   .sidebar-overlay {

@@ -19,7 +19,7 @@ async function handleLogin() {
   loading.value = true;
   try {
     const user = await auth.login(email.value, password.value);
-    cart.migrateToUser();
+    await cart.migrateToUser();
     const role = user?.role || '';
     const redirect = route.query.redirect || (role === 'USER' ? '/' : `/${role.toLowerCase()}`);
     router.push(redirect);
