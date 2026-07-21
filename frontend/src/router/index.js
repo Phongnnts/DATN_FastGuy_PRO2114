@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { ROLES } from '@/utils/constants';
+import { shiftApi } from '@/api';
 
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import UserLayout from '@/layouts/UserLayout.vue';
@@ -142,21 +143,24 @@ const routes = [
         path: '',
         name: 'StaffDashboard',
         component: () => import('@/views/staff/DashboardPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'orders',
         name: 'StaffOrders',
         component: () => import('@/views/staff/OrdersPage.vue'),
-      },
-      {
-        path: 'orders/:id',
-        name: 'StaffOrderDetail',
-        component: () => import('@/views/staff/OrderDetailPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'orders/history',
         name: 'StaffOrderHistory',
         component: () => import('@/views/staff/OrderHistoryPage.vue'),
+      },
+      {
+        path: 'orders/:id',
+        name: 'StaffOrderDetail',
+        component: () => import('@/views/staff/OrderDetailPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'support',
@@ -296,7 +300,7 @@ const router = createRouter({
   },
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore();
 
   if (
@@ -330,6 +334,15 @@ router.beforeEach((to, from, next) => {
     return next(
       auth.isLoggedIn ? roleRoutes[auth.role] || '/' : { name: 'Login' },
     );
+  }
+
+  if (to.matched.some((record) => record.meta.requiresCheckedInShift)) {
+    try {
+      const current = await shiftApi.getCurrent();
+      if (current?.state !== 'CHECKED_IN') return next('/staff/shifts');
+    } catch {
+      return next('/staff/shifts');
+    }
   }
 
   next();

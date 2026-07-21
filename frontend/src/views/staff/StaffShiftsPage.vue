@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { shiftApi } from '@/api';
 import { formatDate } from '@/utils/format';
 
@@ -7,11 +7,12 @@ const shifts = ref([]);
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
+const now = ref(new Date());
+const todayKey = ref(toLocalDateKey(new Date()));
+let clockTimer;
 
-const today = new Date();
-const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-const todayShift = computed(() => shifts.value.find(s => s.shiftDate === todayKey) || null);
+const todayShift = computed(() => shifts.value.find(s => s.shiftDate === todayKey.value) || null);
+const canCheckOut = computed(() => !todayShift.value?.endTime || now.value >= parseShiftEndDatetime(todayKey.value, todayShift.value.endTime, todayShift.value.startTime));
 const upcomingShifts = computed(() => shifts.value.filter(s => s.shiftDate > todayKey).sort((a, b) => a.shiftDate.localeCompare(b.shiftDate)));
 const pastShifts = computed(() => shifts.value.filter(s => s.shiftDate < todayKey).sort((a, b) => b.shiftDate.localeCompare(a.shiftDate)));
 
@@ -45,6 +46,7 @@ async function checkIn(shift) {
     const updated = await shiftApi.checkIn(shift.shiftId);
     const idx = shifts.value.findIndex(s => s.shiftId === updated.shiftId);
     if (idx >= 0) shifts.value[idx] = updated;
+    window.dispatchEvent(new Event('staff-shift-changed'));
   } catch (e) { error.value = e.message; }
   finally { saving.value = false; }
 }
@@ -56,11 +58,19 @@ async function checkOut(shift) {
     const updated = await shiftApi.checkOut(shift.shiftId);
     const idx = shifts.value.findIndex(s => s.shiftId === updated.shiftId);
     if (idx >= 0) shifts.value[idx] = updated;
+    window.dispatchEvent(new Event('staff-shift-changed'));
   } catch (e) { error.value = e.message; }
   finally { saving.value = false; }
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  clockTimer = setInterval(() => {
+    now.value = new Date();
+    todayKey.value = toLocalDateKey(new Date());
+  }, 30000);
+});
+onUnmounted(() => clearInterval(clockTimer));
 </script>
 
 <template>
@@ -88,8 +98,8 @@ onMounted(load);
           <button v-if="!todayShift.checkInAt" class="btn btn-primary" :disabled="saving" @click="checkIn(todayShift)">
             <i class="bi bi-box-arrow-in-right"></i> {{ saving ? 'Đang xử lý...' : 'Check-in' }}
           </button>
-          <button v-else-if="!todayShift.checkOutAt" class="btn btn-outline" :disabled="saving" @click="checkOut(todayShift)">
-            <i class="bi bi-box-arrow-right"></i> {{ saving ? 'Đang xử lý...' : 'Check-out' }}
+          <button v-else-if="!todayShift.checkOutAt" class="btn btn-outline" :disabled="saving || !canCheckOut" @click="checkOut(todayShift)">
+            <i class="bi bi-box-arrow-right"></i> {{ saving ? 'Đang xử lý...' : canCheckOut ? 'Check-out' : `Có thể check-out từ ${time(todayShift.endTime)}` }}
           </button>
           <span v-else class="shift-done"><i class="bi bi-check-circle-fill"></i> Đã hoàn thành ca</span>
         </div>

@@ -11,9 +11,11 @@ const notificationStore = useNotificationStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 const pendingCount = ref(0);
-const hasTodayShift = ref(true);
+const shiftState = ref('UNKNOWN');
+const checkedIn = computed(() => shiftState.value === 'CHECKED_IN');
 
-let refreshTimer;
+let refreshTimer = 0;
+let shiftSequence = 0;
 
 async function refreshPendingCount() {
   try {
@@ -23,36 +25,40 @@ async function refreshPendingCount() {
 }
 
 async function checkShift() {
+  const token = ++shiftSequence;
+  shiftState.value = 'UNKNOWN';
+  clearInterval(refreshTimer);
+  refreshTimer = 0;
   try {
-    const data = await shiftApi.hasToday();
-    hasTodayShift.value = data?.hasShift ?? false;
-  } catch { hasTodayShift.value = true; }
-}
-
-const sidebarLinks = computed(() => {
-  if (!hasTodayShift.value) {
-    return [{ label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' }];
-  }
-  return [
-    { label: 'Tổng quan', path: '/staff', icon: 'bi-speedometer2' },
-    { label: 'Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
-    { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
-    { label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' },
-    { label: 'Hỗ trợ', path: '/staff/support', icon: 'bi-headset' },
-  ];
-});
-
-onMounted(async () => {
-  await checkShift();
-  notificationStore.startPolling();
-  if (hasTodayShift.value) {
+    const data = await shiftApi.getCurrent();
+    if (token !== shiftSequence) return;
+    shiftState.value = data?.state || 'UNKNOWN';
+  } catch { if (token !== shiftSequence) return; shiftState.value = 'UNKNOWN'; }
+  if (checkedIn.value) {
     refreshPendingCount();
     refreshTimer = setInterval(refreshPendingCount, 30000);
-  }
+  } else pendingCount.value = 0;
+}
+
+const sidebarLinks = computed(() => [
+  ...(checkedIn.value ? [
+    { label: 'Tổng quan', path: '/staff', icon: 'bi-speedometer2' },
+    { label: 'Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
+  ] : []),
+  { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
+  { label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' },
+  { label: 'Hỗ trợ', path: '/staff/support', icon: 'bi-headset' },
+]);
+
+onMounted(async () => {
+  window.addEventListener('staff-shift-changed', checkShift);
+  await checkShift();
+  notificationStore.startPolling();
 });
 
 onUnmounted(() => {
   clearInterval(refreshTimer);
+  window.removeEventListener('staff-shift-changed', checkShift);
   notificationStore.stopPolling();
 });
 
@@ -112,14 +118,22 @@ function logout() {
         </div>
       </div>
       <div class="page-content fg-page">
-        <div v-if="!hasTodayShift" class="no-shift-banner">
+        <div v-if="!checkedIn" class="no-shift-banner">
           <i class="bi bi-calendar-x"></i>
-          <div>
-            <strong>Bạn chưa được phân ca hôm nay</strong>
-            <p>Vui lòng xem lịch làm việc để biết thêm chi tiết.</p>
+          <div v-if="shiftState === 'UNKNOWN'">
+            <strong>Không thể xác định trạng thái ca</strong>
+            <p>Chỉ lịch làm việc, lịch sử đơn và hỗ trợ đang khả dụng.</p>
+          </div>
+          <div v-else-if="shiftState === 'CHECKED_OUT'">
+            <strong>Ca làm đã kết thúc</strong>
+            <p>Các nghiệp vụ đang được khóa.</p>
+          </div>
+          <div v-else>
+            <strong>Bạn chưa check-in</strong>
+            <p>Vui lòng xem lịch làm việc để check-in đúng giờ.</p>
           </div>
         </div>
-        <router-view />
+        <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'StaffShifts' || $route.name === 'StaffOrderHistory' || $route.name === 'StaffSupport'" aria-live="polite" role="region" />
       </div>
     </div>
     <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
