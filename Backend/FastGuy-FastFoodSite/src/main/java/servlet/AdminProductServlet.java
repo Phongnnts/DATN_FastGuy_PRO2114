@@ -488,8 +488,8 @@ public class AdminProductServlet extends HttpServlet {
         if (segs.length == 1) {
             Integer id = parseId(segs[0]);
             if (id == null) { resp.sendError(404); return; }
-            productDAO.delete(id);
-            ApiResponse.ok(resp, null, "Deleted");
+            if (!productDAO.delete(id)) { ApiResponse.error(resp, "Product not found", 404); return; }
+            ApiResponse.ok(resp, null, "Product hidden");
             return;
         }
 

@@ -8,9 +8,13 @@ set arithabort on;
 set concat_null_yields_null on;
 go
 
+if exists (select 1 from Orders where order_status = 'WAITING_STOCK_CONFIRM')
+    throw 51000, 'Legacy WAITING_STOCK_CONFIRM orders require manual stock reconciliation before migration', 1;
+go
+
 if col_length('Product', 'available_from') is null alter table Product add available_from time null;
 if col_length('Product', 'available_to') is null alter table Product add available_to time null;
-if col_length('DeliveryZone', 'ward_name') is null alter table DeliveryZone add ward_name nvarchar(100) null;
+if object_id('DeliveryZone', 'U') is not null and col_length('DeliveryZone', 'ward_name') is null alter table DeliveryZone add ward_name nvarchar(100) null;
 if col_length('Users', 'loyalty_points') is null alter table Users add loyalty_points int not null constraint DF_Users_LoyaltyPoints default 0;
 if col_length('CartItem', 'selected_modifier_option_ids') is null alter table CartItem add selected_modifier_option_ids varchar(500) null;
 if col_length('Orders', 'service_fee') is null alter table Orders add service_fee decimal(10,2) not null constraint DF_Orders_ServiceFee default 0;
@@ -23,6 +27,113 @@ if col_length('Orders', 'refunded_at') is null alter table Orders add refunded_a
 if col_length('Orders', 'refund_note') is null alter table Orders add refund_note nvarchar(500) null;
 if col_length('Orders', 'payos_payment_link_id') is null alter table Orders add payos_payment_link_id varchar(100) null;
 if col_length('Orders', 'payos_checkout_url') is null alter table Orders add payos_checkout_url varchar(500) null;
+if col_length('Orders', 'idempotency_key') is null alter table Orders add idempotency_key varchar(100) null;
+if col_length('Orders', 'request_hash') is null alter table Orders add request_hash varchar(64) null;
+if col_length('Orders', 'idempotency_owner') is null alter table Orders add idempotency_owner varchar(100) null;
+if col_length('Orders', 'updated_at') is null alter table Orders add updated_at datetime2 null;
+if col_length('Users', 'updated_at') is null alter table Users add updated_at datetime2 null;
+if object_id('PasswordResetToken', 'U') is not null and col_length('PasswordResetToken', 'updated_at') is null alter table PasswordResetToken add updated_at datetime2 null;
+if object_id('Address', 'U') is not null and col_length('Address', 'updated_at') is null alter table Address add updated_at datetime2 null;
+if col_length('Cart', 'updated_at') is null alter table Cart add updated_at datetime2 null;
+if col_length('CartItem', 'updated_at') is null alter table CartItem add updated_at datetime2 null;
+if col_length('Coupon', 'updated_at') is null alter table Coupon add updated_at datetime2 null;
+if object_id('WorkShift', 'U') is not null and col_length('WorkShift', 'updated_at') is null alter table WorkShift add updated_at datetime2 null;
+if object_id('Notification', 'U') is not null and col_length('Notification', 'updated_at') is null alter table Notification add updated_at datetime2 null;
+if object_id('Banner', 'U') is not null and col_length('Banner', 'updated_at') is null alter table Banner add updated_at datetime2 null;
+if col_length('OrderItem', 'modifiers_json') is null alter table OrderItem add modifiers_json nvarchar(max) null;
+if object_id('OrderItemModifier', 'U') is not null
+begin
+    exec sp_executesql N'
+        update oi set modifiers_json = (
+            select om.modifier_option_id as modifierOptionId, om.group_name as groupName,
+                   om.option_name as optionName, om.price
+            from OrderItemModifier om where om.order_item_id = oi.order_item_id for json path
+        )
+        from OrderItem oi
+        where (oi.modifiers_json is null or oi.modifiers_json = N''[]'')
+          and exists (select 1 from OrderItemModifier om where om.order_item_id = oi.order_item_id);';
+end;
+update Orders set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null;
+update Users set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null;
+if object_id('PasswordResetToken', 'U') is not null exec sp_executesql N'update PasswordResetToken set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null';
+if object_id('Address', 'U') is not null exec sp_executesql N'update Address set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null';
+update Cart set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null;
+update CartItem set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null;
+update Coupon set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null;
+if object_id('WorkShift', 'U') is not null exec sp_executesql N'update WorkShift set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null';
+if object_id('Notification', 'U') is not null exec sp_executesql N'update Notification set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null';
+if object_id('Banner', 'U') is not null exec sp_executesql N'update Banner set updated_at = coalesce(updated_at, created_at, getdate()) where updated_at is null';
+update OrderItem set modifiers_json = N'[]' where modifiers_json is null;
+go
+
+if exists (
+    select 1 from sys.indexes i
+    where i.name = 'UQ_Orders_IdempotencyKey' and i.object_id = object_id('Orders')
+      and (i.is_unique = 0 or i.has_filter = 0 or i.filter_definition <> N'([idempotency_key] IS NOT NULL)'
+           or not exists (select 1 from sys.index_columns ic join sys.columns c on c.object_id = ic.object_id and c.column_id = ic.column_id
+                          where ic.object_id = i.object_id and ic.index_id = i.index_id and ic.key_ordinal = 1 and c.name = 'idempotency_key'))
+)
+    drop index UQ_Orders_IdempotencyKey on Orders;
+if not exists (select 1 from sys.indexes where name = 'UQ_Orders_IdempotencyKey' and object_id = object_id('Orders'))
+    create unique index UQ_Orders_IdempotencyKey on Orders(idempotency_key) where idempotency_key is not null;
+go
+
+if object_id('PaymentAttempt', 'U') is null
+begin
+    create table PaymentAttempt (
+        payment_attempt_id int identity primary key,
+        order_id int not null unique references Orders(order_id),
+        provider varchar(20) not null,
+        provider_reference varchar(100) null,
+        checkout_url varchar(500) null,
+        amount decimal(10,2) not null,
+        status varchar(20) not null,
+        lease_token varchar(36) null,
+        created_at datetime2 not null default getdate(),
+        updated_at datetime2 not null default getdate()
+    );
+end;
+if col_length('PaymentAttempt', 'lease_token') is null alter table PaymentAttempt add lease_token varchar(36) null;
+go
+
+if object_id('InventoryReservation', 'U') is null
+begin
+    create table InventoryReservation (
+        reservation_id int identity primary key,
+        order_id int not null references Orders(order_id),
+        variant_id int not null references ProductVariant(variant_id),
+        quantity int not null check (quantity > 0),
+        status varchar(20) not null check (status in ('RESERVED', 'CONSUMED', 'RELEASED')),
+        created_at datetime2 not null default getdate(),
+        updated_at datetime2 not null default getdate(),
+        constraint UQ_InventoryReservation_Order_Variant unique(order_id, variant_id)
+    );
+end;
+if object_id('InventoryTransaction', 'U') is null
+begin
+    create table InventoryTransaction (
+        inventory_transaction_id int identity primary key,
+        order_id int not null references Orders(order_id),
+        variant_id int not null references ProductVariant(variant_id),
+        transaction_type varchar(20) not null check (transaction_type in ('RESERVE', 'RELEASE', 'CONSUME', 'RETURN', 'ADJUSTMENT')),
+        quantity int not null check (quantity > 0),
+        created_at datetime2 not null default getdate()
+    );
+end;
+insert into InventoryReservation(order_id, variant_id, quantity, status)
+select oi.order_id, oi.variant_id, sum(oi.quantity),
+       case when o.order_status in ('PENDING', 'CONFIRMED') then 'RESERVED' else 'CONSUMED' end
+from OrderItem oi
+join Orders o on o.order_id = oi.order_id
+where oi.variant_id is not null
+  and o.order_status in ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP')
+  and not exists (select 1 from InventoryReservation r where r.order_id = oi.order_id and r.variant_id = oi.variant_id)
+group by oi.order_id, oi.variant_id, o.order_status;
+
+insert into InventoryTransaction(order_id, variant_id, transaction_type, quantity)
+select r.order_id, r.variant_id, case when r.status = 'RESERVED' then 'RESERVE' else 'CONSUME' end, r.quantity
+from InventoryReservation r
+where not exists (select 1 from InventoryTransaction t where t.order_id = r.order_id and t.variant_id = r.variant_id);
 go
 
 if object_id('Review', 'U') is null
@@ -55,7 +166,8 @@ begin
         token_hash varchar(64) not null unique,
         expires_at datetime2 not null,
         used_at datetime2 null,
-        created_at datetime2 not null default getdate()
+        created_at datetime2 not null default getdate(),
+        updated_at datetime2 not null default getdate()
     );
 end;
 if not exists (select 1 from sys.indexes where name = 'IX_PasswordResetToken_User' and object_id = object_id('PasswordResetToken'))
@@ -119,7 +231,8 @@ begin
         order_id int not null references Orders(order_id),
         transaction_type varchar(20) not null,
         points int not null,
-        created_at datetime2 default getdate()
+        created_at datetime2 default getdate(),
+        updated_at datetime2 default getdate()
     );
 end;
 
@@ -203,7 +316,8 @@ begin
         type varchar(50) null,
         target_url varchar(500) null,
         is_read bit not null constraint DF_Notification_IsRead default 0,
-        created_at datetime2 not null constraint DF_Notification_CreatedAt default getdate()
+        created_at datetime2 not null constraint DF_Notification_CreatedAt default getdate(),
+        updated_at datetime2 not null default getdate()
     );
 end;
 
@@ -263,19 +377,19 @@ if not exists (select 1 from ShippingConfig where config_key = 'business_open_ti
 if not exists (select 1 from ShippingConfig where config_key = 'business_close_time') insert into ShippingConfig(config_key, config_value) values ('business_close_time', '22:00');
 if not exists (select 1 from ShippingConfig where config_key = 'service_fee') insert into ShippingConfig(config_key, config_value) values ('service_fee', '0');
 
-update DeliveryZone set is_active = 1 where is_active is null;
+if object_id('DeliveryZone', 'U') is not null update DeliveryZone set is_active = 1 where is_active is null;
 update Banner set is_active = 1 where is_active is null;
 update Coupon set is_active = 1, is_public = 1 where is_active is null or is_public is null;
 update ProductVariant set is_default = 1 where variant_name = N'Mặc định' and (is_default = 0 or is_default is null);
-update Users set role_id = (select role_id from Role where role_name = 'ADMIN') where email = 'admin@fastguy.com';
-update Users set role_id = (select role_id from Role where role_name = 'STAFF') where email in ('staff1@fastguy.com', 'staff2@fastguy.com');
-update Users set role_id = (select role_id from Role where role_name = 'USER') where email in ('user1@gmail.com', 'user2@gmail.com');
+if col_length('Users', 'role_id') is not null and object_id('Role', 'U') is not null
+begin
+    exec sp_executesql N'
+        update Users set role_id = (select role_id from Role where role_name = ''ADMIN'') where email = ''admin@fastguy.com'';
+        update Users set role_id = (select role_id from Role where role_name = ''STAFF'') where email in (''staff1@fastguy.com'', ''staff2@fastguy.com'');
+        update Users set role_id = (select role_id from Role where role_name = ''USER'') where email in (''user1@gmail.com'', ''user2@gmail.com'');';
+end;
 update Orders set payment_method = 'COD' where payment_method = 'CASH';
 update Orders set payment_method = 'BANK_TRANSFER' where payment_method = 'BANKING';
-update Orders
-set order_status = 'CANCELLED', cancelled_at = getdate(), cancelled_by = 'SYSTEM', failure_reason = N'Đơn chuyển khoản cũ không có link thanh toán'
-where payment_method = 'BANK_TRANSFER' and payment_status = 'UNPAID' and order_status = 'PENDING'
-  and (payos_checkout_url is null or payos_checkout_url = '');
 go
 
 -- P0: CartItemModifier normalization

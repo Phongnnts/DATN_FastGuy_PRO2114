@@ -2,11 +2,16 @@ package servlet;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import dao.OrderItemDAO;
 import dao.OrdersDAO;
@@ -97,7 +102,7 @@ public class OrderServlet extends HttpServlet {
             try {
                 int orderId = Integer.parseInt(idStr);
                 Orders order = ordersDAO.findById(orderId);
-                if (order == null || (order.getUser() != null && order.getUser().getUserId() != userId)) {
+                if (!OrderService.canUserAccess(order, userId)) {
                     ApiResponse.error(resp, "Not found", 404);
                     return;
                 }
@@ -132,7 +137,7 @@ public class OrderServlet extends HttpServlet {
         try {
             int orderId = Integer.parseInt(path.substring(1));
             Orders order = ordersDAO.findById(orderId);
-            if (order == null || (order.getUser() != null && order.getUser().getUserId() != userId)) {
+            if (!OrderService.canUserAccess(order, userId)) {
                 ApiResponse.error(resp, "Order not found", 404);
                 return;
             }
@@ -160,6 +165,9 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
+        String idempotencyKey = req.getHeader("Idempotency-Key");
+        String requestHash = requestHash(body);
+        String cartSignature = utils.JsonUtil.toJson(body.get("cartSignature"));
 
         String customerName = (String) body.get("customerName");
         String address = (String) body.get("address");
@@ -181,7 +189,8 @@ public class OrderServlet extends HttpServlet {
         Orders order = null;
         try {
             order = orderService.checkout(userId, customerName, address, phone, deliveryNote, paymentMethod,
-                    ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, couponCode);
+                    ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, couponCode,
+                    idempotencyKey, requestHash, cartSignature);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
             return;
@@ -196,8 +205,7 @@ public class OrderServlet extends HttpServlet {
         }
         if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
             if (payOSPaymentService.createPaymentLink(order.getOrderId()) == null) {
-                orderService.cancelOrder(order.getOrderId(), null, null, "Không thể tạo link PayOS", false);
-                ApiResponse.error(resp, "Không thể tạo link PayOS", 502);
+                ApiResponse.error(resp, "Không thể tạo link PayOS, vui lòng thử lại", 502);
                 return;
             }
             order = ordersDAO.findById(order.getOrderId());
@@ -240,7 +248,7 @@ public class OrderServlet extends HttpServlet {
                 ApiResponse.error(resp, "Order not found", 404);
                 return;
             }
-            if (!"PENDING".equals(order.getOrderStatus()) && !"WAITING_STOCK_CONFIRM".equals(order.getOrderStatus())) {
+            if (!"PENDING".equals(order.getOrderStatus())) {
                 ApiResponse.error(resp, "Cannot cancel order in current status", 400);
                 return;
             }
@@ -417,6 +425,8 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
+        String idempotencyKey = req.getHeader("Idempotency-Key");
+        String requestHash = requestHash(body);
 
         String customerName = (String) body.get("customerName");
         String phone = (String) body.get("phone");
@@ -444,7 +454,7 @@ public class OrderServlet extends HttpServlet {
         try {
             order = orderService.guestCheckout(customerName, phone, address, deliveryNote, paymentMethod,
                     itemsData, ghnProvinceId, ghnDistrictId, ghnWardCode,
-                    toProvinceName, toDistrictName, toWardName, couponCode);
+                    toProvinceName, toDistrictName, toWardName, couponCode, idempotencyKey, requestHash);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
             return;
@@ -459,8 +469,7 @@ public class OrderServlet extends HttpServlet {
         }
         if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
             if (payOSPaymentService.createPaymentLink(order.getOrderId()) == null) {
-                orderService.cancelOrder(order.getOrderId(), null, null, "Không thể tạo link PayOS", false);
-                ApiResponse.error(resp, "Không thể tạo link PayOS", 502);
+                ApiResponse.error(resp, "Không thể tạo link PayOS, vui lòng thử lại", 502);
                 return;
             }
             order = ordersDAO.findById(order.getOrderId());
@@ -483,8 +492,20 @@ public class OrderServlet extends HttpServlet {
 
     private void addTransferData(Map<String, Object> data, Orders order) {
         if (!"BANK_TRANSFER".equals(order.getPaymentMethod())) return;
-        if (!"PENDING".equals(order.getOrderStatus()) && !"WAITING_STOCK_CONFIRM".equals(order.getOrderStatus())) return;
+        if (!"PENDING".equals(order.getOrderStatus())) return;
         String checkoutUrl = order.getPayosCheckoutUrl();
         if (checkoutUrl != null && !checkoutUrl.isBlank()) data.put("checkoutUrl", checkoutUrl);
+    }
+
+    private String requestHash(Map<String, Object> body) {
+        try {
+            String canonical = utils.JsonUtil.getMapper().copy()
+                    .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                    .writeValueAsString(body);
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

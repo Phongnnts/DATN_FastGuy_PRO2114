@@ -16,6 +16,7 @@ import utils.PasswordUtil;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +43,24 @@ public class AdminUserServlet extends HttpServlet {
         return result;
     }
 
+    static String orderRelationship(String role) {
+        return switch (role) {
+            case "USER" -> "CUSTOMER";
+            case "STAFF" -> "STAFF";
+            case "SHIPPER" -> "SHIPPER";
+            default -> "NONE";
+        };
+    }
+
+    private List<entity.Orders> ordersFor(User user) {
+        return switch (orderRelationship(user.getRole())) {
+            case "CUSTOMER" -> ordersDAO.findByUserId(user.getUserId());
+            case "STAFF" -> ordersDAO.findDeliveredByStaffId(user.getUserId());
+            case "SHIPPER" -> ordersDAO.findByShipperIdAndStatus(user.getUserId(), "DELIVERED");
+            default -> Collections.emptyList();
+        };
+    }
+
     @Override protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8"); if (!checkAdmin(req, resp)) return;
         String path = req.getPathInfo();
@@ -60,12 +79,13 @@ public class AdminUserServlet extends HttpServlet {
             User user = userDAO.findById(userId);
             if (user == null) { ApiResponse.error(resp, "Not found", 404); return; }
             if (parts.length >= 3 && "orders".equals(parts[2])) {
-                List<Map<String, Object>> orders = ordersDAO.findByUserId(userId).stream().map(o -> {
+                List<Map<String, Object>> orders = ordersFor(user).stream().map(o -> {
                     Map<String, Object> m = new HashMap<>();
                     m.put("orderId", o.getOrderId()); m.put("orderCode", o.getOrderCode());
                     m.put("status", o.getOrderStatus()); m.put("finalAmount", o.getFinalAmount());
                     m.put("paymentMethod", o.getPaymentMethod()); m.put("paymentStatus", o.getPaymentStatus());
                     m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+                    m.put("completedAt", o.getDeliveredAt() != null ? o.getDeliveredAt().toString() : null);
                     return m;
                 }).collect(Collectors.toList());
                 ApiResponse.ok(resp, orders);

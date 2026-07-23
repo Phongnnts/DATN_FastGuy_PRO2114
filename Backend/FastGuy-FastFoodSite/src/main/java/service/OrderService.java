@@ -4,7 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,11 +27,23 @@ import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
 
 public class OrderService {
+    public static boolean canUserAccess(Orders order, int userId) {
+        return order != null && order.getUser() != null && order.getUser().getUserId() == userId;
+    }
+
+    static boolean matchesExpectedPaymentStatus(String actual, String expected) {
+        return expected == null || expected.equals(actual);
+    }
+
+    static boolean matchesRequestHash(String actual, String expected) {
+        return actual != null && actual.equals(expected);
+    }
     private CouponService couponService = new CouponService();
     private NotificationService notificationService = new NotificationService();
     private OrderStatusHistoryService orderStatusHistoryService = new OrderStatusHistoryService();
     private StoreConfigService storeConfigService = new StoreConfigService();
     private ShippingService shippingService = new ShippingService();
+    private InventoryReservationService inventoryReservationService = new InventoryReservationService();
 
     private static class CheckoutLine {
         Product product;
@@ -49,12 +64,22 @@ public class OrderService {
                              String deliveryNote, String paymentMethod,
                             Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
                              String toProvinceName, String toDistrictName, String toWardName,
-                             String couponCode) {
-        Map<String, String> storeConfig = storeConfigService.getAll();
-        BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
+                             String couponCode, String idempotencyKey, String requestHash, String cartSignature) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            String idempotencyOwner = "USER:" + userId;
+            validateIdempotencyKey(idempotencyKey);
+            acquireIdempotencyLock(em, idempotencyKey);
+            Orders replay = findByIdempotencyKey(em, idempotencyKey, idempotencyOwner);
+            if (replay != null) {
+                if (!matchesRequestHash(replay.getRequestHash(), requestHash)) throw new IllegalArgumentException("Idempotency key đã được dùng cho yêu cầu khác");
+                em.getTransaction().commit();
+                return replay;
+            }
+
+            Map<String, String> storeConfig = storeConfigService.getAll();
+            BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
 
             User user = em.find(User.class, userId);
             if (user == null) throw new IllegalArgumentException("Không tìm thấy người dùng");
@@ -67,6 +92,7 @@ public class OrderService {
             if (cart == null) throw new IllegalArgumentException("Giỏ hàng trống");
             List<CartItem> cartItems = findCartItems(em, cart.getCartId());
             if (cartItems.isEmpty()) throw new IllegalArgumentException("Giỏ hàng trống");
+            if (!cartSignature(cartItems).equals(cartSignature)) throw new IllegalArgumentException("Giỏ hàng đã thay đổi, vui lòng thử lại");
 
             if (!"COD".equals(paymentMethod) && !"BANK_TRANSFER".equals(paymentMethod)) {
                 throw new IllegalArgumentException("Phương thức thanh toán không hợp lệ");
@@ -103,8 +129,12 @@ public class OrderService {
             Orders order = buildOrder("ORD-", user, recipient, customerPhone, address, deliveryNote, paymentMethod,
                     ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName,
                     shippingFee, serviceFee, totalAmount, finalAmount, coupon.discount, coupon.code);
+            order.setIdempotencyKey(idempotencyKey);
+            order.setRequestHash(requestHash);
+            order.setIdempotencyOwner(idempotencyOwner);
             em.persist(order);
             em.flush();
+            inventoryReservationService.reserve(em, order, quantities);
             applyCoupon(em, coupon, order.getOrderId(), userId);
             persistItems(em, order, lines);
             if (!isBankTransfer) {
@@ -131,13 +161,23 @@ public class OrderService {
                                  String deliveryNote, String paymentMethod,
                                  List<Map<String, Object>> itemsData,
                                  Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
-                                 String toProvinceName, String toDistrictName, String toWardName,
-                                 String couponCode) {
-        Map<String, String> storeConfig = storeConfigService.getAll();
-        BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
+                                  String toProvinceName, String toDistrictName, String toWardName,
+                                  String couponCode, String idempotencyKey, String requestHash) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            String idempotencyOwner = "GUEST:" + phone;
+            validateIdempotencyKey(idempotencyKey);
+            acquireIdempotencyLock(em, idempotencyKey);
+            Orders replay = findByIdempotencyKey(em, idempotencyKey, idempotencyOwner);
+            if (replay != null) {
+                if (!matchesRequestHash(replay.getRequestHash(), requestHash)) throw new IllegalArgumentException("Idempotency key đã được dùng cho yêu cầu khác");
+                em.getTransaction().commit();
+                return replay;
+            }
+
+            Map<String, String> storeConfig = storeConfigService.getAll();
+            BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
 
             if (customerName == null || customerName.trim().length() < 2 || phone == null || address == null || itemsData == null || itemsData.isEmpty()) {
                 throw new IllegalArgumentException("Thông tin đặt hàng không hợp lệ");
@@ -183,8 +223,12 @@ public class OrderService {
             Orders order = buildOrder("GST-", null, customerName.trim(), phone.trim(), address, deliveryNote, paymentMethod,
                     ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName,
                     shippingFee, serviceFee, totalAmount, finalAmount, coupon.discount, coupon.code);
+            order.setIdempotencyKey(idempotencyKey);
+            order.setRequestHash(requestHash);
+            order.setIdempotencyOwner(idempotencyOwner);
             em.persist(order);
             em.flush();
+            inventoryReservationService.reserve(em, order, quantities);
             applyCoupon(em, coupon, order.getOrderId(), null);
             persistItems(em, order, lines);
 
@@ -201,98 +245,57 @@ public class OrderService {
         }
     }
 
-    public boolean confirmStock(int orderId, int staffId) {
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            em.getTransaction().begin();
-            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (order == null || !"WAITING_STOCK_CONFIRM".equals(order.getOrderStatus())) {
-                em.getTransaction().rollback();
-                return false;
-            }
-
-            List<OrderItem> orderItems = em.createQuery("SELECT oi FROM OrderItem oi WHERE oi.order.orderId = :orderId", OrderItem.class)
-                    .setParameter("orderId", orderId)
-                    .getResultList();
-            Map<Integer, Integer> quantities = new HashMap<>();
-            for (OrderItem oi : orderItems) {
-                if (oi.getVariant() != null) {
-                    quantities.merge(oi.getVariant().getVariantId(), oi.getQuantity(), Integer::sum);
-                }
-            }
-
-            Map<Integer, CheckoutLine> lockedLines = lockAndDeduct(em, quantities, null);
-
-            BigDecimal totalAmount = BigDecimal.ZERO;
-            for (OrderItem oi : orderItems) {
-                CheckoutLine locked = lockedLines.get(oi.getVariant().getVariantId());
-                if (locked != null) {
-                    BigDecimal modifierPrice = oi.getModifiers().stream()
-                            .map(m -> m.price != null ? m.price : BigDecimal.ZERO)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    oi.setUnitPrice(locked.unitPrice.add(modifierPrice));
-                    oi.setTotalPrice(oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())));
-                    totalAmount = totalAmount.add(oi.getTotalPrice());
-                }
-            }
-
-            BigDecimal shippingFee = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
-            BigDecimal discountAmount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
-            BigDecimal serviceFee = order.getServiceFee() != null ? order.getServiceFee() : BigDecimal.ZERO;
-            BigDecimal finalAmount = totalAmount.add(shippingFee).add(serviceFee).subtract(discountAmount);
-            if (finalAmount.compareTo(BigDecimal.ZERO) < 0) finalAmount = BigDecimal.ZERO;
-            order.setTotalAmount(totalAmount);
-            order.setFinalAmount(finalAmount);
-            order.setOrderStatus("PENDING");
-            order.setConfirmedAt(LocalDateTime.now());
-
-            User staff = em.find(User.class, staffId);
-            if (staff != null) order.setStaff(staff);
-
-            orderStatusHistoryService.record(em, orderId, staffId, "STAFF", "WAITING_STOCK_CONFIRM", "PENDING", "Xác nhận còn hàng");
-            em.getTransaction().commit();
-            if (order.getUser() != null) {
-                notificationService.notifyUser(order.getUser().getUserId(),
-                        "Đơn hàng đã được xác nhận",
-                        "Đơn " + order.getOrderCode() + " đã được xác nhận tồn kho, vui lòng thanh toán",
-                        "ORDER_STATUS",
-                        "/account/orders/" + orderId);
-            }
-            return true;
-        } catch (RuntimeException e) {
-            if (em.getTransaction().isActive()) em.getTransaction().rollback();
-            throw e;
-        } finally {
-            em.close();
-        }
-    }
-
-    public boolean revertStockConfirmation(int orderId, int staffId, String reason) {
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            em.getTransaction().begin();
-            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (order == null || !"PENDING".equals(order.getOrderStatus()) || !"BANK_TRANSFER".equals(order.getPaymentMethod())
-                    || "PAID".equals(order.getPaymentStatus())) {
-                em.getTransaction().rollback();
-                return false;
-            }
-            restoreStock(em, orderId);
-            order.setOrderStatus("WAITING_STOCK_CONFIRM");
-            order.setConfirmedAt(null);
-            order.setStaff(null);
-            orderStatusHistoryService.record(em, orderId, staffId, "STAFF", "PENDING", "WAITING_STOCK_CONFIRM", reason);
-            em.getTransaction().commit();
-            return true;
-        } catch (RuntimeException e) {
-            if (em.getTransaction().isActive()) em.getTransaction().rollback();
-            return false;
-        } finally {
-            em.close();
-        }
-    }
-
     public boolean cancelOrder(int orderId, Integer userId, Integer staffId, String failureReason, boolean pendingOnly) {
+        return cancelOrder(orderId, userId, staffId, failureReason, pendingOnly, null);
+    }
+
+    private void validateIdempotencyKey(String key) {
+        if (key == null || key.isBlank()) throw new IllegalArgumentException("Thiếu Idempotency-Key");
+        if (key.length() > 100) throw new IllegalArgumentException("Idempotency-Key quá dài");
+    }
+
+    private String cartSignature(List<CartItem> items) {
+        List<Map<String, Object>> signature = items.stream()
+                .sorted(Comparator.comparingInt(item -> item.getVariant().getVariantId()))
+                .map(item -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("variantId", item.getVariant().getVariantId());
+                    row.put("quantity", item.getQuantity());
+                    List<Integer> modifierIds = new ArrayList<>();
+                    String selectedIds = item.getSelectedModifierOptionIds();
+                    if (selectedIds != null && !selectedIds.isBlank()) {
+                        for (String id : selectedIds.split(",")) modifierIds.add(Integer.parseInt(id));
+                    }
+                    Collections.sort(modifierIds);
+                    row.put("modifierOptionIds", modifierIds);
+                    return row;
+                }).toList();
+        return utils.JsonUtil.toJson(signature);
+    }
+
+    private void acquireIdempotencyLock(EntityManager em, String key) {
+        Number result = (Number) em.createNativeQuery(idempotencyLockSql())
+                .setParameter("resource", "checkout:" + key).getSingleResult();
+        if (result.intValue() < 0) throw new IllegalStateException("Không thể khóa yêu cầu thanh toán (SQL Server: " + result + ")");
+    }
+
+    static String idempotencyLockSql() {
+        return "IF @@TRANCOUNT = 0 BEGIN TRANSACTION; DECLARE @result int; EXEC @result = sp_getapplock "
+                + "@Resource = :resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', "
+                + "@LockTimeout = 10000; SELECT @result";
+    }
+
+    private Orders findByIdempotencyKey(EntityManager em, String key, String owner) {
+        List<Orders> orders = em.createQuery("SELECT o FROM Orders o WHERE o.idempotencyKey = :key", Orders.class)
+                .setParameter("key", key).setMaxResults(1).getResultList();
+        if (orders.isEmpty()) return null;
+        Orders order = orders.get(0);
+        if (!owner.equals(order.getIdempotencyOwner())) throw new IllegalArgumentException("Idempotency key không hợp lệ");
+        return order;
+    }
+
+    public boolean cancelOrder(int orderId, Integer userId, Integer staffId, String failureReason, boolean pendingOnly,
+                               String expectedPaymentStatus) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -305,6 +308,10 @@ public class OrderService {
                 em.getTransaction().rollback();
                 return false;
             }
+            if (!matchesExpectedPaymentStatus(order.getPaymentStatus(), expectedPaymentStatus)) {
+                em.getTransaction().rollback();
+                return false;
+            }
             String current = order.getOrderStatus();
             String orderCode = order.getOrderCode();
             Integer orderUserId = order.getUser() != null ? order.getUser().getUserId() : null;
@@ -312,7 +319,7 @@ public class OrderService {
                 em.getTransaction().rollback();
                 return false;
             }
-            if (pendingOnly && !"PENDING".equals(current) && !"WAITING_STOCK_CONFIRM".equals(current)) {
+            if (pendingOnly && !"PENDING".equals(current)) {
                 em.getTransaction().rollback();
                 return false;
             }
@@ -321,8 +328,9 @@ public class OrderService {
                 return false;
             }
 
-            boolean stockWasDeducted = !"WAITING_STOCK_CONFIRM".equals(current);
-            if (stockWasDeducted) restoreStock(em, orderId);
+            boolean hasReservations = inventoryReservationService.hasReservations(em, orderId);
+            if (hasReservations) inventoryReservationService.transition(em, order, "RELEASED");
+            else restoreStock(em, orderId);
             revertCoupon(em, orderId);
             order.setOrderStatus("CANCELLED");
             order.setCancelledAt(LocalDateTime.now());
@@ -387,9 +395,8 @@ public class OrderService {
 
     private Map<Integer, CheckoutLine> validateStock(EntityManager em, Map<Integer, Integer> quantities, Map<Integer, Integer> productIds) {
         Map<Integer, CheckoutLine> lines = new HashMap<>();
-        for (Map.Entry<Integer, Integer> entry : quantities.entrySet()) {
-            int variantId = entry.getKey();
-            int qty = entry.getValue();
+        for (Integer variantId : quantities.keySet().stream().sorted().toList()) {
+            int qty = quantities.get(variantId);
             ProductVariant variant = em.find(ProductVariant.class, variantId);
             if (variant == null || variant.getProduct() == null) throw new IllegalArgumentException("Sản phẩm không hợp lệ");
             Product product = variant.getProduct();
@@ -412,9 +419,8 @@ public class OrderService {
 
     private Map<Integer, CheckoutLine> lockAndDeduct(EntityManager em, Map<Integer, Integer> quantities, Map<Integer, Integer> productIds) {
         Map<Integer, CheckoutLine> lines = new HashMap<>();
-        for (Map.Entry<Integer, Integer> entry : quantities.entrySet()) {
-            int variantId = entry.getKey();
-            int qty = entry.getValue();
+        for (Integer variantId : quantities.keySet().stream().sorted().toList()) {
+            int qty = quantities.get(variantId);
             ProductVariant variant = em.find(ProductVariant.class, variantId, LockModeType.PESSIMISTIC_WRITE);
             if (variant == null || variant.getProduct() == null) throw new IllegalArgumentException("Sản phẩm không hợp lệ");
             Product product = variant.getProduct();

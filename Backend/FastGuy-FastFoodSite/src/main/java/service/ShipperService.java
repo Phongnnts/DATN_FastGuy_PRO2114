@@ -18,7 +18,6 @@ import java.util.Map;
 public class ShipperService {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private UserDAO userDAO = new UserDAO();
-    private OrderService orderService = new OrderService();
     private NotificationService notificationService = new NotificationService();
     private OrderStatusHistoryService orderStatusHistoryService = new OrderStatusHistoryService();
     private LoyaltyService loyaltyService = new LoyaltyService();
@@ -155,17 +154,4 @@ public class ShipperService {
         }
     }
 
-    public boolean cancelOrder(int orderId, int shipperId, String reason) {
-        boolean ok = orderService.cancelOrder(orderId, null, null, reason, false);
-        if (!ok) return false;
-        Orders order = ordersDAO.findById(orderId);
-        if (order != null) {
-            order.setCancelledBy("SHIPPER");
-            ordersDAO.save(order);
-            if (order.getUser() != null) {
-                notificationService.notifyUser(order.getUser().getUserId(), "Đơn giao hàng thất bại", "Đơn " + order.getOrderCode() + " đã bị hủy bởi shipper", "ORDER_CANCELLED", "/account/orders/" + orderId);
-            }
-        }
-        return true;
-    }
 }

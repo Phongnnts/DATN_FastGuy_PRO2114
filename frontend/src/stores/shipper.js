@@ -101,12 +101,6 @@ export const useShipperStore = defineStore('shipper', () => {
     }
   }
 
-  async function cancelOrder(id, reason) {
-    await shipperApi.cancelOrder(id, reason);
-    const order = myOrders.value.find(o => o.id === id);
-    if (order) order.status = 'CANCELLED';
-  }
-
   return {
     dashboard,
     availableOrders,
@@ -119,6 +113,5 @@ export const useShipperStore = defineStore('shipper', () => {
     fetchOrderById,
     pickUpOrder,
     deliverOrder,
-    cancelOrder,
   };
 });

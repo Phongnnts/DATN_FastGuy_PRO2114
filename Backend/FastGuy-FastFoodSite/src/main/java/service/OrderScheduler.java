@@ -41,7 +41,7 @@ public class OrderScheduler {
             try {
                 staleOrders = em.createQuery(
                         "SELECT o FROM Orders o WHERE o.paymentMethod = 'BANK_TRANSFER' AND o.paymentStatus = 'UNPAID' " +
-                                "AND (o.orderStatus = 'WAITING_STOCK_CONFIRM' OR o.orderStatus = 'PENDING') " +
+                                "AND o.orderStatus = 'PENDING' " +
                                 "AND o.createdAt < :cutoff",
                         Orders.class)
                         .setParameter("cutoff", cutoff)
@@ -52,7 +52,7 @@ public class OrderScheduler {
 
             for (Orders order : staleOrders) {
                 try {
-                    orderService.cancelOrder(order.getOrderId(), null, null, "Hết thời gian thanh toán (15 phút)", false);
+                    orderService.cancelOrder(order.getOrderId(), null, null, "Hết thời gian thanh toán (15 phút)", false, "UNPAID");
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

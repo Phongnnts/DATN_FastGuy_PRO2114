@@ -35,6 +35,20 @@ public class OrdersDAO {
         }
     }
 
+    public Orders findByIdempotencyKey(String key) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Orders> list = em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.idempotencyKey = :key", Orders.class)
+                    .setParameter("key", key)
+                    .setMaxResults(1)
+                    .getResultList();
+            return list.isEmpty() ? null : list.get(0);
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Orders> findByUserId(int userId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -347,6 +361,19 @@ public class OrdersDAO {
                     Orders.class)
                     .setParameter("sid", shipperId)
                     .setParameter("status", status)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findDeliveredByStaffId(int staffId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.staff.userId = :staffId AND o.orderStatus = 'DELIVERED' ORDER BY o.deliveredAt DESC, o.createdAt DESC",
+                    Orders.class)
+                    .setParameter("staffId", staffId)
                     .getResultList();
         } finally {
             em.close();

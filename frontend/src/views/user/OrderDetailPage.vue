@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatPrice, formatDate } from '@/utils/format'
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue'
@@ -30,11 +30,9 @@ const justCreated = ref(route.query.created === '1')
 
 const isDelivered = computed(() => order.value?.status === 'DELIVERED')
 const isCancelled = computed(() => order.value?.status === 'CANCELLED')
-const canCancel = computed(() => order.value?.status === 'PENDING' || order.value?.status === 'WAITING_STOCK_CONFIRM')
-const waitingStockConfirm = computed(() => order.value?.status === 'WAITING_STOCK_CONFIRM')
+const canCancel = computed(() => order.value?.status === 'PENDING')
 const paymentLabel = computed(() => ({ PAID: 'Đã thanh toán', UNPAID: 'Chưa thanh toán', PENDING: 'Đang xử lý', FAILED: 'Thanh toán thất bại', REFUNDED: 'Đã hoàn tiền' })[order.value?.paymentStatus] || order.value?.paymentStatus || 'Chưa thanh toán')
 const refundLabel = computed(() => ({ PENDING: 'Đang xử lý', PROCESSING: 'Đang hoàn tiền', COMPLETED: 'Đã hoàn tiền', FAILED: 'Hoàn tiền thất bại' })[order.value?.refundStatus] || order.value?.refundStatus)
-let statusPolling = null
 
 onMounted(loadOrder)
 
@@ -82,33 +80,11 @@ async function loadOrder() {
     if (data && data.status === 'DELIVERED') {
       await loadReview(data.orderId)
     }
-    startStatusPolling()
   } catch (e) {
     loadError.value = e.message || 'Không thể tải chi tiết đơn hàng'
   } finally {
     loading.value = false
   }
-}
-
-onUnmounted(() => {
-  if (statusPolling) { clearInterval(statusPolling); statusPolling = null }
-})
-
-function startStatusPolling() {
-  if (!order.value || order.value.status !== 'WAITING_STOCK_CONFIRM') return
-  statusPolling = setInterval(async () => {
-    try {
-      const data = await orderApi.getById(order.value.id)
-      if (data && data.status !== 'WAITING_STOCK_CONFIRM') {
-        order.value.status = data.status
-        order.value.checkoutUrl = data.checkoutUrl || null
-        order.value.statusHistory = data.statusHistory || order.value.statusHistory
-        order.value.paymentStatus = data.paymentStatus
-        if (order.value.checkoutUrl) window.location.assign(order.value.checkoutUrl)
-        if (statusPolling) { clearInterval(statusPolling); statusPolling = null }
-      }
-    } catch {}
-  }, 5000)
 }
 
 async function loadReview(orderId) {
@@ -229,12 +205,6 @@ async function cancelOrder() {
       <div class="detail-section">
         <h4>Trạng thái đơn hàng</h4>
         <OrderTimeline :history="order.statusHistory" />
-      </div>
-
-      <div v-if="waitingStockConfirm" class="detail-section" style="text-align:center;padding:24px">
-        <i class="bi bi-hourglass-split" style="color:var(--primary);font-size:48px"></i>
-        <h4 style="margin-top:8px">Đang chờ cửa hàng xác nhận tồn kho</h4>
-        <p style="color:var(--text-mid);font-size:13px">Cửa hàng sẽ kiểm tra và xác nhận đơn hàng của bạn</p>
       </div>
 
       <div v-if="order.paymentMethod === 'BANK_TRANSFER' && order.checkoutUrl && !isCancelled && order.paymentStatus !== 'PAID'" class="detail-section" style="text-align:center;padding:24px">
