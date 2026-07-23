@@ -7,7 +7,6 @@ export const ROLES = {
 };
 
 export const ORDER_STATUS = {
-  WAITING_STOCK_CONFIRM: 'WAITING_STOCK_CONFIRM',
   PENDING: 'PENDING',
   CONFIRMED: 'CONFIRMED',
   PREPARING: 'PREPARING',
@@ -18,7 +17,6 @@ export const ORDER_STATUS = {
 };
 
 export const ORDER_STATUS_LABEL = {
-  WAITING_STOCK_CONFIRM: 'Chờ xác nhận tồn kho',
   PENDING: 'Chờ xác nhận',
   CONFIRMED: 'Đã xác nhận',
   PREPARING: 'Đang chuẩn bị',
@@ -29,7 +27,6 @@ export const ORDER_STATUS_LABEL = {
 };
 
 export const ORDER_STATUS_BADGE = {
-  WAITING_STOCK_CONFIRM: 'info',
   PENDING: 'warning',
   CONFIRMED: 'info',
   PREPARING: 'primary',

@@ -96,7 +96,8 @@ onUnmounted(() => {
     <footer class="footer">
       <div class="container">
         <div class="footer-grid">
-          <div><div class="brand">Fast<span>Guy</span></div><p>Thức ăn nhanh, giao tận nơi trong 30 phút.</p></div>
+          <div class="footer-about"><div class="brand">Fast<span>Guy</span></div><p>Đặt đồ ăn nhanh, giao tận nơi trong 30 phút. Thực đơn đa dạng, thanh toán tiện lợi.</p></div>
+          <div class="footer-col"><h2>Về FastGuy</h2><router-link to="/">Trang chủ</router-link><router-link to="/menu">Thực đơn</router-link><router-link to="/promotions">Khuyến mãi</router-link></div>
           <div class="footer-col"><h2>Liên kết</h2><router-link to="/">Trang chủ</router-link><router-link to="/menu">Thực đơn</router-link><router-link to="/track-order">Tra cứu đơn</router-link></div>
           <div class="footer-col"><h2>Hỗ trợ</h2><a href="tel:19001234">1900 1234</a><a href="mailto:support@fastguy.vn">support@fastguy.vn</a></div>
         </div>
@@ -127,7 +128,8 @@ onUnmounted(() => {
 .mobile-toggle { display: none; }
 .main { min-height: calc(100vh - 260px); }
 .footer { margin-top: var(--space-8); background: var(--color-surface); border-top: 1px solid var(--color-border); }
-.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding: 48px 0 32px; }
+.footer-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 36px; padding: 48px 0 32px; }
+.footer-about p { color: var(--color-text-muted); font-size: 14px; line-height: 1.6; }
 .footer p, .footer-col a { color: var(--color-text-muted); font-size: 14px; }
 .footer p { margin-top: 12px; }
 .footer-col h2 { margin-bottom: 14px; color: var(--color-text); font-size: 13px; text-transform: uppercase; }

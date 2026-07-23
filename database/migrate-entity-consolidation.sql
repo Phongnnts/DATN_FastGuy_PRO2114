@@ -62,7 +62,7 @@ SET oi.modifiers_json = (
     SELECT
         om.modifier_option_id AS modifierOptionId,
         om.group_name AS groupName,
-        om.option_name AS [name],
+        om.option_name AS optionName,
         om.price
     FROM OrderItemModifier om
     WHERE om.order_item_id = oi.order_item_id

@@ -7,8 +7,8 @@ export default {
   getById(id) {
     return client.get(`/orders/${id}`);
   },
-  create(data) {
-    return client.post('/orders', data);
+  create(data, idempotencyKey) {
+    return client.post('/orders', data, { headers: { 'Idempotency-Key': idempotencyKey } });
   },
   cancel(id, data) {
     return client.put(`/orders/${id}/cancel`, data || {});
@@ -22,8 +22,8 @@ export default {
   getPaymentStatus(id) {
     return client.get(`/orders/${id}/payment-status`);
   },
-  guestCheckout(data) {
-    return client.post('/orders/guest-checkout', data);
+  guestCheckout(data, idempotencyKey) {
+    return client.post('/orders/guest-checkout', data, { headers: { 'Idempotency-Key': idempotencyKey } });
   },
   verifyPayment(orderId) {
     return client.get(`/orders/verify-payment/${orderId}`);

@@ -177,6 +177,7 @@ public class AdminOrderServlet extends HttpServlet {
                 Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
                 String status = body != null ? (String) body.get("status") : null;
                 if (status == null) { ApiResponse.error(resp, "Missing status", 400); return; }
+                if (!OrderTransitionService.canUseGenericTransition(status)) { ApiResponse.error(resp, "Use cancel action", 400); return; }
                 boolean ok = transitionService.transition(orderId, status, "ADMIN", adminId, body != null ? (String) body.get("note") : null);
                 if (!ok) { ApiResponse.error(resp, "Invalid status transition", 400); return; }
                 ApiResponse.ok(resp, null, "Status updated");

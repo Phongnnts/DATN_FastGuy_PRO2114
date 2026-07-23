@@ -3,7 +3,6 @@ package service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -97,6 +96,43 @@ public class WorkShiftService {
         }
     }
 
+    public Map<String, Object> current(int userId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            List<WorkShift> shifts = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.shiftDate = :today ORDER BY ws.startTime, ws.shiftId", WorkShift.class)
+                    .setParameter("userId", userId).setParameter("today", now.toLocalDate()).getResultList();
+            CurrentShift current = current(shifts, now.toLocalTime());
+            Map<String, Object> result = new HashMap<>();
+            result.put("state", current.state());
+            result.put("shift", current.shift() == null ? null : toMap(current.shift()));
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    record CurrentShift(String state, WorkShift shift) {}
+
+    static CurrentShift current(List<WorkShift> shifts, LocalTime now) {
+        WorkShift selected = shifts.stream().filter(s -> "CHECKED_IN".equals(s.getStatus())).findFirst().orElse(null);
+        if (selected != null) return new CurrentShift("CHECKED_IN", selected);
+        if (!shifts.isEmpty() && shifts.stream().allMatch(s -> s.getCheckOutAt() != null)) return new CurrentShift("CHECKED_OUT", shifts.get(shifts.size() - 1));
+        selected = shifts.stream().filter(s -> s.getCheckOutAt() == null && !now.isAfter(s.getEndTime().plusMinutes(15))).findFirst().orElse(null);
+        if (selected == null) return new CurrentShift("NONE", null);
+        if (now.isBefore(selected.getStartTime().minusMinutes(15))) return new CurrentShift("UPCOMING", selected);
+        return new CurrentShift("CHECK_IN_ALLOWED", selected);
+    }
+
+    static boolean canCheckOut(LocalTime now, LocalTime endTime) {
+        return !now.isBefore(endTime);
+    }
+
+    static boolean canCheckOut(WorkShift shift, LocalDateTime now) {
+        return "CHECKED_IN".equals(shift.getStatus()) && shift.getCheckInAt() != null && shift.getCheckOutAt() == null
+                && !now.isBefore(LocalDateTime.of(shift.getShiftDate(), shift.getEndTime()));
+    }
+
     public Map<String, Object> check(int shiftId, int userId, boolean checkIn) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -115,8 +151,10 @@ public class WorkShiftService {
                 shift.setCheckInAt(LocalDateTime.now());
                 shift.setStatus("CHECKED_IN");
             } else {
-                if (shift.getCheckInAt() == null || shift.getCheckOutAt() != null) throw new IllegalArgumentException("Cannot check out");
-                shift.setCheckOutAt(LocalDateTime.now());
+                LocalDateTime now = LocalDateTime.now();
+                if (!"CHECKED_IN".equals(shift.getStatus()) || shift.getCheckInAt() == null || shift.getCheckOutAt() != null) throw new IllegalArgumentException("Cannot check out");
+                if (!canCheckOut(shift, now)) throw new IllegalArgumentException("Check-out is only allowed from shift end time");
+                shift.setCheckOutAt(now);
                 shift.setStatus("CHECKED_OUT");
             }
             em.getTransaction().commit();

@@ -260,20 +260,28 @@ public class ProductDAO {
         }
     }
 
-    public void delete(int id) {
+    public boolean delete(int id) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
             Product p = em.find(Product.class, id);
-            if (p != null) em.remove(p);
+            if (p == null) {
+                em.getTransaction().rollback();
+                return false;
+            }
+            markDeleted(p);
             em.getTransaction().commit();
+            return true;
         } catch (Exception e) {
-            em.getTransaction().rollback();
-            e.printStackTrace();
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw new RuntimeException("Failed to delete product: " + e.getMessage(), e);
         } finally {
             em.close();
         }
+    }
+
+    static void markDeleted(Product product) {
+        product.setStatus("UNAVAILABLE");
     }
 
     public void saveVariant(ProductVariant variant) {

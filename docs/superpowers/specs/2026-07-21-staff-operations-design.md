@@ -7,6 +7,11 @@ Dashboard, order queue/detail/history, shipper assignment, shifts, support, noti
 ## Shift And Authorization
 
 - Endpoint current shift tra `NONE`, `UPCOMING`, `CHECK_IN_ALLOWED`, `CHECKED_IN`, `CHECKED_OUT`.
+- Check-in chi cho ca hom nay trong khoang `startTime - 15 phut` den `endTime + 15 phut`.
+- Check-out chi cho ca da check-in va tu `endTime` tro di; khong gioi han checkout muon.
+- Dashboard va don dang xu ly chi mo khi shift `CHECKED_IN`; truoc check-in va sau check-out chuyen ve trang ca lam.
+- Lich su don, ho tro va trang ca lam van mo cho Staff hop le ngoai ca.
+- Backend la nguon phan quyen: dashboard, danh sach/chi tiet don dang xu ly, export, ghi chu, cap nhat trang thai va gan Shipper deu yeu cau shift `CHECKED_IN`.
 - Mutation Staff chi cho account `ACTIVE`, role hien tai `STAFF`, shift `CHECKED_IN`.
 - UI khong fail-open khi shift request loi.
 - Ho tro nhieu ca cung ngay; hien ca hien tai va ca sap toi.
@@ -55,6 +60,8 @@ Dashboard, order queue/detail/history, shipper assignment, shifts, support, noti
 
 - Hai Staff thao tac dong thoi khong skip/ghi de state.
 - Staff ngoai ca/bi khoa khong mutation duoc.
+- Staff chua check-in hoac da check-out khong xem duoc dashboard va don dang xu ly, nhung van xem duoc lich su don va ho tro.
+- Check-out truoc `endTime` bi tu choi; check-out tu `endTime` tro di thanh cong.
 - Kitchen thay modifier va amount breakdown dung.
 - Chi Shipper hop le duoc gan.
 - Queue/history/support dung duoc tren 320px va keyboard-only.

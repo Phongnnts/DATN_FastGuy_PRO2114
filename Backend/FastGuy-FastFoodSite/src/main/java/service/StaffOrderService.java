@@ -19,15 +19,12 @@ public class StaffOrderService {
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private UserDAO userDAO = new UserDAO();
     private OrderService orderService = new OrderService();
-    private PayOSPaymentService payOSPaymentService = new PayOSPaymentService();
     private NotificationService notificationService = new NotificationService();
     private OrderStatusHistoryService orderStatusHistoryService = new OrderStatusHistoryService();
+    private InventoryReservationService inventoryReservationService = new InventoryReservationService();
 
     public List<Orders> getPendingOrders() {
-        List<Orders> pending = ordersDAO.findByStatus("PENDING");
-        List<Orders> waiting = ordersDAO.findByStatus("WAITING_STOCK_CONFIRM");
-        waiting.addAll(pending);
-        return waiting;
+        return ordersDAO.findByStatus("PENDING");
     }
 
     public List<Orders> getConfirmedOrders() {
@@ -88,25 +85,13 @@ public class StaffOrderService {
             String current = order.getOrderStatus();
 
             switch (status) {
-                case "PENDING":
-                    if (!"WAITING_STOCK_CONFIRM".equals(current)) { em.getTransaction().rollback(); return false; }
-                    if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
-                        if (!payOSPaymentService.isConfigured()) { em.getTransaction().rollback(); return false; }
-                        em.getTransaction().commit();
-                        boolean confirmed = orderService.confirmStock(orderId, staffId);
-                        if (!confirmed) return false;
-                        if (payOSPaymentService.createPaymentLink(orderId) != null) return true;
-                        orderService.revertStockConfirmation(orderId, staffId, "Không thể tạo link PayOS, vui lòng xác nhận lại");
-                        return false;
-                    }
-                    order.setConfirmedAt(LocalDateTime.now());
-                    break;
                 case "CONFIRMED":
                     if (!"PENDING".equals(current)) { em.getTransaction().rollback(); return false; }
                     order.setConfirmedAt(LocalDateTime.now());
                     break;
                 case "PREPARING":
                     if (!"CONFIRMED".equals(current)) { em.getTransaction().rollback(); return false; }
+                    if (!inventoryReservationService.transition(em, order, "CONSUMED")) { em.getTransaction().rollback(); return false; }
                     break;
                 case "READY":
                     if (!"PREPARING".equals(current)) { em.getTransaction().rollback(); return false; }

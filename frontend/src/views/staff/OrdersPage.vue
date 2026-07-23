@@ -12,9 +12,9 @@ const activeTab = ref('PENDING');
 const searchTerm = ref('');
 let refreshTimer;
 let refreshing = false;
-const tabs = [{ key:'WAITING_STOCK_CONFIRM', label:'Chờ xác nhận tồn' }, { key:'PENDING', label:'Chờ xử lý' }, { key:'CONFIRMED', label:'Đã xác nhận' }, { key:'PREPARING', label:'Đang chế biến' }, { key:'READY', label:'Sẵn sàng giao' }];
+const tabs = [{ key:'PENDING', label:'Chờ xử lý' }, { key:'CONFIRMED', label:'Đã xác nhận' }, { key:'PREPARING', label:'Đang chế biến' }, { key:'READY', label:'Sẵn sàng giao' }];
 function normalizedTab(value) { return tabs.some(tab => tab.key === value) ? value : 'PENDING'; }
-async function refresh(tab = activeTab.value) { if (refreshing) return; refreshing = true; try { if (tab === 'PENDING' || tab === 'WAITING_STOCK_CONFIRM') await staffStore.fetchOrders(); else if (tab === 'CONFIRMED') await staffStore.fetchConfirmedOrders(); else if (tab === 'PREPARING') await staffStore.fetchPreparingOrders(); else await staffStore.fetchReadyOrders(); } finally { refreshing = false; } }
+async function refresh(tab = activeTab.value) { if (refreshing) return; refreshing = true; try { if (tab === 'PENDING') await staffStore.fetchOrders(); else if (tab === 'CONFIRMED') await staffStore.fetchConfirmedOrders(); else if (tab === 'PREPARING') await staffStore.fetchPreparingOrders(); else await staffStore.fetchReadyOrders(); } finally { refreshing = false; } }
 async function switchTab(tab) { activeTab.value = normalizedTab(tab); await refresh(); }
 const filteredOrders = computed(() => staffStore.allOrders.filter(order => order.status === activeTab.value && (!searchTerm.value || order.orderCode.toLowerCase().includes(searchTerm.value.toLowerCase()))).sort((a,b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)));
 function isOverdue(order) { return ['PENDING','CONFIRMED','PREPARING'].includes(order.status) && Date.now() - new Date(order.createdAt).getTime() > 25 * 60 * 1000; }

@@ -16,14 +16,6 @@ create table Category (
     status varchar(20) default 'ACTIVE'
 );
 
-create table DeliveryZone (
-    zone_id int identity primary key,
-    district_name nvarchar(100) not null,
-    ward_name nvarchar(100),
-    shipping_fee decimal(10,2) default 0,
-    is_active bit default 1
-);
-
 create table Product (
     product_id int identity primary key,
     category_id int not null references Category(category_id),
@@ -104,15 +96,9 @@ create table ShippingConfig (
 );
 create unique index UQ__Shipping__BDF6033DB3EF9639 on ShippingConfig(config_key);
 
-create table Role (
-    role_id int identity primary key,
-    role_name varchar(50) not null
-);
-create unique index UQ__Role__783254B111E61016 on Role(role_name);
-
 create table Users (
     user_id int identity primary key,
-    role_id int not null references Role(role_id),
+    role_name varchar(20) not null default 'USER',
     email varchar(255),
     phone varchar(20) not null,
     password_hash varchar(255) not null,
@@ -120,7 +106,9 @@ create table Users (
     avatar_url varchar(500),
     status varchar(20) default 'ACTIVE',
     loyalty_points int not null default 0,
-    created_at datetime2 default getdate()
+    favorite_ids_json nvarchar(max) default '[]',
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 create unique index UQ__Users__AB6E6164B24E18DD on Users(email) where email is not null;
 create unique index UQ__Users__B43B145F28B1640F on Users(phone);
@@ -131,7 +119,8 @@ create table PasswordResetToken (
     token_hash varchar(64) not null unique,
     expires_at datetime2 not null,
     used_at datetime2,
-    created_at datetime2 not null default getdate()
+    created_at datetime2 not null default getdate(),
+    updated_at datetime2 not null default getdate()
 );
 create index IX_PasswordResetToken_User on PasswordResetToken(user_id);
 
@@ -143,7 +132,8 @@ create table Banner (
     link varchar(500),
     sort_order int default 0,
     is_active bit default 1,
-    created_at datetime2 default getdate()
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 
 create table Address (
@@ -158,17 +148,18 @@ create table Address (
     ghn_province_id int,
     ghn_district_id int,
     ghn_ward_code varchar(50),
-    zone_id int references DeliveryZone(zone_id),
     city nvarchar(100) default N'TP. Hồ Chí Minh',
     is_default bit default 0,
-    created_at datetime2 default getdate()
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 
 create table Cart (
     cart_id int identity primary key,
     user_id int references Users(user_id),
     session_id varchar(128),
-    created_at datetime2 default getdate()
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 
 create table CartItem (
@@ -179,7 +170,9 @@ create table CartItem (
     quantity int not null,
     unit_price decimal(10,2) not null,
     selected_modifier_option_ids varchar(500),
-    created_at datetime2 default getdate()
+    modifiers_json nvarchar(max) default '[]',
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 create unique index idx_cartitem_variant on CartItem(cart_id, variant_id, selected_modifier_option_ids);
 alter table CartItem add constraint CK_CartItem_Quantity check (quantity > 0);
@@ -197,18 +190,21 @@ create table Coupon (
     expires_at datetime2,
     is_active bit default 1,
     is_public bit default 1,
-    created_at datetime2 default getdate()
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 create unique index UQ__Coupon__357D4CF93B725CDD on Coupon(code);
 
 create table Orders (
     order_id int identity primary key,
     order_code varchar(50) not null,
+    idempotency_key varchar(100),
+    request_hash varchar(64),
+    idempotency_owner varchar(100),
     user_id int references Users(user_id),
     customer_name nvarchar(255) not null,
     customer_phone varchar(20) not null,
     customer_address nvarchar(500) not null,
-    zone_id int references DeliveryZone(zone_id),
     to_province_name nvarchar(100),
     to_district_name nvarchar(100),
     to_ward_name nvarchar(100),
@@ -254,9 +250,44 @@ create table Orders (
     refund_note nvarchar(500),
     internal_note nvarchar(1000),
     delivery_note nvarchar(500),
-    created_at datetime2 default getdate()
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 create unique index UQ__Orders__99D12D3FCA6940DB on Orders(order_code);
+create unique index UQ_Orders_IdempotencyKey on Orders(idempotency_key) where idempotency_key is not null;
+
+create table PaymentAttempt (
+    payment_attempt_id int identity primary key,
+    order_id int not null unique references Orders(order_id),
+    provider varchar(20) not null,
+    provider_reference varchar(100),
+    checkout_url varchar(500),
+    amount decimal(10,2) not null,
+    status varchar(20) not null,
+    lease_token varchar(36),
+    created_at datetime2 not null default getdate(),
+    updated_at datetime2 not null default getdate()
+);
+
+create table InventoryReservation (
+    reservation_id int identity primary key,
+    order_id int not null references Orders(order_id),
+    variant_id int not null references ProductVariant(variant_id),
+    quantity int not null check (quantity > 0),
+    status varchar(20) not null check (status in ('RESERVED', 'CONSUMED', 'RELEASED')),
+    created_at datetime2 not null default getdate(),
+    updated_at datetime2 not null default getdate(),
+    constraint UQ_InventoryReservation_Order_Variant unique(order_id, variant_id)
+);
+
+create table InventoryTransaction (
+    inventory_transaction_id int identity primary key,
+    order_id int not null references Orders(order_id),
+    variant_id int not null references ProductVariant(variant_id),
+    transaction_type varchar(20) not null check (transaction_type in ('RESERVE', 'RELEASE', 'CONSUME', 'RETURN', 'ADJUSTMENT')),
+    quantity int not null check (quantity > 0),
+    created_at datetime2 not null default getdate()
+);
 
 create table LoyaltyTransaction (
     loyalty_transaction_id int identity primary key,
@@ -278,7 +309,8 @@ create table WorkShift (
     check_in_at datetime2,
     check_out_at datetime2,
     status varchar(20) default 'SCHEDULED',
-    created_at datetime2 default getdate()
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 create index IX_WorkShift_User_Date on WorkShift(user_id, shift_date);
 create index IX_WorkShift_Date on WorkShift(shift_date);
@@ -307,22 +339,12 @@ create table OrderItem (
     quantity int not null,
     unit_price decimal(10,2) not null,
     total_price decimal(10,2) not null,
+    modifiers_json nvarchar(max) default '[]',
     constraint CK_OrderItem_Quantity check (quantity > 0),
     constraint CK_OrderItem_Amount check (unit_price >= 0 and total_price >= 0)
 );
 create index IX_OrderItem_Order on OrderItem(order_id);
 create index IX_OrderItem_Variant on OrderItem(variant_id);
-
-create table OrderItemModifier (
-    order_item_modifier_id int identity primary key,
-    order_item_id int not null references OrderItem(order_item_id),
-    modifier_option_id int references ProductModifierOption(modifier_option_id),
-    group_name nvarchar(255) not null,
-    option_name nvarchar(255) not null,
-    price decimal(10,2) not null,
-    constraint CK_OrderItemModifier_Price check (price >= 0)
-);
-create index IX_OrderItemModifier_OrderItem on OrderItemModifier(order_item_id);
 
 create table Review (
     review_id int identity primary key,
@@ -364,7 +386,8 @@ create table Notification (
     type varchar(50),
     target_url varchar(500),
     is_read bit default 0,
-    created_at datetime2 default getdate()
+    created_at datetime2 default getdate(),
+    updated_at datetime2 default getdate()
 );
 create index IX_Notification_User_Read on Notification(user_id, is_read, created_at);
 create index IX_Notification_Role_Read on Notification(role_name, is_read, created_at);
@@ -414,32 +437,6 @@ insert into Category (name, description, sort_order, status) values
 ;
 go
 
-insert into DeliveryZone (district_name, shipping_fee, is_active) values
-(N'Quận 1', 15000.00, 1),
-(N'Quận 2', 15000.00, 1),
-(N'Quận 3', 12000.00, 1),
-(N'Quận 4', 12000.00, 1),
-(N'Quận 5', 12000.00, 1),
-(N'Quận 6', 12000.00, 1),
-(N'Quận 7', 10000.00, 1),
-(N'Quận 8', 12000.00, 1),
-(N'Quận 9', 15000.00, 1),
-(N'Quận 10', 10000.00, 1),
-(N'Quận 11', 12000.00, 1),
-(N'Quận 12', 15000.00, 1),
-(N'Bình Thạnh', 10000.00, 1),
-(N'Tân Bình', 12000.00, 1),
-(N'Tân Phú', 12000.00, 1),
-(N'Gò Vấp', 12000.00, 1),
-(N'Phú Nhuận', 10000.00, 1),
-(N'Thủ Đức', 15000.00, 1),
-(N'Bình Tân', 15000.00, 1),
-(N'Hóc Môn', 20000.00, 1),
-(N'Củ Chi', 25000.00, 1),
-(N'Nhà Bè', 20000.00, 1),
-(N'Cần Giờ', 30000.00, 1)
-;
-go
 
 insert into Product (category_id, name, description, base_price, image_url, gallery_images, status, created_at, updated_at) values
 (1, N'Classic Beef Burger', N'Burger bò cổ điển với thịt bò nướng, rau xà lách, cà chua và sốt đặc biệt', 45000.00, 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1783104193/126c206b96e4f0028379a860c2c072a4_hog84a.jpg', N'["https://res.cloudinary.com/ds4dnsj0o/image/upload/v1783104198/126c206b96e4f0028379a860c2c072a4_vcmikp.jpg","https://res.cloudinary.com/ds4dnsj0o/image/upload/v1783104202/243b84a0b420290d9832a60eff0842ff_zpsi6q.jpg","https://res.cloudinary.com/ds4dnsj0o/image/upload/v1783104204/7595d43128b37efa858d8589220cad91_lgmlrs.jpg","https://res.cloudinary.com/ds4dnsj0o/image/upload/v1783104205/db4076314df0396db67a5da459546f34_asecmc.jpg","https://res.cloudinary.com/ds4dnsj0o/image/upload/v1783104206/ebcbc6aaa9deca9d6efc1efc93b66945_oy7ftc.jpg"]', 'AVAILABLE', '7/4/2026 1:40:02 AM', '7/4/2026 1:43:27 AM'),
@@ -624,24 +621,15 @@ insert into ShippingConfig (config_key, config_value) values
 ;
 go
 
-insert into Role (role_name) values
-('ADMIN'),
-('GUEST'),
-('SHIPPER'),
-('STAFF'),
-('USER')
-;
-go
-
-insert into Users (role_id, email, phone, password_hash, full_name, avatar_url, status, created_at) values
-(1, 'admin@fastguy.com', '0901000001', 'pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=', N'Nam Phong', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(4, 'staff1@fastguy.com', '0901000002', '123456', N'Nguyễn Văn A', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(4, 'staff2@fastguy.com', '0901000003', '123456', N'Trần Thị B', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(3, 'shipper1@fastguy.com', '0901000004', '123456', N'Phạm Văn C', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(3, 'shipper2@fastguy.com', '0901000005', '123456', N'Lê Thị D', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(5, 'user1@gmail.com', '0901000006', 'pbkdf2$120000$JpbGvZddz37orCzWxpmabw==$Ld1dCzqT9N0fD5cRfj0S6HF16f59UQZAulLRTvFc/sE=', N'Phúc Khang', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(5, 'user2@gmail.com', '0901000007', '123456', N'Mai Thị F', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
-(2, NULL, '0901000008', '123456', N'Khách Vãng Lai 1', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM')
+insert into Users (role_name, email, phone, password_hash, full_name, avatar_url, status, created_at) values
+('ADMIN', 'admin@fastguy.com', '0901000001', 'pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=', N'Nam Phong', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+('STAFF', 'staff1@fastguy.com', '0901000002', '123456', N'Nguyễn Văn A', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+('STAFF', 'staff2@fastguy.com', '0901000003', '123456', N'Trần Thị B', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+('SHIPPER', 'shipper1@fastguy.com', '0901000004', '123456', N'Phạm Văn C', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+('SHIPPER', 'shipper2@fastguy.com', '0901000005', '123456', N'Lê Thị D', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+('USER', 'user1@gmail.com', '0901000006', 'pbkdf2$120000$JpbGvZddz37orCzWxpmabw==$Ld1dCzqT9N0fD5cRfj0S6HF16f59UQZAulLRTvFc/sE=', N'Phúc Khang', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+('USER', 'user2@gmail.com', '0901000007', '123456', N'Mai Thị F', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM'),
+('GUEST', NULL, '0901000008', '123456', N'Khách Vãng Lai 1', NULL, 'ACTIVE', '7/4/2026 1:40:02 AM')
 ;
 go
 
@@ -652,10 +640,10 @@ insert into Banner (title, subtitle, image_url, link, sort_order, is_active, cre
 ;
 go
 
-insert into Address (user_id, recipient_name, phone, street, ward_name, district_name, province_name, ghn_province_id, ghn_district_id, ghn_ward_code, zone_id, city, is_default, created_at) values
-(6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi', N'Phường Bến Nghé', N'Quận 1', N'TP. Hồ Chí Minh', NULL, NULL, NULL, 1, N'TP. Hồ Chí Minh', NULL, '7/4/2026 1:40:02 AM'),
-(7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ', N'Phường Bến Thành', N'Quận 1', N'TP. Hồ Chí Minh', NULL, NULL, NULL, 1, N'TP. Hồ Chí Minh', NULL, '7/4/2026 1:40:02 AM'),
-(6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt', N'Phường Cô Giang', N'Quận 4', N'TP. Hồ Chí Minh', NULL, NULL, NULL, 4, N'TP. Hồ Chí Minh', 0, '7/4/2026 1:40:02 AM')
+insert into Address (user_id, recipient_name, phone, street, ward_name, district_name, province_name, ghn_province_id, ghn_district_id, ghn_ward_code, city, is_default, created_at) values
+(6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi', N'Phường Bến Nghé', N'Quận 1', N'TP. Hồ Chí Minh', NULL, NULL, NULL, N'TP. Hồ Chí Minh', NULL, '7/4/2026 1:40:02 AM'),
+(7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ', N'Phường Bến Thành', N'Quận 1', N'TP. Hồ Chí Minh', NULL, NULL, NULL, N'TP. Hồ Chí Minh', NULL, '7/4/2026 1:40:02 AM'),
+(6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt', N'Phường Cô Giang', N'Quận 4', N'TP. Hồ Chí Minh', NULL, NULL, NULL, N'TP. Hồ Chí Minh', 0, '7/4/2026 1:40:02 AM')
 ;
 go
 
@@ -684,26 +672,21 @@ insert into Coupon (code, type, value, min_order, max_discount, max_uses, used_c
 ;
 go
 
-insert into ClaimedCoupon (coupon_id, user_id, claimed_at, used_at) values
-(1, 6, '6/1/2025 9:00:00 AM', NULL),
-(2, 6, '6/1/2025 9:00:00 AM', NULL),
-(3, 7, '6/2/2025 10:00:00 AM', NULL),
-(3, 6, '7/8/2026 12:41:47 PM', NULL)
+insert into CouponRedemption (coupon_id, user_id, order_id, claimed_at, used_at, discount_amount) values
+(1, 6, NULL, '6/1/2025 9:00:00 AM', NULL, NULL),
+(2, 6, NULL, '6/1/2025 9:00:00 AM', NULL, NULL),
+(3, 7, NULL, '6/2/2025 10:00:00 AM', NULL, NULL),
+(3, 6, NULL, '7/8/2026 12:41:47 PM', NULL, NULL)
 ;
 go
 
-insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, zone_id, to_province_name, to_district_name, to_ward_name, ghn_province_id, ghn_district_id, ghn_ward_code, total_amount, shipping_fee, final_amount, shipping_provider, shipping_service_id, shipping_service_type_id, expected_delivery_time, ghn_order_code, ghn_tracking_url, ghn_status, from_district_id, from_ward_code, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, paid_at, delivered_at, cancelled_at, coupon_code, discount_amount, failure_reason, cancelled_by, refund_status, refund_note, internal_note, delivery_note, created_at) values
-('FG-20250601-001', 6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi, Phường Bến Nghé, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 171000.00, 15000.00, 186000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'PAID', 'DELIVERED', 2, 4, '6/1/2025 10:15:00 AM', '6/1/2025 10:20:00 AM', '6/1/2025 10:40:00 AM', '6/1/2025 10:50:00 AM', '6/1/2025 11:10:00 AM', '6/1/2025 11:10:00 AM', NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/1/2025 10:00:00 AM'),
-('FG-20250601-002', 7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ, Phường Bến Thành, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 135000.00, 15000.00, 150000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'BANKING', 'PAID', 'DELIVERED', 3, 5, '6/1/2025 11:30:00 AM', '6/1/2025 11:35:00 AM', '6/1/2025 12:00:00 PM', '6/1/2025 12:10:00 PM', '6/1/2025 12:30:00 PM', '6/1/2025 12:30:00 PM', NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/1/2025 11:15:00 AM'),
-('FG-20250602-001', 6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt, Phường Cô Giang, Quận 4', 4, NULL, NULL, NULL, NULL, NULL, NULL, 117000.00, 12000.00, 129000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'PENDING', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/2/2025 2:00:00 PM'),
-('FG-20250602-002', NULL, N'Nguyễn Vãng Lai', '0901888999', N'12 Nguyễn Trãi, Phường Phạm Ngũ Lão, Quận 1', 1, NULL, NULL, NULL, NULL, NULL, NULL, 49000.00, 15000.00, 64000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'CONFIRMED', 2, 4, '6/2/2025 2:30:00 PM', '6/2/2025 2:35:00 PM', NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/2/2025 2:20:00 PM'),
+insert into Orders (order_code, user_id, customer_name, customer_phone, customer_address, to_province_name, to_district_name, to_ward_name, ghn_province_id, ghn_district_id, ghn_ward_code, total_amount, shipping_fee, final_amount, shipping_provider, shipping_service_id, shipping_service_type_id, expected_delivery_time, ghn_order_code, ghn_tracking_url, ghn_status, from_district_id, from_ward_code, payment_method, payment_status, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, paid_at, delivered_at, cancelled_at, coupon_code, discount_amount, failure_reason, cancelled_by, refund_status, refund_note, internal_note, delivery_note, created_at) values
+('FG-20250601-001', 6, N'Hoàng Văn E', '0901000006', N'123 Lê Lợi, Phường Bến Nghé, Quận 1', NULL, NULL, NULL, NULL, NULL, NULL, 171000.00, 15000.00, 186000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'PAID', 'DELIVERED', 2, 4, '6/1/2025 10:15:00 AM', '6/1/2025 10:20:00 AM', '6/1/2025 10:40:00 AM', '6/1/2025 10:50:00 AM', '6/1/2025 11:10:00 AM', '6/1/2025 11:10:00 AM', NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/1/2025 10:00:00 AM'),
+('FG-20250601-002', 7, N'Mai Thị F', '0901000007', N'456 Nguyễn Huệ, Phường Bến Thành, Quận 1', NULL, NULL, NULL, NULL, NULL, NULL, 135000.00, 15000.00, 150000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'BANKING', 'PAID', 'DELIVERED', 3, 5, '6/1/2025 11:30:00 AM', '6/1/2025 11:35:00 AM', '6/1/2025 12:00:00 PM', '6/1/2025 12:10:00 PM', '6/1/2025 12:30:00 PM', '6/1/2025 12:30:00 PM', NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/1/2025 11:15:00 AM'),
+('FG-20250602-001', 6, N'Hoàng Văn E', '0901000006', N'789 Võ Văn Kiệt, Phường Cô Giang, Quận 4', NULL, NULL, NULL, NULL, NULL, NULL, 117000.00, 12000.00, 129000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'PENDING', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/2/2025 2:00:00 PM'),
+('FG-20250602-002', NULL, N'Nguyễn Vãng Lai', '0901888999', N'12 Nguyễn Trãi, Phường Phạm Ngũ Lão, Quận 1', NULL, NULL, NULL, NULL, NULL, NULL, 49000.00, 15000.00, 64000.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'CASH', 'UNPAID', 'CONFIRMED', 2, 4, '6/2/2025 2:30:00 PM', '6/2/2025 2:35:00 PM', NULL, NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '6/2/2025 2:20:00 PM'),
 ('GST-FA1F4F8A', NULL, N'Nam Phong', '0974211242', N'Nam Phong, Quang Trung, Phường Trung Mỹ Tây, Quận 12, Hồ Chí Minh', NULL, N'Hồ Chí Minh', N'Quận 12', N'Phường Trung Mỹ Tây', 202, 1454, '21211', 55000.00, 21001.00, 76001.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'COD', 'UNPAID', 'READY', 2, 5, '7/4/2026 8:41:35 AM', '7/4/2026 1:41:58 AM', '7/4/2026 8:41:25 AM', NULL, NULL, NULL, NULL, NULL, 0.00, NULL, NULL, NULL, NULL, NULL, NULL, '7/4/2026 1:41:32 AM'),
 ('ORD-D9D9FD16', 6, N'Phúc Khang', '098765512331', N'Nam PHong, 123, Phường An Khánh, Thành Phố Thủ Đức, Hồ Chí Minh', NULL, N'Hồ Chí Minh', N'Thành Phố Thủ Đức', N'Phường An Khánh', 202, 3695, '90768', 387000.00, 21001.00, 388001.00, 'GHN', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'COD', 'UNPAID', 'READY', 2, 5, '7/8/2026 3:53:16 PM', '7/4/2026 8:40:08 AM', '7/8/2026 3:53:10 PM', NULL, NULL, NULL, NULL, 'WELCOME10', 20000.00, NULL, NULL, NULL, NULL, NULL, NULL, '7/4/2026 8:39:50 AM')
-;
-go
-
-insert into CouponUsage (coupon_id, user_id, order_id, discount_amount, used_at) values
-(1, 6, 6, 20000.00, '7/4/2026 8:39:50 AM')
 ;
 go
 
@@ -720,6 +703,31 @@ insert into OrderItem (order_id, product_id, variant_id, product_name, variant_n
 (6, 1, 1, N'Classic Beef Burger', N'Mặc định', 4, 45000.00, 180000.00),
 (6, 8, 77, N'Gà Rán Giòn Truyền Thống', N'Combo 3 miếng', 3, 69000.00, 207000.00)
 ;
+go
+
+update CouponRedemption
+set order_id = 6, used_at = '7/4/2026 8:39:50 AM', discount_amount = 20000.00
+where coupon_id = 1 and user_id = 6;
+go
+
+insert into InventoryReservation(order_id, variant_id, quantity, status)
+select oi.order_id, oi.variant_id, sum(oi.quantity),
+       case when o.order_status in ('PENDING', 'CONFIRMED') then 'RESERVED' else 'CONSUMED' end
+from OrderItem oi join Orders o on o.order_id = oi.order_id
+where o.order_status in ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP')
+group by oi.order_id, oi.variant_id, o.order_status;
+
+insert into InventoryTransaction(order_id, variant_id, transaction_type, quantity)
+select order_id, variant_id, case when status = 'RESERVED' then 'RESERVE' else 'CONSUME' end, quantity
+from InventoryReservation;
+
+update pv
+set quantity_available = pv.quantity_available - reserved.quantity
+from ProductVariant pv
+join (
+    select variant_id, sum(quantity) quantity from InventoryReservation group by variant_id
+) reserved on reserved.variant_id = pv.variant_id
+where pv.quantity_available is not null and pv.quantity_available >= reserved.quantity;
 go
 
 insert into FavoriteProduct (user_id, product_id, created_at) values

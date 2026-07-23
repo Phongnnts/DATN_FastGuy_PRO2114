@@ -10,15 +10,18 @@ const auth = useAuthStore();
 const notificationStore = useNotificationStore();
 const router = useRouter();
 const route = useRoute();
-const hasTodayShift = ref(true);
+const shiftState = ref('UNKNOWN');
+const checkedIn = computed(() => shiftState.value === 'CHECKED_IN');
+
+let shiftSequence = 0;
 
 const navItems = computed(() => {
-  if (!hasTodayShift.value) {
-    return [{ path: '/shipper/orders', name: 'Ca làm', icon: 'bi-calendar-week' }];
+  if (!checkedIn.value) {
+    return [{ path: '/shipper/orders', name: 'Don giao', icon: 'bi-clock-history' }];
   }
   return [
-    { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
-    { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
+    { path: '/shipper', name: 'Trang chu', icon: 'bi-house-door' },
+    { path: '/shipper/orders', name: 'Don giao', icon: 'bi-bicycle' },
   ];
 });
 
@@ -27,17 +30,24 @@ function activeClass(path) {
 }
 
 async function checkShift() {
+  const token = ++shiftSequence;
+  shiftState.value = 'UNKNOWN';
   try {
-    const data = await shiftApi.hasToday();
-    hasTodayShift.value = data?.hasShift ?? false;
-  } catch { hasTodayShift.value = true; }
+    const data = await shiftApi.getCurrent();
+    if (token !== shiftSequence) return;
+    shiftState.value = data?.state || 'UNKNOWN';
+  } catch { if (token !== shiftSequence) return; shiftState.value = 'UNKNOWN'; }
 }
 
 onMounted(async () => {
+  window.addEventListener('staff-shift-changed', checkShift);
   await checkShift();
   notificationStore.startPolling();
 });
-onUnmounted(() => notificationStore.stopPolling());
+onUnmounted(() => {
+  window.removeEventListener('staff-shift-changed', checkShift);
+  notificationStore.stopPolling();
+});
 
 function logout() {
   notificationStore.reset();
@@ -57,19 +67,27 @@ function logout() {
       <div class="header-actions">
         <NotificationBell />
         <button class="logout-btn" @click="logout">
-          <i class="bi bi-arrow-right-from-bracket"></i><span>Thoát</span>
+          <i class="bi bi-arrow-right-from-bracket"></i><span>Thoat</span>
         </button>
       </div>
     </header>
     <main class="shipper-main fg-page">
-      <div v-if="!hasTodayShift" class="no-shift-banner">
+      <div v-if="!checkedIn" class="no-shift-banner">
         <i class="bi bi-calendar-x"></i>
-        <div>
-          <strong>Bạn chưa được phân ca hôm nay</strong>
-          <p>Liên hệ quản lý để được xếp ca.</p>
+        <div v-if="shiftState === 'UNKNOWN'">
+          <strong>Khong the xac dinh trang thai ca</strong>
+          <p>Chi lich su don dang kha dung.</p>
+        </div>
+        <div v-else-if="shiftState === 'CHECKED_OUT'">
+          <strong>Ca lam da ket thuc</strong>
+          <p>Cac nghiep vu dang bi khoa.</p>
+        </div>
+        <div v-else>
+          <strong>Ban chua check-in</strong>
+          <p>Vui long xem lich lam viec de check-in dung gio.</p>
         </div>
       </div>
-      <router-view />
+      <router-view v-if="shiftState !== 'UNKNOWN'" aria-live="polite" role="region" />
     </main>
     <nav class="shipper-nav">
       <router-link

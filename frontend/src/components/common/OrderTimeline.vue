@@ -7,7 +7,6 @@ const props = defineProps({
 });
 
 const statusOrder = [
-  ORDER_STATUS.WAITING_STOCK_CONFIRM,
   ORDER_STATUS.PENDING,
   ORDER_STATUS.CONFIRMED,
   ORDER_STATUS.PREPARING,

@@ -23,6 +23,13 @@ const userOrders = ref([]);
 const userOrdersLoading = ref(false);
 const selectedUser = ref(null);
 
+const ordersModalTitle = computed(() => ({
+  STAFF: 'Đơn đã xử lý',
+  SHIPPER: 'Đơn đã giao',
+}[selectedUser.value?.roleName] || 'Lịch sử mua hàng'));
+
+const completedDateLabel = computed(() => selectedUser.value?.roleName === 'USER' ? 'Ngày tạo' : 'Hoàn thành');
+
 const roleFilters = [
   { key: '', label: 'Tất cả', icon: 'bi-people' },
   { key: 'USER', label: 'Khách hàng', icon: 'bi-person' },
@@ -239,7 +246,7 @@ function initials(name) {
     </div>
 
     <div v-if="showOrdersModal" class="modal-overlay" @click.self="showOrdersModal = false">
-      <div class="modal orders-modal" role="dialog" aria-modal="true" aria-labelledby="orders-modal-title"><div class="modal-header"><div><span class="modal-icon orders-icon"><i class="bi bi-receipt-cutoff"></i></span><div><h2 id="orders-modal-title" class="modal-title">Lịch sử đơn hàng</h2><p>{{ selectedUser?.fullName }} · {{ selectedUser?.email }}</p></div></div><button class="modal-close" aria-label="Đóng" @click="showOrdersModal = false"><i class="bi bi-x-lg"></i></button></div><div class="modal-body orders-body"><div v-if="userOrdersLoading" class="state-message"><span class="spinner"></span>Đang tải đơn hàng...</div><div v-else-if="!userOrders.length" class="empty-state compact"><i class="bi bi-bag-x"></i><h3>Chưa có đơn hàng</h3></div><div v-else class="table-wrapper"><table class="table"><thead><tr><th>Mã đơn</th><th>Trạng thái</th><th>Tổng tiền</th><th>Thanh toán</th><th>Ngày tạo</th></tr></thead><tbody><tr v-for="order in userOrders" :key="order.orderId"><td><strong>{{ order.orderCode }}</strong></td><td><span class="order-status">{{ order.status }}</span></td><td><strong>{{ formatPrice(order.finalAmount) }}</strong></td><td>{{ order.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }} · {{ order.paymentStatus }}</td><td>{{ formatDate(order.createdAt) }}</td></tr></tbody></table></div></div></div>
+       <div class="modal orders-modal" role="dialog" aria-modal="true" aria-labelledby="orders-modal-title"><div class="modal-header"><div><span class="modal-icon orders-icon"><i class="bi bi-receipt-cutoff"></i></span><div><h2 id="orders-modal-title" class="modal-title">{{ ordersModalTitle }}</h2><p>{{ selectedUser?.fullName }} · {{ selectedUser?.email }}</p></div></div><button class="modal-close" aria-label="Đóng" @click="showOrdersModal = false"><i class="bi bi-x-lg"></i></button></div><div class="modal-body orders-body"><div v-if="userOrdersLoading" class="state-message"><span class="spinner"></span>Đang tải đơn hàng...</div><div v-else-if="!userOrders.length" class="empty-state compact"><i class="bi bi-bag-x"></i><h3>Chưa có đơn hàng</h3></div><div v-else class="table-wrapper"><table class="table"><thead><tr><th>Mã đơn</th><th>Trạng thái</th><th>Tổng tiền</th><th>Thanh toán</th><th>{{ completedDateLabel }}</th></tr></thead><tbody><tr v-for="order in userOrders" :key="order.orderId"><td><strong>{{ order.orderCode }}</strong></td><td><span class="order-status">{{ order.status }}</span></td><td><strong>{{ formatPrice(order.finalAmount) }}</strong></td><td>{{ order.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }} · {{ order.paymentStatus }}</td><td>{{ formatDate(order.completedAt || order.createdAt) }}</td></tr></tbody></table></div></div></div>
     </div>
   </div>
 </template>

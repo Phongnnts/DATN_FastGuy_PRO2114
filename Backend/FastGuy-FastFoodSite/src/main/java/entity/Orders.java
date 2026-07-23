@@ -13,7 +13,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "Orders")
@@ -25,6 +24,15 @@ public class Orders {
 
     @Column(name = "order_code")
     private String orderCode;
+
+    @Column(name = "idempotency_key")
+    private String idempotencyKey;
+
+    @Column(name = "request_hash")
+    private String requestHash;
+
+    @Column(name = "idempotency_owner")
+    private String idempotencyOwner;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
@@ -78,28 +86,28 @@ public class Orders {
     @Column(name = "shipping_provider")
     private String shippingProvider;
 
-    @Transient
+    @Column(name = "shipping_service_id")
     private Integer shippingServiceId;
 
-    @Transient
+    @Column(name = "shipping_service_type_id")
     private Integer shippingServiceTypeId;
 
-    @Transient
+    @Column(name = "expected_delivery_time")
     private LocalDateTime expectedDeliveryTime;
 
-    @Transient
+    @Column(name = "ghn_order_code")
     private String ghnOrderCode;
 
-    @Transient
+    @Column(name = "ghn_tracking_url")
     private String ghnTrackingUrl;
 
-    @Transient
+    @Column(name = "ghn_status")
     private String ghnStatus;
 
-    @Transient
+    @Column(name = "from_district_id")
     private Integer fromDistrictId;
 
-    @Transient
+    @Column(name = "from_ward_code")
     private String fromWardCode;
 
     @Column(name = "payment_method")
@@ -194,6 +202,12 @@ public class Orders {
     public void setOrderId(int orderId) { this.orderId = orderId; }
     public String getOrderCode() { return orderCode; }
     public void setOrderCode(String orderCode) { this.orderCode = orderCode; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public String getRequestHash() { return requestHash; }
+    public void setRequestHash(String requestHash) { this.requestHash = requestHash; }
+    public String getIdempotencyOwner() { return idempotencyOwner; }
+    public void setIdempotencyOwner(String idempotencyOwner) { this.idempotencyOwner = idempotencyOwner; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public String getCustomerName() { return customerName; }

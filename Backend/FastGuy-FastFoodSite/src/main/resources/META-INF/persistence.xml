@@ -27,6 +27,9 @@
         <class>entity.OrderStatusHistory</class>
         <class>entity.LoyaltyTransaction</class>
         <class>entity.WorkShift</class>
+        <class>entity.PaymentAttempt</class>
+        <class>entity.InventoryReservation</class>
+        <class>entity.InventoryTransaction</class>
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
             <property name="hibernate.dialect" value="org.hibernate.dialect.SQLServerDialect"/>

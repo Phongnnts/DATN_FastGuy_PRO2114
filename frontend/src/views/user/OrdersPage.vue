@@ -13,7 +13,7 @@ const search = ref('')
 const page = ref(1)
 const pageSize = 6
 const tabs = [
-  { key: 'pending', label: 'Chờ xử lý', statuses: ['WAITING_STOCK_CONFIRM', 'PENDING'] },
+  { key: 'pending', label: 'Chờ xử lý', statuses: ['PENDING'] },
   { key: 'processing', label: 'Đang xử lý', statuses: ['CONFIRMED', 'PREPARING', 'READY'] },
   { key: 'delivering', label: 'Đang giao', statuses: ['PICKED_UP'] },
   { key: 'delivered', label: 'Đã giao', statuses: ['DELIVERED'] },

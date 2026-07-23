@@ -125,7 +125,7 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  async function createOrder(orderData) {
+  async function createOrder(orderData, idempotencyKey) {
     loading.value = true;
     try {
       const data = await orderApi.create({
@@ -141,7 +141,8 @@ export const useOrderStore = defineStore('order', () => {
         toDistrictName: orderData.toDistrictName || '',
         toWardName: orderData.toWardName || '',
         couponCode: orderData.couponCode || '',
-      });
+        cartSignature: orderData.cartSignature || [],
+      }, idempotencyKey);
       const newOrder = {
         id: data.orderId,
         orderCode: data.orderCode,
