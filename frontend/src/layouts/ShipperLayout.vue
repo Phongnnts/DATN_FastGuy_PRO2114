@@ -2,30 +2,57 @@
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
 import { useRouter, useRoute } from 'vue-router';
-import { onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { shiftApi } from '@/api';
 import NotificationBell from '@/components/common/NotificationBell.vue';
 
 const auth = useAuthStore();
 const notificationStore = useNotificationStore();
 const router = useRouter();
 const route = useRoute();
+const shiftState = ref('UNKNOWN');
+const checkedIn = computed(() => shiftState.value === 'CHECKED_IN');
 
-const navItems = [
-  { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
-  { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
-];
+let shiftSequence = 0;
+
+const navItems = computed(() => {
+  if (!checkedIn.value) {
+    return [{ path: '/shipper/history', name: 'Lịch sử', icon: 'bi-clock-history' }];
+  }
+  return [
+    { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
+    { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
+  ];
+});
 
 function activeClass(path) {
   return route.path === path ? 'active' : '';
 }
 
-onMounted(() => notificationStore.startPolling());
-onUnmounted(() => notificationStore.stopPolling());
+async function checkShift() {
+  const token = ++shiftSequence;
+  shiftState.value = 'UNKNOWN';
+  try {
+    const data = await shiftApi.getCurrent();
+    if (token !== shiftSequence) return;
+    shiftState.value = data?.state || 'UNKNOWN';
+  } catch { if (token !== shiftSequence) return; shiftState.value = 'UNKNOWN'; }
+}
+
+onMounted(async () => {
+  window.addEventListener('staff-shift-changed', checkShift);
+  await checkShift();
+  notificationStore.startPolling();
+});
+onUnmounted(() => {
+  window.removeEventListener('staff-shift-changed', checkShift);
+  notificationStore.stopPolling();
+});
 
 function logout() {
   notificationStore.reset();
   auth.logout();
-  router.push('/login');
+  router.push('/');
 }
 </script>
 
@@ -35,7 +62,7 @@ function logout() {
       <div class="shipper-brand">
         <span>Fast<span class="accent">Guy</span></span>
         <span class="role-badge">Shipper</span>
-        <span class="fg-status-chip">Live route</span>
+        <span class="fg-status-chip">Tuyến đang giao</span>
       </div>
       <div class="header-actions">
         <NotificationBell />
@@ -45,7 +72,22 @@ function logout() {
       </div>
     </header>
     <main class="shipper-main fg-page">
-      <router-view />
+      <div v-if="!checkedIn" class="no-shift-banner">
+        <i class="bi bi-calendar-x"></i>
+        <div v-if="shiftState === 'UNKNOWN'">
+          <strong>Không thể xác định trạng thái ca</strong>
+          <p>Chỉ lịch sử đơn đang khả dụng.</p>
+        </div>
+        <div v-else-if="shiftState === 'CHECKED_OUT'">
+          <strong>Ca làm đã kết thúc</strong>
+          <p>Các nghiệp vụ đang bị khóa.</p>
+        </div>
+        <div v-else>
+          <strong>Bạn chưa check-in</strong>
+          <p>Vui lòng xem lịch làm việc để check-in đúng giờ.</p>
+        </div>
+      </div>
+      <router-view v-if="shiftState !== 'UNKNOWN'" aria-live="polite" role="region" />
     </main>
     <nav class="shipper-nav">
       <router-link
@@ -161,4 +203,8 @@ function logout() {
   color: var(--primary);
   font-weight: 600;
 }
+.no-shift-banner { display:flex; align-items:center; gap:12px; padding:14px 16px; margin-bottom:16px; border-radius:var(--radius); background:#fef3c7; color:#92400e; font-size:14px; }
+.no-shift-banner i { font-size:28px; flex-shrink:0; }
+.no-shift-banner strong { display:block; margin-bottom:2px; }
+.no-shift-banner p { margin:0; font-size:13px; opacity:.8; }
 </style>

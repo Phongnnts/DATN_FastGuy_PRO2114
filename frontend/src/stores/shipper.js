@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import { shipperApi } from '@/api';
 
 export const useShipperStore = defineStore('shipper', () => {
-  const availableOrders = ref([]);
   const myOrders = ref([]);
   const currentOrder = ref(null);
   const loading = ref(false);
@@ -40,22 +39,22 @@ export const useShipperStore = defineStore('shipper', () => {
     } catch { return null; }
   }
 
-  async function fetchAvailableOrders() {
+  async function fetchMyOrders() {
     loading.value = true;
     try {
-      const data = await shipperApi.getAvailableOrders();
-      availableOrders.value = Array.isArray(data) ? data.map(mapOrder) : [];
+      const data = await shipperApi.getMyOrders();
+      myOrders.value = Array.isArray(data) ? data.map(mapOrder) : [];
     } catch {
-      availableOrders.value = [];
+      myOrders.value = [];
     } finally {
       loading.value = false;
     }
   }
 
-  async function fetchMyOrders() {
+  async function fetchHistory() {
     loading.value = true;
     try {
-      const data = await shipperApi.getMyOrders();
+      const data = await shipperApi.getHistory();
       myOrders.value = Array.isArray(data) ? data.map(mapOrder) : [];
     } catch {
       myOrders.value = [];
@@ -80,9 +79,10 @@ export const useShipperStore = defineStore('shipper', () => {
 
   async function pickUpOrder(id) {
     await shipperApi.pickUpOrder(id);
-    const order = myOrders.value.find(o => o.id === id);
-    if (order) order.status = 'PICKED_UP';
-    availableOrders.value = availableOrders.value.filter(o => o.id !== id);
+    const idx = myOrders.value.findIndex(o => o.id === id);
+    if (idx >= 0) {
+      myOrders.value[idx].status = 'PICKED_UP';
+    }
   }
 
   async function deliverOrder(id, collectedAmount) {
@@ -94,24 +94,16 @@ export const useShipperStore = defineStore('shipper', () => {
     }
   }
 
-  async function cancelOrder(id, reason) {
-    await shipperApi.cancelOrder(id, reason);
-    const order = myOrders.value.find(o => o.id === id);
-    if (order) order.status = 'CANCELLED';
-  }
-
   return {
     dashboard,
-    availableOrders,
     myOrders,
     currentOrder,
     loading,
     fetchDashboard,
-    fetchAvailableOrders,
     fetchMyOrders,
+    fetchHistory,
     fetchOrderById,
     pickUpOrder,
     deliverOrder,
-    cancelOrder,
   };
 });

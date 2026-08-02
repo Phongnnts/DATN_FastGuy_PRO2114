@@ -3,14 +3,14 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useShipperStore } from '@/stores/shipper';
 import { formatPrice, formatDate } from '@/utils/format';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 const shipperStore = useShipperStore();
 const order = ref(null);
 const loading = ref(true);
-const showCancelModal = ref(false);
-const cancelReason = ref('');
 const collectedAmount = ref('');
 
 function paymentState(order) {
@@ -32,7 +32,7 @@ async function pickUp() {
     await shipperStore.pickUpOrder(order.value.id);
     order.value.status = 'PICKED_UP';
   } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   }
 }
 
@@ -47,22 +47,7 @@ async function deliver() {
       order.value.paymentStatus = 'PAID';
     }
   } catch (e) {
-    alert(e.message);
-  }
-}
-
-function openCancel() {
-  cancelReason.value = '';
-  showCancelModal.value = true;
-}
-
-async function confirmCancel() {
-  try {
-    await shipperStore.cancelOrder(order.value.id, cancelReason.value);
-    order.value.status = 'CANCELLED';
-    showCancelModal.value = false;
-  } catch (e) {
-    alert(e.message);
+    toast.error(e.message);
   }
 }
 
@@ -86,7 +71,7 @@ function callCustomer() {
         <span style="font-size: 13px; color: var(--text-mid);">{{ formatDate(order.createdAt) }}</span>
       </div>
       <span :class="'status-badge status-' + order.status.toLowerCase()">
-        {{ order.status === 'PICKED_UP' ? 'Đang giao' : order.status === 'DELIVERED' ? 'Đã giao' : order.status === 'READY' ? 'Sẵn sàng giao' : 'Đã hủy' }}
+        {{ order.status === 'PICKED_UP' ? 'Đang giao' : order.status === 'DELIVERED' ? 'Đã giao' : order.status === 'ASSIGNED' ? 'Đã nhận đơn' : order.status === 'READY' ? 'Sẵn sàng giao' : 'Đã hủy' }}
       </span>
     </div>
 
@@ -136,36 +121,12 @@ function callCustomer() {
     </div>
 
     <div class="action-bar">
-      <button v-if="order.status === 'READY'" class="btn btn-lg btn-primary action-btn" @click="pickUp">
+      <button v-if="order.status === 'ASSIGNED'" class="btn btn-lg btn-primary action-btn" @click="pickUp">
         <i class="bi bi-box-seam"></i> Đã lấy hàng
       </button>
       <button v-if="order.status === 'PICKED_UP'" class="btn btn-lg btn-success action-btn" @click="deliver">
         <i class="bi bi-check2-all"></i> Đã giao thành công
       </button>
-      <button v-if="order.status === 'READY' || order.status === 'PICKED_UP'" class="btn btn-outline cancel-btn" @click="openCancel">
-        <i class="bi bi-x-lg"></i> Hủy đơn
-      </button>
-    </div>
-
-    <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false">
-      <div class="modal">
-        <div class="modal-header">
-          <h3>Hủy đơn hàng</h3>
-          <button class="btn btn-sm btn-ghost" @click="showCancelModal = false"><i class="bi bi-x-lg"></i></button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Lý do hủy</label>
-            <textarea v-model="cancelReason" class="form-textarea" rows="3" placeholder="Nhập lý do hủy..."></textarea>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-outline" @click="showCancelModal = false">Quay lại</button>
-          <button class="btn btn-danger" @click="confirmCancel" :disabled="!cancelReason.trim()">
-            Xác nhận hủy
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 </template>

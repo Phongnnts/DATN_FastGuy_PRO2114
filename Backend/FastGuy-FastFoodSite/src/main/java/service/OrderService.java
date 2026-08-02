@@ -4,18 +4,19 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import entity.Cart;
 import entity.CartItem;
-import entity.ClaimedCoupon;
 import entity.Coupon;
-import entity.CouponUsage;
+import entity.CouponRedemption;
 import entity.OrderItem;
-import entity.OrderItemModifier;
 import entity.Orders;
 import entity.ProductModifierOption;
 import entity.Product;
@@ -26,11 +27,24 @@ import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
 
 public class OrderService {
+    public static boolean canUserAccess(Orders order, int userId) {
+        return order != null && order.getUser() != null && order.getUser().getUserId() == userId;
+    }
+
+    static boolean matchesExpectedPaymentStatus(String actual, String expected) {
+        return expected == null || expected.equals(actual);
+    }
+
+    static boolean matchesRequestHash(String actual, String expected) {
+        return actual != null && actual.equals(expected);
+    }
     private CouponService couponService = new CouponService();
     private NotificationService notificationService = new NotificationService();
     private OrderStatusHistoryService orderStatusHistoryService = new OrderStatusHistoryService();
     private StoreConfigService storeConfigService = new StoreConfigService();
     private ShippingService shippingService = new ShippingService();
+    private InventoryReservationService inventoryReservationService = new InventoryReservationService();
+    private OrderTransitionService orderTransitionService = new OrderTransitionService();
 
     private static class CheckoutLine {
         Product product;
@@ -42,7 +56,7 @@ public class OrderService {
 
     private static class CouponResult {
         Coupon coupon;
-        ClaimedCoupon claimedCoupon;
+        CouponRedemption redemption;
         BigDecimal discount = BigDecimal.ZERO;
         String code;
     }
@@ -51,12 +65,22 @@ public class OrderService {
                              String deliveryNote, String paymentMethod,
                             Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
                              String toProvinceName, String toDistrictName, String toWardName,
-                             String couponCode) {
-        Map<String, String> storeConfig = storeConfigService.getAll();
-        BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
+                             String couponCode, String idempotencyKey, String requestHash, String cartSignature) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            String idempotencyOwner = "USER:" + userId;
+            validateIdempotencyKey(idempotencyKey);
+            acquireIdempotencyLock(em, idempotencyKey);
+            Orders replay = findByIdempotencyKey(em, idempotencyKey, idempotencyOwner);
+            if (replay != null) {
+                if (!matchesRequestHash(replay.getRequestHash(), requestHash)) throw new IllegalArgumentException("Idempotency key đã được dùng cho yêu cầu khác");
+                em.getTransaction().commit();
+                return replay;
+            }
+
+            Map<String, String> storeConfig = storeConfigService.getAll();
+            BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
 
             User user = em.find(User.class, userId);
             if (user == null) throw new IllegalArgumentException("Không tìm thấy người dùng");
@@ -69,6 +93,7 @@ public class OrderService {
             if (cart == null) throw new IllegalArgumentException("Giỏ hàng trống");
             List<CartItem> cartItems = findCartItems(em, cart.getCartId());
             if (cartItems.isEmpty()) throw new IllegalArgumentException("Giỏ hàng trống");
+            if (!cartSignature(cartItems).equals(cartSignature)) throw new IllegalArgumentException("Giỏ hàng đã thay đổi, vui lòng thử lại");
 
             if (!"COD".equals(paymentMethod) && !"BANK_TRANSFER".equals(paymentMethod)) {
                 throw new IllegalArgumentException("Phương thức thanh toán không hợp lệ");
@@ -105,8 +130,12 @@ public class OrderService {
             Orders order = buildOrder("ORD-", user, recipient, customerPhone, address, deliveryNote, paymentMethod,
                     ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName,
                     shippingFee, serviceFee, totalAmount, finalAmount, coupon.discount, coupon.code);
+            order.setIdempotencyKey(idempotencyKey);
+            order.setRequestHash(requestHash);
+            order.setIdempotencyOwner(idempotencyOwner);
             em.persist(order);
             em.flush();
+            inventoryReservationService.reserve(em, order, quantities);
             applyCoupon(em, coupon, order.getOrderId(), userId);
             persistItems(em, order, lines);
             if (!isBankTransfer) {
@@ -133,13 +162,23 @@ public class OrderService {
                                  String deliveryNote, String paymentMethod,
                                  List<Map<String, Object>> itemsData,
                                  Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
-                                 String toProvinceName, String toDistrictName, String toWardName,
-                                 String couponCode) {
-        Map<String, String> storeConfig = storeConfigService.getAll();
-        BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
+                                  String toProvinceName, String toDistrictName, String toWardName,
+                                  String couponCode, String idempotencyKey, String requestHash) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            String idempotencyOwner = "GUEST:" + phone;
+            validateIdempotencyKey(idempotencyKey);
+            acquireIdempotencyLock(em, idempotencyKey);
+            Orders replay = findByIdempotencyKey(em, idempotencyKey, idempotencyOwner);
+            if (replay != null) {
+                if (!matchesRequestHash(replay.getRequestHash(), requestHash)) throw new IllegalArgumentException("Idempotency key đã được dùng cho yêu cầu khác");
+                em.getTransaction().commit();
+                return replay;
+            }
+
+            Map<String, String> storeConfig = storeConfigService.getAll();
+            BigDecimal serviceFee = validateBusinessHoursAndGetServiceFee(storeConfig);
 
             if (customerName == null || customerName.trim().length() < 2 || phone == null || address == null || itemsData == null || itemsData.isEmpty()) {
                 throw new IllegalArgumentException("Thông tin đặt hàng không hợp lệ");
@@ -185,8 +224,12 @@ public class OrderService {
             Orders order = buildOrder("GST-", null, customerName.trim(), phone.trim(), address, deliveryNote, paymentMethod,
                     ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName,
                     shippingFee, serviceFee, totalAmount, finalAmount, coupon.discount, coupon.code);
+            order.setIdempotencyKey(idempotencyKey);
+            order.setRequestHash(requestHash);
+            order.setIdempotencyOwner(idempotencyOwner);
             em.persist(order);
             em.flush();
+            inventoryReservationService.reserve(em, order, quantities);
             applyCoupon(em, coupon, order.getOrderId(), null);
             persistItems(em, order, lines);
 
@@ -203,146 +246,76 @@ public class OrderService {
         }
     }
 
-    public boolean confirmStock(int orderId, int staffId) {
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            em.getTransaction().begin();
-            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (order == null || !"WAITING_STOCK_CONFIRM".equals(order.getOrderStatus())) {
-                em.getTransaction().rollback();
-                return false;
-            }
-
-            List<OrderItem> orderItems = em.createQuery("SELECT oi FROM OrderItem oi WHERE oi.order.orderId = :orderId", OrderItem.class)
-                    .setParameter("orderId", orderId)
-                    .getResultList();
-            Map<Integer, Integer> quantities = new HashMap<>();
-            for (OrderItem oi : orderItems) {
-                if (oi.getVariant() != null) {
-                    quantities.merge(oi.getVariant().getVariantId(), oi.getQuantity(), Integer::sum);
-                }
-            }
-
-            Map<Integer, CheckoutLine> lockedLines = lockAndDeduct(em, quantities, null);
-
-            BigDecimal totalAmount = BigDecimal.ZERO;
-            for (OrderItem oi : orderItems) {
-                CheckoutLine locked = lockedLines.get(oi.getVariant().getVariantId());
-                if (locked != null) {
-                    BigDecimal modifierPrice = em.createQuery("SELECT COALESCE(SUM(m.price), 0) FROM OrderItemModifier m WHERE m.orderItem.orderItemId = :itemId", BigDecimal.class).setParameter("itemId", oi.getOrderItemId()).getSingleResult();
-                    oi.setUnitPrice(locked.unitPrice.add(modifierPrice));
-                    oi.setTotalPrice(oi.getUnitPrice().multiply(BigDecimal.valueOf(oi.getQuantity())));
-                    totalAmount = totalAmount.add(oi.getTotalPrice());
-                }
-            }
-
-            BigDecimal shippingFee = order.getShippingFee() != null ? order.getShippingFee() : BigDecimal.ZERO;
-            BigDecimal discountAmount = order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO;
-            BigDecimal serviceFee = order.getServiceFee() != null ? order.getServiceFee() : BigDecimal.ZERO;
-            BigDecimal finalAmount = totalAmount.add(shippingFee).add(serviceFee).subtract(discountAmount);
-            if (finalAmount.compareTo(BigDecimal.ZERO) < 0) finalAmount = BigDecimal.ZERO;
-            order.setTotalAmount(totalAmount);
-            order.setFinalAmount(finalAmount);
-            order.setOrderStatus("PENDING");
-            order.setConfirmedAt(LocalDateTime.now());
-
-            User staff = em.find(User.class, staffId);
-            if (staff != null) order.setStaff(staff);
-
-            orderStatusHistoryService.record(em, orderId, staffId, "STAFF", "WAITING_STOCK_CONFIRM", "PENDING", "Xác nhận còn hàng");
-            em.getTransaction().commit();
-            if (order.getUser() != null) {
-                notificationService.notifyUser(order.getUser().getUserId(),
-                        "Đơn hàng đã được xác nhận",
-                        "Đơn " + order.getOrderCode() + " đã được xác nhận tồn kho, vui lòng thanh toán",
-                        "ORDER_STATUS",
-                        "/account/orders/" + orderId);
-            }
-            return true;
-        } catch (RuntimeException e) {
-            if (em.getTransaction().isActive()) em.getTransaction().rollback();
-            throw e;
-        } finally {
-            em.close();
-        }
-    }
-
-    public boolean revertStockConfirmation(int orderId, int staffId, String reason) {
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            em.getTransaction().begin();
-            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (order == null || !"PENDING".equals(order.getOrderStatus()) || !"BANK_TRANSFER".equals(order.getPaymentMethod())
-                    || "PAID".equals(order.getPaymentStatus())) {
-                em.getTransaction().rollback();
-                return false;
-            }
-            restoreStock(em, orderId);
-            order.setOrderStatus("WAITING_STOCK_CONFIRM");
-            order.setConfirmedAt(null);
-            order.setStaff(null);
-            orderStatusHistoryService.record(em, orderId, staffId, "STAFF", "PENDING", "WAITING_STOCK_CONFIRM", reason);
-            em.getTransaction().commit();
-            return true;
-        } catch (RuntimeException e) {
-            if (em.getTransaction().isActive()) em.getTransaction().rollback();
-            return false;
-        } finally {
-            em.close();
-        }
-    }
-
     public boolean cancelOrder(int orderId, Integer userId, Integer staffId, String failureReason, boolean pendingOnly) {
+        return cancelOrder(orderId, userId, staffId, failureReason, pendingOnly, null);
+    }
+
+    private void validateIdempotencyKey(String key) {
+        if (key == null || key.isBlank()) throw new IllegalArgumentException("Thiếu Idempotency-Key");
+        if (key.length() > 100) throw new IllegalArgumentException("Idempotency-Key quá dài");
+    }
+
+    private String cartSignature(List<CartItem> items) {
+        List<Map<String, Object>> signature = items.stream()
+                .sorted(Comparator.comparingInt(item -> item.getVariant().getVariantId()))
+                .map(item -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("variantId", item.getVariant().getVariantId());
+                    row.put("quantity", item.getQuantity());
+                    List<Integer> modifierIds = new ArrayList<>();
+                    String selectedIds = item.getSelectedModifierOptionIds();
+                    if (selectedIds != null && !selectedIds.isBlank()) {
+                        for (String id : selectedIds.split(",")) modifierIds.add(Integer.parseInt(id));
+                    }
+                    Collections.sort(modifierIds);
+                    row.put("modifierOptionIds", modifierIds);
+                    return row;
+                }).toList();
+        return utils.JsonUtil.toJson(signature);
+    }
+
+    private void acquireIdempotencyLock(EntityManager em, String key) {
+        Number result = (Number) em.createNativeQuery(idempotencyLockSql())
+                .setParameter("resource", "checkout:" + key).getSingleResult();
+        if (result.intValue() < 0) throw new IllegalStateException("Không thể khóa yêu cầu thanh toán (SQL Server: " + result + ")");
+    }
+
+    static String idempotencyLockSql() {
+        return "IF @@TRANCOUNT = 0 BEGIN TRANSACTION; DECLARE @result int; EXEC @result = sp_getapplock "
+                + "@Resource = :resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', "
+                + "@LockTimeout = 10000; SELECT @result";
+    }
+
+    private Orders findByIdempotencyKey(EntityManager em, String key, String owner) {
+        List<Orders> orders = em.createQuery("SELECT o FROM Orders o WHERE o.idempotencyKey = :key", Orders.class)
+                .setParameter("key", key).setMaxResults(1).getResultList();
+        if (orders.isEmpty()) return null;
+        Orders order = orders.get(0);
+        if (!owner.equals(order.getIdempotencyOwner())) throw new IllegalArgumentException("Idempotency key không hợp lệ");
+        return order;
+    }
+
+    public boolean cancelOrder(int orderId, Integer userId, Integer staffId, String failureReason, boolean pendingOnly,
+                               String expectedPaymentStatus) {
+        String actorRole = staffId != null ? staffRole(staffId) : userId != null ? "USER" : "SYSTEM";
+        Integer actorUserId = staffId != null ? staffId : userId;
+        OrderTransitionService.CancellationResult result = orderTransitionService.cancel(orderId, userId,
+                expectedPaymentStatus, pendingOnly, actorRole, actorUserId, failureReason);
+        if (result == null) return false;
+        if (staffId != null && result.orderUserId() != null) {
+            notificationService.notifyUser(result.orderUserId(), "Đơn hàng đã hủy", "Đơn " + result.orderCode() + " đã bị hủy", "ORDER_CANCELLED", "/account/orders/" + orderId);
+        } else {
+            notificationService.notifyRole("STAFF", "Khách hủy đơn", "Đơn " + result.orderCode() + " đã bị khách hủy", "ORDER_CANCELLED", "/staff/orders/" + orderId);
+            notificationService.notifyRole("ADMIN", "Khách hủy đơn", "Đơn " + result.orderCode() + " đã bị khách hủy", "ORDER_CANCELLED", "/admin/orders");
+        }
+        return true;
+    }
+
+    private String staffRole(int staffId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            em.getTransaction().begin();
-            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (order == null) {
-                em.getTransaction().rollback();
-                return false;
-            }
-            if (userId != null && (order.getUser() == null || order.getUser().getUserId() != userId)) {
-                em.getTransaction().rollback();
-                return false;
-            }
-            String current = order.getOrderStatus();
-            String orderCode = order.getOrderCode();
-            Integer orderUserId = order.getUser() != null ? order.getUser().getUserId() : null;
-            if ("CANCELLED".equals(current) || "DELIVERED".equals(current) || "READY".equals(current)) {
-                em.getTransaction().rollback();
-                return false;
-            }
-            if (pendingOnly && !"PENDING".equals(current) && !"WAITING_STOCK_CONFIRM".equals(current)) {
-                em.getTransaction().rollback();
-                return false;
-            }
-
-            boolean stockWasDeducted = !"WAITING_STOCK_CONFIRM".equals(current);
-            if (stockWasDeducted) restoreStock(em, orderId);
-            revertCoupon(em, orderId);
-            order.setOrderStatus("CANCELLED");
-            order.setCancelledAt(LocalDateTime.now());
-            order.setCancelledBy(staffId != null ? "STAFF" : "CUSTOMER");
-            if ("PAID".equals(order.getPaymentStatus())) order.setRefundStatus("PENDING");
-            if (failureReason != null && !failureReason.isBlank()) order.setFailureReason(failureReason);
-            if (staffId != null) {
-                User staff = em.find(User.class, staffId);
-                if (staff != null) order.setStaff(staff);
-            }
-
-            String actor = staffId != null ? "STAFF" : "USER";
-            orderStatusHistoryService.record(em, orderId, staffId != null ? staffId : userId, actor, current, "CANCELLED", failureReason != null ? failureReason : "Hủy đơn");
-            em.getTransaction().commit();
-            if (staffId != null && orderUserId != null) {
-                notificationService.notifyUser(orderUserId, "Đơn hàng đã hủy", "Đơn " + orderCode + " đã bị hủy", "ORDER_CANCELLED", "/account/orders/" + orderId);
-            } else {
-                notificationService.notifyRole("STAFF", "Khách hủy đơn", "Đơn " + orderCode + " đã bị khách hủy", "ORDER_CANCELLED", "/staff/orders/" + orderId);
-                notificationService.notifyRole("ADMIN", "Khách hủy đơn", "Đơn " + orderCode + " đã bị khách hủy", "ORDER_CANCELLED", "/admin/orders");
-            }
-            return true;
-        } catch (RuntimeException e) {
-            if (em.getTransaction().isActive()) em.getTransaction().rollback();
-            throw e;
+            User staff = em.find(User.class, staffId);
+            return staff != null && "ADMIN".equals(staff.getRole()) ? "ADMIN" : "STAFF";
         } finally {
             em.close();
         }
@@ -383,9 +356,8 @@ public class OrderService {
 
     private Map<Integer, CheckoutLine> validateStock(EntityManager em, Map<Integer, Integer> quantities, Map<Integer, Integer> productIds) {
         Map<Integer, CheckoutLine> lines = new HashMap<>();
-        for (Map.Entry<Integer, Integer> entry : quantities.entrySet()) {
-            int variantId = entry.getKey();
-            int qty = entry.getValue();
+        for (Integer variantId : quantities.keySet().stream().sorted().toList()) {
+            int qty = quantities.get(variantId);
             ProductVariant variant = em.find(ProductVariant.class, variantId);
             if (variant == null || variant.getProduct() == null) throw new IllegalArgumentException("Sản phẩm không hợp lệ");
             Product product = variant.getProduct();
@@ -408,9 +380,8 @@ public class OrderService {
 
     private Map<Integer, CheckoutLine> lockAndDeduct(EntityManager em, Map<Integer, Integer> quantities, Map<Integer, Integer> productIds) {
         Map<Integer, CheckoutLine> lines = new HashMap<>();
-        for (Map.Entry<Integer, Integer> entry : quantities.entrySet()) {
-            int variantId = entry.getKey();
-            int qty = entry.getValue();
+        for (Integer variantId : quantities.keySet().stream().sorted().toList()) {
+            int qty = quantities.get(variantId);
             ProductVariant variant = em.find(ProductVariant.class, variantId, LockModeType.PESSIMISTIC_WRITE);
             if (variant == null || variant.getProduct() == null) throw new IllegalArgumentException("Sản phẩm không hợp lệ");
             Product product = variant.getProduct();
@@ -445,28 +416,28 @@ public class OrderService {
 
         Coupon coupon = coupons.get(0);
         if (!Boolean.TRUE.equals(coupon.getIsActive())) throw new IllegalArgumentException("Mã giảm giá đã bị vô hiệu hóa");
-        if (coupon.getExpiresAt() != null && coupon.getExpiresAt().isBefore(LocalDateTime.now())) throw new IllegalArgumentException("Mã giảm giá đã hết hạn");
+        if (coupon.getExpiresAt() != null && !coupon.getExpiresAt().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("Mã giảm giá đã hết hạn");
         if (coupon.getMaxUses() > 0 && coupon.getUsedCount() >= coupon.getMaxUses()) throw new IllegalArgumentException("Mã giảm giá đã hết lượt sử dụng");
         BigDecimal minOrder = coupon.getMinOrder() != null ? coupon.getMinOrder() : BigDecimal.ZERO;
         if (totalAmount.compareTo(minOrder) < 0) throw new IllegalArgumentException("Đơn hàng tối thiểu " + minOrder.toPlainString() + "đ");
         if (userId == null || userId <= 0) {
             throw new IllegalArgumentException("Vui lòng đăng nhập và nhận mã trước khi sử dụng");
         }
-        List<ClaimedCoupon> claims = em.createQuery(
-                        "SELECT cc FROM ClaimedCoupon cc WHERE cc.couponId = :couponId AND cc.userId = :userId AND cc.usedAt IS NULL", ClaimedCoupon.class)
+        List<CouponRedemption> claims = em.createQuery(
+                        "SELECT cr FROM CouponRedemption cr WHERE cr.couponId = :couponId AND cr.userId = :userId AND cr.usedAt IS NULL", CouponRedemption.class)
                 .setParameter("couponId", coupon.getCouponId())
                 .setParameter("userId", userId)
                 .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .getResultList();
         if (claims.isEmpty()) throw new IllegalArgumentException("Mã không có trong ví hoặc đã được sử dụng");
-        Long used = em.createQuery("SELECT COUNT(cu) FROM CouponUsage cu WHERE cu.couponId = :couponId AND cu.userId = :userId", Long.class)
+        Long used = em.createQuery("SELECT COUNT(cr) FROM CouponRedemption cr WHERE cr.couponId = :couponId AND cr.userId = :userId AND cr.usedAt IS NOT NULL", Long.class)
                 .setParameter("couponId", coupon.getCouponId())
                 .setParameter("userId", userId)
                 .getSingleResult();
         if (used > 0) throw new IllegalArgumentException("Bạn đã sử dụng mã này rồi");
 
         result.coupon = coupon;
-        result.claimedCoupon = claims.get(0);
+        result.redemption = claims.get(0);
         result.discount = couponService.calculateDiscount(coupon, totalAmount, shippingFee);
         result.code = coupon.getCode();
         return result;
@@ -474,14 +445,9 @@ public class OrderService {
 
     private void applyCoupon(EntityManager em, CouponResult coupon, int orderId, Integer userId) {
         if (coupon.coupon == null) return;
-        CouponUsage usage = new CouponUsage();
-        usage.setCouponId(coupon.coupon.getCouponId());
-        usage.setOrderId(orderId);
-        usage.setUserId(userId);
-        usage.setDiscountAmount(coupon.discount);
-        usage.setUsedAt(LocalDateTime.now());
-        em.persist(usage);
-        coupon.claimedCoupon.setUsedAt(LocalDateTime.now());
+        coupon.redemption.setOrderId(orderId);
+        coupon.redemption.setUsedAt(LocalDateTime.now());
+        coupon.redemption.setDiscountAmount(coupon.discount);
         coupon.coupon.setUsedCount(coupon.coupon.getUsedCount() + 1);
     }
 
@@ -578,38 +544,24 @@ public class OrderService {
             item.setUnitPrice(line.unitPrice);
             item.setTotalPrice(line.unitPrice.multiply(BigDecimal.valueOf(line.quantity)));
             em.persist(item);
+            List<OrderItem.ModifierItem> modifierItems = new ArrayList<>();
             for (ProductModifierOption option : line.modifiers) {
-                OrderItemModifier modifier = new OrderItemModifier();
-                modifier.setOrderItem(item);
-                modifier.setOption(option);
-                modifier.setGroupName(option.getGroup().getName());
-                modifier.setOptionName(option.getName());
-                modifier.setPrice(option.getPrice() != null ? option.getPrice() : BigDecimal.ZERO);
-                em.persist(modifier);
+                modifierItems.add(new OrderItem.ModifierItem(option.getModifierOptionId(), option.getGroup().getName(), option.getName(), option.getPrice() != null ? option.getPrice() : BigDecimal.ZERO));
             }
+            item.setModifiers(modifierItems);
         }
     }
 
     private void revertCoupon(EntityManager em, int orderId) {
-        List<CouponUsage> usages = em.createQuery("SELECT cu FROM CouponUsage cu WHERE cu.orderId = :orderId", CouponUsage.class)
-                .setParameter("orderId", orderId)
-                .getResultList();
-        for (CouponUsage usage : usages) {
-            Coupon coupon = em.find(Coupon.class, usage.getCouponId());
-            if (coupon != null && coupon.getUsedCount() > 0) {
-                coupon.setUsedCount(coupon.getUsedCount() - 1);
-            }
-            if (usage.getUserId() != null) {
-                List<ClaimedCoupon> claims = em.createQuery(
-                                "SELECT cc FROM ClaimedCoupon cc WHERE cc.couponId = :couponId AND cc.userId = :userId", ClaimedCoupon.class)
-                        .setParameter("couponId", usage.getCouponId())
-                        .setParameter("userId", usage.getUserId())
-                        .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-                        .getResultList();
-                if (!claims.isEmpty()) claims.get(0).setUsedAt(null);
-            }
-            em.remove(usage);
+        CouponRedemption cr = em.createQuery("SELECT cr FROM CouponRedemption cr WHERE cr.orderId = :orderId", CouponRedemption.class)
+                .setParameter("orderId", orderId).setMaxResults(1).getResultStream().findFirst().orElse(null);
+        if (cr == null) return;
+        Coupon coupon = em.find(Coupon.class, cr.getCouponId());
+        if (coupon != null && coupon.getUsedCount() > 0) {
+            coupon.setUsedCount(coupon.getUsedCount() - 1);
         }
+        cr.setUsedAt(null);
+        cr.setOrderId(null);
     }
 
     private void restoreStock(EntityManager em, int orderId) {

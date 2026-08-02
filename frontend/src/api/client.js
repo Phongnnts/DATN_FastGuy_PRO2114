@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '@/utils/constants';
+import { clearStoredSession, isTokenValid } from '@/utils/session';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -9,8 +10,10 @@ const client = axios.create({
 
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (isTokenValid(token)) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else if (token) {
+    clearStoredSession();
   }
   return config;
 });
@@ -28,10 +31,12 @@ client.interceptors.response.use(
     return body;
   },
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+    if (err.response?.status === 401 && !err.config?.suppressAuthRedirect) {
+      clearStoredSession();
+      if (window.location.pathname !== '/') {
+        const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        window.location.replace(`/?redirect=${encodeURIComponent(redirect)}`);
+      }
     }
     const msg = err.response?.data?.message || err.message || 'Lỗi không xác định';
     return Promise.reject(new Error(msg));

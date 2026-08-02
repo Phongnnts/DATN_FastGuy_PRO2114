@@ -1,6 +1,7 @@
 package dao;
 
 import entity.Coupon;
+import entity.CouponRedemption;
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
 
@@ -72,13 +73,10 @@ public class CouponDAO {
     public boolean hasReferences(int couponId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            Long claims = em.createQuery("SELECT COUNT(c) FROM ClaimedCoupon c WHERE c.couponId = :couponId", Long.class)
+            Long count = em.createQuery("SELECT COUNT(cr) FROM CouponRedemption cr WHERE cr.couponId = :couponId", Long.class)
                     .setParameter("couponId", couponId)
                     .getSingleResult();
-            Long usages = em.createQuery("SELECT COUNT(c) FROM CouponUsage c WHERE c.couponId = :couponId", Long.class)
-                    .setParameter("couponId", couponId)
-                    .getSingleResult();
-            return claims > 0 || usages > 0;
+            return count > 0;
         } finally {
             em.close();
         }

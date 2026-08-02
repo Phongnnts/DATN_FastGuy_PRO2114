@@ -2,8 +2,8 @@
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
 import { useRouter } from 'vue-router';
-import { ref, onMounted, onUnmounted } from 'vue';
-import { staffApi } from '@/api';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { staffApi, shiftApi } from '@/api';
 import NotificationBell from '@/components/common/NotificationBell.vue';
 
 const auth = useAuthStore();
@@ -11,8 +11,11 @@ const notificationStore = useNotificationStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 const pendingCount = ref(0);
+const shiftState = ref('UNKNOWN');
+const checkedIn = computed(() => shiftState.value === 'CHECKED_IN');
 
-let refreshTimer;
+let refreshTimer = 0;
+let shiftSequence = 0;
 
 async function refreshPendingCount() {
   try {
@@ -21,14 +24,41 @@ async function refreshPendingCount() {
   } catch {}
 }
 
-onMounted(() => {
+async function checkShift() {
+  const token = ++shiftSequence;
+  shiftState.value = 'UNKNOWN';
+  clearInterval(refreshTimer);
+  refreshTimer = 0;
+  try {
+    const data = await shiftApi.getCurrent();
+    if (token !== shiftSequence) return;
+    shiftState.value = data?.state || 'UNKNOWN';
+  } catch { if (token !== shiftSequence) return; shiftState.value = 'UNKNOWN'; }
+  if (checkedIn.value) {
+    refreshPendingCount();
+    refreshTimer = setInterval(refreshPendingCount, 30000);
+  } else pendingCount.value = 0;
+}
+
+const sidebarLinks = computed(() => [
+  ...(checkedIn.value ? [
+    { label: 'Tổng quan', path: '/staff', icon: 'bi-speedometer2' },
+    { label: 'Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
+  ] : []),
+  { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
+  { label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' },
+  { label: 'Hỗ trợ', path: '/staff/support', icon: 'bi-headset' },
+]);
+
+onMounted(async () => {
+  window.addEventListener('staff-shift-changed', checkShift);
+  await checkShift();
   notificationStore.startPolling();
-  refreshPendingCount();
-  refreshTimer = setInterval(refreshPendingCount, 30000);
 });
 
 onUnmounted(() => {
   clearInterval(refreshTimer);
+  window.removeEventListener('staff-shift-changed', checkShift);
   notificationStore.stopPolling();
 });
 
@@ -37,13 +67,6 @@ function logout() {
   auth.logout();
   router.push('/');
 }
-
-const sidebarLinks = [
-  { label: 'Tổng quan', path: '/staff', icon: 'bi-speedometer2' },
-  { label: 'Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
-  { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
-  { label: 'Hỗ trợ', path: '/staff/support', icon: 'bi-headset' },
-];
 </script>
 
 <template>
@@ -82,11 +105,11 @@ const sidebarLinks = [
             <i class="bi bi-list"></i>
           </button>
           <h2>Staff</h2>
-          <span class="fg-status-chip">Kitchen queue</span>
+          <span class="fg-status-chip">Hàng đợi bếp</span>
         </div>
         <div class="topbar-right">
           <NotificationBell />
-          <router-link to="/" class="icon-btn" title="Website">
+          <router-link to="/home" class="icon-btn" title="Website">
             <i class="bi bi-house"></i>
           </router-link>
           <button class="logout-btn" @click="logout">
@@ -95,10 +118,25 @@ const sidebarLinks = [
         </div>
       </div>
       <div class="page-content fg-page">
-        <router-view />
+        <div v-if="!checkedIn" class="no-shift-banner">
+          <i class="bi bi-calendar-x"></i>
+          <div v-if="shiftState === 'UNKNOWN'">
+            <strong>Không thể xác định trạng thái ca</strong>
+            <p>Chỉ lịch làm việc, lịch sử đơn và hỗ trợ đang khả dụng.</p>
+          </div>
+          <div v-else-if="shiftState === 'CHECKED_OUT'">
+            <strong>Ca làm đã kết thúc</strong>
+            <p>Các nghiệp vụ đang được khóa.</p>
+          </div>
+          <div v-else>
+            <strong>Bạn chưa check-in</strong>
+            <p>Vui lòng xem lịch làm việc để check-in đúng giờ.</p>
+          </div>
+        </div>
+        <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'StaffShifts' || $route.name === 'StaffOrderHistory' || $route.name === 'StaffSupport'" aria-live="polite" role="region" />
       </div>
     </div>
-    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+    <button v-if="sidebarOpen" class="sidebar-overlay" aria-label="Đóng menu nhân viên" @click="sidebarOpen = false"></button>
   </div>
 </template>
 
@@ -136,6 +174,10 @@ const sidebarLinks = [
 .logout-btn { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:13px; font-weight:650; }
 .logout-btn:hover { border-color:var(--red-active); color:var(--red-active); }
 .sidebar-overlay { display: none; }
+.no-shift-banner { display:flex; align-items:center; gap:12px; padding:14px 16px; margin-bottom:16px; border-radius:var(--radius); background:#fef3c7; color:#92400e; font-size:14px; }
+.no-shift-banner i { font-size:28px; flex-shrink:0; }
+.no-shift-banner strong { display:block; margin-bottom:2px; }
+.no-shift-banner p { margin:0; font-size:13px; opacity:.8; }
 @media (max-width: 768px) {
   .mobile-toggle-sidebar { display: flex; }
   .sidebar-overlay {

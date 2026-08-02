@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { shiftApi } from '@/api';
+import { toLocalDateKey, parseShiftEndDatetime } from '@/api/shift';
 
 const props = defineProps({
   role: { type: String, required: true },
@@ -10,11 +11,13 @@ const shifts = ref([]);
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
+const now = ref(new Date());
+const todayKey = ref(toLocalDateKey(new Date()));
+let clockTimer;
 
-const today = new Date();
-const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-const currentShift = computed(() => shifts.value.find((shift) => shift.role === props.role && shift.shiftDate === todayKey && !shift.checkOutAt) || null);
+const currentShift = computed(() => shifts.value.find((shift) => shift.role === props.role && shift.shiftDate === todayKey.value && !shift.checkOutAt) || null);
 const action = computed(() => currentShift.value?.checkInAt ? 'checkOut' : 'checkIn');
+const canCheckOut = computed(() => !currentShift.value?.endTime || now.value >= parseShiftEndDatetime(todayKey.value, currentShift.value.endTime, currentShift.value.startTime));
 
 function time(value) {
   return value ? String(value).slice(0, 5) : '';
@@ -41,6 +44,7 @@ async function submit() {
     const updated = await shiftApi[action.value](currentShift.value.shiftId);
     const index = shifts.value.findIndex((shift) => shift.shiftId === updated.shiftId);
     if (index >= 0) shifts.value[index] = updated;
+    window.dispatchEvent(new Event('staff-shift-changed'));
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -48,7 +52,14 @@ async function submit() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  clockTimer = setInterval(() => {
+    now.value = new Date();
+    todayKey.value = toLocalDateKey(new Date());
+  }, 30000);
+});
+onUnmounted(() => clearInterval(clockTimer));
 </script>
 
 <template>
@@ -67,8 +78,9 @@ onMounted(load);
     <p v-else-if="error" class="shift-note error">{{ error }}</p>
     <template v-else-if="currentShift">
       <p class="shift-note">{{ currentShift.checkInAt ? `Check-in ${currentShift.checkInAt}` : 'Chưa check-in' }}</p>
-      <button class="btn btn-sm" :class="currentShift.checkInAt ? 'btn-outline' : 'btn-primary'" :disabled="saving" @click="submit">
-        {{ saving ? 'Đang cập nhật...' : currentShift.checkInAt ? 'Check-out' : 'Check-in' }}
+      <div aria-live="polite" role="status" class="sr-only">{{ saving ? 'Đang cập nhật trạng thái ca.' : currentShift.checkInAt ? canCheckOut ? 'Đã cho phép check-out.' : `Có thể check-out từ ${time(currentShift.endTime)}.` : 'Đang sẵn sàng check-in.' }}</div>
+      <button class="btn btn-sm" :class="currentShift.checkInAt ? 'btn-outline' : 'btn-primary'" :disabled="saving || (currentShift.checkInAt && !canCheckOut)" @click="submit">
+        {{ saving ? 'Đang cập nhật...' : currentShift.checkInAt ? canCheckOut ? 'Check-out' : `Có thể check-out từ ${time(currentShift.endTime)}` : 'Check-in' }}
       </button>
     </template>
     <p v-else class="shift-note">Chưa có ca được phân công hôm nay.</p>
@@ -83,4 +95,5 @@ onMounted(load);
 .shift-state.active { background: #dcfce7; color: #166534; }
 .shift-note { color: var(--text-mid); font-size: 13px; margin: 8px 0; }
 .error { color: var(--red-active); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>

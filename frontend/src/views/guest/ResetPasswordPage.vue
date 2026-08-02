@@ -35,7 +35,7 @@ async function submit() {
 
 <template>
   <div class="auth-page"><div class="auth-container"><div class="auth-card">
-    <div class="auth-header"><router-link to="/" class="auth-brand">Fast<span>Guy</span></router-link><h1>Đặt lại mật khẩu</h1></div>
+    <div class="auth-header"><router-link to="/home" class="auth-brand">Fast<span>Guy</span></router-link><h1>Đặt lại mật khẩu</h1></div>
     <form @submit.prevent="submit" class="auth-form">
       <div class="form-group"><label class="form-label">Mật khẩu mới</label><input v-model="password" type="password" class="form-input" required /></div>
       <div class="form-group"><label class="form-label">Xác nhận mật khẩu mới</label><input v-model="confirmPassword" type="password" class="form-input" required /></div>

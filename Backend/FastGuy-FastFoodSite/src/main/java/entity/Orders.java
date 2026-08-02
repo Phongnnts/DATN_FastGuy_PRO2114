@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 @Entity
@@ -23,6 +25,15 @@ public class Orders {
     @Column(name = "order_code")
     private String orderCode;
 
+    @Column(name = "idempotency_key")
+    private String idempotencyKey;
+
+    @Column(name = "request_hash")
+    private String requestHash;
+
+    @Column(name = "idempotency_owner")
+    private String idempotencyOwner;
+
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
@@ -35,10 +46,6 @@ public class Orders {
 
     @Column(name = "customer_address")
     private String customerAddress;
-
-    @ManyToOne
-    @JoinColumn(name = "zone_id")
-    private DeliveryZone zone;
 
     @Column(name = "to_province_name")
     private String toProvinceName;
@@ -115,6 +122,9 @@ public class Orders {
     @Column(name = "payos_checkout_url")
     private String payosCheckoutUrl;
 
+    @Column(name = "guest_return_proof_hash")
+    private String guestReturnProofHash;
+
     @Column(name = "order_status")
     private String orderStatus;
 
@@ -180,12 +190,27 @@ public class Orders {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+
+    @PreUpdate
+    void preUpdate() { updatedAt = LocalDateTime.now(); }
+
     public Orders() {}
 
     public int getOrderId() { return orderId; }
     public void setOrderId(int orderId) { this.orderId = orderId; }
     public String getOrderCode() { return orderCode; }
     public void setOrderCode(String orderCode) { this.orderCode = orderCode; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public String getRequestHash() { return requestHash; }
+    public void setRequestHash(String requestHash) { this.requestHash = requestHash; }
+    public String getIdempotencyOwner() { return idempotencyOwner; }
+    public void setIdempotencyOwner(String idempotencyOwner) { this.idempotencyOwner = idempotencyOwner; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
     public String getCustomerName() { return customerName; }
@@ -194,8 +219,6 @@ public class Orders {
     public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
     public String getCustomerAddress() { return customerAddress; }
     public void setCustomerAddress(String customerAddress) { this.customerAddress = customerAddress; }
-    public DeliveryZone getZone() { return zone; }
-    public void setZone(DeliveryZone zone) { this.zone = zone; }
     public String getToProvinceName() { return toProvinceName; }
     public void setToProvinceName(String toProvinceName) { this.toProvinceName = toProvinceName; }
     public String getToDistrictName() { return toDistrictName; }
@@ -246,6 +269,8 @@ public class Orders {
     public void setPayosPaymentLinkId(String payosPaymentLinkId) { this.payosPaymentLinkId = payosPaymentLinkId; }
     public String getPayosCheckoutUrl() { return payosCheckoutUrl; }
     public void setPayosCheckoutUrl(String payosCheckoutUrl) { this.payosCheckoutUrl = payosCheckoutUrl; }
+    public String getGuestReturnProofHash() { return guestReturnProofHash; }
+    public void setGuestReturnProofHash(String guestReturnProofHash) { this.guestReturnProofHash = guestReturnProofHash; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
     public User getStaff() { return staff; }

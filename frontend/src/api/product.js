@@ -19,6 +19,9 @@ export default {
   getFeatured() {
     return client.get('/products/featured');
   },
+  getBestSellers(params) {
+    return client.get('/products/best-sellers', { params });
+  },
   create(data) {
     return client.post('/products', data);
   },

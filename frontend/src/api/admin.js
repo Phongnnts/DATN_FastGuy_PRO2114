@@ -43,17 +43,11 @@ export default {
   getOrders(params) {
     return client.get('/admin/orders', { params });
   },
-  getRevenueReport(params) {
-    return client.get('/admin/reports/revenue', { params });
+  getOrderById(id) {
+    return client.get(`/admin/orders/${id}`);
   },
-  getTopProducts(params) {
-    return client.get('/admin/reports/top-products', { params });
-  },
-  exportReport(type, params) {
-    return client.get(`/admin/reports/export/${type}`, {
-      params,
-      responseType: 'blob',
-    });
+  getFullReport(params) {
+    return client.get('/admin/reports/full', { params });
   },
   getVariants(productId) {
     return client.get(`/admin/products/${productId}/variants`);
@@ -76,6 +70,18 @@ export default {
   createModifierOption(groupId, data) {
     return client.post(`/admin/products/${groupId}/modifier-groups/options`, data);
   },
+  updateModifierGroup(groupId, data) {
+    return client.put(`/admin/products/${groupId}/modifier-groups`, data);
+  },
+  deleteModifierGroup(groupId) {
+    return client.delete(`/admin/products/modifier-groups/${groupId}`);
+  },
+  updateModifierOption(groupId, optionId, data) {
+    return client.put(`/admin/products/${groupId}/modifier-groups/options/${optionId}`, data);
+  },
+  deleteModifierOption(groupId, optionId) {
+    return client.delete(`/admin/products/${groupId}/modifier-groups/options/${optionId}`);
+  },
   getCombo(productId) {
     return client.get(`/admin/products/${productId}/combo`);
   },
@@ -85,14 +91,20 @@ export default {
   createComboItem(productId, data) {
     return client.post(`/admin/products/${productId}/combo/items`, data);
   },
+  updateCombo(productId, data) {
+    return client.put(`/admin/products/${productId}/combo`, data);
+  },
+  deleteComboItem(productId, itemId) {
+    return client.delete(`/admin/products/${productId}/combo/items/${itemId}`);
+  },
   getSettings() {
     return client.get('/admin/settings');
   },
   updateSettings(data) {
     return client.put('/admin/settings', data);
   },
-  getShifts() {
-    return client.get('/admin/shifts');
+  getShifts(params) {
+    return client.get('/admin/shifts', { params });
   },
   createShift(data) {
     return client.post('/admin/shifts', data);
@@ -105,5 +117,23 @@ export default {
   },
   updateRefund(orderId, data) {
     return client.put(`/admin/refunds/${orderId}`, data);
+  },
+  getRefunds() {
+    return client.get('/admin/refunds');
+  },
+  cancelOrder(orderId, data) {
+    return client.put(`/admin/orders/${orderId}/cancel`, data || {});
+  },
+  updateOrderStatus(orderId, data) {
+    return client.put(`/admin/orders/${orderId}/status`, data);
+  },
+  addOrderNote(orderId, note) {
+    return client.post(`/admin/orders/${orderId}/notes`, { note });
+  },
+  getUserOrders(userId) {
+    return client.get(`/admin/users/${userId}/orders`);
+  },
+  updateUserStatus(userId, data) {
+    return client.put(`/admin/users/${userId}/status`, data);
   },
 };

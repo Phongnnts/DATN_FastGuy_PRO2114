@@ -1,6 +1,8 @@
 package entity;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "OrderItem")
@@ -46,6 +49,9 @@ public class OrderItem {
     @Column(name = "total_price")
     private BigDecimal totalPrice;
 
+    @Column(name = "modifiers_json")
+    private String modifiersJson;
+
     public OrderItem() {}
 
     public int getOrderItemId() { return orderItemId; }
@@ -66,4 +72,36 @@ public class OrderItem {
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
     public BigDecimal getTotalPrice() { return totalPrice; }
     public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
+
+    public List<ModifierItem> getModifiers() {
+        if (modifiersJson == null || modifiersJson.isEmpty()) return new ArrayList<>();
+        try {
+            return utils.JsonUtil.getMapper().readValue(modifiersJson, new com.fasterxml.jackson.core.type.TypeReference<List<ModifierItem>>() {});
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    public void setModifiers(List<ModifierItem> modifiers) {
+        try {
+            this.modifiersJson = modifiers == null || modifiers.isEmpty() ? "[]" : utils.JsonUtil.getMapper().writeValueAsString(modifiers);
+        } catch (Exception e) {
+            this.modifiersJson = "[]";
+        }
+    }
+
+    public static class ModifierItem {
+        public int modifierOptionId;
+        public String groupName;
+        public String optionName;
+        public BigDecimal price;
+
+        public ModifierItem() {}
+        public ModifierItem(int modifierOptionId, String groupName, String optionName, BigDecimal price) {
+            this.modifierOptionId = modifierOptionId;
+            this.groupName = groupName;
+            this.optionName = optionName;
+            this.price = price;
+        }
+    }
 }

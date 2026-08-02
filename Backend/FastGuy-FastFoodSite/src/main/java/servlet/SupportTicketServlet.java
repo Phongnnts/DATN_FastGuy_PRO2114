@@ -34,9 +34,12 @@ public class SupportTicketServlet extends HttpServlet {
             return;
         }
         try {
-            Integer orderId = body.get("orderId") instanceof Number ? ((Number) body.get("orderId")).intValue() : null;
+            Object rawOrderId = body.get("orderId");
+            if (rawOrderId != null && !(rawOrderId instanceof Number)) throw new IllegalArgumentException("Invalid data type");
+            if (!(body.get("subject") instanceof String) || !(body.get("category") instanceof String) || !(body.get("description") instanceof String)) throw new IllegalArgumentException("Invalid data type");
+            Integer orderId = rawOrderId == null ? null : ((Number) rawOrderId).intValue();
             ApiResponse.ok(resp, supportTicketService.create(userId, orderId, (String) body.get("subject"), (String) body.get("category"), (String) body.get("description")), "Ticket created");
-        } catch (IllegalArgumentException e) {
+        } catch (ClassCastException | IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         }
     }

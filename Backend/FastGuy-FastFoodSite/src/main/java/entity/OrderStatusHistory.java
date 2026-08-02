@@ -4,9 +4,12 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -19,6 +22,10 @@ public class OrderStatusHistory {
 
     @Column(name = "order_id")
     private int orderId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actor_user_id", insertable = false, updatable = false)
+    private User actor;
 
     @Column(name = "actor_user_id")
     private Integer actorUserId;
@@ -38,11 +45,24 @@ public class OrderStatusHistory {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    public OrderStatusHistory() {}
+
+    public OrderStatusHistory(int orderId, Integer actorUserId, String actorRole, String fromStatus, String toStatus, String note, LocalDateTime createdAt) {
+        this.orderId = orderId;
+        this.actorUserId = actorUserId;
+        this.actorRole = actorRole;
+        this.fromStatus = fromStatus;
+        this.toStatus = toStatus;
+        this.note = note;
+        this.createdAt = createdAt;
+    }
+
     public int getHistoryId() { return historyId; }
     public void setHistoryId(int historyId) { this.historyId = historyId; }
     public int getOrderId() { return orderId; }
     public void setOrderId(int orderId) { this.orderId = orderId; }
-    public Integer getActorUserId() { return actorUserId; }
+    public User getActor() { return actor; }
+    public int getActorUserId() { return actor != null ? actor.getUserId() : 0; }
     public void setActorUserId(Integer actorUserId) { this.actorUserId = actorUserId; }
     public String getActorRole() { return actorRole; }
     public void setActorRole(String actorRole) { this.actorRole = actorRole; }

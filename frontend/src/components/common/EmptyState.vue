@@ -7,10 +7,10 @@ defineProps({
 </script>
 
 <template>
-  <div class="empty-state">
-    <i :class="'bi ' + icon"></i>
+  <section class="empty-state" role="status" aria-live="polite">
+    <i :class="'bi ' + icon" aria-hidden="true"></i>
     <h3>{{ title }}</h3>
     <p v-if="description">{{ description }}</p>
     <slot />
-  </div>
+  </section>
 </template>
