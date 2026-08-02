@@ -14,12 +14,12 @@
   /* Role accents */
   --role-guest: #ff6b35;
   --role-user: #e8734a;
-  --role-admin: #6366f1;
-  --role-staff: #f59e0b;
-  --role-shipper: #10b981;
-  --role-admin-soft: rgba(99, 102, 241, 0.1);
-  --role-staff-soft: rgba(245, 158, 11, 0.12);
-  --role-shipper-soft: rgba(16, 185, 129, 0.12);
+  --role-admin: var(--primary);
+  --role-staff: var(--primary);
+  --role-shipper: var(--primary);
+  --role-admin-soft: var(--primary-50);
+  --role-staff-soft: var(--primary-50);
+  --role-shipper-soft: var(--primary-50);
 
   /* Neutral */
   --bg: #fafafa;
@@ -75,6 +75,22 @@
   --space-10: 40px;
   --space-12: 48px;
   --space-16: 64px;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--bg-card);
+  --color-surface-muted: var(--surface);
+  --color-text: var(--text-dark);
+  --color-text-muted: var(--text-mid);
+  --color-border: var(--border);
+  --color-accent: var(--role-accent, var(--primary));
+  --control-height: 44px;
+  --header-height: 64px;
+  --z-header: 100;
+  --z-backdrop: 200;
+  --z-drawer: 210;
+  --z-dropdown: 300;
+  --z-modal: 400;
+  --z-toast: 500;
 }
 
 *, *::before, *::after {
@@ -116,7 +132,6 @@ button {
 
 input, textarea, select {
   font-family: var(--font);
-  outline: none;
 }
 
 ::selection {

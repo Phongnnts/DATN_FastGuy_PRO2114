@@ -2,11 +2,16 @@ package servlet;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import dao.OrderItemDAO;
 import dao.OrdersDAO;
@@ -16,6 +21,8 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.OrderService;
+import service.GuestReturnProof;
+import service.OrderTransitionService;
 import service.PayOSPaymentService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -73,6 +80,26 @@ public class OrderServlet extends HttpServlet {
             return;
         }
 
+        if ("/payment-capabilities".equals(path)) {
+            List<String> methods = new ArrayList<>();
+            methods.add("COD");
+            if (payOSPaymentService.isConfigured()) methods.add("BANK_TRANSFER");
+            ApiResponse.ok(resp, Map.of("methods", methods));
+            return;
+        }
+
+        if ("/guest-payment-status".equals(path)) {
+            String orderCode = req.getParameter("orderCode");
+            String token = req.getParameter("token");
+            Orders order = orderCode == null ? null : ordersDAO.findByOrderCode(orderCode.trim());
+            if (order == null || order.getUser() != null || !GuestReturnProof.verify(token, order.getGuestReturnProofHash())) {
+                ApiResponse.error(resp, "Not found", 404);
+                return;
+            }
+            ApiResponse.ok(resp, Map.of("orderCode", order.getOrderCode(), "paymentStatus", order.getPaymentStatus(), "orderStatus", order.getOrderStatus()));
+            return;
+        }
+
         // Cac endpoint con lai can auth
         int userId = getUserId(req, resp);
         if (userId < 0) return;
@@ -82,7 +109,7 @@ public class OrderServlet extends HttpServlet {
             try {
                 int orderId = Integer.parseInt(idStr);
                 Orders order = ordersDAO.findById(orderId);
-                if (order == null || order.getUser().getUserId() != userId) {
+                if (!OrderService.canUserAccess(order, userId)) {
                     ApiResponse.error(resp, "Not found", 404);
                     return;
                 }
@@ -117,7 +144,7 @@ public class OrderServlet extends HttpServlet {
         try {
             int orderId = Integer.parseInt(path.substring(1));
             Orders order = ordersDAO.findById(orderId);
-            if (order == null || order.getUser().getUserId() != userId) {
+            if (!OrderService.canUserAccess(order, userId)) {
                 ApiResponse.error(resp, "Order not found", 404);
                 return;
             }
@@ -145,12 +172,19 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
+        String idempotencyKey = req.getHeader("Idempotency-Key");
+        String requestHash = requestHash(body);
+        String cartSignature = utils.JsonUtil.toJson(body.get("cartSignature"));
 
         String customerName = (String) body.get("customerName");
         String address = (String) body.get("address");
         String phone = (String) body.get("phone");
         String deliveryNote = (String) body.get("deliveryNote");
         String paymentMethod = (String) body.get("paymentMethod");
+        if ("BANK_TRANSFER".equals(paymentMethod) && !payOSPaymentService.isConfigured()) {
+            ApiResponse.error(resp, "Phương thức thanh toán không khả dụng", 400);
+            return;
+        }
         Integer ghnProvinceId = body.get("ghnProvinceId") instanceof Number ? ((Number) body.get("ghnProvinceId")).intValue() : null;
         Integer ghnDistrictId = body.get("ghnDistrictId") instanceof Number ? ((Number) body.get("ghnDistrictId")).intValue() : null;
         String ghnWardCode = (String) body.get("ghnWardCode");
@@ -166,7 +200,8 @@ public class OrderServlet extends HttpServlet {
         Orders order = null;
         try {
             order = orderService.checkout(userId, customerName, address, phone, deliveryNote, paymentMethod,
-                    ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, couponCode);
+                    ghnProvinceId, ghnDistrictId, ghnWardCode, toProvinceName, toDistrictName, toWardName, couponCode,
+                    idempotencyKey, requestHash, cartSignature);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
             return;
@@ -179,12 +214,9 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Cart is empty", 400);
             return;
         }
+        boolean paymentRetryable = false;
         if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
-            if (payOSPaymentService.createPaymentLink(order.getOrderId()) == null) {
-                orderService.cancelOrder(order.getOrderId(), null, null, "Không thể tạo link PayOS", false);
-                ApiResponse.error(resp, "Không thể tạo link PayOS", 502);
-                return;
-            }
+            paymentRetryable = payOSPaymentService.createPaymentLink(order.getOrderId()) == null;
             order = ordersDAO.findById(order.getOrderId());
             orderService.clearCart(userId);
         }
@@ -198,6 +230,7 @@ public class OrderServlet extends HttpServlet {
         data.put("shippingFee", order.getShippingFee());
         data.put("serviceFee", order.getServiceFee());
         data.put("discountAmount", order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO);
+        data.put("paymentRetryable", paymentRetryable);
         addTransferData(data, order);
 
         resp.setStatus(201);
@@ -225,7 +258,7 @@ public class OrderServlet extends HttpServlet {
                 ApiResponse.error(resp, "Order not found", 404);
                 return;
             }
-            if (!"PENDING".equals(order.getOrderStatus()) && !"WAITING_STOCK_CONFIRM".equals(order.getOrderStatus())) {
+            if (!"PENDING".equals(order.getOrderStatus())) {
                 ApiResponse.error(resp, "Cannot cancel order in current status", 400);
                 return;
             }
@@ -341,6 +374,9 @@ public class OrderServlet extends HttpServlet {
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
 
+        OrderTransitionService transitionService = new OrderTransitionService();
+        data.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "USER", o.getPaymentStatus()));
+
         return data;
     }
 
@@ -399,12 +435,18 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
+        String idempotencyKey = req.getHeader("Idempotency-Key");
+        String requestHash = requestHash(body);
 
         String customerName = (String) body.get("customerName");
         String phone = (String) body.get("phone");
         String address = (String) body.get("address");
         String deliveryNote = (String) body.get("deliveryNote");
         String paymentMethod = (String) body.get("paymentMethod");
+        if ("BANK_TRANSFER".equals(paymentMethod) && !payOSPaymentService.isConfigured()) {
+            ApiResponse.error(resp, "Phương thức thanh toán không khả dụng", 400);
+            return;
+        }
 
         Object rawItems = body.get("items");
         if (rawItems == null || !(rawItems instanceof List)) {
@@ -426,7 +468,7 @@ public class OrderServlet extends HttpServlet {
         try {
             order = orderService.guestCheckout(customerName, phone, address, deliveryNote, paymentMethod,
                     itemsData, ghnProvinceId, ghnDistrictId, ghnWardCode,
-                    toProvinceName, toDistrictName, toWardName, couponCode);
+                    toProvinceName, toDistrictName, toWardName, couponCode, idempotencyKey, requestHash);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
             return;
@@ -439,12 +481,15 @@ public class OrderServlet extends HttpServlet {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
+        String guestReturnProof = GuestReturnProof.generate();
+        payOSPaymentService.storeGuestReturnProof(order.getOrderId(), guestReturnProof);
+        boolean paymentRetryable = false;
         if ("BANK_TRANSFER".equals(order.getPaymentMethod())) {
-            if (payOSPaymentService.createPaymentLink(order.getOrderId()) == null) {
-                orderService.cancelOrder(order.getOrderId(), null, null, "Không thể tạo link PayOS", false);
-                ApiResponse.error(resp, "Không thể tạo link PayOS", 502);
+            if (!payOSPaymentService.isConfigured()) {
+                ApiResponse.error(resp, "Phương thức thanh toán không khả dụng", 400);
                 return;
             }
+            paymentRetryable = payOSPaymentService.createPaymentLink(order.getOrderId(), guestReturnProof) == null;
             order = ordersDAO.findById(order.getOrderId());
         }
 
@@ -457,6 +502,8 @@ public class OrderServlet extends HttpServlet {
         data.put("shippingFee", order.getShippingFee());
         data.put("serviceFee", order.getServiceFee());
         data.put("discountAmount", order.getDiscountAmount() != null ? order.getDiscountAmount() : BigDecimal.ZERO);
+        data.put("returnProof", guestReturnProof);
+        data.put("paymentRetryable", paymentRetryable);
         addTransferData(data, order);
 
         resp.setStatus(201);
@@ -464,8 +511,21 @@ public class OrderServlet extends HttpServlet {
     }
 
     private void addTransferData(Map<String, Object> data, Orders order) {
-        if (!"BANK_TRANSFER".equals(order.getPaymentMethod()) || !"PENDING".equals(order.getOrderStatus())) return;
+        if (!"BANK_TRANSFER".equals(order.getPaymentMethod())) return;
+        if (!"PENDING".equals(order.getOrderStatus())) return;
         String checkoutUrl = order.getPayosCheckoutUrl();
         if (checkoutUrl != null && !checkoutUrl.isBlank()) data.put("checkoutUrl", checkoutUrl);
+    }
+
+    private String requestHash(Map<String, Object> body) {
+        try {
+            String canonical = utils.JsonUtil.getMapper().copy()
+                    .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+                    .writeValueAsString(body);
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 }

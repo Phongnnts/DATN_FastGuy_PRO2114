@@ -26,8 +26,7 @@ const sidebarLinks = [
    { label: 'Tồn kho', path: '/admin/inventory', icon: 'bi-boxes' },
    { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
   { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
-  { label: 'Doanh thu', path: '/admin/reports/revenue', icon: 'bi-graph-up' },
-  { label: 'Bán chạy', path: '/admin/reports/top-products', icon: 'bi-trophy' },
+  { label: 'Báo cáo', path: '/admin/reports', icon: 'bi-graph-up' },
    { label: 'Mã giảm giá', path: '/admin/coupons', icon: 'bi-ticket-perforated' },
    { label: 'Banner', path: '/admin/banners', icon: 'bi-images' },
    { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },
@@ -70,11 +69,11 @@ const sidebarLinks = [
             <i class="bi bi-list"></i>
           </button>
           <h2>Admin</h2>
-          <span class="fg-status-chip">Control cockpit</span>
+          <span class="fg-status-chip">Trung tâm quản trị</span>
         </div>
         <div class="topbar-right">
           <NotificationBell />
-          <router-link to="/" class="icon-btn" title="Website">
+          <router-link to="/home" class="icon-btn" title="Website">
             <i class="bi bi-house"></i>
           </router-link>
           <button class="logout-btn" @click="logout">
@@ -86,7 +85,7 @@ const sidebarLinks = [
         <router-view />
       </div>
     </div>
-    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+    <button v-if="sidebarOpen" class="sidebar-overlay" aria-label="Đóng menu quản trị" @click="sidebarOpen = false"></button>
   </div>
 </template>
 
@@ -137,4 +136,18 @@ const sidebarLinks = [
     z-index: 99;
   }
 }
+</style>
+
+<style scoped>
+.fg-shell-admin{--role-accent:var(--primary);--role-soft:var(--primary-50)}
+.fg-shell-admin :deep(.sidebar){border-right:1px solid rgba(23,23,23,.06);background:linear-gradient(180deg,#fff 0%,#fffaf6 100%)}
+.sidebar-brand{border-bottom-color:rgba(232,115,74,.12)}
+.sidebar-brand-title{letter-spacing:-.04em}
+.sidebar-nav a{border-radius:12px}
+.sidebar-nav a.router-link-active{color:#fff;background:linear-gradient(135deg,var(--primary),#ef956f);box-shadow:0 8px 20px rgba(232,115,74,.24)}
+.sidebar-nav a.router-link-active i{color:#fff}
+.topbar{height:64px;border-bottom-color:rgba(23,23,23,.06);background:rgba(250,250,250,.88)}
+.topbar h2{font-size:15px;letter-spacing:-.02em}
+.fg-status-chip{color:var(--primary-dark);background:var(--primary-50);border-color:var(--primary-100)}
+.page-content{background:#f7f5f2}
 </style>

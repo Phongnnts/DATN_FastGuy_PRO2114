@@ -1,25 +1,40 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useShipperStore } from '@/stores/shipper';
 import { formatPrice, formatDate } from '@/utils/format';
 
 const router = useRouter();
+const route = useRoute();
 const shipperStore = useShipperStore();
-const activeTab = ref('active');
+const historyOnly = computed(() => route.name === 'ShipperOrderHistory');
+const activeTab = ref(historyOnly.value ? 'history' : 'pickup');
 const searchTerm = ref('');
 
-const activeOrders = computed(() =>
-  shipperStore.myOrders.filter(o => o.status === 'PICKED_UP' || o.status === 'READY')
+const pickupOrders = computed(() =>
+  shipperStore.myOrders.filter(o => o.status === 'ASSIGNED')
+);
+const deliveringOrders = computed(() =>
+  shipperStore.myOrders.filter(o => o.status === 'PICKED_UP')
 );
 const historyOrders = computed(() =>
   shipperStore.myOrders.filter(o => o.status === 'DELIVERED' || o.status === 'CANCELLED')
 );
 
-const filteredActive = computed(() => {
-  if (!searchTerm.value) return activeOrders.value;
+const filteredPickup = computed(() => {
+  if (!searchTerm.value) return pickupOrders.value;
   const q = searchTerm.value.toLowerCase();
-  return activeOrders.value.filter(o =>
+  return pickupOrders.value.filter(o =>
+    o.orderCode.toLowerCase().includes(q) ||
+    o.customerName.toLowerCase().includes(q) ||
+    o.customerAddress.toLowerCase().includes(q)
+  );
+});
+
+const filteredDelivering = computed(() => {
+  if (!searchTerm.value) return deliveringOrders.value;
+  const q = searchTerm.value.toLowerCase();
+  return deliveringOrders.value.filter(o =>
     o.orderCode.toLowerCase().includes(q) ||
     o.customerName.toLowerCase().includes(q) ||
     o.customerAddress.toLowerCase().includes(q)
@@ -36,11 +51,19 @@ const filteredHistory = computed(() => {
 });
 
 onMounted(async () => {
-  await shipperStore.fetchMyOrders();
+  if (historyOnly.value) await shipperStore.fetchHistory();
+  else await shipperStore.fetchMyOrders();
 });
 
 function goDetail(id) {
-  router.push(`/shipper/orders/${id}`);
+  if (!historyOnly.value) router.push(`/shipper/orders/${id}`);
+}
+
+function handleCardKeydown(event, id) {
+  if (!historyOnly.value && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    goDetail(id);
+  }
 }
 </script>
 
@@ -55,25 +78,62 @@ function goDetail(id) {
       <input v-model="searchTerm" class="form-input" placeholder="Tìm đơn hàng..." />
     </div>
 
-    <div class="shipper-tabs">
-      <button class="tab" :class="{ active: activeTab === 'active' }" @click="activeTab = 'active'">
-        Đang giao ({{ activeOrders.length }})
+    <div v-if="!historyOnly" class="shipper-tabs" role="tablist" aria-label="Trạng thái đơn giao">
+      <button id="pickup-tab" class="tab" role="tab" :aria-selected="activeTab === 'pickup'" aria-controls="pickup-panel" :tabindex="activeTab === 'pickup' ? 0 : -1" :class="{ active: activeTab === 'pickup' }" @click="activeTab = 'pickup'">
+        Chờ lấy ({{ pickupOrders.length }})
       </button>
-      <button class="tab" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">
+      <button id="delivering-tab" class="tab" role="tab" :aria-selected="activeTab === 'delivering'" aria-controls="delivering-panel" :tabindex="activeTab === 'delivering' ? 0 : -1" :class="{ active: activeTab === 'delivering' }" @click="activeTab = 'delivering'">
+        Đang giao ({{ deliveringOrders.length }})
+      </button>
+      <button id="history-tab" class="tab" role="tab" :aria-selected="activeTab === 'history'" aria-controls="history-panel" :tabindex="activeTab === 'history' ? 0 : -1" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">
         Lịch sử ({{ historyOrders.length }})
       </button>
     </div>
 
-    <div v-if="activeTab === 'active'" class="order-cards">
-      <div v-if="filteredActive.length === 0" class="shipper-empty">
+    <div v-if="activeTab === 'pickup'" id="pickup-panel" class="order-cards" role="tabpanel" aria-labelledby="pickup-tab">
+      <div v-if="filteredPickup.length === 0" class="shipper-empty">
         <i class="bi bi-inbox"></i>
-        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn nào đang giao' }}</p>
+        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn chờ lấy' }}</p>
       </div>
       <div
-        v-for="order in filteredActive"
+        v-for="order in filteredPickup"
+        :key="order.id"
+        class="order-card pickup-card"
+        role="link"
+        tabindex="0"
+        :aria-label="`Mở đơn ${order.orderCode}`"
+        @click="goDetail(order.id)"
+        @keydown="handleCardKeydown($event, order.id)"
+      >
+        <div class="card-top">
+          <strong class="order-code">{{ order.orderCode }}</strong>
+          <span class="pickup-badge">Chờ lấy</span>
+        </div>
+        <div class="card-body">
+          <p><i class="bi bi-person"></i> {{ order.customerName }}</p>
+          <p><i class="bi bi-telephone"></i> {{ order.customerPhone }}</p>
+          <p><i class="bi bi-geo-alt"></i> {{ order.customerAddress }}</p>
+        </div>
+        <div class="card-bottom">
+          <span class="order-total">{{ formatPrice(order.total) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="activeTab === 'delivering'" id="delivering-panel" class="order-cards" role="tabpanel" aria-labelledby="delivering-tab">
+      <div v-if="filteredDelivering.length === 0" class="shipper-empty">
+        <i class="bi bi-inbox"></i>
+        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn đang giao' }}</p>
+      </div>
+      <div
+        v-for="order in filteredDelivering"
         :key="order.id"
         class="order-card"
+        role="link"
+        tabindex="0"
+        :aria-label="`Mở đơn ${order.orderCode}`"
         @click="goDetail(order.id)"
+        @keydown="handleCardKeydown($event, order.id)"
       >
         <div class="card-top">
           <strong class="order-code">{{ order.orderCode }}</strong>
@@ -90,7 +150,7 @@ function goDetail(id) {
       </div>
     </div>
 
-    <div v-else class="order-cards">
+    <div v-else id="history-panel" class="order-cards" :role="historyOnly ? undefined : 'tabpanel'" :aria-labelledby="historyOnly ? undefined : 'history-tab'">
       <div v-if="filteredHistory.length === 0" class="shipper-empty">
         <i class="bi bi-clock-history"></i>
         <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có lịch sử giao hàng' }}</p>
@@ -155,6 +215,7 @@ function goDetail(id) {
   transition: all var(--transition-fast);
 }
 .order-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.order-card:focus-visible, .tab:focus-visible { outline: 3px solid rgba(212, 118, 74, .35); outline-offset: 2px; }
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .order-code { font-size: 14px; }
 .active-badge,
@@ -166,6 +227,7 @@ function goDetail(id) {
   font-weight: 600;
 }
 .active-badge { background: #dbeafe; color: #1e40af; }
+.pickup-badge { background: #fef3c7; color: #92400e; }
 .status-delivered { background: #dcfce7; color: #166534; }
 .status-cancelled { background: #fee2e2; color: #991b1b; }
 .card-body p {

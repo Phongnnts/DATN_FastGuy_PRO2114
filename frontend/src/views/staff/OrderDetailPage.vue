@@ -6,7 +6,9 @@ import { staffApi } from '@/api';
 import { formatPrice } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import OrderTimeline from '@/components/common/OrderTimeline.vue';
+import { useToast } from '@/stores/toast';
 
+const toast = useToast();
 const route = useRoute();
 const staffStore = useStaffStore();
 const order = ref(null);
@@ -19,7 +21,7 @@ const selectedShipperId = ref(null);
 const shippers = ref([]);
 
 const pendingPayment = computed(() => order.value?.paymentMethod === 'BANK_TRANSFER' && order.value?.paymentStatus !== 'PAID');
-const canCancel = computed(() => ['WAITING_STOCK_CONFIRM', 'PENDING', 'CONFIRMED', 'PREPARING'].includes(order.value?.status));
+const canCancel = computed(() => ['PENDING', 'CONFIRMED', 'PREPARING'].includes(order.value?.status));
 const assignedShipper = computed(() => order.value?.shipperName || '');
 
 async function load() {
@@ -37,14 +39,14 @@ async function updateStatus(status, reason = null) {
   if (!order.value || saving.value) return;
   saving.value = true;
   try { await staffStore.updateOrderStatus(order.value.id, status, reason); await load(); }
-  catch (e) { alert(e.message || 'Không thể cập nhật trạng thái'); }
+  catch (e) { toast.error(e.message || 'Không thể cập nhật trạng thái'); }
   finally { saving.value = false; }
 }
 async function assignShipper() {
   if (!order.value || !selectedShipperId.value || saving.value) return;
   saving.value = true;
   try { await staffApi.assignShipper(order.value.id, selectedShipperId.value); await load(); }
-  catch (e) { alert(e.message || 'Không thể gán shipper'); }
+  catch (e) { toast.error(e.message || 'Không thể gán shipper'); }
   finally { saving.value = false; }
 }
 function openCancelModal() { cancelReason.value = ''; showCancelModal.value = true; }

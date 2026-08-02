@@ -109,11 +109,12 @@ export const useOrderStore = defineStore('order', () => {
         paymentStatus: data.paymentStatus,
         createdAt: data.createdAt,
         items: (data.items || []).map((item) => ({
-          productId: `${item.name}-${item.quantity}`,
-          productName: item.name,
+          productId: item.productId || `${item.name}-${item.quantity}`,
+          productName: item.productName || item.name,
           quantity: item.quantity,
-          image: '',
+          image: item.image || item.imageUrl || '',
         })),
+        checkoutUrl: data.checkoutUrl || '',
         statusHistory: (data.statusHistory || []).map((entry) => ({
           status: entry.status,
           time: entry.timestamp,
@@ -124,7 +125,7 @@ export const useOrderStore = defineStore('order', () => {
     }
   }
 
-  async function createOrder(orderData) {
+  async function createOrder(orderData, idempotencyKey) {
     loading.value = true;
     try {
       const data = await orderApi.create({
@@ -140,7 +141,8 @@ export const useOrderStore = defineStore('order', () => {
         toDistrictName: orderData.toDistrictName || '',
         toWardName: orderData.toWardName || '',
         couponCode: orderData.couponCode || '',
-      });
+        cartSignature: orderData.cartSignature || [],
+      }, idempotencyKey);
       const newOrder = {
         id: data.orderId,
         orderCode: data.orderCode,
@@ -150,6 +152,7 @@ export const useOrderStore = defineStore('order', () => {
         createdAt: new Date().toISOString(),
         items: orderData.items || [],
         checkoutUrl: data.checkoutUrl || '',
+        paymentRetryable: Boolean(data.paymentRetryable),
       };
       allOrders.value.unshift(newOrder);
       return newOrder;

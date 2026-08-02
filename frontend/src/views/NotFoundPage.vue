@@ -14,7 +14,7 @@
       <p style="font-size: 18px; color: var(--text-mid); margin-bottom: 32px">
         Trang bạn tìm không tồn tại
       </p>
-      <router-link to="/" class="btn btn-lg btn-primary"
+      <router-link to="/home" class="btn btn-lg btn-primary"
         ><i class="bi bi-house"></i> Về trang chủ</router-link
       >
     </div>

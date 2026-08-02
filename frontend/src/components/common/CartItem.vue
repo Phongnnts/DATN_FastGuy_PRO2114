@@ -3,6 +3,7 @@ import { formatPrice } from '@/utils/format';
 
 const props = defineProps({
   item: { type: Object, required: true },
+  pending: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:quantity', 'remove']);
@@ -22,7 +23,7 @@ function remove() {
 <template>
   <div class="cart-item">
     <div class="cart-img">
-      <img :src="item.image" :alt="item.name" />
+      <img :src="item.image || '/images/placeholder-product.svg'" :alt="item.name" @error="$event.currentTarget.src = '/images/placeholder-product.svg'" />
     </div>
     <div class="cart-info">
       <h4 class="cart-name">{{ item.name }}</h4>
@@ -37,16 +38,16 @@ function remove() {
       <div class="cart-price">{{ formatPrice(item.price) }}</div>
     </div>
     <div class="cart-qty">
-      <button class="qty-btn" @click="changeQty(-1)">
+       <button class="qty-btn" :disabled="pending || item.quantity <= 1" :aria-label="`Giảm số lượng ${item.name}`" @click="changeQty(-1)">
         <i class="bi bi-dash"></i>
       </button>
-      <span class="qty-val">{{ item.quantity }}</span>
-      <button class="qty-btn" :disabled="item.quantityAvailable != null && item.quantity >= Number(item.quantityAvailable)" @click="changeQty(1)">
+       <span class="qty-val" aria-live="polite">{{ item.quantity }}</span>
+       <button class="qty-btn" :disabled="pending || (item.quantityAvailable != null && item.quantity >= Number(item.quantityAvailable))" :aria-label="`Tăng số lượng ${item.name}`" @click="changeQty(1)">
         <i class="bi bi-plus"></i>
       </button>
     </div>
     <div class="cart-total">{{ formatPrice(item.price * item.quantity) }}</div>
-    <button class="cart-remove" @click="remove">
+     <button class="cart-remove" :disabled="pending" :aria-label="`Xóa ${item.name} khỏi giỏ hàng`" @click="remove">
       <i class="bi bi-x-lg"></i>
     </button>
   </div>

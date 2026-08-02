@@ -13,7 +13,7 @@ public class DatabaseUtil {
     public static synchronized EntityManager getEntityManager() {
         if (factory == null) {
             Map<String, String> overrides = new HashMap<>();
-            String url = AppConfig.getDbUrl();
+            String url = sqlServerTimeUrl(AppConfig.getDbUrl());
             String user = AppConfig.getDbUser();
             String pass = AppConfig.getDbPassword();
             if (!url.isEmpty()) overrides.put("jakarta.persistence.jdbc.url", url);
@@ -23,6 +23,13 @@ public class DatabaseUtil {
                     overrides.isEmpty() ? null : overrides);
         }
         return factory.createEntityManager();
+    }
+
+    static String sqlServerTimeUrl(String url) {
+        if (url.toLowerCase().contains("sendtimeasdatetime=")) {
+            return url.replaceAll("(?i)sendTimeAsDatetime=[^;]*", "sendTimeAsDatetime=false");
+        }
+        return url + (url.endsWith(";") ? "" : ";") + "sendTimeAsDatetime=false";
     }
 
     public static void close() {

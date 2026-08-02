@@ -19,9 +19,9 @@ async function handleLogin() {
   loading.value = true;
   try {
     const user = await auth.login(email.value, password.value);
-    cart.migrateToUser();
+    cart.migrateToUser().catch(() => {});
     const role = user?.role || '';
-    const redirect = route.query.redirect || (role === 'USER' ? '/' : `/${role.toLowerCase()}`);
+    const redirect = route.query.redirect || (role === 'USER' ? '/home' : `/${role.toLowerCase()}`);
     router.push(redirect);
   } catch (e) {
     error.value = e.message;
@@ -36,7 +36,7 @@ async function handleLogin() {
     <div class="auth-container">
       <div class="auth-card">
         <div class="auth-header">
-          <router-link to="/" class="auth-brand">Fast<span>Guy</span></router-link>
+          <router-link to="/home" class="auth-brand">Fast<span>Guy</span></router-link>
           <h1>Đăng nhập</h1>
           <p>Chào mừng bạn quay trở lại!</p>
         </div>

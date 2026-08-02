@@ -28,7 +28,7 @@ async function handleSubmit() {
     <div class="auth-container">
       <div class="auth-card">
         <div class="auth-header">
-          <router-link to="/" class="auth-brand">Fast<span>Guy</span></router-link>
+          <router-link to="/home" class="auth-brand">Fast<span>Guy</span></router-link>
           <h1>Quên mật khẩu</h1>
           <p>Nhập email để nhận hướng dẫn đặt lại mật khẩu</p>
         </div>
@@ -36,7 +36,7 @@ async function handleSubmit() {
           <div class="sent-icon"><i class="bi bi-check-lg"></i></div>
           <h3>Đã gửi!</h3>
           <p>{{ message }}</p>
-          <router-link to="/login" class="btn btn-primary">Quay lại đăng nhập</router-link>
+          <router-link to="/" class="btn btn-primary">Quay lại đăng nhập</router-link>
         </div>
         <form v-else @submit.prevent="handleSubmit" class="auth-form">
           <div class="form-group">
@@ -49,7 +49,7 @@ async function handleSubmit() {
           </button>
         </form>
         <div class="auth-footer">
-          <router-link to="/login" class="fw-semibold text-primary">
+          <router-link to="/" class="fw-semibold text-primary">
             <i class="bi bi-arrow-left"></i> Quay lại đăng nhập
           </router-link>
         </div>

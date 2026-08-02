@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import dao.OrderItemDAO;
+import dao.UserDAO;
+import service.ShipperShiftAccessService;
 import service.ShipperService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -23,7 +25,9 @@ import java.util.stream.Collectors;
 @WebServlet("/api/shipper/*")
 public class ShipperServlet extends HttpServlet {
     private ShipperService shipperService = new ShipperService();
+    private ShipperShiftAccessService shipperShiftAccessService = new ShipperShiftAccessService();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
+    private UserDAO userDAO = new UserDAO();
     private ObjectMapper mapper = new ObjectMapper();
 
     private int getShipperId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -43,7 +47,22 @@ public class ShipperServlet extends HttpServlet {
             ApiResponse.error(resp, "Forbidden", 403);
             return -1;
         }
+        entity.User shipper = userDAO.findById(userId);
+        if (shipper == null || !isActiveShipper(shipper.getRole(), shipper.getStatus())) {
+            ApiResponse.error(resp, "Inactive shipper", 403);
+            return -1;
+        }
         return userId;
+    }
+
+    static boolean isActiveShipper(String role, String status) {
+        return "SHIPPER".equals(role) && "ACTIVE".equals(status);
+    }
+
+    private boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int shipperId) throws IOException {
+        if (shipperShiftAccessService.hasCheckedInShift(shipperId)) return true;
+        ApiResponse.error(resp, "Checked-in shift required", 403);
+        return false;
     }
 
     @Override
@@ -58,13 +77,11 @@ public class ShipperServlet extends HttpServlet {
             return;
         }
 
+        if (!"/dashboard".equals(path) && !"/orders/history".equals(path) && !requireCheckedInShift(req, resp, shipperId)) return;
+
         switch (path) {
             case "/dashboard":
                 ApiResponse.ok(resp, shipperService.getDashboardStats(shipperId));
-                break;
-            case "/orders":
-                List<Orders> available = shipperService.getAvailableOrders();
-                ApiResponse.ok(resp, available.stream().map(this::toListItem).collect(Collectors.toList()));
                 break;
             case "/orders/mine":
                 List<Orders> mine = shipperService.getMyOrders(shipperId);
@@ -84,9 +101,8 @@ public class ShipperServlet extends HttpServlet {
                         String[] segs = path.split("/");
                         if (segs.length >= 3) {
                             int orderId = Integer.parseInt(segs[2]);
-                            List<Orders> all = new ArrayList<>(shipperService.getMyOrders(shipperId));
-                            all.addAll(shipperService.getAvailableOrders());
-                            Orders order = all.stream().filter(o -> o.getOrderId() == orderId).findFirst().orElse(null);
+                            Orders order = shipperService.getMyOrders(shipperId).stream()
+                                    .filter(o -> o.getOrderId() == orderId).findFirst().orElse(null);
                             if (order != null) {
                                 ApiResponse.ok(resp, toDetail(order));
                             } else {
@@ -107,6 +123,7 @@ public class ShipperServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         int shipperId = getShipperId(req, resp);
         if (shipperId < 0) return;
+        if (!requireCheckedInShift(req, resp, shipperId)) return;
 
         String path = req.getPathInfo();
         if (path == null) {
@@ -153,18 +170,6 @@ public class ShipperServlet extends HttpServlet {
                     }
                     break;
                 }
-                case "cancel": {
-                    Map<String, Object> body = mapper.readValue(req.getReader(),
-                            new TypeReference<Map<String, Object>>() {});
-                    String reason = body != null ? (String) body.get("reason") : "";
-                    boolean ok = shipperService.cancelOrder(orderId, shipperId, reason);
-                    if (ok) {
-                        ApiResponse.ok(resp, null, "Order cancelled");
-                    } else {
-                        ApiResponse.error(resp, "Cannot cancel this order", 400);
-                    }
-                    break;
-                }
                 default:
                     ApiResponse.error(resp, "Not found", 404);
             }
@@ -183,7 +188,6 @@ public class ShipperServlet extends HttpServlet {
         m.put("customerAddress", o.getCustomerAddress());
         m.put("finalAmount", o.getFinalAmount());
         m.put("shippingFee", o.getShippingFee());
-        m.put("serviceFee", o.getServiceFee());
         m.put("serviceFee", o.getServiceFee());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
@@ -224,6 +228,8 @@ public class ShipperServlet extends HttpServlet {
                 })
                 .collect(Collectors.toList());
         data.put("items", items);
+        var savedHistory = new service.OrderStatusHistoryService().getByOrderId(o.getOrderId());
+        data.put("statusHistory", savedHistory);
         return data;
     }
 }

@@ -4,9 +4,6 @@ export default {
   getDashboard() {
     return client.get('/shipper/dashboard');
   },
-  getAvailableOrders() {
-    return client.get('/shipper/orders');
-  },
   getMyOrders() {
     return client.get('/shipper/orders/mine');
   },
@@ -24,8 +21,5 @@ export default {
   },
   deliverOrder(id, collectedAmount) {
     return client.put(`/shipper/orders/${id}/deliver`, collectedAmount === undefined ? {} : { collectedAmount });
-  },
-  cancelOrder(id, reason) {
-    return client.put(`/shipper/orders/${id}/cancel`, { reason });
   },
 };

@@ -24,6 +24,10 @@ public class PayOSService {
     private final ObjectMapper mapper = new ObjectMapper();
 
     public Map<String, Object> createPaymentLink(Orders order) {
+        return createPaymentLink(order, null);
+    }
+
+    public Map<String, Object> createPaymentLink(Orders order, String guestReturnProof) {
         if (!isConfigured()) return Map.of("error", "PayOS chưa được cấu hình");
         if (order.getFinalAmount() == null || order.getFinalAmount().signum() <= 0) return Map.of("error", "Số tiền thanh toán không hợp lệ");
 
@@ -42,10 +46,10 @@ public class PayOSService {
             payload.put("expiredAt", Instant.now().plusSeconds(15 * 60).getEpochSecond());
             payload.put("signature", signature(Map.of(
                     "amount", amount,
-                    "cancelUrl", AppConfig.getAppWebUrl() + "/payment-return?orderId=" + order.getOrderId() + "&orderCode=" + order.getOrderCode(),
+                    "cancelUrl", returnUrl,
                     "description", payload.get("description"),
                     "orderCode", order.getOrderId(),
-                    "returnUrl", AppConfig.getAppWebUrl() + "/payment-return?orderId=" + order.getOrderId() + "&orderCode=" + order.getOrderCode()
+                    "returnUrl", returnUrl
             )));
 
             HttpRequest request = HttpRequest.newBuilder(URI.create(API_URL))
@@ -64,8 +68,11 @@ public class PayOSService {
             if (!(data instanceof Map<?, ?> result)) return Map.of("error", "PayOS không trả link thanh toán");
             Object checkoutUrl = result.get("checkoutUrl");
             Object paymentLinkId = result.get("paymentLinkId");
-            if (checkoutUrl == null || paymentLinkId == null) return Map.of("error", "PayOS không trả link thanh toán");
-            return Map.of("checkoutUrl", String.valueOf(checkoutUrl), "paymentLinkId", String.valueOf(paymentLinkId));
+            Object resultOrderCode = result.get("orderCode");
+            Object resultAmount = result.get("amount");
+            if (checkoutUrl == null || paymentLinkId == null || !(resultOrderCode instanceof Number) || !(resultAmount instanceof Number)) return Map.of("error", "PayOS trả dữ liệu thanh toán không đầy đủ");
+            return Map.of("checkoutUrl", String.valueOf(checkoutUrl), "paymentLinkId", String.valueOf(paymentLinkId),
+                    "orderCode", resultOrderCode, "amount", resultAmount);
         } catch (Exception e) {
             return Map.of("error", "Không thể kết nối PayOS");
         }
@@ -78,6 +85,37 @@ public class PayOSService {
 
     public boolean isConfigured() {
         return !AppConfig.getPayosClientId().isBlank() && !AppConfig.getPayosApiKey().isBlank() && !AppConfig.getPayosChecksumKey().isBlank();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getPaymentInfo(String paymentLinkId) {
+        if (!isConfigured() || paymentLinkId == null || paymentLinkId.isBlank()) return Map.of("error", "PayOS chưa được cấu hình");
+        try {
+            String url = API_URL + "/" + paymentLinkId;
+            Map<String, Object> payload = Map.of(
+                    "paymentLinkId", paymentLinkId,
+                    "signature", signature(Map.of("paymentLinkId", paymentLinkId))
+            );
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .header("x-client-id", AppConfig.getPayosClientId())
+                    .header("x-api-key", AppConfig.getPayosApiKey())
+                    .GET()
+                    .build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            Map<String, Object> body = mapper.readValue(response.body(), new TypeReference<>() {});
+            if (response.statusCode() / 100 != 2 || !"00".equals(String.valueOf(body.get("code")))) {
+                return Map.of("error", String.valueOf(body.getOrDefault("desc", "Không thể kiểm tra thanh toán")));
+            }
+            Object data = body.get("data");
+            if (data instanceof Map<?, ?> map) {
+                return (Map<String, Object>) map;
+            }
+            return Map.of("error", "Không có dữ liệu");
+        } catch (Exception e) {
+            return Map.of("error", "Không thể kết nối PayOS");
+        }
     }
 
 

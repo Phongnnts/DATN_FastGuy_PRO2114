@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { ROLES } from '@/utils/constants';
+import { shiftApi } from '@/api';
 
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import UserLayout from '@/layouts/UserLayout.vue';
@@ -16,6 +17,12 @@ const routes = [
     children: [
       {
         path: '',
+        name: 'Login',
+        component: () => import('@/views/guest/LoginPage.vue'),
+        meta: { guest: true },
+      },
+      {
+        path: 'home',
         name: 'Home',
         component: () => import('@/views/guest/HomePage.vue'),
         meta: { guest: true },
@@ -40,9 +47,7 @@ const routes = [
       },
       {
         path: 'login',
-        name: 'Login',
-        component: () => import('@/views/guest/LoginPage.vue'),
-        meta: { guest: true },
+        redirect: { name: 'Login' },
       },
       {
         path: 'register',
@@ -118,8 +123,7 @@ const routes = [
       },
       {
         path: 'history',
-        name: 'UserPurchaseHistory',
-        component: () => import('@/views/user/PurchaseHistoryPage.vue'),
+        redirect: { path: '/account/orders', query: { status: 'DELIVERED' } },
       },
       {
         path: 'change-password',
@@ -130,11 +134,6 @@ const routes = [
         path: 'support',
         name: 'UserSupport',
         component: () => import('@/views/user/SupportPage.vue'),
-      },
-      {
-        path: 'loyalty',
-        name: 'UserLoyalty',
-        component: () => import('@/views/user/LoyaltyPage.vue'),
       },
     ],
   },
@@ -148,16 +147,13 @@ const routes = [
         path: '',
         name: 'StaffDashboard',
         component: () => import('@/views/staff/DashboardPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'orders',
         name: 'StaffOrders',
         component: () => import('@/views/staff/OrdersPage.vue'),
-      },
-      {
-        path: 'orders/:id',
-        name: 'StaffOrderDetail',
-        component: () => import('@/views/staff/OrderDetailPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'orders/history',
@@ -165,9 +161,20 @@ const routes = [
         component: () => import('@/views/staff/OrderHistoryPage.vue'),
       },
       {
+        path: 'orders/:id',
+        name: 'StaffOrderDetail',
+        component: () => import('@/views/staff/OrderDetailPage.vue'),
+        meta: { requiresCheckedInShift: true },
+      },
+      {
         path: 'support',
         name: 'StaffSupport',
         component: () => import('@/views/staff/SupportPage.vue'),
+      },
+      {
+        path: 'shifts',
+        name: 'StaffShifts',
+        component: () => import('@/views/staff/StaffShiftsPage.vue'),
       },
     ],
   },
@@ -182,16 +189,28 @@ const routes = [
         path: '',
         name: 'ShipperDashboard',
         component: () => import('@/views/shipper/DashboardPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
       {
         path: 'orders',
         name: 'ShipperOrders',
         component: () => import('@/views/shipper/MyOrdersPage.vue'),
+        meta: { requiresCheckedInShift: true },
+      },
+      {
+        path: 'history',
+        name: 'ShipperOrderHistory',
+        component: () => import('@/views/shipper/MyOrdersPage.vue'),
+      },
+      {
+        path: 'orders/history',
+        redirect: { name: 'ShipperOrderHistory' },
       },
       {
         path: 'orders/:id',
         name: 'ShipperOrderDetail',
         component: () => import('@/views/shipper/OrderDetailPage.vue'),
+        meta: { requiresCheckedInShift: true },
       },
     ],
   },
@@ -233,14 +252,14 @@ const routes = [
         component: () => import('@/views/admin/OrdersPage.vue'),
       },
       {
-        path: 'reports/revenue',
-        name: 'AdminRevenueReport',
-        component: () => import('@/views/admin/RevenueReportPage.vue'),
+        path: 'orders/:id',
+        name: 'AdminOrderDetail',
+        component: () => import('@/views/admin/OrderDetailPage.vue'),
       },
       {
-        path: 'reports/top-products',
-        name: 'AdminTopProducts',
-        component: () => import('@/views/admin/TopProductsReportPage.vue'),
+        path: 'reports',
+        name: 'AdminReports',
+        component: () => import('@/views/admin/ReportsPage.vue'),
       },
       {
         path: 'coupons',
@@ -265,6 +284,10 @@ const routes = [
     ],
   },
 
+  { path: '/reports', redirect: { name: 'AdminReports' } },
+  { path: '/loyalty', redirect: { name: 'Profile' } },
+  { path: '/history', redirect: { name: 'UserOrders', query: { status: 'DELIVERED' } } },
+
   // ─── 404 ───────────────────────────────────
   {
     path: '/:pathMatch(.*)*',
@@ -273,48 +296,91 @@ const routes = [
   },
 ];
 
+const pageTitles = {
+  Home: 'Trang chủ', Login: 'Đăng nhập', Menu: 'Thực đơn', ProductDetail: 'Chi tiết món', Cart: 'Giỏ hàng',
+  Register: 'Đăng ký', TrackOrder: 'Tra cứu đơn', ForgotPassword: 'Quên mật khẩu', ResetPassword: 'Đặt lại mật khẩu',
+  PaymentReturn: 'Kết quả thanh toán', Promotions: 'Khuyến mãi', Checkout: 'Thanh toán', Profile: 'Thông tin cá nhân',
+  UserOrders: 'Đơn hàng', UserOrderDetail: 'Chi tiết đơn hàng', UserFavorites: 'Món yêu thích', ChangePassword: 'Đổi mật khẩu',
+  UserSupport: 'Hỗ trợ', StaffDashboard: 'Tổng quan nhân viên', StaffOrders: 'Quản lý đơn hàng',
+  StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc',
+  ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
+  ShipperOrderDetail: 'Chi tiết đơn giao', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
+  AdminProducts: 'Sản phẩm', AdminInventory: 'Kho hàng', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
+  AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner',
+  AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',
+};
+
+function applyTitles(records) {
+  records.forEach((record) => {
+    if (record.name) record.meta = { ...record.meta, title: pageTitles[record.name] || record.name };
+    if (record.children) applyTitles(record.children);
+  });
+}
+applyTitles(routes);
+
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior() {
-    return { top: 0 };
+  scrollBehavior(to, from, savedPosition) {
+    return savedPosition || (to.hash ? { el: to.hash, behavior: 'smooth' } : { top: 0 });
   },
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore();
+  const hasValidSession = auth.validateSession();
+  const roleRoutes = {
+    [ROLES.USER]: '/home',
+    [ROLES.STAFF]: '/staff',
+    [ROLES.ADMIN]: '/admin',
+    [ROLES.SHIPPER]: '/shipper',
+  };
+
+  if (to.name === 'Login' && hasValidSession) {
+    return next(roleRoutes[auth.role] || '/home');
+  }
 
   if (
     to.matched.some((r) => r.meta.guest) &&
-    auth.isLoggedIn &&
+    hasValidSession &&
     auth.role !== ROLES.USER
   ) {
-    const roleRoutes = {
-      [ROLES.STAFF]: '/staff',
-      [ROLES.ADMIN]: '/admin',
-      [ROLES.SHIPPER]: '/shipper',
-    };
     const redirect = roleRoutes[auth.role];
     if (redirect) return next(redirect);
   }
 
-  if (to.meta.requiresAuth && !auth.isLoggedIn) {
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
+  const requiredRole = [...to.matched].reverse().find((record) => record.meta.role)?.meta.role;
+
+  if (requiresAuth && !hasValidSession) {
     return next({ name: 'Login', query: { redirect: to.fullPath } });
   }
 
-  if (to.meta.role && auth.role !== to.meta.role) {
-    const roleRoutes = {
-      [ROLES.USER]: '/account/profile',
-      [ROLES.STAFF]: '/staff',
-      [ROLES.ADMIN]: '/admin',
-      [ROLES.SHIPPER]: '/shipper',
-    };
+  if (requiredRole && auth.role !== requiredRole) {
     return next(
-      auth.isLoggedIn ? roleRoutes[auth.role] || '/' : { name: 'Login' },
+      hasValidSession ? roleRoutes[auth.role] || '/' : { name: 'Login' },
     );
   }
 
+  if (to.matched.some((record) => record.meta.requiresCheckedInShift)) {
+    try {
+      const current = await shiftApi.getCurrent();
+      if (current?.state !== 'CHECKED_IN') {
+        const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/history' };
+        return next(shiftRoutes[auth.role] || '/staff/shifts');
+      }
+    } catch {
+      const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/history' };
+      return next(shiftRoutes[auth.role] || '/staff/shifts');
+    }
+  }
+
   next();
+});
+
+router.afterEach((to) => {
+  const title = [...to.matched].reverse().find((record) => record.meta.title)?.meta.title;
+  document.title = title ? `${title} | FastGuy` : 'FastGuy';
 });
 
 export default router;

@@ -34,7 +34,7 @@ public class StaffSupportTicketServlet extends HttpServlet {
             if (path == null || path.length() < 2 || path.indexOf('/', 1) >= 0) throw new NumberFormatException();
             int ticketId = Integer.parseInt(path.substring(1));
             Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-            if (body == null) throw new IllegalArgumentException("Invalid data");
+            if (body == null || !(body.get("status") instanceof String) || (body.get("resolution") != null && !(body.get("resolution") instanceof String))) throw new IllegalArgumentException("Invalid data type");
             ApiResponse.ok(resp, supportTicketService.update(ticketId, staffId, (String) body.get("status"), (String) body.get("resolution")), "Ticket updated");
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid ticket ID", 400);

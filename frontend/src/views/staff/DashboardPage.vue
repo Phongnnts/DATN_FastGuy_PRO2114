@@ -19,8 +19,8 @@ const queue = computed(() => [
   { status: 'CONFIRMED', label: 'Đã xác nhận', icon: 'bi-check-circle' },
   { status: 'PREPARING', label: 'Đang chế biến', icon: 'bi-fire' },
 ]);
-const labels = { PENDING: 'Chờ xử lý', CONFIRMED: 'Đã xác nhận', PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', PICKED_UP: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy' };
-const colors = { PENDING:'#f59e0b', CONFIRMED:'#3b82f6', PREPARING:'#8b5cf6', READY:'#10b981', PICKED_UP:'#06b6d4', DELIVERED:'#22c55e', CANCELLED:'#ef4444' };
+const labels = { PENDING: 'Chờ xử lý', CONFIRMED: 'Đã xác nhận', PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper', PICKED_UP: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy' };
+const colors = { PENDING:'#f59e0b', CONFIRMED:'#3b82f6', PREPARING:'#8b5cf6', READY:'#10b981', ASSIGNED:'#3b82f6', PICKED_UP:'#06b6d4', DELIVERED:'#22c55e', CANCELLED:'#ef4444' };
 function goOrders(tab = 'PENDING') { router.push({ path: '/staff/orders', query: { tab } }); }
 function destroyChart() { statusChart?.destroy(); statusChart = null; }
 function buildChart() { destroyChart(); const statuses = data.value?.ordersByStatus || {}; const keys = Object.keys(statuses).filter(key => statuses[key] > 0); if (!statusChartRef.value || !keys.length) return; statusChart = new Chart(statusChartRef.value, { type:'bar', data:{ labels:keys.map(key => labels[key] || key), datasets:[{ data:keys.map(key => statuses[key]), backgroundColor:keys.map(key => `${colors[key] || '#999'}66`), borderColor:keys.map(key => colors[key] || '#999'), borderWidth:2, borderRadius:5 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } } }); }
@@ -31,7 +31,7 @@ onUnmounted(() => { clearInterval(refreshTimer); destroyChart(); });
 </script>
 
 <template>
-  <div><div class="page-header"><div><h1>Tổng quan</h1><p>Theo dõi hàng đợi và tiến độ vận hành.</p></div><button class="btn btn-sm btn-outline" @click="load"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div>
+  <div><div class="page-header"><div><h1>Tổng quan</h1><p>Theo dõi hàng đợi và tiến độ vận hành.</p></div><div style="display:flex;gap:8px"><router-link to="/staff/shifts" class="btn btn-sm btn-outline"><i class="bi bi-calendar-week"></i> Ca làm</router-link><button class="btn btn-sm btn-outline" @click="load"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div></div>
     <div v-if="loading" class="staff-state"><span class="spinner"></span> Đang tải tổng quan...</div>
     <div v-else-if="loadError" class="staff-state staff-error"><span>{{ loadError }}</span><button class="btn btn-sm btn-outline" @click="load">Thử lại</button></div>
     <template v-else-if="data"><ShiftStatus role="STAFF" />

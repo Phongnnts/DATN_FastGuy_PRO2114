@@ -36,8 +36,7 @@ public class ReviewServlet extends HttpServlet {
                     ApiResponse.error(resp, "Không tìm thấy đánh giá", 404);
                     return;
                 }
-                Map<String, Object> review = reviewService.getByOrderId(orderId);
-                ApiResponse.ok(resp, review == null ? java.util.Collections.emptyMap() : review);
+                ApiResponse.ok(resp, reviewService.getByOrderId(userId, orderId));
             } catch (NumberFormatException e) {
                 ApiResponse.error(resp, "Mã đơn hàng không hợp lệ", 400);
             }
@@ -55,19 +54,24 @@ public class ReviewServlet extends HttpServlet {
             return;
         }
 
-        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-        if (body == null) {
-            ApiResponse.error(resp, "Invalid data", 400);
-            return;
-        }
-
         try {
-            int orderId = ((Number) body.get("orderId")).intValue();
-            int rating = ((Number) body.get("rating")).intValue();
-            String comment = body.get("comment") != null ? body.get("comment").toString() : "";
-            ApiResponse.ok(resp, reviewService.create(userId, orderId, rating, comment), "Reviewed");
+            Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+            if (body == null) throw new IllegalArgumentException("Dữ liệu không hợp lệ");
+            Object rawOrderId = body.get("orderId");
+            Object rawRating = body.get("rating");
+            Object rawComment = body.get("comment");
+            if (!(rawOrderId instanceof Number) || !(rawRating instanceof Number)
+                    || ((Number) rawOrderId).doubleValue() != ((Number) rawOrderId).intValue()
+                    || ((Number) rawRating).doubleValue() != ((Number) rawRating).intValue()
+                    || (rawComment != null && !(rawComment instanceof String))) {
+                throw new IllegalArgumentException("Dữ liệu không hợp lệ");
+            }
+            ApiResponse.ok(resp, reviewService.create(userId, ((Number) rawOrderId).intValue(),
+                    ((Number) rawRating).intValue(), (String) rawComment), "Reviewed");
+        } catch (IllegalStateException e) {
+            ApiResponse.error(resp, e.getMessage(), 409);
         } catch (IllegalArgumentException e) {
-            ApiResponse.error(resp, e.getMessage(), 400);
+            ApiResponse.error(resp, e.getMessage() == null ? "Dữ liệu không hợp lệ" : e.getMessage(), 400);
         } catch (Exception e) {
             ApiResponse.error(resp, "Review failed", 500);
         }

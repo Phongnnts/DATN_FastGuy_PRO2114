@@ -33,7 +33,7 @@ async function submit() {
     success.value = 'Đổi mật khẩu thành công';
     form.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
   } catch (e) {
-    error.value = e.response?.data?.message || e.message || 'Đổi mật khẩu thất bại';
+    error.value = e.message || 'Đổi mật khẩu thất bại';
   } finally {
     loading.value = false;
   }

@@ -1,206 +1,112 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useProductStore } from '@/stores/product';
 import ProductCard from '@/components/common/ProductCard.vue';
 
-const productStore = useProductStore();
+const store = useProductStore();
 const route = useRoute();
-const searchInput = ref('');
-const activeCategory = ref(null);
-const activePrice = ref('ALL');
-const sortBy = ref('name');
-const viewMode = ref('grid');
-const inStockOnly = ref(false);
-const currentPage = ref(1);
+const router = useRouter();
+const q = ref('');
+const category = ref(null);
+const price = ref('ALL');
+const min = ref('');
+const max = ref('');
+const availability = ref('ALL');
+const productType = ref('ALL');
+const discounted = ref(false);
+const bestSeller = ref(false);
+const sort = ref('name');
+const page = ref(1);
+const view = ref('grid');
+const drawer = ref(false);
+const mobile = ref(false);
+const drawerPanel = ref(null);
+const closeButton = ref(null);
+const drawerTrigger = ref(null);
 const pageSize = 12;
-
-const categoryIcons = ['bi-grid-3x3-gap', 'bi-egg-fried', 'bi-cup-straw', 'bi-fire', 'bi-pie-chart', 'bi-cup-hot'];
-const priceFilters = [
-  { key: 'ALL', label: 'Tất cả' },
-  { key: 'UNDER_30', label: 'Dưới 30k' },
-  { key: '30_60', label: '30k - 60k' },
-  { key: 'OVER_60', label: 'Trên 60k' },
-];
-
-const categories = computed(() => [
-  { id: null, name: 'Tất cả', icon: 'bi-grid-3x3-gap', count: productStore.allProducts.length },
-  ...productStore.allCategories.map((category, index) => ({
-    ...category,
-    icon: categoryIcons[(index + 1) % categoryIcons.length],
-    count: productStore.allProducts.filter((product) => product.categoryId === category.id).length,
-  })),
-]);
-
-const filteredProducts = computed(() => {
-  let result = [...productStore.allProducts];
-  if (activeCategory.value) result = result.filter((product) => product.categoryId === activeCategory.value);
-  if (searchInput.value) {
-    const query = searchInput.value.toLowerCase();
-    result = result.filter((product) => product.name.toLowerCase().includes(query) || (product.description && product.description.toLowerCase().includes(query)));
-  }
-  if (activePrice.value === 'UNDER_30') result = result.filter((product) => product.price < 30000);
-  if (activePrice.value === '30_60') result = result.filter((product) => product.price >= 30000 && product.price <= 60000);
-  if (activePrice.value === 'OVER_60') result = result.filter((product) => product.price > 60000);
-  if (inStockOnly.value) result = result.filter((product) => product.inStock);
-  if (sortBy.value === 'price-asc') result.sort((a, b) => a.price - b.price);
-  if (sortBy.value === 'price-desc') result.sort((a, b) => b.price - a.price);
-  if (sortBy.value === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
-  if (sortBy.value === 'newest') result.sort((a, b) => b.productId - a.productId);
-  return result;
-});
-
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredProducts.value.length / pageSize)));
-const pagedProducts = computed(() => {
-  const start = (currentPage.value - 1) * pageSize;
-  return filteredProducts.value.slice(start, start + pageSize);
-});
-
-const pageNumbers = computed(() => {
-  const total = totalPages.value;
-  if (total <= 5) return Array.from({ length: total }, (_, index) => index + 1);
-  const page = currentPage.value;
-  if (page <= 3) return [1, 2, 3, '...', total];
-  if (page >= total - 2) return [1, '...', total - 2, total - 1, total];
-  return [1, '...', page, '...', total];
-});
-
-function goPage(page) {
-  if (page >= 1 && page <= totalPages.value) currentPage.value = page;
+let searchTimer;
+let restoring = false;
+const prices = [{ key: 'ALL', label: 'Mọi mức giá' }, { key: 'UNDER_30', label: 'Dưới 30.000₫' }, { key: '30_60', label: '30.000₫ – 60.000₫' }, { key: 'OVER_60', label: 'Trên 60.000₫' }, { key: 'CUSTOM', label: 'Tùy chỉnh' }];
+const availabilityOptions = [{ key: 'ALL', label: 'Tất cả' }, { key: 'AVAILABLE', label: 'Đang bán' }, { key: 'OUT_OF_STOCK', label: 'Hết hàng' }, { key: 'OUTSIDE_HOURS', label: 'Ngoài giờ bán' }];
+const categories = computed(() => [{ id: null, name: 'Tất cả', count: store.allCategories.reduce((sum, item) => sum + item.productCount, 0) || store.allProducts.length }, ...store.allCategories.map((item) => ({ ...item, count: item.productCount || store.allProducts.filter((product) => product.categoryId === item.id).length }))]);
+const totalPages = computed(() => store.catalogMeta.totalPages);
+const pages = computed(() => [...new Set([1, totalPages.value, page.value - 1, page.value, page.value + 1].filter((value) => value > 0 && value <= totalPages.value).sort((a, b) => a - b))].reduce((result, value, index, array) => { if (index && value - array[index - 1] > 1) result.push('…'); result.push(value); return result; }, []));
+const chips = computed(() => [q.value && { key: 'q', label: `“${q.value}”` }, category.value && { key: 'category', label: store.allCategories.find((item) => item.id === category.value)?.name }, price.value !== 'ALL' && { key: 'price', label: prices.find((item) => item.key === price.value)?.label }, availability.value !== 'ALL' && { key: 'availability', label: availabilityOptions.find((item) => item.key === availability.value)?.label }, productType.value !== 'ALL' && { key: 'productType', label: { SIMPLE: 'Món đơn', VARIANT: 'Nhiều lựa chọn', COMBO: 'Combo', CUSTOMIZABLE: 'Có tùy chọn' }[productType.value] }, discounted.value && { key: 'discounted', label: 'Đang giảm giá' }, bestSeller.value && { key: 'bestSeller', label: 'Bán chạy' }].filter(Boolean));
+function priceParams() {
+  if (price.value === 'UNDER_30') return { maxPrice: 29999 };
+  if (price.value === '30_60') return { minPrice: 30000, maxPrice: 60000 };
+  if (price.value === 'OVER_60') return { minPrice: 60001 };
+  if (price.value === 'CUSTOM') return { minPrice: min.value || undefined, maxPrice: max.value || undefined };
+  return {};
 }
-
-watch([filteredProducts, activeCategory, searchInput, activePrice, inStockOnly], () => { currentPage.value = 1; });
-
-onMounted(async () => {
-  if (!productStore.fetched) await productStore.init();
-  if (route.query.category) {
-    const category = productStore.allCategories.find((item) => item.id === Number(route.query.category));
-    if (category) activeCategory.value = category.id;
-  }
-});
+function fetchCatalog() { store.fetchCatalog({ q: q.value.trim() || undefined, categoryId: category.value || undefined, ...priceParams(), availability: availability.value, productType: productType.value === 'ALL' ? undefined : productType.value, discounted: discounted.value || undefined, sold: bestSeller.value ? 1 : undefined, sort: sort.value, page: page.value - 1, size: pageSize }); }
+function hydrate() {
+  restoring = true;
+  q.value = String(route.query.q || ''); category.value = route.query.category ? Number(route.query.category) : null;
+  price.value = prices.some((item) => item.key === route.query.price) ? route.query.price : 'ALL'; min.value = String(route.query.min || ''); max.value = String(route.query.max || '');
+  availability.value = availabilityOptions.some((item) => item.key === route.query.availability) ? route.query.availability : 'ALL';
+  productType.value = ['SIMPLE', 'VARIANT', 'COMBO', 'CUSTOMIZABLE'].includes(route.query.productType) ? route.query.productType : 'ALL'; discounted.value = route.query.discounted === 'true'; bestSeller.value = route.query.bestSeller === 'true';
+  sort.value = ['name', 'name-desc', 'newest', 'price-asc', 'price-desc', 'best-selling', 'discount-desc'].includes(route.query.sort) ? route.query.sort : 'name'; page.value = Math.max(1, Number(route.query.page) || 1); view.value = route.query.view === 'list' ? 'list' : 'grid';
+  nextTick(() => { restoring = false; fetchCatalog(); });
+}
+function queryValue() { const query = {}; if (q.value.trim()) query.q = q.value.trim(); if (category.value) query.category = category.value; if (price.value !== 'ALL') query.price = price.value; if (price.value === 'CUSTOM' && min.value) query.min = min.value; if (price.value === 'CUSTOM' && max.value) query.max = max.value; if (availability.value !== 'ALL') query.availability = availability.value; if (productType.value !== 'ALL') query.productType = productType.value; if (discounted.value) query.discounted = 'true'; if (bestSeller.value) query.bestSeller = 'true'; if (sort.value !== 'name') query.sort = sort.value; if (page.value > 1) query.page = page.value; if (view.value === 'list') query.view = 'list'; return query; }
+function navigate(replace = false) { if (!restoring) router[replace ? 'replace' : 'push']({ query: queryValue() }); }
+function reset() { q.value = ''; category.value = null; price.value = 'ALL'; min.value = ''; max.value = ''; availability.value = 'ALL'; productType.value = 'ALL'; discounted.value = false; bestSeller.value = false; sort.value = 'name'; page.value = 1; }
+function remove(key) { if (key === 'q') q.value = ''; if (key === 'category') category.value = null; if (key === 'price') { price.value = 'ALL'; min.value = ''; max.value = ''; } if (key === 'availability') availability.value = 'ALL'; if (key === 'productType') productType.value = 'ALL'; if (key === 'discounted') discounted.value = false; if (key === 'bestSeller') bestSeller.value = false; }
+function openDrawer() { drawer.value = true; document.body.style.overflow = 'hidden'; nextTick(() => closeButton.value?.focus()); }
+function closeDrawer() { drawer.value = false; document.body.style.overflow = ''; nextTick(() => drawerTrigger.value?.focus()); }
+function onKeydown(event) {
+  if (!drawer.value) return;
+  if (event.key === 'Escape') return closeDrawer();
+  if (event.key !== 'Tab') return;
+  const focusable = [...drawerPanel.value.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),a[href]')];
+  if (!focusable.length) return;
+  const first = focusable[0]; const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+watch(() => route.query, hydrate);
+watch([category, price, min, max, availability, productType, discounted, bestSeller, sort], () => { if (restoring) return; page.value = 1; navigate(); });
+watch(page, () => { if (!restoring) navigate(); });
+watch(view, () => { if (!restoring) navigate(); });
+watch(q, () => { if (restoring) return; page.value = 1; clearTimeout(searchTimer); searchTimer = setTimeout(() => navigate(true), 300); });
+onMounted(() => { mobile.value = window.matchMedia('(max-width: 900px)').matches; hydrate(); store.init(); window.addEventListener('keydown', onKeydown); });
+onBeforeUnmount(() => { clearTimeout(searchTimer); document.body.style.overflow = ''; window.removeEventListener('keydown', onKeydown); });
 </script>
 
 <template>
   <div class="menu-page">
-    <div class="container">
-      <div class="menu-breadcrumb"><router-link to="/">Trang chủ</router-link><i class="bi bi-chevron-right"></i><span>Thực đơn</span></div>
-      <div class="menu-heading">
-        <div>
-          <span class="route-chip">Hot Route Menu</span>
-          <h1>Thực đơn</h1>
-          <p>Khám phá đồ ăn ngon, đặt ngay!</p>
-        </div>
-        <div class="menu-search search-box">
-          <i class="bi bi-search"></i>
-          <input v-model="searchInput" type="text" class="form-input" placeholder="Tìm kiếm món ăn..." />
+    <section class="menu-hero">
+      <div class="container hero-inner">
+        <nav class="breadcrumb" aria-label="Điều hướng"><router-link to="/home">Trang chủ</router-link><i class="bi bi-chevron-right"></i><span>Thực đơn</span></nav>
+        <div class="hero-grid">
+          <div class="hero-copy"><p>FASTGUY MENU</p><h1>Món ngon,<br><em>chọn theo cách bạn.</em></h1><span>Khám phá thực đơn đa dạng, lọc đúng khẩu vị và đặt món chỉ trong vài thao tác.</span></div>
+          <div class="hero-search"><label class="search"><span class="sr-only">Tìm món</span><i class="bi bi-search"></i><input v-model="q" type="search" placeholder="Bạn muốn ăn gì hôm nay?"></label><div class="quick-info"><span><i class="bi bi-lightning-charge-fill"></i> Đặt món nhanh</span><span><i class="bi bi-patch-check-fill"></i> Giá rõ ràng</span></div></div>
         </div>
       </div>
-
-      <div class="menu-layout">
-        <aside class="menu-sidebar">
-          <section class="filter-panel">
-            <h2>Danh mục</h2>
-            <button
-              v-for="category in categories"
-              :key="category.id ?? 'all'"
-              class="category-row"
-              :class="{ active: activeCategory === category.id }"
-              @click="activeCategory = category.id"
-            >
-              <i :class="'bi ' + category.icon"></i>
-              <span>{{ category.name }}</span>
-              <small>({{ category.count }})</small>
-            </button>
-          </section>
-
-          <section class="filter-panel">
-            <h2>Khoảng giá</h2>
-            <label v-for="filter in priceFilters" :key="filter.key" class="filter-radio">
-              <input v-model="activePrice" type="radio" :value="filter.key" />
-              <span>{{ filter.label }}</span>
-            </label>
-          </section>
-
-          <section class="filter-panel">
-            <h2>Sắp xếp theo</h2>
-            <select v-model="sortBy" class="form-select">
-              <option value="name">Tên A-Z</option>
-              <option value="newest">Mới nhất</option>
-              <option value="price-asc">Giá thấp đến cao</option>
-              <option value="price-desc">Giá cao đến thấp</option>
-            </select>
-            <label class="stock-toggle">
-              <input v-model="inStockOnly" type="checkbox" />
-              <span>Chỉ món còn hàng</span>
-            </label>
-          </section>
-        </aside>
-
-        <main class="menu-content">
-          <div class="menu-result-header">
-            <strong>Hiển thị {{ filteredProducts.length }} món ăn</strong>
-            <div class="view-toggle">
-              <button :class="{ active: viewMode === 'grid' }" title="Dạng lưới" @click="viewMode = 'grid'"><i class="bi bi-grid-3x3-gap"></i></button>
-              <button :class="{ active: viewMode === 'list' }" title="Dạng danh sách" @click="viewMode = 'list'"><i class="bi bi-list"></i></button>
-            </div>
-          </div>
-
-          <div v-if="productStore.loading" class="menu-grid">
-            <div v-for="number in 12" :key="number" class="skeleton-card"></div>
-          </div>
-          <div v-else-if="filteredProducts.length === 0" class="empty-state">
-            <i class="bi bi-search"></i>
-            <h3>Không tìm thấy món ăn</h3>
-            <p>Thử tìm kiếm với từ khóa hoặc bộ lọc khác.</p>
-          </div>
-          <template v-else>
-            <div :class="viewMode === 'grid' ? 'menu-grid' : 'product-list'">
-              <ProductCard v-for="product in pagedProducts" :key="product.productId" :product="product" :listMode="viewMode === 'list'" />
-            </div>
-            <div v-if="totalPages > 1" class="pagination">
-              <button :disabled="currentPage <= 1" @click="goPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button>
-              <button v-for="page in pageNumbers" :key="page" :class="{ active: page === currentPage }" :disabled="page === '...'" @click="goPage(page)">{{ page }}</button>
-              <button :disabled="currentPage >= totalPages" @click="goPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button>
-            </div>
-          </template>
-        </main>
-      </div>
+    </section>
+    <div class="container menu-body">
+    <div class="category-bar"><div class="category-label"><span>Khám phá</span><strong>Danh mục</strong></div><div class="category-chips"><button v-for="item in categories" :key="item.id ?? 'all'" :class="{ active: category === item.id }" @click="category = item.id">{{ item.name }}<small>{{ item.count }}</small></button></div></div>
+    <div class="mobile-tools"><button ref="drawerTrigger" aria-controls="menu-filters" :aria-expanded="drawer" @click="openDrawer"><i class="bi bi-sliders"></i> Bộ lọc <span v-if="chips.length">{{ chips.length }}</span></button><select v-model="sort" aria-label="Sắp xếp"><option value="name">Tên A–Z</option><option value="best-selling">Bán chạy nhất</option><option value="discount-desc">Giảm giá nhiều nhất</option><option value="name-desc">Tên Z–A</option><option value="newest">Mới nhất</option><option value="price-asc">Giá tăng</option><option value="price-desc">Giá giảm</option></select></div>
+    <div v-if="drawer" class="backdrop" @click="closeDrawer"></div>
+    <div class="layout">
+      <aside id="menu-filters" ref="drawerPanel" class="menu-sidebar" :class="{ open: drawer }" :role="drawer ? 'dialog' : undefined" :aria-modal="drawer ? 'true' : undefined" :inert="mobile && !drawer ? '' : undefined"><div class="drawer-head"><strong>Bộ lọc</strong><button ref="closeButton" aria-label="Đóng bộ lọc" @click="closeDrawer"><i class="bi bi-x-lg"></i></button></div><div class="filter-head"><h2>Danh mục</h2><button v-if="chips.length" @click="reset">Đặt lại</button></div><div class="categories"><button v-for="item in categories" :key="item.id ?? 'all'" :class="{ active: category === item.id }" @click="category = item.id"><span>{{ item.name }}</span><small>{{ item.count }}</small></button></div><fieldset><legend>Loại món</legend><label><input v-model="productType" type="radio" name="productType" value="ALL"> Tất cả</label><label><input v-model="productType" type="radio" name="productType" value="SIMPLE"> Món đơn</label><label><input v-model="productType" type="radio" name="productType" value="VARIANT"> Nhiều lựa chọn</label><label><input v-model="productType" type="radio" name="productType" value="CUSTOMIZABLE"> Có tùy chọn</label><label><input v-model="productType" type="radio" name="productType" value="COMBO"> Combo</label></fieldset><fieldset><legend>Ưu tiên</legend><label><input v-model="discounted" type="checkbox"> Đang giảm giá</label><label><input v-model="bestSeller" type="checkbox"> Bán chạy</label></fieldset><fieldset><legend>Khoảng giá</legend><label v-for="item in prices" :key="item.key"><input v-model="price" type="radio" name="price" :value="item.key"> {{ item.label }}</label><div v-if="price === 'CUSTOM'" class="price-range"><input v-model="min" type="number" min="0" placeholder="Từ" aria-label="Giá tối thiểu"><input v-model="max" type="number" min="0" placeholder="Đến" aria-label="Giá tối đa"></div></fieldset><fieldset><legend>Tình trạng</legend><label v-for="item in availabilityOptions" :key="item.key"><input v-model="availability" type="radio" name="availability" :value="item.key"> {{ item.label }}</label></fieldset><button class="apply" @click="closeDrawer">Xem {{ store.catalogMeta.totalItems }} món</button></aside>
+      <main class="content"><div class="result"><div><span>Kết quả thực đơn</span><strong>{{ store.catalogMeta.totalItems }} món phù hợp</strong></div><div class="view-toggle" aria-label="Kiểu hiển thị"><button :class="{ active: view === 'grid' }" aria-label="Dạng lưới" @click="view = 'grid'"><i class="bi bi-grid"></i></button><button :class="{ active: view === 'list' }" aria-label="Dạng danh sách" @click="view = 'list'"><i class="bi bi-list"></i></button></div><label class="sort-control"><span>Sắp xếp</span><select v-model="sort" aria-label="Sắp xếp"><option value="name">Tên A–Z</option><option value="best-selling">Bán chạy nhất</option><option value="discount-desc">Giảm giá nhiều nhất</option><option value="name-desc">Tên Z–A</option><option value="newest">Mới nhất</option><option value="price-asc">Giá tăng dần</option><option value="price-desc">Giá giảm dần</option></select></label></div><div v-if="chips.length" class="chips"><button v-for="chip in chips" :key="chip.key" @click="remove(chip.key)">{{ chip.label }} <i class="bi bi-x"></i></button><button class="clear" @click="reset">Xóa tất cả</button></div>
+        <div v-if="store.catalogLoading" class="grid"><div v-for="n in 12" :key="n" class="skeleton"></div></div><section v-else-if="store.catalogError" class="state" role="alert"><h2>Không thể tải thực đơn</h2><p>{{ store.catalogError }}</p><button @click="fetchCatalog">Thử lại</button></section><section v-else-if="!store.catalog.length" class="state"><i class="bi bi-search"></i><h2>Không tìm thấy món</h2><button @click="reset">Xóa bộ lọc</button></section><template v-else><div class="grid" :class="{ list: view === 'list' }"><ProductCard v-for="product in store.catalog" :key="product.productId" :product="product" :list-mode="view === 'list'" /></div><nav v-if="totalPages > 1" class="pagination" aria-label="Phân trang"><button :disabled="page === 1" @click="page--">‹</button><template v-for="item in pages" :key="item"><span v-if="item === '…'">…</span><button v-else :class="{ active: page === item }" :aria-current="page === item ? 'page' : undefined" @click="page = item">{{ item }}</button></template><button :disabled="page === totalPages" @click="page++">›</button></nav></template>
+      </main>
     </div>
-  </div>
+  </div></div>
 </template>
 
 <style scoped>
-.menu-page { padding: 28px 0 56px; background: #fff8f0; min-height: 100vh; }
-.menu-breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--text-mid); }
-.menu-breadcrumb a { color: var(--text-dark); }
-.menu-breadcrumb i { color: var(--text-light); font-size: 10px; }
-.menu-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; padding: 10px 0 28px; }
-.menu-heading h1 { font-size: clamp(30px, 4vw, 42px); font-weight: 900; line-height: 1; letter-spacing: -0.06em; margin: 12px 0 8px; }
-.menu-heading p { font-size: 15px; color: var(--text-mid); }
-.menu-search { width: min(340px, 100%); }
-.menu-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
-.menu-sidebar { position: sticky; top: 78px; display: grid; gap: 16px; }
-.filter-panel { background: rgba(255,255,255,0.86); border: 1px solid rgba(232,115,74,0.09); border-radius: var(--radius-lg); padding: 14px 12px; box-shadow: var(--shadow-xs); }
-.filter-panel h2 { text-transform: uppercase; font-size: 12px; letter-spacing: 0.06em; font-weight: 800; margin: 0 0 10px; }
-.category-row { width: 100%; display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-dark); font-size: 13px; text-align: left; transition: all var(--transition-fast); }
-.category-row i { font-size: 13px; }
-.category-row small { font-size: 11px; color: var(--text-mid); }
-.category-row:hover { background: var(--primary-50); }
-.category-row.active { background: var(--primary); color: #fff; font-weight: 700; }
-.category-row.active small { color: #fff; }
-.filter-radio, .stock-toggle { display: flex; align-items: center; gap: 9px; margin: 10px 0; font-size: 13px; color: var(--text-mid); cursor: pointer; }
-.filter-radio input, .stock-toggle input { accent-color: var(--primary); }
-.filter-panel .form-select { padding: 8px 10px; font-size: 13px; }
-.stock-toggle { margin: 14px 0 2px; color: var(--text-dark); }
-.menu-result-header { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 16px; font-size: 14px; }
-.view-toggle { display: flex; gap: 4px; }
-.view-toggle button { width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff; color: var(--text-mid); transition: all var(--transition-fast); }
-.view-toggle button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-.menu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-.skeleton-card { height: 308px; border-radius: var(--radius-lg); background: linear-gradient(90deg, #f3eee9 25%, #fff 50%, #f3eee9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-.product-list { display: grid; gap: 12px; }
-@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
-@media (max-width: 1024px) { .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 768px) { .menu-heading { align-items: stretch; flex-direction: column; } .menu-search { width: 100%; } .menu-layout { grid-template-columns: 1fr; } .menu-sidebar { position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .menu-sidebar { grid-template-columns: 1fr; } .menu-grid { grid-template-columns: 1fr; } }
+.menu-page{min-height:100vh;padding:28px 0 64px;background:#fffaf6}.breadcrumb{display:flex;gap:8px;color:var(--text-mid);font-size:12px}header{display:flex;align-items:end;justify-content:space-between;gap:32px;padding:34px 0}header p{color:var(--primary);font-size:11px;font-weight:900;letter-spacing:.15em}h1{font-size:clamp(34px,5vw,52px);line-height:1.05;letter-spacing:-.05em}header span{color:var(--text-mid)}.search{position:relative;width:min(390px,100%)}.search i{position:absolute;left:16px;top:16px}.search input,.result select,.mobile-tools select{width:100%;height:48px;padding:0 16px;border:1px solid var(--border);border-radius:14px;background:#fff}.search input{padding-left:44px}.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:28px}.menu-sidebar{position:sticky;top:84px;height:max-content;padding:20px;border:1px solid var(--border);border-radius:20px;background:#fff}.drawer-head,.mobile-tools,.category-chips{display:none}.filter-head,.result{display:flex;align-items:center;justify-content:space-between}.filter-head h2,legend{font-size:12px;text-transform:uppercase}.filter-head button,.clear{color:var(--primary)}.categories{display:grid;margin-top:10px}.categories button{display:flex;justify-content:space-between;padding:10px;border-radius:10px;color:var(--text-mid)}.categories button.active{color:var(--primary);background:var(--primary-light);font-weight:800}fieldset{margin-top:20px;padding-top:18px;border:0;border-top:1px solid var(--border)}fieldset label{display:block;padding:7px 0;color:var(--text-mid);font-size:13px}.price-range{display:grid;grid-template-columns:1fr 1fr;gap:6px}.price-range input{min-width:0;padding:8px;border:1px solid var(--border);border-radius:8px}.result{margin-bottom:16px}.result>select{width:180px}.view-toggle{display:flex;margin-left:auto;margin-right:10px}.view-toggle button{width:44px;height:44px;border-radius:10px}.view-toggle button.active{color:#fff;background:var(--primary)}.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.chips button{padding:7px 10px;border-radius:99px;background:var(--primary-light)}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.grid.list{grid-template-columns:1fr}.skeleton{height:280px;border-radius:20px;background:linear-gradient(90deg,#eee 25%,#fafafa 50%,#eee 75%);background-size:200%;animation:pulse 1.4s infinite}.state{text-align:center;padding:80px 20px}.pagination{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:30px}.pagination button{min-width:44px;height:44px;border-radius:10px}.pagination button.active{color:#fff;background:var(--primary)}@keyframes pulse{to{background-position:-200%}}
+@media(max-width:900px){header{align-items:stretch;flex-direction:column}.layout{grid-template-columns:1fr}.result>select{display:none}.mobile-tools,.category-chips{display:flex;gap:8px;margin-bottom:18px}.category-chips{overflow:auto}.category-chips button{flex:none;min-height:44px;padding:8px 14px;border:1px solid var(--border);border-radius:99px;background:#fff}.category-chips button.active{color:#fff;background:var(--primary)}.mobile-tools>*{flex:1}.mobile-tools button{height:48px;border:1px solid var(--border);border-radius:14px;background:#fff}.backdrop{position:fixed;z-index:40;inset:0;background:#0007}.menu-sidebar{position:fixed;z-index:41;inset:0 0 0 auto;width:min(88vw,370px);overflow:auto;border-radius:20px 0 0 20px;transform:translateX(105%);transition:transform .25s}.menu-sidebar.open{transform:none}.drawer-head{display:flex;justify-content:space-between;margin-bottom:20px}.drawer-head button{width:44px;height:44px}.apply{display:block;width:100%}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(min-width:901px){.menu-sidebar[inert]{pointer-events:auto}.apply{display:none}}@media(max-width:560px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid.list{grid-template-columns:1fr}.state{padding:50px 10px}}@media(prefers-reduced-motion:reduce){.skeleton{animation:none}.menu-sidebar{transition:none}}
+</style>
+
+<style scoped>
+.menu-page{min-height:100vh;padding:0 0 80px;background:#f8f6f3}.menu-hero{position:relative;overflow:hidden;color:#fff;background:#1b1714}.menu-hero::before{position:absolute;inset:-45% -8% auto auto;width:560px;height:560px;border:1px solid rgba(255,255,255,.09);border-radius:50%;content:""}.menu-hero::after{position:absolute;right:12%;bottom:-160px;width:340px;height:340px;border-radius:50%;background:rgba(232,115,74,.1);filter:blur(2px);content:""}.hero-inner{position:relative;z-index:1;padding-top:26px;padding-bottom:72px}.breadcrumb{color:rgba(255,255,255,.54)}.breadcrumb a:hover{color:#fff}.hero-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);align-items:end;gap:70px;padding-top:48px}.hero-copy p{margin-bottom:14px;color:var(--route-amber);font-size:11px;font-weight:800;letter-spacing:.18em}.hero-copy h1{max-width:700px;color:#fff;font-size:clamp(44px,6vw,72px);font-weight:800;line-height:1.02;letter-spacing:-.055em}.hero-copy h1 em{color:#f2a77f;font-style:normal}.hero-copy>span{display:block;max-width:570px;margin-top:22px;color:rgba(255,255,255,.65);font-size:15px;line-height:1.7}.hero-search{padding:22px;border:1px solid rgba(255,255,255,.12);border-radius:24px;background:rgba(255,255,255,.06);backdrop-filter:blur(12px)}.hero-search .search{display:block;width:100%}.hero-search .search i{top:18px;color:var(--primary)}.hero-search .search input{height:54px;border:0;border-radius:15px;box-shadow:0 14px 35px rgba(0,0,0,.16)}.quick-info{display:flex;justify-content:space-between;gap:12px;margin-top:14px;color:rgba(255,255,255,.62);font-size:11px;font-weight:600}.quick-info span{display:flex;align-items:center;gap:6px}.quick-info i{color:var(--route-amber)}.menu-body{position:relative}.category-bar{display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;gap:18px;margin-top:-26px;margin-bottom:34px;padding:10px 12px 10px 20px;border:1px solid rgba(23,23,23,.07);border-radius:22px;background:rgba(255,255,255,.96);box-shadow:0 20px 50px rgba(38,25,18,.1);backdrop-filter:blur(12px)}.category-label{display:flex;flex-direction:column}.category-label span{color:var(--primary);font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.category-label strong{font-size:15px}.category-chips{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none}.category-chips::-webkit-scrollbar{display:none}.category-chips button{display:flex;flex:0 0 auto;align-items:center;gap:7px;min-height:46px;padding:9px 15px;border-radius:14px;color:var(--text-mid);font-size:12px;font-weight:700;white-space:nowrap;transition:all var(--transition-fast)}.category-chips small{display:grid;min-width:20px;height:20px;padding:0 5px;place-items:center;border-radius:99px;color:var(--text-light);background:var(--surface);font-size:9px}.category-chips button:hover{color:var(--text-dark);background:#f7f3ef}.category-chips button.active{color:#fff;background:var(--charcoal);box-shadow:0 7px 18px rgba(23,23,23,.18)}.category-chips button.active small{color:var(--charcoal);background:var(--route-amber)}.layout{grid-template-columns:250px minmax(0,1fr);gap:24px}.menu-sidebar{top:86px;padding:22px;border:0;border-radius:22px;box-shadow:0 8px 30px rgba(45,31,24,.07)}.filter-head{padding-bottom:14px;border-bottom:1px solid var(--border-light)}.filter-head h2{font-size:13px;letter-spacing:.08em}.filter-head button{font-size:11px;font-weight:700}.categories{gap:3px}.categories button{align-items:center;min-height:40px;padding:8px 10px;font-size:12px}.categories button small{display:grid;min-width:23px;height:23px;place-items:center;border-radius:99px;background:var(--surface);font-size:9px}.categories button.active{color:#fff;background:var(--charcoal)}.categories button.active small{color:var(--charcoal);background:var(--route-amber)}fieldset{margin-top:18px;padding-top:17px;border-color:var(--border-light)}legend{margin-bottom:5px;color:var(--text-dark);font-size:10px;font-weight:800;letter-spacing:.1em}fieldset label{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px;cursor:pointer}fieldset input[type=radio],fieldset input[type=checkbox]{width:15px;height:15px;accent-color:var(--primary)}.price-range input{height:38px;background:#fafafa}.apply{border-radius:12px}.content{min-width:0}.result{min-height:68px;margin-bottom:14px;padding:10px 12px 10px 18px;border:1px solid rgba(23,23,23,.06);border-radius:18px;background:#fff}.result>div:first-child{display:flex;flex-direction:column}.result>div:first-child span{color:var(--text-light);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.result>div:first-child strong{font-size:16px}.view-toggle{gap:3px;margin-left:auto;margin-right:10px;padding:3px;border-radius:12px;background:var(--surface)}.view-toggle button{width:38px;height:38px;border-radius:9px}.view-toggle button.active{background:var(--charcoal)}.sort-control{display:flex;align-items:center;gap:9px}.sort-control>span{color:var(--text-light);font-size:10px;font-weight:700;text-transform:uppercase}.result .sort-control select{width:180px;height:42px;border-color:var(--border-light);border-radius:11px}.chips{margin-bottom:16px}.chips button{min-height:34px;border:1px solid rgba(232,115,74,.16);border-radius:99px;color:var(--primary-dark);background:#fff}.chips .clear{border-color:transparent;background:transparent}.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.grid>:deep(.product-card){height:100%;border-radius:20px}.grid.list{grid-template-columns:1fr;gap:12px}.skeleton{border-radius:20px;background:linear-gradient(90deg,#eee9e4 25%,#faf8f6 50%,#eee9e4 75%)}.state{border:1px solid var(--border-light);border-radius:24px;background:#fff}.pagination{padding-top:34px}.pagination button{border-radius:12px;background:#fff;box-shadow:var(--shadow-xs)}.pagination button.active{background:var(--charcoal)}
+@media(max-width:1050px){.hero-grid{gap:40px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.hero-inner{padding-bottom:58px}.hero-grid{grid-template-columns:1fr;gap:30px;padding-top:34px}.hero-copy h1 br{display:none}.hero-search{max-width:620px}.category-bar{grid-template-columns:1fr;margin-bottom:20px;padding:8px}.category-label{display:none}.category-chips{display:flex;margin:0}.mobile-tools{display:flex}.layout{grid-template-columns:1fr}.menu-sidebar{border-radius:24px 0 0 24px}.result .sort-control{display:none}}
+@media(max-width:560px){.menu-page{padding-bottom:56px}.hero-inner{padding-top:20px;padding-bottom:50px}.hero-grid{padding-top:28px}.hero-copy h1{font-size:40px}.hero-copy>span{font-size:13px}.hero-search{padding:12px;border-radius:18px}.quick-info{display:none}.category-bar{margin-top:-22px;border-radius:17px}.category-chips button{min-height:42px;padding:8px 13px}.mobile-tools{gap:8px}.result{min-height:60px;padding-left:14px}.result>div:first-child strong{font-size:14px}.view-toggle{margin-right:0}.grid{gap:10px}.grid.list{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.category-chips button,.heading-actions>a{transition:none}}
 </style>

@@ -1,28 +1,19 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useShipperStore } from '@/stores/shipper';
-import { formatPrice, formatDate } from '@/utils/format';
 import ShiftStatus from '@/components/common/ShiftStatus.vue';
 
-const router = useRouter();
 const shipperStore = useShipperStore();
 const loading = ref(true);
 
 const dashboard = computed(() => shipperStore.dashboard);
-const availableCount = computed(() => shipperStore.availableOrders.length);
+const assignedCount = computed(() => dashboard.value?.activeCount || 0);
 
 onMounted(async () => {
-  await Promise.all([
-    shipperStore.fetchDashboard(),
-    shipperStore.fetchAvailableOrders(),
-  ]);
+  await shipperStore.fetchDashboard();
   loading.value = false;
 });
 
-function goDetail(id) {
-  router.push(`/shipper/orders/${id}`);
-}
 </script>
 
 <template>
@@ -31,8 +22,8 @@ function goDetail(id) {
       <div class="hero-route-line"></div>
       <div class="hero-stat">
         <span class="hero-kicker">Delivery cockpit</span>
-        <span class="hero-number">{{ availableCount }}</span>
-        <span class="hero-label">Đơn chờ nhận</span>
+        <span class="hero-number">{{ assignedCount }}</span>
+        <span class="hero-label">Đơn được giao</span>
       </div>
     </div>
 
@@ -40,10 +31,10 @@ function goDetail(id) {
 
     <section class="delivery-readiness">
       <div>
-        <span>Trạng thái nhận đơn</span>
-        <strong>{{ availableCount ? `${availableCount} đơn sẵn sàng nhận` : 'Chưa có đơn sẵn sàng nhận' }}</strong>
+        <span>Phân công giao hàng</span>
+        <strong>{{ assignedCount ? `${assignedCount} đơn đang phụ trách` : 'Chưa có đơn được phân công' }}</strong>
       </div>
-      <i :class="availableCount ? 'bi bi-box-seam-fill' : 'bi bi-hourglass-split'"></i>
+      <i :class="assignedCount ? 'bi bi-box-seam-fill' : 'bi bi-hourglass-split'"></i>
     </section>
 
     <div v-if="dashboard" class="shipper-stats">
@@ -61,36 +52,7 @@ function goDetail(id) {
       </div>
     </div>
 
-    <h3 style="margin: 16px 0 12px; font-size: 15px; font-weight: 700;">
-      <i class="bi bi-box"></i> Đơn hàng sẵn sàng nhận
-    </h3>
-
     <div v-if="loading" class="shipper-empty">Đang tải...</div>
-    <div v-else-if="availableCount === 0" class="shipper-empty">
-      <i class="bi bi-emoji-smile" style="font-size: 40px;"></i>
-      <p>Không có đơn nào đang chờ</p>
-    </div>
-    <div v-else class="order-cards">
-      <div
-        v-for="order in shipperStore.availableOrders"
-        :key="order.id"
-        class="order-card"
-        @click="goDetail(order.id)"
-      >
-        <div class="card-top">
-          <strong class="order-code">{{ order.orderCode }}</strong>
-          <span class="order-status pending">Sẵn sàng giao</span>
-        </div>
-        <div class="card-body">
-          <p><i class="bi bi-person"></i> {{ order.customerName }}</p>
-          <p><i class="bi bi-geo-alt"></i> {{ order.customerAddress }}</p>
-        </div>
-        <div class="card-bottom">
-          <span class="order-total">{{ formatPrice(order.total) }}</span>
-          <span class="order-time">{{ formatDate(order.createdAt) }}</span>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 

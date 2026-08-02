@@ -3,12 +3,23 @@ import { ref, computed } from 'vue';
 import { ROLES } from '@/utils/constants';
 import { authApi } from '@/api';
 import { useCartStore } from '@/stores/cart';
+import { clearStoredSession, isTokenValid, parseStoredUser } from '@/utils/session';
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('token') || null);
-  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'));
+  const storedToken = localStorage.getItem('token');
+  if (storedToken && !isTokenValid(storedToken)) clearStoredSession();
+  const token = ref(isTokenValid(storedToken) ? storedToken : null);
+  const user = ref(token.value ? parseStoredUser(localStorage.getItem('user')) : null);
+  if (token.value && !user.value) clearStoredSession();
+  if (!user.value) token.value = null;
 
-  const isLoggedIn = computed(() => !!token.value);
+  function clearReactiveSession() {
+    token.value = null;
+    user.value = null;
+  }
+  window.addEventListener('fastguy-session-cleared', clearReactiveSession);
+
+  const isLoggedIn = computed(() => isTokenValid(token.value));
   const role = computed(() => user.value?.role || ROLES.GUEST);
   const isUser = computed(() => role.value === ROLES.USER);
   const isStaff = computed(() => role.value === ROLES.STAFF);
@@ -68,6 +79,14 @@ export const useAuthStore = defineStore('auth', () => {
     persist();
   }
 
+  function validateSession() {
+    if (isTokenValid(token.value) && user.value) return true;
+    token.value = null;
+    user.value = null;
+    persist();
+    return false;
+  }
+
   async function updateProfile(data) {
     if (!user.value) throw new Error('Chưa đăng nhập');
     try {
@@ -96,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
+    validateSession,
     updateProfile,
     changePassword,
   };

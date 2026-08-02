@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onBeforeUnmount, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
@@ -13,36 +13,50 @@ const cart = useCartStore();
 const status = ref('loading');
 const orderId = ref(Number(route.query.orderId) || null);
 const orderCode = ref(String(route.query.orderCode || ''));
+const returnProof = String(route.query.token || sessionStorage.getItem(`guest-payment-proof:${orderCode.value}`) || '');
+let stopped = false;
+let timer = null;
+const wait = ms => new Promise(resolve => { timer = setTimeout(resolve, ms); });
 
-onMounted(async () => {
+async function checkStatus() {
   if (!orderId.value && !orderCode.value) {
     status.value = 'error';
     return;
   }
-  for (let attempt = 0; attempt < 12; attempt++) {
+  if (!auth.isLoggedIn && (!orderCode.value || !returnProof)) {
+    status.value = 'error';
+    return;
+  }
+  status.value = 'loading';
+  for (let attempt = 0; attempt < 12 && !stopped; attempt++) {
     try {
-      if (!auth.isLoggedIn || !orderId.value) {
-        status.value = 'pending';
-        return;
-      }
-      const order = await orderApi.getById(orderId.value);
+      const order = auth.isLoggedIn && orderId.value
+        ? await orderApi.getById(orderId.value)
+        : await orderApi.getGuestPaymentStatus(orderCode.value, returnProof);
       if (order?.paymentStatus === 'PAID') {
         status.value = 'success';
         cart.clear();
-        setTimeout(redirect, 2000);
+        timer = setTimeout(redirect, 2000);
         return;
       }
-      if (order?.status === 'CANCELLED') {
+      if ((order?.status || order?.orderStatus) === 'CANCELLED') {
         status.value = 'cancelled';
-        setTimeout(redirect, 2000);
+        timer = setTimeout(redirect, 2000);
         return;
       }
     } catch {}
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    await wait(2500);
   }
-  status.value = 'pending';
-  setTimeout(redirect, 2000);
-});
+  if (!stopped) status.value = 'pending';
+}
+
+function retry() {
+  clearTimeout(timer);
+  checkStatus();
+}
+
+onMounted(checkStatus);
+onBeforeUnmount(() => { stopped = true; clearTimeout(timer); });
 
 function redirect() {
   if (auth.isLoggedIn && orderId.value) router.replace(`/account/orders/${orderId.value}`);
@@ -53,7 +67,7 @@ function redirect() {
 
 <template>
   <div class="payment-return-page">
-    <div class="card payment-card">
+    <div class="card payment-card" aria-live="polite" aria-atomic="true">
       <div v-if="status === 'loading'" class="payment-state">
         <i class="bi bi-arrow-repeat spin"></i>
         <h3>Đang xử lý...</h3>
@@ -77,14 +91,15 @@ function redirect() {
         <i class="bi bi-clock-fill icon-pending"></i>
         <h3>Đang chờ xử lý</h3>
         <p>Vui lòng kiểm tra trạng thái đơn hàng sau.</p>
-        <p class="text-mid">Đang chuyển hướng...</p>
+        <button type="button" class="btn btn-primary" @click="retry">Kiểm tra lại</button>
+        <button type="button" class="btn btn-outline" @click="redirect">Xem đơn hàng</button>
       </div>
 
       <div v-else class="payment-state error">
         <i class="bi bi-exclamation-triangle-fill icon-error"></i>
         <h3>Không xác định được trạng thái</h3>
         <p>Vui lòng kiểm tra lại đơn hàng của bạn.</p>
-        <router-link to="/" class="btn btn-primary">Về trang chủ</router-link>
+        <router-link to="/home" class="btn btn-primary">Về trang chủ</router-link>
       </div>
     </div>
   </div>
