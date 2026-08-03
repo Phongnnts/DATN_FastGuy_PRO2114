@@ -1,5 +1,6 @@
 package service;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -26,9 +27,26 @@ class OrderHistoryAtomicitySourceTest {
     }
 
     @Test
-    void allRoleServicesDelegateToCanonicalTransition() throws Exception {
-        assertTrue(source("StaffOrderService.java").contains("transitionService.transition("));
-        assertTrue(source("ShipperService.java").contains("transitionService.transition("));
+    void allRoleServicesDelegateToCanonicalTransitionWithoutIndependentPrecheck() throws Exception {
+        String staff = source("StaffOrderService.java");
+        String shipper = source("ShipperService.java");
+        String transition = source("OrderTransitionService.java");
+        assertTrue(staff.contains("transitionService.transition("));
+        assertTrue(shipper.contains("transitionService.transition("));
+        int pickup = shipper.indexOf("public boolean pickUpOrder");
+        int pickupTransition = shipper.indexOf("transitionService.transition(", pickup);
+        int pickupLookup = shipper.indexOf("ordersDAO.findById(orderId)", pickup);
+        int delivery = shipper.indexOf("public String deliverOrder");
+        int deliveryTransition = shipper.indexOf("transitionService.transition(", delivery);
+        int deliveryLookup = shipper.indexOf("ordersDAO.findById(orderId)", delivery);
+        assertTrue(pickupTransition > pickup && pickupLookup > pickupTransition);
+        assertTrue(deliveryTransition > delivery && deliveryLookup > deliveryTransition);
+        int transaction = transition.indexOf("EntityManager em = DatabaseUtil.getEntityManager();", transition.indexOf("public boolean transition(int orderId"));
+        int lock = transition.indexOf("em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE)", transaction);
+        int shiftCheck = transition.indexOf("requireCheckedInShipper(em, actorUserId)", lock);
+        int history = transition.indexOf("em.persist(new OrderStatusHistory", shiftCheck);
+        int commit = transition.indexOf("em.getTransaction().commit();", history);
+        assertTrue(transaction >= 0 && lock > transaction && shiftCheck > lock && history > shiftCheck && commit > history);
     }
 
     private static String source(String file) throws Exception {

@@ -132,10 +132,12 @@ public class OrderTransitionService {
             String from = order.getOrderStatus();
             if (!canTransition(from, toStatus)) { em.getTransaction().rollback(); return false; }
             if ("SHIPPER".equals(actorRole) && (order.getShipper() == null || actorUserId == null
-                    || order.getShipper().getUserId() != actorUserId)) { em.getTransaction().rollback(); return false; }
+                    || order.getShipper().getUserId() != actorUserId || !requireCheckedInShipper(em, actorUserId))) { em.getTransaction().rollback(); return false; }
             if ("ASSIGNED".equals(toStatus)) {
                 User shipper = assignedShipperId == null ? null : em.find(User.class, assignedShipperId);
-                if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || order.getShipper() != null) { em.getTransaction().rollback(); return false; }
+                Long activeShifts = shipper == null ? 0L : em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :shipperId AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", Long.class)
+                        .setParameter("shipperId", assignedShipperId).getSingleResult();
+                if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || activeShifts == 0 || order.getShipper() != null) { em.getTransaction().rollback(); return false; }
                 order.setShipper(shipper);
                 order.setAssignedAt(LocalDateTime.now());
             }
@@ -187,6 +189,12 @@ public class OrderTransitionService {
         } finally {
             em.close();
         }
+    }
+
+    private boolean requireCheckedInShipper(EntityManager em, int shipperId) {
+        return em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :shipperId AND ws.user.role = 'SHIPPER' AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", Long.class)
+                .setParameter("shipperId", shipperId)
+                .getSingleResult() > 0;
     }
 
     static boolean isCanonicalStatus(String status) {

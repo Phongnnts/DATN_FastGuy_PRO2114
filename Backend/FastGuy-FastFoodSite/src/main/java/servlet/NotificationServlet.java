@@ -59,7 +59,9 @@ public class NotificationServlet extends HttpServlet {
             return;
         }
         try {
-            int id = Integer.parseInt(path.substring(1).replace("/read", ""));
+            String[] parts = path.split("/", -1);
+            if (parts.length != 3 || !parts[0].isEmpty() || !"read".equals(parts[2])) throw new NumberFormatException();
+            int id = Integer.parseInt(parts[1]);
             if (!notificationService.markRead(id, userId, role)) {
                 ApiResponse.error(resp, "Not found", 404);
                 return;

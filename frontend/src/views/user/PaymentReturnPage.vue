@@ -13,10 +13,15 @@ const cart = useCartStore();
 const status = ref('loading');
 const orderId = ref(Number(route.query.orderId) || null);
 const orderCode = ref(String(route.query.orderCode || ''));
-const returnProof = String(route.query.token || sessionStorage.getItem(`guest-payment-proof:${orderCode.value}`) || '');
+const proofStorageKey = `guest-payment-proof:${orderCode.value}`;
+const returnProof = String(route.query.token || sessionStorage.getItem(proofStorageKey) || '');
 let stopped = false;
 let timer = null;
 const wait = ms => new Promise(resolve => { timer = setTimeout(resolve, ms); });
+
+function clearReturnProof() {
+  if (orderCode.value) sessionStorage.removeItem(proofStorageKey);
+}
 
 async function checkStatus() {
   if (!orderId.value && !orderCode.value) {
@@ -35,12 +40,14 @@ async function checkStatus() {
         : await orderApi.getGuestPaymentStatus(orderCode.value, returnProof);
       if (order?.paymentStatus === 'PAID') {
         status.value = 'success';
+        clearReturnProof();
         cart.clear();
         timer = setTimeout(redirect, 2000);
         return;
       }
       if ((order?.status || order?.orderStatus) === 'CANCELLED') {
         status.value = 'cancelled';
+        clearReturnProof();
         timer = setTimeout(redirect, 2000);
         return;
       }
@@ -55,7 +62,10 @@ function retry() {
   checkStatus();
 }
 
-onMounted(checkStatus);
+onMounted(() => {
+  if (route.query.token) router.replace({ query: { ...route.query, token: undefined } });
+  checkStatus();
+});
 onBeforeUnmount(() => { stopped = true; clearTimeout(timer); });
 
 function redirect() {

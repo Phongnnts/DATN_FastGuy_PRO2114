@@ -1,4 +1,4 @@
-# 🚀 FastGuy - Hướng Dẫn Chạy Dự Án
+# FastGuy - Hướng Dẫn Chạy Dự Án
 
 ## Yêu cầu cài đặt
 
@@ -16,43 +16,59 @@
 
 # 1. Cài đặt Database
 
-## Bước 1: Tạo Database ở máy (Tìm .sql trong folder database)
+## Bước 1: Chọn cách cập nhật database
 
-Mở SSMS, chạy file `database/init.sql` (hoặc chạy từng lệnh dưới đây):
+Database hiện có cần giữ dữ liệu: sao lưu đã kiểm chứng, dừng ghi và chạy lần lượt các script theo `database/migrations/RUNBOOK.md`. Migration mở rộng schema và giữ lại dữ liệu/bảng legacy để cutover an toàn.
 
-```sql
-CREATE DATABASE FastGuyDB;
-USE FastGuyDB;
--- Sau đó chạy toàn bộ lệnh trong database/init.sql
+Khởi tạo local/demo từ đầu: `database/init.sql` đóng kết nối, **xóa toàn bộ `FastGuyDB` và dữ liệu hiện có**, rồi tạo lại schema cùng dữ liệu demo. Không chạy script này trên database cần giữ dữ liệu.
+
+Login chạy script phải được phép tạo database trên SQL Server và toàn quyền với `FastGuyDB` để chuyển `SINGLE_USER`, xóa, tạo lại, rồi tạo bảng/index. Dùng tài khoản `sysadmin` cho môi trường local là cách đơn giản nhất; không dùng tài khoản ứng dụng giới hạn quyền.
+
+```powershell
+sqlcmd -S localhost -E -C -b -i database/init.sql
 ```
+
+SQL Server Authentication:
+
+```powershell
+sqlcmd -S localhost -U your_sql_server_login -P your_sql_server_password -C -b -i database/init.sql
+```
+
+Tài khoản demo sau khi chạy script; tất cả dùng mật khẩu `123456`:
+
+| Vai trò | Email |
+| --- | --- |
+| Admin | `admin@fastguy.local` |
+| Staff | `staff@fastguy.local` |
+| Shipper | `shipper@fastguy.local` |
+| User | `user@fastguy.local` |
 
 ---
 
-# 2. Cấu hình persistence
+# 2. Cấu hình backend
 
-Mở file:
+Tạo `Backend/FastGuy-FastFoodSite/.env` hoặc khai báo biến môi trường:
 
-```text
-Backend/FastGuy-FastFoodSite/src/main/resources/META-INF/persistence.xml
+```properties
+DB_URL=jdbc:sqlserver://localhost:1433;databaseName=FastGuyDB;encrypt=true;trustServerCertificate=true
+DB_USER=your_sql_server_login
+DB_PASSWORD=your_sql_server_password
+JWT_SECRET=replace-with-at-least-32-characters
 ```
 
-Kiểm tra thông tin kết nối:
+Các tích hợp ngoài cần biến tương ứng khi sử dụng:
 
-```xml
-<property name="jakarta.persistence.jdbc.url"
-          value="jdbc:sqlserver://localhost:1433;databaseName=FastGuyDB;encrypt=false"/>
-
-<property name="jakarta.persistence.jdbc.user"
-          value="JavaDuAn"/> -- Tên Login SqlServer
-
-<property name="jakarta.persistence.jdbc.password"
-          value="ZaZksnguyen1234"/> Pass SqlServer
-
-<property name="hibernate.hbm2ddl.auto"
-          value="update"/>
+```properties
+GHN_TOKEN=
+GHN_SHOP_ID=
+PAYOS_CLIENT_ID=
+PAYOS_API_KEY=
+PAYOS_CHECKSUM_KEY=
 ```
 
-> Hibernate sẽ tự tạo bảng khi chạy lần đầu.
+`persistence.xml` giữ `hibernate.hbm2ddl.auto=none`. Hibernate không tạo hoặc cập nhật schema.
+
+PayOS hỗ trợ tạo checkout link, kiểm tra trạng thái và webhook có xác thực chữ ký khi ba biến `PAYOS_*` được cấu hình. Browser return không tự chứng minh thanh toán: trạng thái được đọc lại từ backend; guest phải gửi `orderCode` cùng `returnProof` opaque do checkout cấp.
 
 ---
 
@@ -132,6 +148,10 @@ Frontend sẽ chạy tại:
 http://localhost:5173
 ```
 
+Route `/` là trang đăng nhập; trang chủ công khai ở `/home`.
+
+Luồng trạng thái đơn chuẩn: `PENDING → CONFIRMED → PREPARING → READY → ASSIGNED → PICKED_UP → DELIVERED`; `CANCELLED` là trạng thái kết thúc qua lệnh hủy riêng. Staff và Shipper chỉ thao tác nghiệp vụ khi tài khoản active và ca hiện tại `CHECKED_IN`; Staff gán Shipper ở `READY`, Shipper chỉ xem/thao tác đơn đã gán cho mình. Hủy từ `PREPARING` trở đi ghi tồn kho `WASTE`, không hoàn hàng đã chế biến vào tồn bán.
+
 ---
 
 # 5. Kiểm tra Proxy
@@ -163,39 +183,9 @@ Mở trình duyệt:
 http://localhost:5173
 ```
 
-## Tài khoản Admin
+## Tài khoản demo
 
-```
-Email: admin@fastguy.com
-Password: 123456
-```
-
-## Tài khoản Staff
-
-```
-Email: staff1@fastguy.com
-Password: 123456
-Email: staff2@fastguy.com
-Password: 123456
-```
-
-## Tài khoản Shipper
-
-```
-Email: shipper1@fastguy.com
-Password: 123456
-Email: shipper2@fastguy.com
-Password: 123456
-```
-
-## Tài khoản User
-
-```
-Email: customer1@email.com
-Password: 123456
-Email: customer2@email.com
-Password: 123456
-```
+Sử dụng bốn tài khoản seed đã liệt kê tại phần cài đặt database. Mật khẩu chung: `123456`.
 
 ---
 

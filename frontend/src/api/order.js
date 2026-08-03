@@ -31,7 +31,4 @@ export default {
   guestCheckout(data, idempotencyKey) {
     return client.post('/orders/guest-checkout', data, { headers: { 'Idempotency-Key': idempotencyKey } });
   },
-  verifyPayment(orderId) {
-    return client.get(`/orders/verify-payment/${orderId}`);
-  },
 };

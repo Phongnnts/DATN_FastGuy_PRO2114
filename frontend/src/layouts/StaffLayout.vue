@@ -43,7 +43,8 @@ async function checkShift() {
 const sidebarLinks = computed(() => [
   ...(checkedIn.value ? [
     { label: 'Tổng quan', path: '/staff', icon: 'bi-speedometer2' },
-    { label: 'Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
+    { label: 'Bếp · Đơn hàng', path: '/staff/orders', icon: 'bi-receipt' },
+    { label: 'Điều phối giao hàng', path: '/staff/dispatch', icon: 'bi-truck' },
   ] : []),
   { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
   { label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' },

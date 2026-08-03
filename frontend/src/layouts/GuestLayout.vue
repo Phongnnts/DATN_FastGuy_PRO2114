@@ -98,8 +98,8 @@ onUnmounted(() => {
         <div class="footer-grid">
           <div class="footer-about"><div class="brand">Fast<span>Guy</span></div><p>Đặt đồ ăn nhanh, giao tận nơi trong 30 phút. Thực đơn đa dạng, thanh toán tiện lợi.</p><div class="footer-social"><a href="#" aria-label="Facebook"><i class="bi bi-facebook"></i></a><a href="#" aria-label="Instagram"><i class="bi bi-instagram"></i></a><a href="#" aria-label="TikTok"><i class="bi bi-tiktok"></i></a></div></div>
           <div class="footer-col"><h2>Về FastGuy</h2><router-link to="/home">Trang chủ</router-link><router-link to="/menu">Thực đơn</router-link><router-link to="/promotions">Khuyến mãi</router-link></div>
-          <div class="footer-col"><h2>Liên kết</h2><router-link to="/home">Trang chủ</router-link><router-link to="/menu">Thực đơn</router-link><router-link to="/track-order">Tra cứu đơn</router-link></div>
-          <div class="footer-col"><h2>Hỗ trợ</h2><a href="tel:19001234">1900 1234</a><a href="mailto:support@fastguy.vn">support@fastguy.vn</a></div>
+          <div class="footer-col"><h2>Liên kết</h2><router-link to="/track-order">Tra cứu đơn</router-link><router-link to="/help">Trung tâm trợ giúp</router-link><router-link to="/terms">Điều khoản sử dụng</router-link><router-link to="/privacy">Chính sách bảo mật</router-link></div>
+          <div class="footer-col"><h2>Hỗ trợ</h2><a href="tel:19001234">1900 1234</a><a href="mailto:support@fastguy.vn">support@fastguy.vn</a><router-link v-if="auth.isUser" to="/account/support">Gửi yêu cầu hỗ trợ</router-link></div>
         </div>
         <div class="footer-bottom">&copy; {{ year }} FastGuy. Tất cả quyền được bảo lưu.</div>
       </div>

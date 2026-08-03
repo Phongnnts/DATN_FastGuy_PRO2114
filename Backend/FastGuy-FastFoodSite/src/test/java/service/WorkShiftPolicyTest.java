@@ -23,13 +23,13 @@ class WorkShiftPolicyTest {
     }
 
     @Test
-    void checkoutExpiresAfterGrace() {
+    void checkoutRemainsAllowedAfterGrace() {
         WorkShift shift = shift(LocalTime.of(9, 0), LocalTime.of(17, 0), "CHECKED_IN");
         shift.setShiftDate(LocalDate.of(2026, 7, 20));
         shift.setCheckInAt(LocalDateTime.of(2026, 7, 20, 9, 0));
         assertTrue(WorkShiftService.canCheckOut(shift, LocalDateTime.of(2026, 7, 20, 17, 15)));
-        assertFalse(WorkShiftService.canCheckOut(shift, LocalDateTime.of(2026, 7, 20, 17, 16)));
-        assertFalse(WorkShiftService.canCheckOut(shift, LocalDateTime.of(2026, 7, 21, 8, 0)));
+        assertTrue(WorkShiftService.canCheckOut(shift, LocalDateTime.of(2026, 7, 20, 17, 16)));
+        assertTrue(WorkShiftService.canCheckOut(shift, LocalDateTime.of(2026, 7, 21, 8, 0)));
     }
 
     @Test

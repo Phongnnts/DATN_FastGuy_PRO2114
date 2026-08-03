@@ -204,6 +204,7 @@ public class Orders {
     public int getOrderId() { return orderId; }
     public void setOrderId(int orderId) { this.orderId = orderId; }
     public String getOrderCode() { return orderCode; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setOrderCode(String orderCode) { this.orderCode = orderCode; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }

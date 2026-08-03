@@ -15,4 +15,8 @@ public class ShipperShiftAccessService {
     public boolean hasCheckedInShift(int userId) {
         return "CHECKED_IN".equals(workShiftService.current(userId).get("state"));
     }
+
+    public static boolean canReadOwnedOrder(String status, boolean checkedIn) {
+        return checkedIn || "DELIVERED".equals(status) || "CANCELLED".equals(status);
+    }
 }

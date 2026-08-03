@@ -41,7 +41,7 @@ onUnmounted(() => notificationStore.stopPolling());
             <span v-if="cart.itemCount" class="badge-dot" aria-hidden="true">{{ cart.itemCount }}</span>
             <span class="sr-only">{{ cart.itemCount }} sản phẩm</span>
           </router-link>
-          <router-link to="/account/profile" class="account-link" aria-label="Tài khoản">
+          <router-link to="/account/overview" class="account-link" aria-label="Tài khoản">
             <i class="bi bi-person-circle" aria-hidden="true"></i><span>{{ auth.user?.fullName || 'Tài khoản' }}</span>
           </router-link>
           <button class="logout-btn" aria-label="Đăng xuất" @click="logout"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Đăng xuất</span></button>

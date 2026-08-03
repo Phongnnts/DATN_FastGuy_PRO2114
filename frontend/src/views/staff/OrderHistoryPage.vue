@@ -17,7 +17,7 @@ const historyOrders = computed(() => {
 })
 
 onMounted(async () => {
-  await staffStore.fetchHistory()
+  try { await staffStore.fetchHistory() } catch {}
 })
 </script>
 

@@ -76,7 +76,7 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT o FROM Orders o WHERE o.orderStatus = :status ORDER BY o.createdAt DESC",
+                    "SELECT o FROM Orders o WHERE o.orderStatus = :status ORDER BY o.createdAt ASC, o.orderId ASC",
                     Orders.class)
                     .setParameter("status", status)
                     .getResultList();
@@ -138,7 +138,7 @@ public class OrdersDAO {
             LocalDateTime start = LocalDate.now().atStartOfDay();
             LocalDateTime end = LocalDate.now().plusDays(1).atStartOfDay();
             return em.createQuery(
-                    "SELECT COUNT(o) FROM Orders o WHERE o.createdAt BETWEEN :start AND :end",
+                    "SELECT COUNT(o) FROM Orders o WHERE o.createdAt >= :start AND o.createdAt < :end",
                     Long.class)
                     .setParameter("start", start)
                     .setParameter("end", end)
@@ -275,10 +275,51 @@ public class OrdersDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT o FROM Orders o WHERE o.shipper.userId = :sid ORDER BY o.createdAt DESC",
+                    "SELECT o FROM Orders o WHERE o.shipper.userId = :sid ORDER BY o.createdAt DESC, o.orderId DESC",
                     Orders.class)
                     .setParameter("sid", shipperId)
                     .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countActiveByShipper(int shipperId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT COUNT(o) FROM Orders o WHERE o.shipper.userId = :shipperId AND o.orderStatus IN ('ASSIGNED','PICKED_UP')",
+                    Long.class)
+                    .setParameter("shipperId", shipperId)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findHistoryByShipperId(int shipperId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.shipper.userId = :shipperId AND o.orderStatus IN ('DELIVERED','CANCELLED') ORDER BY COALESCE(o.deliveredAt, o.cancelledAt, o.createdAt) DESC, o.orderId DESC",
+                    Orders.class)
+                    .setParameter("shipperId", shipperId)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countDeliveredByShipperAndDateRange(int shipperId, LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT COUNT(o) FROM Orders o WHERE o.shipper.userId = :shipperId AND o.orderStatus = 'DELIVERED' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
+                    Long.class)
+                    .setParameter("shipperId", shipperId)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
         } finally {
             em.close();
         }

@@ -344,7 +344,6 @@ async function placeOrder() {
         couponCode: appliedCoupon.value?.code || '',
       };
       const result = await orderApi.guestCheckout(payload, idempotencyKeyFor(payload));
-      if (result.returnProof) sessionStorage.setItem(`guest-payment-proof:${result.orderCode}`, result.returnProof);
       if (result.paymentRetryable) {
         toast.error(`Đơn ${result.orderCode} đã được tạo. Bấm đặt hàng lại để thử tạo liên kết thanh toán.`);
         return;
@@ -352,10 +351,12 @@ async function placeOrder() {
       clearIdempotencyKey();
       cart.clear();
       if (result.checkoutUrl) {
+        if (result.returnProof) sessionStorage.setItem(`guest-payment-proof:${result.orderCode}`, result.returnProof);
         window.location.assign(result.checkoutUrl);
         return;
       }
-      router.push(`/track-order?code=${result.orderCode}&created=1&paymentRetryable=${result.paymentRetryable ? '1' : '0'}`);
+      sessionStorage.setItem(`order-success:${result.orderCode}`, '1');
+      router.push({ name: 'OrderSuccess', query: { orderCode: result.orderCode } });
       return;
     }
 
@@ -390,7 +391,7 @@ async function placeOrder() {
       window.location.assign(result.checkoutUrl);
       return;
     }
-    router.push(`/account/orders/${createdOrderId.value}?created=1`);
+    router.push({ name: 'OrderSuccess', query: { orderId: createdOrderId.value, orderCode: result.orderCode } });
   } catch (e) {
     toast.error(e.message);
   } finally {

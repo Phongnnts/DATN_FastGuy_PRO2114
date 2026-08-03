@@ -1,12 +1,13 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
 import { useNotificationStore } from '@/stores/notification';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ref, onMounted, onUnmounted } from 'vue';
 import NotificationBell from '@/components/common/NotificationBell.vue';
 
 const auth = useAuthStore();
 const notificationStore = useNotificationStore();
+const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
@@ -32,6 +33,11 @@ const sidebarLinks = [
    { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },
   { label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' },
 ];
+
+function isLinkActive(link) {
+  if (link.path === '/admin/products') return route.path === link.path || route.path.startsWith(`${link.path}/`);
+  return route.path === link.path;
+}
 </script>
 
 <template>
@@ -46,6 +52,7 @@ const sidebarLinks = [
           v-for="link in sidebarLinks"
           :key="link.path"
           :to="link.path"
+          :class="{ 'router-link-active': isLinkActive(link) }"
           @click="sidebarOpen = false"
         >
           <i :class="link.icon"></i>

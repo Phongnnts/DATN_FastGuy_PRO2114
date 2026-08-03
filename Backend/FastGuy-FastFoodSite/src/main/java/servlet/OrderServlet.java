@@ -334,21 +334,22 @@ public class OrderServlet extends HttpServlet {
         data.put("customerAddress", o.getCustomerAddress());
         data.put("deliveryNote", o.getDeliveryNote());
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
-        data.put("updatedAt", o.getConfirmedAt() != null ? o.getConfirmedAt().toString() : o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+        data.put("updatedAt", o.getUpdatedAt() != null ? o.getUpdatedAt().toString() : null);
         addTransferData(data, o);
 
         List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
                 .stream()
                 .map(oi -> {
                     Map<String, Object> m = new HashMap<>();
-                    m.put("productId", oi.getProduct().getProductId());
+                    m.put("productId", oi.getProduct() != null ? oi.getProduct().getProductId() : null);
                     m.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
                     m.put("productName", oi.getProductName());
                     m.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
                     m.put("quantity", oi.getQuantity());
                     m.put("unitPrice", oi.getUnitPrice());
                     m.put("totalPrice", oi.getTotalPrice());
-                    m.put("image", oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+                    m.put("image", oi.getProduct() != null && oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+                    m.put("modifiers", oi.getModifiers());
                     return m;
                 })
                 .collect(Collectors.toList());

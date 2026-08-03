@@ -135,7 +135,7 @@ async function saveStock(row) {
 }
 
 function editProduct(row) {
-  router.push(`/admin/products?edit=${row.productId}`);
+  router.push({ name: 'AdminProductEdit', params: { id: row.productId } });
 }
 </script>
 

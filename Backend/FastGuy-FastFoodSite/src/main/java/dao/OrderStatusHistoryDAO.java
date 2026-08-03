@@ -25,7 +25,7 @@ public class OrderStatusHistoryDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT h FROM OrderStatusHistory h WHERE h.orderId = :orderId ORDER BY h.createdAt",
+                    "SELECT h FROM OrderStatusHistory h WHERE h.orderId = :orderId ORDER BY h.createdAt, h.historyId",
                     OrderStatusHistory.class)
                     .setParameter("orderId", orderId)
                     .getResultList();

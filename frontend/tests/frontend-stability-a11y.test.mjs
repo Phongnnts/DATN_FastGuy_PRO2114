@@ -13,7 +13,7 @@ test('keeps entry routes and redirects legacy routes', () => {
   assert.match(router, /path: '\/'[\s\S]*name: 'Login'/);
   assert.match(router, /path: 'home'[\s\S]*name: 'Home'/);
   assert.match(router, /path: '\/reports'.*AdminReports/);
-  assert.match(router, /path: '\/loyalty'.*Profile/);
+  assert.match(router, /path: '\/loyalty'.*UserRewards/);
   assert.match(router, /path: '\/history'.*UserOrders/);
   assert.doesNotMatch(router, /findLast/);
 });
@@ -25,9 +25,9 @@ test('uses backend payment and shift status values', () => {
   assert.doesNotMatch(constants, /ABSENT: 'ABSENT'/);
 });
 
-test('guest tracking exposes checkout continuation', () => {
-  assert.match(tracking, /trackingResult\.checkoutUrl/);
-  assert.match(tracking, /Tiếp tục thanh toán/);
+test('guest tracking omits unsupported checkout continuation', () => {
+  assert.doesNotMatch(tracking, /trackingResult\.checkoutUrl/);
+  assert.doesNotMatch(tracking, /Tiếp tục thanh toán/);
 });
 
 test('shipper tabs, cards, and notification panel expose basic accessibility', () => {

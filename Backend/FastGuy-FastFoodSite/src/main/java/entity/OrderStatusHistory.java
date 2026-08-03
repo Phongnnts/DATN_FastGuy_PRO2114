@@ -62,7 +62,7 @@ public class OrderStatusHistory {
     public int getOrderId() { return orderId; }
     public void setOrderId(int orderId) { this.orderId = orderId; }
     public User getActor() { return actor; }
-    public int getActorUserId() { return actor != null ? actor.getUserId() : 0; }
+    public Integer getActorUserId() { return actorUserId; }
     public void setActorUserId(Integer actorUserId) { this.actorUserId = actorUserId; }
     public String getActorRole() { return actorRole; }
     public void setActorRole(String actorRole) { this.actorRole = actorRole; }

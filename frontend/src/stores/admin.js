@@ -25,8 +25,11 @@ export const useAdminStore = defineStore('admin', () => {
        status: p.status || 'AVAILABLE',
        availableFrom: p.availableFrom || '',
        availableTo: p.availableTo || '',
-       inStock: p.status === 'AVAILABLE',
-      galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
+       inStock: p.inStock !== undefined ? Boolean(p.inStock) : p.status === 'AVAILABLE',
+       productType: p.productType || (p.combo ? 'COMBO' : 'SIMPLE'),
+       discountPrice: p.discountPrice === null || p.discountPrice === undefined ? null : Number(p.discountPrice),
+       galleryImages: Array.isArray(p.galleryImages) ? p.galleryImages : [],
+
        variants: Array.isArray(p.variants) ? p.variants.map(v => ({ ...v })) : [],
        modifierGroups: Array.isArray(p.modifierGroups) ? p.modifierGroups.map(group => ({ ...group, options: [...(group.options || [])] })) : [],
        combo: p.combo ? { ...p.combo, items: [...(p.combo.items || [])] } : null,

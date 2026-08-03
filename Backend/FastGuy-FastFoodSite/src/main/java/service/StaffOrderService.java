@@ -42,7 +42,16 @@ public class StaffOrderService {
     }
 
     public List<User> getAvailableShippers() {
-        return userDAO.findByRoleName("SHIPPER");
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT DISTINCT ws.user FROM WorkShift ws WHERE ws.user.role = 'SHIPPER' AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", User.class).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countActiveOrders(int shipperId) {
+        return ordersDAO.countActiveByShipper(shipperId);
     }
 
     public boolean assignShipper(int orderId, int shipperId, int staffId) {
