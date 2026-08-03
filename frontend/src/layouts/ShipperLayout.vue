@@ -15,17 +15,17 @@ const checkedIn = computed(() => shiftState.value === 'CHECKED_IN');
 
 let shiftSequence = 0;
 
-const navItems = computed(() => {
-  if (!checkedIn.value) {
-    return [{ path: '/shipper/history', name: 'Lịch sử', icon: 'bi-clock-history' }];
-  }
-  return [
+const navItems = computed(() => [
+  ...(checkedIn.value ? [
     { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
     { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
-  ];
-});
+  ] : []),
+  { path: '/shipper/history', name: 'Lịch sử', icon: 'bi-clock-history' },
+  { path: '/shipper/shifts', name: 'Ca làm', icon: 'bi-calendar-week' },
+]);
 
 function activeClass(path) {
+  if (path === '/shipper/orders' && route.path.startsWith('/shipper/orders/')) return 'active';
   return route.path === path ? 'active' : '';
 }
 
@@ -76,7 +76,8 @@ function logout() {
         <i class="bi bi-calendar-x"></i>
         <div v-if="shiftState === 'UNKNOWN'">
           <strong>Không thể xác định trạng thái ca</strong>
-          <p>Chỉ lịch sử đơn đang khả dụng.</p>
+          <p>Thử lại hoặc mở lịch làm việc.</p>
+          <button class="btn btn-outline btn-sm" @click="checkShift">Thử lại</button>
         </div>
         <div v-else-if="shiftState === 'CHECKED_OUT'">
           <strong>Ca làm đã kết thúc</strong>
@@ -87,7 +88,7 @@ function logout() {
           <p>Vui lòng xem lịch làm việc để check-in đúng giờ.</p>
         </div>
       </div>
-      <router-view v-if="shiftState !== 'UNKNOWN'" aria-live="polite" role="region" />
+      <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'ShipperShifts' || $route.name === 'ShipperOrderHistory'" aria-live="polite" role="region" />
     </main>
     <nav class="shipper-nav">
       <router-link

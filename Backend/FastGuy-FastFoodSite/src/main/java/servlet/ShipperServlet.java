@@ -59,6 +59,27 @@ public class ShipperServlet extends HttpServlet {
         return "SHIPPER".equals(role) && "ACTIVE".equals(status);
     }
 
+    static Integer parseDetailOrderId(String path) {
+        if (path == null || !path.matches("/orders/\\d+")) return null;
+        try {
+            return Integer.valueOf(path.substring("/orders/".length()));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    static MutationPath parseMutationPath(String path) {
+        if (path == null || !path.matches("/orders/\\d+/(pickup|deliver)")) return null;
+        String[] segments = path.split("/");
+        try {
+            return new MutationPath(Integer.parseInt(segments[2]), segments[3]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    record MutationPath(int orderId, String action) {}
+
     private boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int shipperId) throws IOException {
         if (shipperShiftAccessService.hasCheckedInShift(shipperId)) return true;
         ApiResponse.error(resp, "Checked-in shift required", 403);
@@ -77,7 +98,9 @@ public class ShipperServlet extends HttpServlet {
             return;
         }
 
-        if (!"/dashboard".equals(path) && !"/orders/history".equals(path) && !requireCheckedInShift(req, resp, shipperId)) return;
+        Integer detailOrderId = parseDetailOrderId(path);
+        if (!"/dashboard".equals(path) && !"/orders/history".equals(path) && detailOrderId == null
+                && !requireCheckedInShift(req, resp, shipperId)) return;
 
         switch (path) {
             case "/dashboard":
@@ -96,24 +119,18 @@ public class ShipperServlet extends HttpServlet {
                 ApiResponse.ok(resp, history.stream().map(this::toListItem).collect(Collectors.toList()));
                 break;
             default:
-                if (path.startsWith("/orders/")) {
-                    try {
-                        String[] segs = path.split("/");
-                        if (segs.length >= 3) {
-                            int orderId = Integer.parseInt(segs[2]);
-                            Orders order = shipperService.getMyOrders(shipperId).stream()
-                                    .filter(o -> o.getOrderId() == orderId).findFirst().orElse(null);
-                            if (order != null) {
-                                ApiResponse.ok(resp, toDetail(order));
-                            } else {
-                                ApiResponse.error(resp, "Order not found", 404);
-                            }
-                        }
-                    } catch (NumberFormatException e) {
-                        ApiResponse.error(resp, "Invalid order ID", 400);
-                    }
-                } else {
+                if (detailOrderId == null) {
                     ApiResponse.error(resp, "Not found", 404);
+                    break;
+                }
+                Orders order = shipperService.getOwnedOrder(detailOrderId, shipperId);
+                if (order == null) {
+                    ApiResponse.error(resp, "Order not found", 404);
+                } else if (!ShipperShiftAccessService.canReadOwnedOrder(order.getOrderStatus(),
+                        shipperShiftAccessService.hasCheckedInShift(shipperId))) {
+                    ApiResponse.error(resp, "Checked-in shift required", 403);
+                } else {
+                    ApiResponse.ok(resp, toDetail(order));
                 }
         }
     }
@@ -125,23 +142,14 @@ public class ShipperServlet extends HttpServlet {
         if (shipperId < 0) return;
         if (!requireCheckedInShift(req, resp, shipperId)) return;
 
-        String path = req.getPathInfo();
-        if (path == null) {
-            ApiResponse.error(resp, "Invalid endpoint", 400);
+        MutationPath mutation = parseMutationPath(req.getPathInfo());
+        if (mutation == null) {
+            ApiResponse.error(resp, "Not found", 404);
             return;
         }
 
-        String[] segs = path.split("/");
-        if (segs.length < 3) {
-            ApiResponse.error(resp, "Invalid endpoint", 400);
-            return;
-        }
-
-        try {
-            int orderId = Integer.parseInt(segs[2]);
-            String action = segs.length >= 4 ? segs[3] : "";
-
-            switch (action) {
+        int orderId = mutation.orderId();
+        switch (mutation.action()) {
                 case "pickup": {
                     boolean ok = shipperService.pickUpOrder(orderId, shipperId);
                     if (ok) {
@@ -170,11 +178,8 @@ public class ShipperServlet extends HttpServlet {
                     }
                     break;
                 }
-                default:
-                    ApiResponse.error(resp, "Not found", 404);
-            }
-        } catch (NumberFormatException e) {
-            ApiResponse.error(resp, "Invalid order ID", 400);
+            default:
+                ApiResponse.error(resp, "Not found", 404);
         }
     }
 
@@ -188,7 +193,12 @@ public class ShipperServlet extends HttpServlet {
         m.put("customerAddress", o.getCustomerAddress());
         m.put("finalAmount", o.getFinalAmount());
         m.put("shippingFee", o.getShippingFee());
-        m.put("serviceFee", o.getServiceFee());
+        m.put("paymentMethod", o.getPaymentMethod());
+        m.put("paymentStatus", o.getPaymentStatus());
+        m.put("itemCount", orderItemDAO.findByOrderId(o.getOrderId()).stream().mapToInt(item -> item.getQuantity()).sum());
+        m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
+        m.put("pickedUpAt", o.getPickedUpAt() != null ? o.getPickedUpAt().toString() : null);
+        m.put("deliveredAt", o.getDeliveredAt() != null ? o.getDeliveredAt().toString() : null);
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
     }
@@ -211,6 +221,7 @@ public class ShipperServlet extends HttpServlet {
         data.put("paymentStatus", o.getPaymentStatus());
         data.put("deliveryNote", o.getDeliveryNote());
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+        data.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
         data.put("pickedUpAt", o.getPickedUpAt() != null ? o.getPickedUpAt().toString() : null);
         data.put("deliveredAt", o.getDeliveredAt() != null ? o.getDeliveredAt().toString() : null);
         List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
@@ -224,12 +235,14 @@ public class ShipperServlet extends HttpServlet {
                     im.put("quantity", oi.getQuantity());
                     im.put("unitPrice", oi.getUnitPrice());
                     im.put("totalPrice", oi.getTotalPrice());
+                    im.put("modifiers", oi.getModifiers());
                     return im;
                 })
                 .collect(Collectors.toList());
         data.put("items", items);
         var savedHistory = new service.OrderStatusHistoryService().getByOrderId(o.getOrderId());
         data.put("statusHistory", savedHistory);
+        data.put("allowedActions", ShipperService.getAllowedActions(o.getOrderStatus(), o.getPaymentMethod(), o.getPaymentStatus()));
         return data;
     }
 }

@@ -114,7 +114,7 @@ export const useOrderStore = defineStore('order', () => {
           quantity: item.quantity,
           image: item.image || item.imageUrl || '',
         })),
-        checkoutUrl: data.checkoutUrl || '',
+        estimatedDeliveryAt: data.estimatedDeliveryAt || null,
         statusHistory: (data.statusHistory || []).map((entry) => ({
           status: entry.status,
           time: entry.timestamp,

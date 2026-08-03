@@ -12,6 +12,7 @@ const wrapper = ref(null);
 const trigger = ref(null);
 
 const show = computed(() => auth.isLoggedIn);
+const inboxRoute = computed(() => auth.role === 'USER' ? '/account/notifications' : null);
 
 onMounted(() => {
   document.addEventListener('click', handleOutside);
@@ -75,6 +76,7 @@ async function go(item) {
         </button>
       </div>
       <div v-else class="notif-empty">Chưa có thông báo</div>
+      <router-link v-if="inboxRoute" class="notif-view-all" :to="inboxRoute" @click="notificationStore.close()">Xem tất cả</router-link>
     </div>
   </div>
 </template>
@@ -179,6 +181,15 @@ async function go(item) {
   color: var(--text-mid);
   padding: 24px 0;
   font-size: 13px;
+}
+.notif-view-all {
+  display: block;
+  padding: 10px 8px 2px;
+  border-top: 1px solid var(--border);
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
 }
 @media (max-width: 480px) {
   .notif-dropdown {

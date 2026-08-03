@@ -19,6 +19,9 @@ export default {
   getProducts(params) {
     return client.get('/admin/products', { params });
   },
+  getProduct(id) {
+    return client.get(`/admin/products/${id}`);
+  },
   createProduct(data) {
     return client.post('/admin/products', data);
   },

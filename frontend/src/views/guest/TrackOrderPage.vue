@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
 import { formatDate } from '@/utils/format';
@@ -15,12 +15,16 @@ const trackingResult = ref(null);
 const error = ref('');
 const loading = ref(false);
 const justCreated = ref(route.query.created === '1');
+let pollTimer = null;
+let tracking = false;
+let stopped = false;
 
-async function track() {
-  trackingResult.value = null;
-  error.value = '';
-  justCreated.value = false;
-  if (route.query.created) router.replace({ query: { ...route.query, created: undefined } });
+async function track(silent = false) {
+  if (tracking) return;
+  if (!silent) trackingResult.value = null;
+  if (!silent) error.value = '';
+  if (!silent) justCreated.value = false;
+  if (!silent && route.query.created) router.replace({ query: { ...route.query, created: undefined } });
   const code = orderCode.value.trim();
   if (!code) {
     error.value = 'Vui lòng nhập mã đơn hàng.';
@@ -30,15 +34,18 @@ async function track() {
     error.value = 'Vui lòng nhập đúng 4 chữ số cuối số điện thoại.';
     return;
   }
-  loading.value = true;
+  if (!silent) loading.value = true;
+  tracking = true;
   try {
     const result = await orderStore.trackOrder(code, phoneSuffix.value);
+    if (stopped) return;
     if (!result) error.value = 'Không tìm thấy đơn hàng với thông tin đã nhập.';
     else trackingResult.value = result;
   } catch (e) {
-    error.value = e.message || 'Không thể tra cứu đơn hàng. Vui lòng thử lại.';
+    if (!stopped && !silent) error.value = e.message || 'Không thể tra cứu đơn hàng. Vui lòng thử lại.';
   } finally {
-    loading.value = false;
+    tracking = false;
+    if (!stopped && !silent) loading.value = false;
   }
 }
 
@@ -48,6 +55,13 @@ function normalizePhoneInput() {
 
 onMounted(() => {
   if (route.query.code) orderCode.value = String(route.query.code);
+  pollTimer = setInterval(() => {
+    if (trackingResult.value && !['DELIVERED', 'CANCELLED'].includes(trackingResult.value.status)) track(true);
+  }, 30000);
+});
+onBeforeUnmount(() => {
+  stopped = true;
+  clearInterval(pollTimer);
 });
 </script>
 
@@ -109,14 +123,6 @@ onMounted(() => {
             <p v-if="trackingResult.createdAt">Đặt lúc {{ formatDate(trackingResult.createdAt) }}</p>
           </div>
           <OrderStatusBadge :status="trackingResult.status" />
-        </div>
-
-        <div v-if="trackingResult.checkoutUrl" class="payment-card">
-          <div>
-            <strong>Thanh toán chưa hoàn tất</strong>
-            <p>Tiếp tục thanh toán để cửa hàng xử lý đơn.</p>
-          </div>
-          <a class="submit-button" :href="trackingResult.checkoutUrl">Tiếp tục thanh toán</a>
         </div>
 
         <div v-if="trackingResult.items.length" class="result-section">

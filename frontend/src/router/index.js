@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { ROLES } from '@/utils/constants';
 import { shiftApi } from '@/api';
+import { isValidProductId } from '@/utils/adminProductEditor';
 
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import UserLayout from '@/layouts/UserLayout.vue';
@@ -80,6 +81,12 @@ const routes = [
         meta: { guest: true },
       },
       {
+        path: 'order-success',
+        name: 'OrderSuccess',
+        component: () => import('@/views/user/OrderSuccessPage.vue'),
+        meta: { guest: true },
+      },
+      {
         path: 'promotions',
         name: 'Promotions',
         component: () => import('@/views/guest/PromotionsPage.vue'),
@@ -91,6 +98,24 @@ const routes = [
         component: () => import('@/views/user/CheckoutPage.vue'),
         meta: { guest: true },
       },
+      {
+        path: 'help',
+        name: 'Help',
+        component: () => import('@/views/guest/HelpPage.vue'),
+        meta: { guest: true },
+      },
+      {
+        path: 'terms',
+        name: 'Terms',
+        component: () => import('@/views/guest/TermsPage.vue'),
+        meta: { guest: true },
+      },
+      {
+        path: 'privacy',
+        name: 'Privacy',
+        component: () => import('@/views/guest/PrivacyPage.vue'),
+        meta: { guest: true },
+      },
     ],
   },
 
@@ -100,7 +125,12 @@ const routes = [
     component: UserLayout,
     meta: { requiresAuth: true, role: ROLES.USER },
     children: [
-      { path: '', redirect: { name: 'Profile' } },
+      { path: '', redirect: { name: 'AccountOverview' } },
+      {
+        path: 'overview',
+        name: 'AccountOverview',
+        component: () => import('@/views/user/AccountOverviewPage.vue'),
+      },
       {
         path: 'profile',
         name: 'Profile',
@@ -120,6 +150,26 @@ const routes = [
         path: 'favorites',
         name: 'UserFavorites',
         component: () => import('@/views/user/FavoritesPage.vue'),
+      },
+      {
+        path: 'addresses',
+        name: 'UserAddresses',
+        component: () => import('@/views/user/AddressesPage.vue'),
+      },
+      {
+        path: 'coupons',
+        name: 'UserCoupons',
+        component: () => import('@/views/user/CouponWalletPage.vue'),
+      },
+      {
+        path: 'rewards',
+        name: 'UserRewards',
+        component: () => import('@/views/user/RewardsPage.vue'),
+      },
+      {
+        path: 'notifications',
+        name: 'UserNotifications',
+        component: () => import('@/views/user/NotificationsPage.vue'),
       },
       {
         path: 'history',
@@ -153,6 +203,16 @@ const routes = [
         path: 'orders',
         name: 'StaffOrders',
         component: () => import('@/views/staff/OrdersPage.vue'),
+        meta: { requiresCheckedInShift: true },
+      },
+      {
+        path: 'kitchen',
+        redirect: { name: 'StaffOrders' },
+      },
+      {
+        path: 'dispatch',
+        name: 'StaffDispatch',
+        component: () => import('@/views/staff/DispatchPage.vue'),
         meta: { requiresCheckedInShift: true },
       },
       {
@@ -203,6 +263,11 @@ const routes = [
         component: () => import('@/views/shipper/MyOrdersPage.vue'),
       },
       {
+        path: 'shifts',
+        name: 'ShipperShifts',
+        component: () => import('@/views/shipper/ShipperShiftsPage.vue'),
+      },
+      {
         path: 'orders/history',
         redirect: { name: 'ShipperOrderHistory' },
       },
@@ -210,7 +275,6 @@ const routes = [
         path: 'orders/:id',
         name: 'ShipperOrderDetail',
         component: () => import('@/views/shipper/OrderDetailPage.vue'),
-        meta: { requiresCheckedInShift: true },
       },
     ],
   },
@@ -230,6 +294,16 @@ const routes = [
         path: 'users',
         name: 'AdminUsers',
         component: () => import('@/views/admin/UsersPage.vue'),
+      },
+      {
+        path: 'products/new',
+        name: 'AdminProductCreate',
+        component: () => import('@/views/admin/ProductEditorPage.vue'),
+      },
+      {
+        path: 'products/:id/edit',
+        name: 'AdminProductEdit',
+        component: () => import('@/views/admin/ProductEditorPage.vue'),
       },
       {
         path: 'products',
@@ -285,7 +359,7 @@ const routes = [
   },
 
   { path: '/reports', redirect: { name: 'AdminReports' } },
-  { path: '/loyalty', redirect: { name: 'Profile' } },
+  { path: '/loyalty', redirect: { name: 'UserRewards' } },
   { path: '/history', redirect: { name: 'UserOrders', query: { status: 'DELIVERED' } } },
 
   // ─── 404 ───────────────────────────────────
@@ -299,13 +373,14 @@ const routes = [
 const pageTitles = {
   Home: 'Trang chủ', Login: 'Đăng nhập', Menu: 'Thực đơn', ProductDetail: 'Chi tiết món', Cart: 'Giỏ hàng',
   Register: 'Đăng ký', TrackOrder: 'Tra cứu đơn', ForgotPassword: 'Quên mật khẩu', ResetPassword: 'Đặt lại mật khẩu',
-  PaymentReturn: 'Kết quả thanh toán', Promotions: 'Khuyến mãi', Checkout: 'Thanh toán', Profile: 'Thông tin cá nhân',
+  PaymentReturn: 'Kết quả thanh toán', OrderSuccess: 'Đặt hàng thành công', Promotions: 'Khuyến mãi', Checkout: 'Thanh toán', Help: 'Trung tâm trợ giúp', Terms: 'Điều khoản sử dụng', Privacy: 'Chính sách bảo mật',
+  AccountOverview: 'Tổng quan tài khoản', Profile: 'Thông tin cá nhân', UserAddresses: 'Sổ địa chỉ', UserCoupons: 'Ví mã ưu đãi',
   UserOrders: 'Đơn hàng', UserOrderDetail: 'Chi tiết đơn hàng', UserFavorites: 'Món yêu thích', ChangePassword: 'Đổi mật khẩu',
-  UserSupport: 'Hỗ trợ', StaffDashboard: 'Tổng quan nhân viên', StaffOrders: 'Quản lý đơn hàng',
-  StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc',
+  UserRewards: 'Ví điểm thưởng', UserNotifications: 'Thông báo', UserSupport: 'Hỗ trợ', StaffDashboard: 'Tổng quan nhân viên', StaffOrders: 'Quản lý đơn hàng',
+  StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc',
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
-  ShipperOrderDetail: 'Chi tiết đơn giao', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
-  AdminProducts: 'Sản phẩm', AdminInventory: 'Kho hàng', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
+  ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
+  AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
   AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner',
   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',
 };
@@ -366,13 +441,19 @@ router.beforeEach(async (to, from, next) => {
     try {
       const current = await shiftApi.getCurrent();
       if (current?.state !== 'CHECKED_IN') {
-        const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/history' };
+        const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/shifts' };
         return next(shiftRoutes[auth.role] || '/staff/shifts');
       }
     } catch {
-      const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/history' };
+      const shiftRoutes = { STAFF: '/staff/shifts', SHIPPER: '/shipper/shifts' };
       return next(shiftRoutes[auth.role] || '/staff/shifts');
     }
+  }
+
+  if (to.name === 'AdminProducts' && 'edit' in to.query) {
+    const editId = to.query.edit;
+    if (isValidProductId(editId)) return next({ name: 'AdminProductEdit', params: { id: Number(editId) } });
+    return next({ name: 'AdminProducts' });
   }
 
   next();

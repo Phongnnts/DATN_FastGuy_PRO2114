@@ -1,251 +1,61 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useShipperStore } from '@/stores/shipper';
 import { formatPrice, formatDate } from '@/utils/format';
+import { isActiveShipperMode } from '@/utils/shipperOperations';
+import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 
-const router = useRouter();
 const route = useRoute();
-const shipperStore = useShipperStore();
-const historyOnly = computed(() => route.name === 'ShipperOrderHistory');
-const activeTab = ref(historyOnly.value ? 'history' : 'pickup');
+const store = useShipperStore();
 const searchTerm = ref('');
-
-const pickupOrders = computed(() =>
-  shipperStore.myOrders.filter(o => o.status === 'ASSIGNED')
-);
-const deliveringOrders = computed(() =>
-  shipperStore.myOrders.filter(o => o.status === 'PICKED_UP')
-);
-const historyOrders = computed(() =>
-  shipperStore.myOrders.filter(o => o.status === 'DELIVERED' || o.status === 'CANCELLED')
-);
-
-const filteredPickup = computed(() => {
-  if (!searchTerm.value) return pickupOrders.value;
-  const q = searchTerm.value.toLowerCase();
-  return pickupOrders.value.filter(o =>
-    o.orderCode.toLowerCase().includes(q) ||
-    o.customerName.toLowerCase().includes(q) ||
-    o.customerAddress.toLowerCase().includes(q)
-  );
+const sort = ref('newest');
+const dateFrom = ref('');
+const dateTo = ref('');
+const activeTab = ref('ASSIGNED');
+const historyOnly = computed(() => !isActiveShipperMode(route.name));
+const orders = computed(() => historyOnly.value ? store.historyOrders : store.activeOrders);
+let timer;
+let inFlight = false;
+let stopped = false;
+const timestamp = order => order.deliveredAt || order.pickedUpAt || order.assignedAt || order.createdAt;
+const visibleOrders = computed(() => {
+  const q = searchTerm.value.trim().toLowerCase();
+  return orders.value.filter(order => {
+    const date = String(timestamp(order) || '').slice(0, 10);
+    return (historyOnly.value || order.status === activeTab.value)
+      && (!q || [order.orderCode, order.customerName, order.customerPhone, order.customerAddress].some(value => String(value || '').toLowerCase().includes(q)))
+      && (!historyOnly.value || (!dateFrom.value || date >= dateFrom.value) && (!dateTo.value || date <= dateTo.value));
+  }).sort((a, b) => (sort.value === 'oldest' ? 1 : -1) * String(timestamp(a) || '').localeCompare(String(timestamp(b) || '')) || String(a.orderCode).localeCompare(String(b.orderCode)));
 });
 
-const filteredDelivering = computed(() => {
-  if (!searchTerm.value) return deliveringOrders.value;
-  const q = searchTerm.value.toLowerCase();
-  return deliveringOrders.value.filter(o =>
-    o.orderCode.toLowerCase().includes(q) ||
-    o.customerName.toLowerCase().includes(q) ||
-    o.customerAddress.toLowerCase().includes(q)
-  );
-});
-
-const filteredHistory = computed(() => {
-  if (!searchTerm.value) return historyOrders.value;
-  const q = searchTerm.value.toLowerCase();
-  return historyOrders.value.filter(o =>
-    o.orderCode.toLowerCase().includes(q) ||
-    o.customerName.toLowerCase().includes(q)
-  );
-});
-
-onMounted(async () => {
-  if (historyOnly.value) await shipperStore.fetchHistory();
-  else await shipperStore.fetchMyOrders();
-});
-
-function goDetail(id) {
-  if (!historyOnly.value) router.push(`/shipper/orders/${id}`);
+async function load(silent = false) {
+  if (inFlight || stopped) return;
+  inFlight = true;
+  try { if (historyOnly.value) await store.fetchHistory(); else await store.fetchActiveOrders(silent); } catch {} finally { inFlight = false; }
 }
+function stopPolling() { clearInterval(timer); timer = undefined; }
+function startPolling() { stopPolling(); if (!historyOnly.value && !stopped) timer = setInterval(() => load(true), 30_000); }
+function retry() { load(false); }
+function handleCardKeydown(event) { if (event.key === ' ') { event.preventDefault(); event.currentTarget.click(); } }
 
-function handleCardKeydown(event, id) {
-  if (!historyOnly.value && (event.key === 'Enter' || event.key === ' ')) {
-    event.preventDefault();
-    goDetail(id);
-  }
-}
+watch(historyOnly, async () => { store.invalidateListRequests(); inFlight = false; stopPolling(); await load(); startPolling(); });
+onMounted(async () => { await load(); startPolling(); });
+onUnmounted(() => { stopped = true; store.invalidateListRequests(); stopPolling(); });
 </script>
 
 <template>
-  <div>
-    <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">
-      <i class="bi bi-bicycle"></i> Đơn hàng của tôi
-    </h3>
-
-    <div class="search-box" style="margin-bottom:12px">
-      <i class="bi bi-search"></i>
-      <input v-model="searchTerm" class="form-input" placeholder="Tìm đơn hàng..." />
+  <section>
+    <h1>{{ historyOnly ? 'Lịch sử giao hàng' : 'Đơn đang hoạt động' }}</h1>
+    <div class="filters"><label class="sr-only" for="shipper-search">Tìm đơn hàng</label><input id="shipper-search" v-model="searchTerm" class="form-input" placeholder="Mã đơn, khách, điện thoại, địa chỉ" /><label class="sr-only" for="shipper-sort">Sắp xếp</label><select id="shipper-sort" v-model="sort" class="form-select"><option value="newest">Mới nhất</option><option value="oldest">Cũ nhất</option></select><template v-if="historyOnly"><label for="shipper-date-from">Từ ngày</label><input id="shipper-date-from" v-model="dateFrom" class="form-input" type="date" :max="dateTo || undefined" /><label for="shipper-date-to">Đến ngày</label><input id="shipper-date-to" v-model="dateTo" class="form-input" type="date" :min="dateFrom || undefined" /></template></div>
+    <div v-if="!historyOnly" class="tabs" role="tablist" aria-label="Trạng thái đơn giao"><button id="assigned-tab" role="tab" :aria-selected="activeTab === 'ASSIGNED'" aria-controls="orders-panel" :tabindex="activeTab === 'ASSIGNED' ? 0 : -1" @click="activeTab = 'ASSIGNED'">Chờ lấy</button><button id="picked-up-tab" role="tab" :aria-selected="activeTab === 'PICKED_UP'" aria-controls="orders-panel" :tabindex="activeTab === 'PICKED_UP' ? 0 : -1" @click="activeTab = 'PICKED_UP'">Đang giao</button></div>
+    <div v-if="store.listLoading" class="state">Đang tải...</div><div v-else-if="store.listError" class="state error" role="alert"><p>{{ store.listError }}</p><button class="btn btn-outline btn-sm" @click="retry">Thử lại</button></div><div v-else-if="!visibleOrders.length" class="state">{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn hàng' }}</div>
+    <div v-else id="orders-panel" class="order-cards" role="tabpanel" :aria-labelledby="historyOnly ? undefined : activeTab === 'ASSIGNED' ? 'assigned-tab' : 'picked-up-tab'">
+      <router-link v-for="order in visibleOrders" :key="order.id" :to="`/shipper/orders/${order.id}`" class="order-card" @keydown="handleCardKeydown"><div class="card-top"><strong>{{ order.orderCode }}</strong><OrderStatusBadge :status="order.status" /></div><p>{{ order.customerName }} · {{ order.customerPhone }}</p><p>{{ order.customerAddress }}</p><div class="meta"><span>{{ order.itemCount }} món</span><span>{{ order.paymentMethod }} · {{ order.paymentStatus }}</span></div><div class="card-bottom"><strong>{{ formatPrice(order.total) }}</strong><time :datetime="timestamp(order)">{{ formatDate(timestamp(order)) }}</time></div></router-link>
     </div>
-
-    <div v-if="!historyOnly" class="shipper-tabs" role="tablist" aria-label="Trạng thái đơn giao">
-      <button id="pickup-tab" class="tab" role="tab" :aria-selected="activeTab === 'pickup'" aria-controls="pickup-panel" :tabindex="activeTab === 'pickup' ? 0 : -1" :class="{ active: activeTab === 'pickup' }" @click="activeTab = 'pickup'">
-        Chờ lấy ({{ pickupOrders.length }})
-      </button>
-      <button id="delivering-tab" class="tab" role="tab" :aria-selected="activeTab === 'delivering'" aria-controls="delivering-panel" :tabindex="activeTab === 'delivering' ? 0 : -1" :class="{ active: activeTab === 'delivering' }" @click="activeTab = 'delivering'">
-        Đang giao ({{ deliveringOrders.length }})
-      </button>
-      <button id="history-tab" class="tab" role="tab" :aria-selected="activeTab === 'history'" aria-controls="history-panel" :tabindex="activeTab === 'history' ? 0 : -1" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">
-        Lịch sử ({{ historyOrders.length }})
-      </button>
-    </div>
-
-    <div v-if="activeTab === 'pickup'" id="pickup-panel" class="order-cards" role="tabpanel" aria-labelledby="pickup-tab">
-      <div v-if="filteredPickup.length === 0" class="shipper-empty">
-        <i class="bi bi-inbox"></i>
-        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn chờ lấy' }}</p>
-      </div>
-      <div
-        v-for="order in filteredPickup"
-        :key="order.id"
-        class="order-card pickup-card"
-        role="link"
-        tabindex="0"
-        :aria-label="`Mở đơn ${order.orderCode}`"
-        @click="goDetail(order.id)"
-        @keydown="handleCardKeydown($event, order.id)"
-      >
-        <div class="card-top">
-          <strong class="order-code">{{ order.orderCode }}</strong>
-          <span class="pickup-badge">Chờ lấy</span>
-        </div>
-        <div class="card-body">
-          <p><i class="bi bi-person"></i> {{ order.customerName }}</p>
-          <p><i class="bi bi-telephone"></i> {{ order.customerPhone }}</p>
-          <p><i class="bi bi-geo-alt"></i> {{ order.customerAddress }}</p>
-        </div>
-        <div class="card-bottom">
-          <span class="order-total">{{ formatPrice(order.total) }}</span>
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="activeTab === 'delivering'" id="delivering-panel" class="order-cards" role="tabpanel" aria-labelledby="delivering-tab">
-      <div v-if="filteredDelivering.length === 0" class="shipper-empty">
-        <i class="bi bi-inbox"></i>
-        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có đơn đang giao' }}</p>
-      </div>
-      <div
-        v-for="order in filteredDelivering"
-        :key="order.id"
-        class="order-card"
-        role="link"
-        tabindex="0"
-        :aria-label="`Mở đơn ${order.orderCode}`"
-        @click="goDetail(order.id)"
-        @keydown="handleCardKeydown($event, order.id)"
-      >
-        <div class="card-top">
-          <strong class="order-code">{{ order.orderCode }}</strong>
-          <span class="active-badge">Đang giao</span>
-        </div>
-        <div class="card-body">
-          <p><i class="bi bi-person"></i> {{ order.customerName }}</p>
-          <p><i class="bi bi-telephone"></i> {{ order.customerPhone }}</p>
-          <p><i class="bi bi-geo-alt"></i> {{ order.customerAddress }}</p>
-        </div>
-        <div class="card-bottom">
-          <span class="order-total">{{ formatPrice(order.total) }}</span>
-        </div>
-      </div>
-    </div>
-
-    <div v-else id="history-panel" class="order-cards" :role="historyOnly ? undefined : 'tabpanel'" :aria-labelledby="historyOnly ? undefined : 'history-tab'">
-      <div v-if="filteredHistory.length === 0" class="shipper-empty">
-        <i class="bi bi-clock-history"></i>
-        <p>{{ searchTerm ? 'Không tìm thấy đơn hàng' : 'Chưa có lịch sử giao hàng' }}</p>
-      </div>
-      <div
-        v-for="order in filteredHistory"
-        :key="order.id"
-        class="order-card"
-        @click="goDetail(order.id)"
-      >
-        <div class="card-top">
-          <strong class="order-code">{{ order.orderCode }}</strong>
-          <span :class="'status-' + order.status.toLowerCase()">
-            {{ order.status === 'DELIVERED' ? 'Đã giao' : 'Đã hủy' }}
-          </span>
-        </div>
-        <div class="card-body">
-          <p><i class="bi bi-person"></i> {{ order.customerName }}</p>
-          <p><i class="bi bi-geo-alt"></i> {{ order.customerAddress }}</p>
-        </div>
-        <div class="card-bottom">
-          <span class="order-total">{{ formatPrice(order.total) }}</span>
-          <span class="order-time">{{ formatDate(order.deliveredAt || order.createdAt) }}</span>
-        </div>
-      </div>
-    </div>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.shipper-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.shipper-tabs .tab {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid var(--border-light);
-  background: #fff;
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--text-mid);
-  transition: all var(--transition-fast);
-}
-.shipper-tabs .tab.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-.shipper-empty { text-align: center; padding: 40px 0; color: var(--text-mid); }
-.shipper-empty i { font-size: 32px; display: block; margin-bottom: 8px; color: var(--border); }
-.order-cards { display: flex; flex-direction: column; gap: 10px; }
-.order-card {
-  background: #fff;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  padding: 14px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.order-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-.order-card:focus-visible, .tab:focus-visible { outline: 3px solid rgba(212, 118, 74, .35); outline-offset: 2px; }
-.card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.order-code { font-size: 14px; }
-.active-badge,
-.status-delivered,
-.status-cancelled {
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  font-size: 11px;
-  font-weight: 600;
-}
-.active-badge { background: #dbeafe; color: #1e40af; }
-.pickup-badge { background: #fef3c7; color: #92400e; }
-.status-delivered { background: #dcfce7; color: #166534; }
-.status-cancelled { background: #fee2e2; color: #991b1b; }
-.card-body p {
-  font-size: 13px;
-  color: var(--text-mid);
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.card-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-light);
-}
-.order-total { font-size: 17px; font-weight: 800; }
-.order-time { font-size: 12px; color: var(--text-light); }
+h1{font-size:18px;margin-bottom:12px}.filters{display:grid;grid-template-columns:1fr 110px;gap:8px;margin-bottom:12px}.tabs{display:flex;gap:8px;margin-bottom:12px}.tabs button{flex:1;padding:9px}.order-cards{display:grid;gap:10px}.order-card{display:block;background:#fff;border:1px solid var(--border-light);border-radius:var(--radius);padding:14px;color:inherit;text-decoration:none}.card-top,.card-bottom,.meta{display:flex;justify-content:space-between;gap:10px}.order-card p,.meta{color:var(--text-mid);font-size:13px;margin-top:6px}.card-bottom{border-top:1px solid var(--border-light);margin-top:10px;padding-top:10px}.card-bottom time{color:var(--text-light);font-size:12px}.state{text-align:center;padding:40px;color:var(--text-mid)}.error{color:var(--red-active)}
 </style>

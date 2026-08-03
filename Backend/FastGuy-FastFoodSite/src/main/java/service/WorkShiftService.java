@@ -120,7 +120,7 @@ public class WorkShiftService {
     record CurrentShift(String state, WorkShift shift) {}
 
     static CurrentShift current(List<WorkShift> shifts, LocalTime now) {
-        WorkShift selected = shifts.stream().filter(s -> isCheckedInWithinGrace(s, now)).findFirst().orElse(null);
+        WorkShift selected = shifts.stream().filter(s -> "CHECKED_IN".equals(s.getStatus()) && s.getCheckOutAt() == null).findFirst().orElse(null);
         if (selected != null) return new CurrentShift("CHECKED_IN", selected);
         if (!shifts.isEmpty() && shifts.stream().allMatch(s -> s.getCheckOutAt() != null)) return new CurrentShift("CHECKED_OUT", shifts.get(shifts.size() - 1));
         selected = shifts.stream().filter(s -> s.getCheckOutAt() == null && !now.isAfter(s.getEndTime().plusMinutes(SHIFT_GRACE_MINUTES))).findFirst().orElse(null);
@@ -140,7 +140,7 @@ public class WorkShiftService {
     static boolean canCheckOut(WorkShift shift, LocalDateTime now) {
         LocalDateTime end = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
         return "CHECKED_IN".equals(shift.getStatus()) && shift.getCheckInAt() != null && shift.getCheckOutAt() == null
-                && !now.isBefore(end) && !now.isAfter(end.plusMinutes(SHIFT_GRACE_MINUTES));
+                && !now.isBefore(end);
     }
 
     public Map<String, Object> check(int shiftId, int userId, boolean checkIn) {

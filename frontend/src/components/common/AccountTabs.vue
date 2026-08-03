@@ -1,8 +1,13 @@
 <script setup>
 const links = [
-  { label: 'Thông tin', path: '/account/profile', icon: 'bi-person' },
+  { label: 'Tổng quan', path: '/account/overview', icon: 'bi-grid' },
   { label: 'Đơn hàng', path: '/account/orders', icon: 'bi-box' },
+  { label: 'Địa chỉ', path: '/account/addresses', icon: 'bi-geo-alt' },
+  { label: 'Ví mã', path: '/account/coupons', icon: 'bi-ticket-perforated' },
   { label: 'Yêu thích', path: '/account/favorites', icon: 'bi-heart' },
+  { label: 'Điểm thưởng', path: '/account/rewards', icon: 'bi-award' },
+  { label: 'Thông báo', path: '/account/notifications', icon: 'bi-bell' },
+  { label: 'Hồ sơ', path: '/account/profile', icon: 'bi-person' },
   { label: 'Hỗ trợ', path: '/account/support', icon: 'bi-headset' },
   { label: 'Mật khẩu', path: '/account/change-password', icon: 'bi-lock' },
 ];

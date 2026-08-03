@@ -109,6 +109,7 @@ public class StaffOrderServlet extends HttpServlet {
                     m.put("id", u.getUserId());
                     m.put("fullName", u.getFullName());
                     m.put("phone", u.getPhone());
+                    m.put("activeOrderCount", staffOrderService.countActiveOrders(u.getUserId()));
                     return m;
                 }).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
@@ -254,17 +255,22 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("orderCode", o.getOrderCode());
         m.put("userId", o.getUser() != null ? o.getUser().getUserId() : null);
         m.put("customerName", o.getCustomerName());
+        m.put("customerPhone", o.getCustomerPhone());
+        m.put("status", o.getOrderStatus());
         m.put("orderStatus", o.getOrderStatus());
-        m.put("items", orderItemDAO.findByOrderId(o.getOrderId()).stream().map(oi -> {
+        var orderItems = orderItemDAO.findByOrderId(o.getOrderId());
+        m.put("itemCount", orderItems.stream().mapToInt(oi -> oi.getQuantity()).sum());
+        m.put("items", orderItems.stream().map(oi -> {
             Map<String, Object> im = new HashMap<>();
-            im.put("productId", oi.getProduct().getProductId());
+            im.put("productId", oi.getProduct() != null ? oi.getProduct().getProductId() : null);
             im.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
             im.put("productName", oi.getProductName());
             im.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
             im.put("quantity", oi.getQuantity());
             im.put("unitPrice", oi.getUnitPrice());
             im.put("totalPrice", oi.getTotalPrice());
-            im.put("imageUrl", oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+            im.put("imageUrl", oi.getProduct() != null && oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+            im.put("modifiers", oi.getModifiers());
             return im;
         }).collect(Collectors.toList()));
         m.put("totalAmount", o.getTotalAmount());
@@ -279,7 +285,7 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);
         m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
-        m.put("updatedAt", o.getCancelledAt() != null ? o.getCancelledAt().toString() : o.getDeliveredAt() != null ? o.getDeliveredAt().toString() : o.getReadyAt() != null ? o.getReadyAt().toString() : o.getConfirmedAt() != null ? o.getConfirmedAt().toString() : o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+        m.put("updatedAt", o.getUpdatedAt() != null ? o.getUpdatedAt().toString() : null);
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
     }
@@ -291,6 +297,7 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("userId", o.getUser() != null ? o.getUser().getUserId() : null);
         m.put("customerName", o.getCustomerName());
         m.put("customerPhone", o.getCustomerPhone());
+        m.put("status", o.getOrderStatus());
         m.put("orderStatus", o.getOrderStatus());
         m.put("totalAmount", o.getTotalAmount());
         m.put("shippingFee", o.getShippingFee());
@@ -312,23 +319,26 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("customerAddress", o.getCustomerAddress());
         m.put("deliveryNote", o.getDeliveryNote());
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+        m.put("updatedAt", o.getUpdatedAt() != null ? o.getUpdatedAt().toString() : null);
 
         List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
                 .stream()
                 .map(oi -> {
                     Map<String, Object> im = new HashMap<>();
-                    im.put("productId", oi.getProduct().getProductId());
+                    im.put("productId", oi.getProduct() != null ? oi.getProduct().getProductId() : null);
                     im.put("variantId", oi.getVariant() != null ? oi.getVariant().getVariantId() : null);
                     im.put("productName", oi.getProductName());
                     im.put("variantName", oi.getVariantName() != null ? oi.getVariantName() : "");
                     im.put("quantity", oi.getQuantity());
                     im.put("unitPrice", oi.getUnitPrice());
                     im.put("totalPrice", oi.getTotalPrice());
-                    im.put("imageUrl", oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+                    im.put("imageUrl", oi.getProduct() != null && oi.getProduct().getImageUrl() != null ? oi.getProduct().getImageUrl() : "");
+            im.put("modifiers", oi.getModifiers());
                     return im;
                 })
                 .collect(Collectors.toList());
         m.put("items", items);
+        m.put("itemCount", items.stream().mapToInt(item -> ((Number) item.get("quantity")).intValue()).sum());
 
         List<Map<String, Object>> history = new java.util.ArrayList<>();
         history.add(Map.of("status", "PENDING", "time", o.getCreatedAt() != null ? o.getCreatedAt().toString() : "", "note", ""));

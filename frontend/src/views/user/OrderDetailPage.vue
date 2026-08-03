@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatPrice, formatDate } from '@/utils/format'
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue'
@@ -27,6 +27,9 @@ const showReviewForm = ref(false)
 const showCancelForm = ref(false)
 const reordering = ref(false)
 const justCreated = ref(route.query.created === '1')
+let pollTimer = null
+let loadingOrder = false
+let stopped = false
 
 const isDelivered = computed(() => order.value?.status === 'DELIVERED')
 const isCancelled = computed(() => order.value?.status === 'CANCELLED')
@@ -34,13 +37,25 @@ const canCancel = computed(() => order.value?.status === 'PENDING')
 const paymentLabel = computed(() => ({ PAID: 'Đã thanh toán', UNPAID: 'Chưa thanh toán', PENDING: 'Đang xử lý', FAILED: 'Thanh toán thất bại', REFUNDED: 'Đã hoàn tiền' })[order.value?.paymentStatus] || order.value?.paymentStatus || 'Chưa thanh toán')
 const refundLabel = computed(() => ({ PENDING: 'Đang xử lý', PROCESSING: 'Đang hoàn tiền', COMPLETED: 'Đã hoàn tiền', FAILED: 'Hoàn tiền thất bại' })[order.value?.refundStatus] || order.value?.refundStatus)
 
-onMounted(loadOrder)
+onMounted(async () => {
+  await loadOrder()
+  pollTimer = setInterval(() => {
+    if (order.value && !['DELIVERED', 'CANCELLED'].includes(order.value.status)) loadOrder(true)
+  }, 30000)
+})
+onBeforeUnmount(() => {
+  stopped = true
+  clearInterval(pollTimer)
+})
 
-async function loadOrder() {
-  loading.value = true
-  loadError.value = ''
+async function loadOrder(silent = false) {
+  if (loadingOrder) return
+  loadingOrder = true
+  if (!silent) loading.value = true
+  if (!silent) loadError.value = ''
   try {
     const data = await orderApi.getById(route.params.id)
+    if (stopped) return
     if (data) {
       order.value = {
         id: data.orderId,
@@ -81,9 +96,10 @@ async function loadOrder() {
       await loadReview(data.orderId)
     }
   } catch (e) {
-    loadError.value = e.message || 'Không thể tải chi tiết đơn hàng'
+    if (!stopped && !silent) loadError.value = e.message || 'Không thể tải chi tiết đơn hàng'
   } finally {
-    loading.value = false
+    loadingOrder = false
+    if (!stopped && !silent) loading.value = false
   }
 }
 

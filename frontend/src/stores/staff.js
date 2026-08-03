@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { staffApi } from '@/api';
+import { kitchenItemCount, staffOrderDiscount, staffOrderItemTotal } from '@/utils/staffKitchen';
 
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
@@ -13,29 +14,30 @@ export const useStaffStore = defineStore('staff', () => {
     return {
       id: o.orderId,
       orderCode: o.orderCode,
-      userId: o.userId,
-      customerName: o.customerName || '',
-      status: o.orderStatus || o.status,
-      items: (o.items || []).map((i) => ({
-        productId: i.productId,
-        variantId: i.variantId || null,
-        productName: i.productName,
-        variantName: i.variantName || '',
+      userId: o.userId ?? null,
+      customerName: o.customerName ?? '',
+      customerPhone: o.customerPhone ?? '',
+      status: o.status ?? o.orderStatus,
+      itemCount: kitchenItemCount(o),
+      items: (o.items || []).map((item) => ({
+        productId: item.productId,
+        variantId: item.variantId ?? null,
+        productName: item.productName,
+        variantName: item.variantName ?? '',
         price:
-          typeof i.unitPrice === 'string'
-            ? parseFloat(i.unitPrice)
-            : i.unitPrice || 0,
-        quantity: i.quantity,
-        totalPrice:
-          typeof i.totalPrice === 'string'
-            ? parseFloat(i.totalPrice)
-            : i.totalPrice || 0,
-        image: i.imageUrl || '',
+          typeof item.unitPrice === 'string'
+            ? parseFloat(item.unitPrice)
+            : item.unitPrice || 0,
+        quantity: item.quantity,
+        totalPrice: staffOrderItemTotal(item),
+        image: item.imageUrl ?? '',
+        modifiers: Array.isArray(item.modifiers) ? item.modifiers : [],
       })),
       subtotal: o.totalAmount ? parseFloat(o.totalAmount) : 0,
-      shippingFee: o.shippingFee ? parseFloat(o.shippingFee) : 0,
-      discount: 0,
-      total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
+      shippingFee: Number(o.shippingFee ?? 0),
+      serviceFee: Number(o.serviceFee ?? 0),
+      discount: staffOrderDiscount(o),
+      total: Number(o.finalAmount ?? 0),
       paymentMethod: o.paymentMethod,
       paymentStatus: o.paymentStatus,
       codCollectedAmount: o.codCollectedAmount != null ? parseFloat(o.codCollectedAmount) : null,
@@ -51,9 +53,10 @@ export const useStaffStore = defineStore('staff', () => {
        shipperName: o.shipperName || '',
        assignedAt: o.assignedAt || null,
        statusHistory: o.statusHistory || [
-        { status: o.orderStatus || o.status, time: o.createdAt, note: '' },
+        { status: o.status || o.orderStatus, time: o.createdAt, note: '' },
       ],
-      internalNotes: o.internalNotes || [],
+      allowedActions: Array.isArray(o.allowedActions) ? o.allowedActions : [],
+      internalNotes: Array.isArray(o.internalNotes) ? o.internalNotes : [],
     };
   }
 
@@ -61,10 +64,16 @@ export const useStaffStore = defineStore('staff', () => {
     return {
       id: o.orderId,
       orderCode: o.orderCode,
-      userId: o.userId || o.customerName,
-      customerName: o.customerName || '',
-      status: o.orderStatus || o.status,
-      items: o.items || [],
+      userId: o.userId ?? null,
+      customerName: o.customerName ?? '',
+      customerPhone: o.customerPhone ?? '',
+      shippingAddress: o.customerAddress ?? '',
+      status: o.status ?? o.orderStatus,
+      itemCount: kitchenItemCount(o),
+      items: (o.items || []).map((item) => ({
+        ...item,
+        modifiers: Array.isArray(item.modifiers) ? item.modifiers : [],
+      })),
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
       createdAt: o.createdAt,
        paymentMethod: o.paymentMethod || '',
@@ -90,6 +99,17 @@ export const useStaffStore = defineStore('staff', () => {
     }
   }
 
+  async function fetchKitchenOrders(tab) {
+    const requests = {
+      PENDING: staffApi.getOrders,
+      CONFIRMED: staffApi.getConfirmedOrders,
+      PREPARING: staffApi.getPreparingOrders,
+      READY: staffApi.getReadyOrders,
+    };
+    const data = await requests[tab]();
+    return Array.isArray(data) ? data.map(mapOrderListItem) : [];
+  }
+
   async function fetchOrders() {
     const version = ++fetchVersion;
     loading.value = true;
@@ -101,7 +121,7 @@ export const useStaffStore = defineStore('staff', () => {
       return allOrders.value;
     } catch (e) {
       error.value = e.message || 'Không thể tải danh sách đơn hàng';
-      return allOrders.value;
+      throw e;
     } finally {
       loading.value = false;
     }
@@ -118,7 +138,7 @@ export const useStaffStore = defineStore('staff', () => {
       return allOrders.value;
     } catch (e) {
       error.value = e.message || 'Không thể tải danh sách đơn hàng';
-      return allOrders.value;
+      throw e;
     } finally {
       loading.value = false;
     }
@@ -135,8 +155,8 @@ export const useStaffStore = defineStore('staff', () => {
         else allOrders.value.unshift(mapped);
       }
       return mapped;
-    } catch {
-      return null;
+    } catch (e) {
+      throw e;
     } finally {
       loading.value = false;
     }
@@ -153,7 +173,7 @@ export const useStaffStore = defineStore('staff', () => {
       return allOrders.value;
     } catch (e) {
       error.value = e.message || 'Không thể tải danh sách đơn hàng';
-      return allOrders.value;
+      throw e;
     } finally {
       loading.value = false;
     }
@@ -161,12 +181,15 @@ export const useStaffStore = defineStore('staff', () => {
 
   async function fetchHistory() {
     loading.value = true;
+    error.value = '';
     try {
       const data = await staffApi.getOrderHistory();
       allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
       return allOrders.value;
-    } catch { return []; }
-    finally { loading.value = false; }
+    } catch (e) {
+      error.value = e.message || 'Không thể tải danh sách đơn hàng';
+      throw e;
+    } finally { loading.value = false; }
   }
 
   async function fetchReadyOrders() {
@@ -180,7 +203,7 @@ export const useStaffStore = defineStore('staff', () => {
       return allOrders.value;
     } catch (e) {
       error.value = e.message || 'Không thể tải danh sách đơn hàng';
-      return allOrders.value;
+      throw e;
     } finally {
       loading.value = false;
     }
@@ -209,9 +232,13 @@ export const useStaffStore = defineStore('staff', () => {
   }
 
   async function saveInternalNote(orderId, content) {
+    error.value = '';
     try {
       await staffApi.saveInternalNote(orderId, content);
-    } catch {}
+    } catch (e) {
+      error.value = e.message || 'Không thể lưu ghi chú nội bộ';
+      throw e;
+    }
   }
 
   return {
@@ -220,6 +247,7 @@ export const useStaffStore = defineStore('staff', () => {
     loading,
     error,
     fetchDashboard,
+    fetchKitchenOrders,
     fetchOrders,
     fetchConfirmedOrders,
     fetchPreparingOrders,

@@ -13,9 +13,11 @@ const todayKey = ref(toLocalDateKey(new Date()));
 let clockTimer;
 
 const todayShift = computed(() => shifts.value.find(s => s.shiftDate === todayKey.value) || null);
+const isCheckedIn = computed(() => Boolean(todayShift.value?.checkInAt) || todayShift.value?.status === 'CHECKED_IN');
+const isCheckedOut = computed(() => Boolean(todayShift.value?.checkOutAt) || ['CHECKED_OUT', 'COMPLETED'].includes(todayShift.value?.status));
 const canCheckOut = computed(() => !todayShift.value?.endTime || now.value >= parseShiftEndDatetime(todayKey.value, todayShift.value.endTime, todayShift.value.startTime));
-const upcomingShifts = computed(() => shifts.value.filter(s => s.shiftDate > todayKey).sort((a, b) => a.shiftDate.localeCompare(b.shiftDate)));
-const pastShifts = computed(() => shifts.value.filter(s => s.shiftDate < todayKey).sort((a, b) => b.shiftDate.localeCompare(a.shiftDate)));
+const upcomingShifts = computed(() => shifts.value.filter(s => s.shiftDate > todayKey.value).sort((a, b) => a.shiftDate.localeCompare(b.shiftDate)));
+const pastShifts = computed(() => shifts.value.filter(s => s.shiftDate < todayKey.value).sort((a, b) => b.shiftDate.localeCompare(a.shiftDate)));
 
 function time(val) { return val ? String(val).slice(0, 5) : ''; }
 function statusLabel(s) {
@@ -96,10 +98,10 @@ onUnmounted(() => clearInterval(clockTimer));
           <span v-if="todayShift.checkOutAt"> · Check-out: {{ todayShift.checkOutAt }}</span>
         </div>
         <div class="shift-actions">
-          <button v-if="!todayShift.checkInAt" class="btn btn-primary" :disabled="saving" @click="checkIn(todayShift)">
+          <button v-if="!isCheckedIn" class="btn btn-primary" :disabled="saving" @click="checkIn(todayShift)">
             <i class="bi bi-box-arrow-in-right"></i> {{ saving ? 'Đang xử lý...' : 'Check-in' }}
           </button>
-          <button v-else-if="!todayShift.checkOutAt" class="btn btn-outline" :disabled="saving || !canCheckOut" @click="checkOut(todayShift)">
+          <button v-else-if="!isCheckedOut" class="btn btn-outline" :disabled="saving || !canCheckOut" @click="checkOut(todayShift)">
             <i class="bi bi-box-arrow-right"></i> {{ saving ? 'Đang xử lý...' : canCheckOut ? 'Check-out' : `Có thể check-out từ ${time(todayShift.endTime)}` }}
           </button>
           <span v-else class="shift-done"><i class="bi bi-check-circle-fill"></i> Đã hoàn thành ca</span>
