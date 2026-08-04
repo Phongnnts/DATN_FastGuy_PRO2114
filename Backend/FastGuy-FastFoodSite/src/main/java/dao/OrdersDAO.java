@@ -97,6 +97,28 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findRefunds(String status, LocalDate from, LocalDate to, String search) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            StringBuilder jpql = new StringBuilder("SELECT o FROM Orders o WHERE o.refundStatus IS NOT NULL");
+            if (status != null && !status.isBlank()) jpql.append(" AND o.refundStatus = :status");
+            if (from != null) jpql.append(" AND o.createdAt >= :from");
+            if (to != null) jpql.append(" AND o.createdAt < :to");
+            if (search != null && !search.isBlank()) {
+                jpql.append(" AND (LOWER(o.orderCode) LIKE :search OR LOWER(o.customerName) LIKE :search OR LOWER(o.customerPhone) LIKE :search)");
+            }
+            jpql.append(" ORDER BY o.cancelledAt DESC");
+            var q = em.createQuery(jpql.toString(), Orders.class);
+            if (status != null && !status.isBlank()) q.setParameter("status", status);
+            if (from != null) q.setParameter("from", from.atStartOfDay());
+            if (to != null) q.setParameter("to", to.plusDays(1).atStartOfDay());
+            if (search != null && !search.isBlank()) q.setParameter("search", "%" + search.toLowerCase() + "%");
+            return q.getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public long count() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

@@ -315,6 +315,11 @@ const routes = [
          name: 'AdminInventory',
          component: () => import('@/views/admin/InventoryPage.vue'),
        },
+       {
+         path: 'inventory/ledger',
+         name: 'AdminInventoryLedger',
+         component: () => import('@/views/admin/InventoryLedgerPage.vue'),
+       },
       {
         path: 'categories',
         name: 'AdminCategories',
@@ -324,6 +329,11 @@ const routes = [
         path: 'orders',
         name: 'AdminOrders',
         component: () => import('@/views/admin/OrdersPage.vue'),
+      },
+      {
+        path: 'refunds',
+        name: 'AdminRefunds',
+        component: () => import('@/views/admin/RefundsPage.vue'),
       },
       {
         path: 'orders/:id',
@@ -380,8 +390,8 @@ const pageTitles = {
   StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc',
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
   ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
-  AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
-  AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner',
+  AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
+  AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền',
   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',
 };
 

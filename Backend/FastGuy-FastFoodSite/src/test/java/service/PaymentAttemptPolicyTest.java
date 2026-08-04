@@ -12,4 +12,16 @@ class PaymentAttemptPolicyTest {
         assertFalse(PayOSPaymentService.shouldCreateProviderLink(false, "CREATING"));
         assertFalse(PayOSPaymentService.shouldCreateProviderLink(true, "READY"));
     }
+
+    @Test
+    void terminalRefundNeverResurrectedByWebhook() {
+        assertTrue(PayOSPaymentService.shouldMarkPaid("UNPAID", null));
+        assertTrue(PayOSPaymentService.shouldMarkPaid("UNPAID", "PENDING"));
+        assertFalse(PayOSPaymentService.shouldMarkPaid("PAID", "PENDING"));
+        assertFalse(PayOSPaymentService.shouldMarkPaid("UNPAID", "REFUNDED"));
+        assertFalse(PayOSPaymentService.shouldMarkPaid("REFUNDED", "REFUNDED"));
+        assertFalse(PayOSPaymentService.shouldMarkPaid("UNPAID", "REJECTED"));
+        assertTrue(RefundService.isTerminal("REFUNDED"));
+        assertTrue(RefundService.isTerminal("REJECTED"));
+    }
 }

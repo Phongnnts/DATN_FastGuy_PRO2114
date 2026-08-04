@@ -17,6 +17,12 @@ public class InventoryTransaction {
     @Column(name = "quantity") private int quantity;
     @Column(name = "created_at") private LocalDateTime createdAt;
     @PrePersist void prePersist() { createdAt = LocalDateTime.now(); }
+    public int getInventoryTransactionId() { return inventoryTransactionId; }
+    public Orders getOrder() { return order; }
+    public ProductVariant getVariant() { return variant; }
+    public String getTransactionType() { return transactionType; }
+    public int getQuantity() { return quantity; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
     public void setOrder(Orders order) { this.order = order; }
     public void setVariant(ProductVariant variant) { this.variant = variant; }
     public void setTransactionType(String transactionType) { this.transactionType = transactionType; }
