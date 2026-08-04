@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth';
 import { ROLES } from '@/utils/constants';
 import { shiftApi } from '@/api';
 import { isValidProductId } from '@/utils/adminProductEditor';
+import { resolveCanonical, isIndexable } from './seo';
 
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import UserLayout from '@/layouts/UserLayout.vue';
@@ -26,19 +27,34 @@ const routes = [
         path: 'home',
         name: 'Home',
         component: () => import('@/views/guest/HomePage.vue'),
-        meta: { guest: true },
+        meta: {
+          guest: true,
+          robots: 'index,follow',
+          description: 'FastGuy — đặt đồ ăn nhanh giao tận nơi chỉ trong 30 phút. Đa dạng món ngon, combo tiết kiệm và nhiều ưu đãi hấp dẫn mỗi ngày.',
+          canonical: '/home',
+        },
       },
       {
         path: 'menu',
         name: 'Menu',
         component: () => import('@/views/guest/MenuPage.vue'),
-        meta: { guest: true },
+        meta: {
+          guest: true,
+          robots: 'index,follow',
+          description: 'Thực đơn FastGuy — burger, pizza, gà rán, mì ý, đồ uống và combo tiết kiệm. Đặt online, giao nhanh tận nơi.',
+          canonical: '/menu',
+        },
       },
       {
         path: 'product/:id',
         name: 'ProductDetail',
         component: () => import('@/views/guest/ProductDetailPage.vue'),
-        meta: { guest: true },
+        meta: {
+          guest: true,
+          robots: 'index,follow',
+          description: 'Chi tiết món tại FastGuy — xem mô tả, giá và đặt món giao nhanh tận nơi.',
+          canonical: '/product/:id',
+        },
       },
       {
         path: 'cart',
@@ -90,7 +106,12 @@ const routes = [
         path: 'promotions',
         name: 'Promotions',
         component: () => import('@/views/guest/PromotionsPage.vue'),
-        meta: { guest: true },
+        meta: {
+          guest: true,
+          robots: 'index,follow',
+          description: 'Khuyến mãi FastGuy — cập nhật ưu đãi, voucher và chương trình giảm giá mới nhất.',
+          canonical: '/promotions',
+        },
       },
       {
         path: 'checkout',
@@ -102,19 +123,34 @@ const routes = [
         path: 'help',
         name: 'Help',
         component: () => import('@/views/guest/HelpPage.vue'),
-        meta: { guest: true },
+        meta: {
+          guest: true,
+          robots: 'index,follow',
+          description: 'Trung tâm trợ giúp FastGuy — hướng dẫn đặt hàng, thanh toán và câu hỏi thường gặp.',
+          canonical: '/help',
+        },
       },
       {
         path: 'terms',
         name: 'Terms',
         component: () => import('@/views/guest/TermsPage.vue'),
-        meta: { guest: true },
+        meta: {
+          guest: true,
+          robots: 'index,follow',
+          description: 'Điều khoản sử dụng FastGuy — quy định và điều kiện khi sử dụng dịch vụ của chúng tôi.',
+          canonical: '/terms',
+        },
       },
       {
         path: 'privacy',
         name: 'Privacy',
         component: () => import('@/views/guest/PrivacyPage.vue'),
-        meta: { guest: true },
+        meta: {
+          guest: true,
+          robots: 'index,follow',
+          description: 'Chính sách bảo mật FastGuy — cách chúng tôi thu thập, sử dụng và bảo vệ thông tin của bạn.',
+          canonical: '/privacy',
+        },
       },
     ],
   },
@@ -130,46 +166,100 @@ const routes = [
         path: 'overview',
         name: 'AccountOverview',
         component: () => import('@/views/user/AccountOverviewPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Tổng quan' },
+          ],
+        },
       },
       {
         path: 'profile',
         name: 'Profile',
         component: () => import('@/views/user/ProfilePage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Hồ sơ' },
+          ],
+        },
       },
       {
         path: 'orders',
         name: 'UserOrders',
         component: () => import('@/views/user/OrdersPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Đơn hàng' },
+          ],
+        },
       },
       {
         path: 'orders/:id',
         name: 'UserOrderDetail',
         component: () => import('@/views/user/OrderDetailPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Đơn hàng', to: '/account/orders' },
+            { label: 'Chi tiết' },
+          ],
+        },
       },
       {
         path: 'favorites',
         name: 'UserFavorites',
         component: () => import('@/views/user/FavoritesPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Món yêu thích' },
+          ],
+        },
       },
       {
         path: 'addresses',
         name: 'UserAddresses',
         component: () => import('@/views/user/AddressesPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Sổ địa chỉ' },
+          ],
+        },
       },
       {
         path: 'coupons',
         name: 'UserCoupons',
         component: () => import('@/views/user/CouponWalletPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Ví mã ưu đãi' },
+          ],
+        },
       },
       {
         path: 'rewards',
         name: 'UserRewards',
         component: () => import('@/views/user/RewardsPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Ví điểm thưởng' },
+          ],
+        },
       },
       {
         path: 'notifications',
         name: 'UserNotifications',
         component: () => import('@/views/user/NotificationsPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Thông báo' },
+          ],
+        },
       },
       {
         path: 'history',
@@ -179,11 +269,23 @@ const routes = [
         path: 'change-password',
         name: 'ChangePassword',
         component: () => import('@/views/user/ChangePasswordPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Đổi mật khẩu' },
+          ],
+        },
       },
       {
         path: 'support',
         name: 'UserSupport',
         component: () => import('@/views/user/SupportPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tài khoản', to: '/account/overview' },
+            { label: 'Hỗ trợ' },
+          ],
+        },
       },
     ],
   },
@@ -316,9 +418,15 @@ const routes = [
          component: () => import('@/views/admin/InventoryPage.vue'),
        },
        {
-         path: 'inventory/ledger',
-         name: 'AdminInventoryLedger',
-         component: () => import('@/views/admin/InventoryLedgerPage.vue'),
+        path: 'inventory/ledger',
+        name: 'AdminInventoryLedger',
+        component: () => import('@/views/admin/InventoryLedgerPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tồn kho', to: '/admin/inventory' },
+            { label: 'Sổ tồn kho' },
+          ],
+        },
        },
       {
         path: 'categories',
@@ -334,11 +442,23 @@ const routes = [
         path: 'refunds',
         name: 'AdminRefunds',
         component: () => import('@/views/admin/RefundsPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Đơn hàng', to: '/admin/orders' },
+            { label: 'Hoàn tiền' },
+          ],
+        },
       },
       {
         path: 'orders/:id',
         name: 'AdminOrderDetail',
         component: () => import('@/views/admin/OrderDetailPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Đơn hàng', to: '/admin/orders' },
+            { label: 'Chi tiết' },
+          ],
+        },
       },
       {
         path: 'reports',
@@ -469,9 +589,53 @@ router.beforeEach(async (to, from, next) => {
   next();
 });
 
+function upsertMeta(name, value) {
+  const attr = name.startsWith('og:') ? 'property' : 'name';
+  const selector = `meta[${attr}="${name}"]`;
+  let el = document.head.querySelector(selector);
+  if (!value) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('meta');
+    el.setAttribute(attr, name);
+    document.head.appendChild(el);
+  }
+  el.setAttribute('content', value);
+}
+
+function upsertCanonical(href) {
+  let el = document.head.querySelector('link[rel="canonical"]');
+  if (!href) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('link');
+    el.setAttribute('rel', 'canonical');
+    document.head.appendChild(el);
+  }
+  el.setAttribute('href', href);
+}
+
 router.afterEach((to) => {
   const title = [...to.matched].reverse().find((record) => record.meta.title)?.meta.title;
   document.title = title ? `${title} | FastGuy` : 'FastGuy';
+
+  const meta = to.meta;
+  const robots = meta.robots || 'noindex,nofollow';
+  const indexable = isIndexable(robots);
+  const canonical = meta.canonical
+    ? new URL(resolveCanonical(meta.canonical, to), window.location.origin).href
+    : '';
+
+  upsertMeta('description', meta.description || '');
+  upsertMeta('robots', robots);
+  upsertMeta('og:title', indexable && title ? `${title} | FastGuy` : '');
+  upsertMeta('og:description', indexable ? meta.description || '' : '');
+  upsertMeta('og:url', indexable ? canonical : '');
+  upsertCanonical(canonical);
 });
 
 export default router;

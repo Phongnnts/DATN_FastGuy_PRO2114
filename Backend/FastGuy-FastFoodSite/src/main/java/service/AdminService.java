@@ -59,7 +59,12 @@ public class AdminService {
             double periodRevenue = ordersDAO.sumRevenueByDateRange(start, end);
             long periodOrders = ordersDAO.countByStatusAndDateRange("DELIVERED", start, end);
             var periodTopProducts = ordersDAO.findTopProductsByDateRange(start, end, 5);
+            double refundTotal = ordersDAO.sumRefundsInRange(start, end);
+            data.put("grossRevenue", periodRevenue);
             data.put("periodRevenue", periodRevenue);
+            data.put("refundTotal", refundTotal);
+            data.put("refundCount", ordersDAO.countRefundsInRange(start, end));
+            data.put("netRevenue", periodRevenue - refundTotal);
             data.put("periodOrders", periodOrders);
             data.put("periodTopProducts", periodTopProducts);
         }
@@ -96,7 +101,13 @@ public class AdminService {
         Map<String, Object> data = new HashMap<>();
         data.put("revenueByMonth", ordersDAO.sumRevenueByCustomRange(start, end));
         data.put("revenueByDay", ordersDAO.revenueByDay(start, end));
-        data.put("periodRevenue", ordersDAO.sumRevenueByDateRange(start, end));
+        double grossRevenue = ordersDAO.sumRevenueByDateRange(start, end);
+        double refundTotal = ordersDAO.sumRefundsInRange(start, end);
+        data.put("grossRevenue", grossRevenue);
+        data.put("periodRevenue", grossRevenue);
+        data.put("refundTotal", refundTotal);
+        data.put("refundCount", ordersDAO.countRefundsInRange(start, end));
+        data.put("netRevenue", grossRevenue - refundTotal);
         data.put("periodOrders", ordersDAO.countByStatusAndDateRange("DELIVERED", start, end));
         data.put("totalOrdersInPeriod", ordersDAO.countAllByDateRange(start, end));
         data.put("avgOrderValue", ordersDAO.avgOrderValue(start, end));
