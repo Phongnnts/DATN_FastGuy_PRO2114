@@ -27,6 +27,10 @@ public class PayOSPaymentService {
         return newAttempt && "CREATING".equals(status);
     }
 
+    static boolean shouldMarkPaid(String paymentStatus, String refundStatus) {
+        return !"PAID".equals(paymentStatus) && !RefundService.isTerminal(refundStatus);
+    }
+
     static boolean matchesProviderResponse(Map<String, Object> result, int orderId, long amount) {
         return result.get("orderCode") instanceof Number code && code.intValue() == orderId
                 && result.get("amount") instanceof Number value && value.longValue() == amount
@@ -176,9 +180,11 @@ public class PayOSPaymentService {
             if ("PAID".equals(status)) {
                 em.getTransaction().begin();
                 Orders locked = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-                if (!"PAID".equals(locked.getPaymentStatus())) markPaid(locked, LocalDateTime.now());
-                PaymentAttempt attempt = findAttempt(em, orderId);
-                if (attempt != null) attempt.setStatus("PAID");
+                if (shouldMarkPaid(locked.getPaymentStatus(), locked.getRefundStatus())) {
+                    markPaid(locked, LocalDateTime.now());
+                    PaymentAttempt attempt = findAttempt(em, orderId);
+                    if (attempt != null) attempt.setStatus("PAID");
+                }
                 em.getTransaction().commit();
                 return true;
             }
@@ -220,6 +226,10 @@ public class PayOSPaymentService {
                 return false;
             }
             if ("PAID".equals(order.getPaymentStatus())) {
+                em.getTransaction().commit();
+                return true;
+            }
+            if (RefundService.isTerminal(order.getRefundStatus())) {
                 em.getTransaction().commit();
                 return true;
             }

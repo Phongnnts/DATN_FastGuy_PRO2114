@@ -111,6 +111,13 @@ onMounted(load);
         <div class="info-row"><span>Phí ship</span><strong>{{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</strong></div>
         <div v-if="order.discountAmount > 0" class="info-row"><span>Giảm giá</span><strong style="color:#15803d">-{{ formatPrice(order.discountAmount) }}</strong></div>
         <div class="info-row"><span>Tổng cộng</span><strong style="font-size:18px">{{ formatPrice(order.finalAmount) }}</strong></div>
+        <template v-if="order.payment">
+          <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+          <div class="info-row"><span>Nhà cung cấp</span><strong>{{ order.payment.provider }}</strong></div>
+          <div class="info-row"><span>Mã tham chiếu</span><strong>{{ order.payment.providerReference }}</strong></div>
+          <div class="info-row"><span>Trạng thái giao dịch</span><strong>{{ order.payment.attemptStatus }}</strong></div>
+          <div class="info-row"><span>Số tiền giao dịch</span><strong>{{ formatPrice(order.payment.attemptAmount) }}</strong></div>
+        </template>
       </section>
     </div>
 

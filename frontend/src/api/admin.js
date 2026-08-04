@@ -52,6 +52,9 @@ export default {
   getFullReport(params) {
     return client.get('/admin/reports/full', { params });
   },
+  getInventoryTransactions(params) {
+    return client.get('/admin/inventory/transactions', { params });
+  },
   getVariants(productId) {
     return client.get(`/admin/products/${productId}/variants`);
   },
@@ -121,8 +124,8 @@ export default {
   updateRefund(orderId, data) {
     return client.put(`/admin/refunds/${orderId}`, data);
   },
-  getRefunds() {
-    return client.get('/admin/refunds');
+  getRefunds(params) {
+    return client.get('/admin/refunds', { params });
   },
   cancelOrder(orderId, data) {
     return client.put(`/admin/orders/${orderId}/cancel`, data || {});

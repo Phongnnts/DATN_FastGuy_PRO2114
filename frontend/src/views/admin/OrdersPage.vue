@@ -1,14 +1,9 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice, formatDate } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
-import { adminApi } from '@/api';
-import { useToast } from '@/stores/toast';
 
-const toast = useToast();
-const router = useRouter();
 const adminStore = useAdminStore();
 const searchTerm = ref('');
 const activeStatus = ref('');
@@ -18,10 +13,6 @@ const refundStatus = ref('');
 const sortBy = ref('date-desc');
 const currentPage = ref(1);
 const pageSize = 10;
-const refundOrder = ref(null);
-const refundDialog = ref(null);
-const refundForm = ref({ refundAmount: 0, refundNote: '', status: 'REFUNDED' });
-const refunding = ref(false);
 const filterFromDate = ref('');
 const filterToDate = ref('');
 const loading = ref(false);
@@ -111,40 +102,6 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / 
 const paged = computed(() => filtered.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize));
 watch([searchTerm, activeStatus, paymentMethod, paymentStatus, refundStatus, sortBy], () => { currentPage.value = 1; });
 watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value = pages; });
-
-function openRefund(order) {
-  refundOrder.value = order;
-  refundForm.value = { refundAmount: Number(order.finalAmount || 0), refundNote: '', status: 'REFUNDED' };
-  nextTick(() => refundDialog.value?.focus());
-}
-function closeRefund() {
-  if (!refunding.value) refundOrder.value = null;
-}
-async function saveRefund() {
-  const amount = Number(refundForm.value.refundAmount);
-  const maximum = Number(refundOrder.value.finalAmount || 0);
-  if (refundForm.value.status === 'REFUNDED' && (!Number.isFinite(amount) || amount <= 0 || amount > maximum)) {
-    toast.error(`Số tiền hoàn phải lớn hơn 0 và không quá ${formatPrice(maximum)}`);
-    return;
-  }
-  if (refundForm.value.status === 'REJECTED' && !refundForm.value.refundNote.trim()) {
-    toast.error('Vui lòng nhập lý do từ chối');
-    return;
-  }
-  const message = refundForm.value.status === 'REFUNDED' ? `Xác nhận hoàn ${formatPrice(amount)} cho đơn ${refundOrder.value.orderCode}?` : `Xác nhận từ chối hoàn tiền đơn ${refundOrder.value.orderCode}?`;
-  if (!confirm(message)) return;
-  refunding.value = true;
-  try {
-    await adminApi.updateRefund(refundOrder.value.orderId, { ...refundForm.value, refundAmount: amount });
-    toast.success(refundForm.value.status === 'REFUNDED' ? 'Đã hoàn tiền thành công' : 'Đã từ chối hoàn tiền');
-    refundOrder.value = null;
-    await loadOrders();
-  } catch (e) {
-    toast.error(e?.response?.data?.message || e.message || 'Không thể xử lý hoàn tiền');
-  } finally {
-    refunding.value = false;
-  }
-}
 </script>
 
 <template>
@@ -202,7 +159,7 @@ async function saveRefund() {
               <td>
                 <span v-if="order.refundStatus === 'REFUNDED'" class="refund-badge refund-done">Đã hoàn {{ formatPrice(order.refundAmount) }}</span>
                 <span v-else-if="order.refundStatus === 'REJECTED'" class="refund-badge refund-rejected">Đã từ chối</span>
-                <button v-else-if="order.refundStatus === 'PENDING'" class="refund-action" @click="openRefund(order)"><i class="bi bi-arrow-return-left"></i> Xử lý hoàn</button>
+                <router-link v-else-if="order.refundStatus === 'PENDING'" class="refund-action" :to="{ path: '/admin/refunds', query: { status: 'PENDING' } }"><i class="bi bi-arrow-return-left"></i> Xử lý hoàn</router-link>
                 <span v-else class="muted">—</span>
               </td>
             </tr></tbody>
@@ -211,19 +168,6 @@ async function saveRefund() {
         <footer class="table-footer"><span>Hiển thị {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, filtered.length) }} / {{ filtered.length }} đơn</span><div class="pagination"><button :disabled="currentPage === 1" aria-label="Trang trước" @click="currentPage--"><i class="bi bi-chevron-left"></i></button><span>Trang {{ currentPage }} / {{ totalPages }}</span><button :disabled="currentPage === totalPages" aria-label="Trang sau" @click="currentPage++"><i class="bi bi-chevron-right"></i></button></div></footer>
       </template>
     </section>
-
-    <div v-if="refundOrder" class="modal-overlay" @click.self="closeRefund" @keydown.esc="closeRefund">
-      <form ref="refundDialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="refund-title" tabindex="-1" @submit.prevent="saveRefund">
-        <div class="modal-header"><div><small>HOÀN TIỀN</small><h3 id="refund-title">{{ refundOrder.orderCode }}</h3></div><button type="button" class="icon-button" aria-label="Đóng" @click="closeRefund"><i class="bi bi-x-lg"></i></button></div>
-        <div class="modal-body">
-          <div class="refund-order-info"><div><span>Khách hàng</span><strong>{{ refundOrder.customerName || 'Khách' }}</strong></div><div><span>Giá trị đơn</span><strong>{{ formatPrice(refundOrder.finalAmount) }}</strong></div><div><span>Thanh toán</span><strong>{{ refundOrder.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }} · {{ refundOrder.paymentStatus }}</strong></div></div>
-          <label class="form-group"><span class="form-label">Hành động</span><select v-model="refundForm.status" class="form-select"><option value="REFUNDED">Xác nhận đã hoàn tiền</option><option value="REJECTED">Từ chối hoàn tiền</option></select></label>
-          <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Số tiền hoàn</span><input v-model.number="refundForm.refundAmount" class="form-input" type="number" min="1" step="1000" :max="Number(refundOrder.finalAmount)" required /><small>Tối đa {{ formatPrice(refundOrder.finalAmount) }}</small></label>
-          <label class="form-group"><span class="form-label">{{ refundForm.status === 'REJECTED' ? 'Lý do từ chối' : 'Ghi chú' }}</span><textarea v-model="refundForm.refundNote" class="form-input" rows="3" :required="refundForm.status === 'REJECTED'"></textarea></label>
-        </div>
-        <div class="modal-footer"><button type="button" class="btn btn-outline" @click="closeRefund">Hủy</button><button class="btn" :class="refundForm.status === 'REFUNDED' ? 'btn-primary' : 'btn-danger'" :disabled="refunding">{{ refunding ? 'Đang xử lý...' : 'Xác nhận' }}</button></div>
-      </form>
-    </div>
   </main>
 </template>
 

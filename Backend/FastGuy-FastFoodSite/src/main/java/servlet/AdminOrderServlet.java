@@ -13,7 +13,9 @@ import java.util.stream.Collectors;
 
 import dao.OrderItemDAO;
 import dao.OrdersDAO;
+import dao.PaymentAttemptDAO;
 import entity.Orders;
+import entity.PaymentAttempt;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,6 +32,7 @@ import utils.JwtUtil;
 public class AdminOrderServlet extends HttpServlet {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
+    private PaymentAttemptDAO paymentAttemptDAO = new PaymentAttemptDAO();
     private OrderStatusHistoryService historyService = new OrderStatusHistoryService();
     private OrderService orderService = new OrderService();
     private OrderTransitionService transitionService = new OrderTransitionService();
@@ -220,6 +223,19 @@ public class AdminOrderServlet extends HttpServlet {
         data.put("staffName", o.getStaff() != null ? o.getStaff().getFullName() : null);
         data.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         data.put("internalNote", o.getInternalNote());
+
+        PaymentAttempt attempt = paymentAttemptDAO.findByOrderId(o.getOrderId());
+        if (attempt != null) {
+            Map<String, Object> payment = new HashMap<>();
+            payment.put("provider", attempt.getProvider());
+            payment.put("providerReference", attempt.getProviderReference());
+            payment.put("attemptStatus", attempt.getStatus());
+            payment.put("attemptAmount", attempt.getAmount());
+            payment.put("attemptUpdatedAt", attempt.getUpdatedAt() != null ? attempt.getUpdatedAt().toString() : null);
+            data.put("payment", payment);
+        } else {
+            data.put("payment", null);
+        }
 
         List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
                 .stream().map(oi -> {

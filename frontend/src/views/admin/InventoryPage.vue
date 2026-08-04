@@ -146,9 +146,14 @@ function editProduct(row) {
         <h1>Quản lý tồn kho</h1>
         <p class="page-subtitle">Theo dõi và cập nhật tồn kho từng biến thể</p>
       </div>
-      <button class="btn btn-outline" :disabled="loading" @click="loadProducts">
-        <i class="bi bi-arrow-clockwise" :class="{ spin: loading }" aria-hidden="true"></i> Làm mới
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-outline" @click="router.push({ name: 'AdminInventoryLedger' })">
+          <i class="bi bi-journal-text" aria-hidden="true"></i> Sổ tồn kho
+        </button>
+        <button class="btn btn-outline" :disabled="loading" @click="loadProducts">
+          <i class="bi bi-arrow-clockwise" :class="{ spin: loading }" aria-hidden="true"></i> Làm mới
+        </button>
+      </div>
     </header>
 
     <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
@@ -207,6 +212,7 @@ function editProduct(row) {
 
 <style scoped>
 .inventory-page { display: grid; gap: 24px; }
+.header-actions { display: flex; gap: 8px; }
 .page-subtitle { margin: 4px 0 0; color: var(--text-mid); font-size: 14px; }
 .inventory-stats .stat-card { text-align: left; border: 1px solid var(--border-light); background: #fff; }
 .inventory-stats button.stat-card { cursor: pointer; }
