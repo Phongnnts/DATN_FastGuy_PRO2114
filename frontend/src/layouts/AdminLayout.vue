@@ -4,6 +4,7 @@ import { useNotificationStore } from '@/stores/notification';
 import { useRoute, useRouter } from 'vue-router';
 import { ref, onMounted, onUnmounted } from 'vue';
 import NotificationBell from '@/components/common/NotificationBell.vue';
+import AppBreadcrumbs from '@/components/common/AppBreadcrumbs.vue';
 
 const auth = useAuthStore();
 const notificationStore = useNotificationStore();
@@ -91,6 +92,7 @@ function isLinkActive(link) {
         </div>
       </div>
       <div class="page-content fg-page">
+        <AppBreadcrumbs />
         <router-view />
       </div>
     </div>

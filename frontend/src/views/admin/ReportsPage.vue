@@ -34,6 +34,42 @@ const dateError = computed(() => {
 const periodLabel = computed(() => customActive.value ? `${customFrom.value} – ${customTo.value}` : ({ '7d': '7 ngày gần nhất', '30d': '30 ngày gần nhất', '6m': '6 tháng gần nhất', '1y': '1 năm gần nhất' }[activePreset.value]));
 const completionRate = computed(() => Number(data.value.totalOrdersInPeriod) ? Math.round(Number(data.value.periodOrders || 0) * 100 / Number(data.value.totalOrdersInPeriod)) : 0);
 const topProduct = computed(() => data.value.topProducts?.[0]);
+const netRevenue = computed(() => Number(data.value.netRevenue ?? (Number(data.value.periodRevenue || 0) - Number(data.value.refundTotal || 0))));
+const grossRevenue = computed(() => Number(data.value.grossRevenue ?? data.value.periodRevenue ?? 0));
+
+function dateKey() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
+}
+function csvCell(v) {
+  let s = String(v ?? '');
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
+  return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function exportCsv() {
+  const d = data.value;
+  const refund = Number(d.refundTotal ?? 0);
+  const rows = [
+    ['Kỳ báo cáo', periodLabel.value],
+    ['Doanh thu gộp', grossRevenue.value],
+    [`Đã hoàn tiền (${Number(d.refundCount ?? 0).toLocaleString('vi-VN')} đơn)`, refund],
+    ['Doanh thu ròng', netRevenue.value],
+    ['Đơn giao thành công', Number(d.periodOrders ?? 0)],
+    [],
+    ['Hạng', 'Sản phẩm', 'Số lượng bán', 'Doanh thu', 'Tỷ trọng'],
+    ...(d.topProducts || []).map((p, i) => [i + 1, p.name, Number(p.sold ?? 0), Number(p.revenue ?? 0), `${(Number(p.revenue ?? 0) * 100 / (grossRevenue.value || 1)).toFixed(1)}%`]),
+  ];
+  const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `báo-cáo-${dateKey()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 async function load(params, activate) {
   const id = ++requestId;
@@ -87,7 +123,7 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
 
 <template>
   <main class="reports-page">
-    <header class="page-heading"><div><p class="eyebrow">Phân tích</p><h1>Báo cáo kinh doanh</h1><p>Theo dõi doanh thu, đơn hàng và hiệu suất sản phẩm.</p></div><button class="btn btn-outline" :disabled="loading" @click="refresh"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></header>
+    <header class="page-heading"><div><p class="eyebrow">Phân tích</p><h1>Báo cáo kinh doanh</h1><p>Theo dõi doanh thu, đơn hàng và hiệu suất sản phẩm.</p></div><div class="head-actions"><button class="btn btn-outline" :disabled="loading || !Object.keys(data).length" @click="exportCsv"><i class="bi bi-download"></i> Xuất CSV</button><button class="btn btn-outline" :disabled="loading" @click="refresh"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div></header>
 
     <section class="filter-panel" aria-label="Khoảng thời gian báo cáo">
       <div><span class="filter-label">Khoảng nhanh</span><div class="presets"><button v-for="item in [{v:'7d',l:'7 ngày'},{v:'30d',l:'30 ngày'},{v:'6m',l:'6 tháng'},{v:'1y',l:'1 năm'}]" :key="item.v" :class="{ active: !customActive && activePreset === item.v }" :aria-pressed="!customActive && activePreset === item.v" @click="usePreset(item.v)">{{ item.l }}</button></div></div>
@@ -98,7 +134,7 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
     <div v-if="loading && !Object.keys(data).length" class="loading-state"><span class="spinner"></span>Đang tải báo cáo...</div>
 
     <template v-if="Object.keys(data).length">
-      <section class="stats" :aria-label="`Tổng quan ${periodLabel}`"><article class="orange"><i class="bi bi-graph-up-arrow"></i><div><small>Doanh thu kỳ</small><strong>{{ formatPrice(data.periodRevenue || 0) }}</strong></div></article><article class="green"><i class="bi bi-bag-check"></i><div><small>Đơn đã giao</small><strong>{{ Number(data.periodOrders || 0).toLocaleString('vi-VN') }}</strong></div></article><article class="blue"><i class="bi bi-receipt"></i><div><small>Giá trị đơn trung bình</small><strong>{{ formatPrice(data.avgOrderValue || 0) }}</strong></div></article><article class="violet"><i class="bi bi-check2-circle"></i><div><small>Tỷ lệ hoàn tất</small><strong>{{ completionRate }}%</strong></div></article></section>
+      <section class="stats" :aria-label="`Tổng quan ${periodLabel}`"><article class="orange"><i class="bi bi-graph-up-arrow"></i><div><small>Doanh thu kỳ</small><strong>{{ formatPrice(data.periodRevenue || 0) }}</strong></div></article><article class="teal"><i class="bi bi-piggy-bank"></i><div><small>Doanh thu ròng</small><strong>{{ formatPrice(netRevenue) }}</strong></div></article><article class="red"><i class="bi bi-arrow-counterclockwise"></i><div><small>Đã hoàn tiền</small><strong>{{ formatPrice(data.refundTotal || 0) }}</strong><em class="sub">{{ Number(data.refundCount || 0).toLocaleString('vi-VN') }} đơn</em></div></article><article class="green"><i class="bi bi-bag-check"></i><div><small>Đơn đã giao</small><strong>{{ Number(data.periodOrders || 0).toLocaleString('vi-VN') }}</strong></div></article><article class="blue"><i class="bi bi-receipt"></i><div><small>Giá trị đơn trung bình</small><strong>{{ formatPrice(data.avgOrderValue || 0) }}</strong></div></article><article class="violet"><i class="bi bi-check2-circle"></i><div><small>Tỷ lệ hoàn tất</small><strong>{{ completionRate }}%</strong></div></article></section>
       <section class="summary"><i class="bi bi-lightbulb"></i><p><strong>Tóm tắt {{ periodLabel }}:</strong> {{ Number(data.totalOrdersInPeriod || 0).toLocaleString('vi-VN') }} đơn phát sinh, {{ Number(data.periodOrders || 0).toLocaleString('vi-VN') }} đơn giao thành công.<span v-if="topProduct"> Sản phẩm dẫn đầu là <b>{{ topProduct.name }}</b> với {{ topProduct.sold }} sản phẩm.</span></p></section>
 
       <section class="charts-grid">
@@ -116,10 +152,10 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
 </template>
 
 <style scoped>
-.reports-page { display: grid; gap: 20px; }.page-heading { align-items: flex-end; display: flex; justify-content: space-between; gap: 16px; }.page-heading h1 { font-size: 28px; margin: 2px 0 4px; }.page-heading p { color: var(--text-mid); font-size: 14px; }.eyebrow { color: var(--role-admin) !important; font-size: 11px !important; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.reports-page { display: grid; gap: 20px; }.page-heading { align-items: flex-end; display: flex; justify-content: space-between; gap: 16px; }.page-heading h1 { font-size: 28px; margin: 2px 0 4px; }.page-heading p { color: var(--text-mid); font-size: 14px; }.eyebrow { color: var(--role-admin) !important; font-size: 11px !important; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.head-actions { display: flex; gap: 9px; }
 .filter-panel { align-items: end; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); display: flex; flex-wrap: wrap; gap: 22px; padding: 16px; }.filter-label,.custom-dates label { color: var(--text-mid); display: block; font-size: 11px; font-weight: 700; margin-bottom: 6px; }.presets { background: var(--surface); border-radius: 9px; display: flex; padding: 3px; }.presets button { border-radius: 7px; color: var(--text-mid); font-size: 12px; padding: 9px 13px; }.presets button.active { background: var(--white); box-shadow: var(--shadow-xs); color: var(--role-admin); font-weight: 700; }.custom-dates { align-items: end; display: flex; flex: 1; flex-wrap: wrap; gap: 9px; }.custom-dates label { margin: 0; }.custom-dates input { margin-top: 6px; width: 155px; }.custom-dates p { color: var(--red-active); flex-basis: 100%; font-size: 11px; margin: 0; }
 .error-banner { align-items: center; background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius); color: #b91c1c; display: flex; gap: 12px; padding: 13px 16px; }.error-banner > i { font-size: 22px; }.error-banner span { display: grid; flex: 1; font-size: 12px; }.loading-state { align-items: center; color: var(--text-mid); display: flex; gap: 10px; justify-content: center; min-height: 280px; }
-.stats { display: grid; gap: 14px; grid-template-columns: repeat(4,minmax(0,1fr)); }.stats article { align-items: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); display: flex; gap: 13px; padding: 18px; }.stats article > i { align-items: center; border-radius: 11px; display: flex; flex: 0 0 44px; font-size: 20px; height: 44px; justify-content: center; }.stats small { color: var(--text-mid); display: block; font-size: 11px; margin-bottom: 3px; }.stats strong { font-size: 19px; }.stats .orange i { color: #c2410c; background: #ffedd5; }.stats .green i { color: #047857; background: #d1fae5; }.stats .blue i { color: #1d4ed8; background: #dbeafe; }.stats .violet i { color: #7c3aed; background: #ede9fe; }
+.stats { display: grid; gap: 14px; grid-template-columns: repeat(3,minmax(0,1fr)); }.stats article { align-items: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); display: flex; gap: 13px; padding: 18px; }.stats article > i { align-items: center; border-radius: 11px; display: flex; flex: 0 0 44px; font-size: 20px; height: 44px; justify-content: center; }.stats small { color: var(--text-mid); display: block; font-size: 11px; margin-bottom: 3px; }.stats strong { font-size: 19px; }.stats .sub { color: var(--text-mid); display: block; font-size: 11px; margin-top: 2px; }.stats .orange i { color: #c2410c; background: #ffedd5; }.stats .green i { color: #047857; background: #d1fae5; }.stats .blue i { color: #1d4ed8; background: #dbeafe; }.stats .violet i { color: #7c3aed; background: #ede9fe; }.stats .teal i { color: #0f766e; background: #ccfbf1; }.stats .red i { color: #b91c1c; background: #fee2e2; }
 .summary { align-items: center; background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); color: #9a3412; display: flex; gap: 12px; padding: 13px 16px; }.summary > i { font-size: 20px; }.summary p { font-size: 13px; margin: 0; }
 .charts-grid { display: grid; gap: 16px; grid-template-columns: repeat(2,minmax(0,1fr)); }.chart-card,.top-table { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); overflow: hidden; }.chart-card header,.top-table header { align-items: center; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; padding: 15px 17px; }.chart-card h2,.top-table h2 { font-size: 14px; margin: 0 0 3px; }.chart-card header p,.top-table header p { color: var(--text-mid); font-size: 11px; margin: 0; }.chart-card header > i { color: var(--role-admin); font-size: 18px; }.chart { height: 285px; padding: 14px; }.empty { align-items: center; color: var(--text-mid); display: flex; flex-direction: column; gap: 7px; justify-content: center; min-height: 285px; padding: 25px; text-align: center; }.empty i { color: var(--text-light); font-size: 32px; }.empty span { font-size: 11px; }.top-table header > span { background: var(--role-admin-soft); border-radius: 20px; color: var(--role-admin); font-size: 11px; font-weight: 700; padding: 5px 9px; }.top-table .table { min-width: 680px; }.top-table th { color: var(--text-mid); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }.rank { align-items: center; background: var(--surface); border-radius: 50%; display: inline-flex; height: 27px; justify-content: center; width: 27px; }.rank-1 { background: #fef3c7; color: #b45309; }.rank-2 { background: #f3f4f6; color: #4b5563; }.rank-3 { background: #ffedd5; color: #c2410c; }
 @media (max-width: 1050px) { .stats { grid-template-columns: repeat(2,1fr); } }@media (max-width: 720px) { .page-heading { align-items: flex-start; flex-direction: column; }.filter-panel { align-items: stretch; }.custom-dates label { flex: 1; }.custom-dates input { width: 100%; }.charts-grid { grid-template-columns: 1fr; }.stats { grid-template-columns: 1fr; }.presets { overflow-x: auto; }.error-banner { align-items: flex-start; flex-wrap: wrap; } }

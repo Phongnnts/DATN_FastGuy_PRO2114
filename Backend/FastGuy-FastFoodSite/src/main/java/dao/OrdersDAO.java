@@ -390,6 +390,35 @@ public class OrdersDAO {
         }
     }
 
+    public double sumRefundsInRange(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            BigDecimal result = em.createQuery(
+                    "SELECT SUM(o.refundAmount) FROM Orders o WHERE o.refundStatus = 'REFUNDED' AND o.refundedAt >= :start AND o.refundedAt < :end",
+                    BigDecimal.class)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
+            return result != null ? result.doubleValue() : 0.0;
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countRefundsInRange(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT COUNT(o) FROM Orders o WHERE o.refundStatus = 'REFUNDED' AND o.refundedAt >= :start AND o.refundedAt < :end",
+                    Long.class)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Map<String, Object>> findTopProductsByDateRange(LocalDateTime start, LocalDateTime end, int limit) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

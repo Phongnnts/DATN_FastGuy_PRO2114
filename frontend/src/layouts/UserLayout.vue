@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router';
 import { onMounted, onUnmounted } from 'vue';
 import NotificationBell from '@/components/common/NotificationBell.vue';
 import AccountTabs from '@/components/common/AccountTabs.vue';
+import AppBreadcrumbs from '@/components/common/AppBreadcrumbs.vue';
 
 const auth = useAuthStore();
 const cart = useCartStore();
@@ -50,7 +51,7 @@ onUnmounted(() => notificationStore.stopPolling());
     </header>
     <div class="container account-shell">
       <AccountTabs />
-      <main id="account-content" class="content fg-page" tabindex="-1"><router-view /></main>
+      <main id="account-content" class="content fg-page" tabindex="-1"><AppBreadcrumbs /><router-view /></main>
     </div>
   </div>
 </template>
