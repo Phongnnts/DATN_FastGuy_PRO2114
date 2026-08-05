@@ -14,6 +14,8 @@ public class StoreConfigService {
     public static final String OPEN_TIME = "business_open_time";
     public static final String CLOSE_TIME = "business_close_time";
     public static final String SERVICE_FEE = "service_fee";
+    public static final Set<String> GHN_KEYS = Set.of("ghn_from_district_id", "ghn_from_ward_code", "default_service_type_id", "default_weight", "default_length", "default_width", "default_height");
+    private static final BigDecimal HUNDRED = new BigDecimal("100");
 
     public Map<String, String> getAll() {
         EntityManager em = DatabaseUtil.getEntityManager();
@@ -70,10 +72,24 @@ public class StoreConfigService {
                 if (!TIME_KEYS.contains(key) && !FEE_KEYS.contains(key) && !INT_KEYS.contains(key) && !TEXT_KEYS.contains(key)) {
                     throw new IllegalArgumentException("Unsupported config key: " + key);
                 }
-                if (value == null || value.isEmpty()) throw new IllegalArgumentException("Invalid config value for " + key);
-                if (FEE_KEYS.contains(key)) parseFee(value);
-                else if (TIME_KEYS.contains(key)) LocalTime.parse(value);
-                else if (INT_KEYS.contains(key)) Integer.parseInt(value);
+                if (value == null || value.isEmpty()) {
+                    if (!TEXT_KEYS.contains(key)) throw new IllegalArgumentException("Invalid config value for " + key);
+                    value = "";
+                } else {
+                    if (FEE_KEYS.contains(key)) {
+                        BigDecimal fee = parseFee(value);
+                        if ("tax_rate".equals(key) && (fee.compareTo(BigDecimal.ZERO) < 0 || fee.compareTo(HUNDRED) > 0)) {
+                            throw new IllegalArgumentException("tax_rate must be between 0 and 100");
+                        }
+                    } else if (TIME_KEYS.contains(key)) {
+                        LocalTime.parse(value);
+                    } else if (INT_KEYS.contains(key)) {
+                        int minutes = Integer.parseInt(value);
+                        if ("estimated_delivery_minutes".equals(key) && (minutes < 10 || minutes > 180)) {
+                            throw new IllegalArgumentException("estimated_delivery_minutes must be between 10 and 180");
+                        }
+                    }
+                }
                 int updated = em.createNativeQuery("UPDATE ShippingConfig SET config_value = :value WHERE config_key = :key")
                         .setParameter("key", key).setParameter("value", value).executeUpdate();
                 if (updated == 0) {
