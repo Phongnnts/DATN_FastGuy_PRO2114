@@ -15,10 +15,10 @@
   --role-guest: #ff6b35;
   --role-user: #e8734a;
   --role-admin: var(--primary);
-  --role-staff: var(--primary);
+  --role-staff: #0f766e;
   --role-shipper: var(--primary);
   --role-admin-soft: var(--primary-50);
-  --role-staff-soft: var(--primary-50);
+  --role-staff-soft: rgba(15, 118, 110, 0.1);
   --role-shipper-soft: var(--primary-50);
 
   /* Neutral */

@@ -47,8 +47,8 @@ test('seven indexable routes carry robots description and canonical', () => {
   }
 });
 
-test('breadcrumb meta exists on account and admin detail pages only', () => {
-  assert.equal((router.match(/breadcrumb:/g) || []).length, 14);
+test('breadcrumb meta covers account, admin detail, and staff operations pages', () => {
+  assert.equal((router.match(/breadcrumb:/g) || []).length, 22);
   const productEditor = router.slice(
     router.indexOf("name: 'AdminProductCreate'"),
     router.indexOf("name: 'AdminProducts'"),
