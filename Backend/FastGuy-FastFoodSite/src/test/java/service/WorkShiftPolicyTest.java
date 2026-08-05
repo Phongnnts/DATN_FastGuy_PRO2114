@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -88,6 +89,11 @@ class WorkShiftPolicyTest {
         WorkShiftService.CurrentShift current = WorkShiftService.current(List.of(), LocalTime.NOON);
         assertEquals("NONE", current.state());
         assertEquals(null, current.shift());
+    }
+
+    @Test
+    void shiftOperationsUseVietnamBusinessTimezone() {
+        assertEquals(ZoneId.of("Asia/Ho_Chi_Minh"), WorkShiftService.BUSINESS_ZONE);
     }
 
     private WorkShift shift(LocalTime start, LocalTime end, String status) {

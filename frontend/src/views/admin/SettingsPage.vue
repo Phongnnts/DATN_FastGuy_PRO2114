@@ -35,7 +35,7 @@ let stopped = false;
 function createForm() {
   return {
     store_name: 'FastGuy', store_phone: '', store_address: '', store_logo: '',
-    business_open_time: '08:00', business_close_time: '22:00',
+    business_open_time: '00:00', business_close_time: '00:00',
     service_fee: 0, tax_rate: 0, delivery_fee: 0, min_order_amount: 0,
     estimated_delivery_minutes: 30,
     ghn_from_district_id: '', ghn_from_ward_code: '', default_service_type_id: '',

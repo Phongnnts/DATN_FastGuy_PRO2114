@@ -29,4 +29,14 @@ class StoreConfigPolicyTest {
         assertTrue(src.contains("if (\"estimated_delivery_minutes\".equals(key) && (minutes < 10 || minutes > 180))"));
         assertTrue(src.contains("estimated_delivery_minutes must be between 10 and 180"));
     }
+
+    @Test
+    void storeAndCheckoutDefaultToAllDayBusinessHours() throws IOException {
+        String configSrc = Files.readString(Path.of("src/main/java/service/StoreConfigService.java"));
+        String orderSrc = Files.readString(Path.of("src/main/java/service/OrderService.java"));
+        assertTrue(configSrc.contains("config.getOrDefault(OPEN_TIME, \"00:00\")"));
+        assertTrue(configSrc.contains("config.getOrDefault(CLOSE_TIME, \"00:00\")"));
+        assertTrue(orderSrc.contains("config.getOrDefault(StoreConfigService.OPEN_TIME, \"00:00\")"));
+        assertTrue(orderSrc.contains("config.getOrDefault(StoreConfigService.CLOSE_TIME, \"00:00\")"));
+    }
 }

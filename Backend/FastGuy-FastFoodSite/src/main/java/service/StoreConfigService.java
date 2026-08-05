@@ -37,8 +37,8 @@ public class StoreConfigService {
 
     public Map<String, Object> getPublicConfig() {
         Map<String, String> config = getAll();
-        String openTime = config.getOrDefault(OPEN_TIME, "08:00");
-        String closeTime = config.getOrDefault(CLOSE_TIME, "22:00");
+        String openTime = config.getOrDefault(OPEN_TIME, "00:00");
+        String closeTime = config.getOrDefault(CLOSE_TIME, "00:00");
         BigDecimal serviceFee = parseFee(config.get(SERVICE_FEE));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("isOpen", isOpen(openTime, closeTime, LocalTime.now()));

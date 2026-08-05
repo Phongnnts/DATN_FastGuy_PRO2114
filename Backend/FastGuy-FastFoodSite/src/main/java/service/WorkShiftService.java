@@ -3,6 +3,7 @@ package service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +17,7 @@ import utils.DatabaseUtil;
 
 public class WorkShiftService {
     static final long SHIFT_GRACE_MINUTES = 15;
+    static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public List<Map<String, Object>> list(Integer userId, String role, String fromDate, String toDate) {
         EntityManager em = DatabaseUtil.getEntityManager();
@@ -149,19 +151,18 @@ public class WorkShiftService {
             em.getTransaction().begin();
             WorkShift shift = em.find(WorkShift.class, shiftId, LockModeType.PESSIMISTIC_WRITE);
             if (shift == null || shift.getUser().getUserId() != userId) throw new IllegalArgumentException("Shift not found");
+            LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
             if (checkIn) {
                 if (shift.getCheckInAt() != null) throw new IllegalArgumentException("Already checked in");
                 if (!"SCHEDULED".equals(shift.getStatus())) throw new IllegalArgumentException("Shift is not in scheduled status");
-                LocalDate today = LocalDate.now();
-                if (!shift.getShiftDate().equals(today)) throw new IllegalArgumentException("Shift is not for today");
-                LocalTime now = LocalTime.now();
+                if (!shift.getShiftDate().equals(now.toLocalDate())) throw new IllegalArgumentException("Shift is not for today");
+                LocalTime currentTime = now.toLocalTime();
                 LocalTime start = shift.getStartTime().minusMinutes(SHIFT_GRACE_MINUTES);
                 LocalTime end = shift.getEndTime().plusMinutes(SHIFT_GRACE_MINUTES);
-                if (now.isBefore(start) || now.isAfter(end)) throw new IllegalArgumentException("Outside shift time window");
-                shift.setCheckInAt(LocalDateTime.now());
+                if (currentTime.isBefore(start) || currentTime.isAfter(end)) throw new IllegalArgumentException("Outside shift time window");
+                shift.setCheckInAt(now);
                 shift.setStatus("CHECKED_IN");
             } else {
-                LocalDateTime now = LocalDateTime.now();
                 if (!"CHECKED_IN".equals(shift.getStatus()) || shift.getCheckInAt() == null || shift.getCheckOutAt() != null) throw new IllegalArgumentException("Cannot check out");
                 if (!canCheckOut(shift, now)) throw new IllegalArgumentException("Check-out is only allowed from shift end time");
                 shift.setCheckOutAt(now);
