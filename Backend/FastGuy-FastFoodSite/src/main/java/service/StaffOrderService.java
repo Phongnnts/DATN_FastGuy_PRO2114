@@ -54,23 +54,23 @@ public class StaffOrderService {
         return ordersDAO.countActiveByShipper(shipperId);
     }
 
-    public boolean assignShipper(int orderId, int shipperId, int staffId) {
+    public OrderTransitionService.MutationResult assignShipper(int orderId, int shipperId, int staffId, String expectedStatus) {
         Orders order = getOrderDetail(orderId);
-        boolean ok = transitionService.transition(orderId, "ASSIGNED", "STAFF", staffId, "Gán shipper", shipperId, null);
-        if (ok && order != null) notificationService.notifyUser(shipperId, "Đơn giao mới", "Bạn được gán đơn " + order.getOrderCode(), "ORDER_ASSIGNED", "/shipper/orders/" + orderId);
-        return ok;
+        OrderTransitionService.MutationResult result = transitionService.transition(orderId, "ASSIGNED", "STAFF", staffId, "Gán shipper", shipperId, null, expectedStatus);
+        if (result == OrderTransitionService.MutationResult.SUCCESS && order != null) notificationService.notifyUser(shipperId, "Đơn giao mới", "Bạn được gán đơn " + order.getOrderCode(), "ORDER_ASSIGNED", "/shipper/orders/" + orderId);
+        return result;
     }
 
-    public boolean updateStatus(int orderId, String status, int staffId, String failureReason) {
+    public OrderTransitionService.MutationResult updateStatus(int orderId, String status, int staffId, String failureReason, String expectedStatus) {
         Orders order = getOrderDetail(orderId);
-        boolean ok = transitionService.transition(orderId, status, "STAFF", staffId, failureReason, null, null);
-        if (ok && order != null && order.getUser() != null) {
+        OrderTransitionService.MutationResult result = transitionService.transition(orderId, status, "STAFF", staffId, failureReason, null, null, expectedStatus);
+        if (result == OrderTransitionService.MutationResult.SUCCESS && order != null && order.getUser() != null) {
             notificationService.notifyUser(order.getUser().getUserId(), "Cập nhật đơn hàng", "Đơn " + order.getOrderCode() + " chuyển sang " + status, "ORDER_STATUS", "/account/orders/" + orderId);
         }
-        return ok;
+        return result;
     }
 
     public boolean updateStatus(int orderId, String status, int staffId) {
-        return updateStatus(orderId, status, staffId, null);
+        return transitionService.transition(orderId, status, "STAFF", staffId, null, null, null);
     }
 }

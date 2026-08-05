@@ -71,14 +71,15 @@ async function assign(order) {
   const requestGeneration = generation;
   assigningId.value = order.id;
   try {
-    await staffApi.assignShipper(order.id, shipperId);
+    await staffApi.assignShipper(order.id, shipperId, order.status);
     if (!acceptsDispatchRequest({ requestGeneration, latestGeneration: generation, stopped })) return;
     delete selections.value[order.id];
     toast.success(`Đã giao ${order.orderCode} cho shipper`);
   } catch (error) {
     if (!acceptsDispatchRequest({ requestGeneration, latestGeneration: generation, stopped })) return;
     delete selections.value[order.id];
-    selections.value = validDispatchSelections(selections.value, shippers.value.filter((shipper) => String(shipper.id) !== String(shipperId)));
+    if (error.status === 409) selections.value = { ...selections.value };
+    else selections.value = validDispatchSelections(selections.value, shippers.value.filter((shipper) => String(shipper.id) !== String(shipperId)));
     toast.error(error.message || 'Không thể gán shipper');
   } finally {
     if (acceptsDispatchRequest({ requestGeneration, latestGeneration: generation, stopped })) {

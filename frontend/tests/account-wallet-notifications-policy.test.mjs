@@ -20,6 +20,7 @@ test('keeps rewards and notification inbox authenticated under account', () => {
 test('reuses loyalty wallet and exposes role-safe notification View All', () => {
   assert.match(profile, /<LoyaltyWallet compact/);
   assert.match(wallet, /loyaltyApi\.getMe\(\)/);
-  assert.match(bell, /auth\.role === 'USER' \? '\/account\/notifications' : null/);
+  assert.match(bell, /auth\.role === 'USER' \? '\/account\/notifications'/);
+  assert.match(bell, /auth\.role === 'STAFF' \? '\/staff\/notifications'/);
   assert.match(bell, /v-if="inboxRoute"[\s\S]*Xem tất cả/);
 });

@@ -19,11 +19,11 @@ export default {
   getOrderById(id) {
     return client.get(`/staff/orders/${id}`);
   },
-  updateOrderStatus(id, status, failureReason) {
-    return client.put(`/staff/orders/${id}/status`, { status, failureReason });
+  updateOrderStatus(id, status, expectedStatus, failureReason) {
+    return client.put(`/staff/orders/${id}/status`, { status, expectedStatus, failureReason });
   },
-  assignShipper(id, shipperId) {
-    return client.put(`/staff/orders/${id}/assign-shipper`, { shipperId });
+  assignShipper(id, shipperId, expectedStatus) {
+    return client.put(`/staff/orders/${id}/assign-shipper`, { shipperId, expectedStatus });
   },
   getAvailableShippers() {
     return client.get('/staff/orders/shippers');

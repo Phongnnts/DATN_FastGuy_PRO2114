@@ -122,33 +122,39 @@ public class OrderTransitionService {
 
     public boolean transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
                               Integer assignedShipperId, java.math.BigDecimal collectedAmount) {
-        if (!isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return false;
+        return transition(orderId, toStatus, actorRole, actorUserId, note, assignedShipperId, collectedAmount, null) == MutationResult.SUCCESS;
+    }
+
+    public MutationResult transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
+                                     Integer assignedShipperId, java.math.BigDecimal collectedAmount, String expectedStatus) {
+        if (!isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (order == null) { em.getTransaction().rollback(); return false; }
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (expectedStatus != null && !matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
 
             String from = order.getOrderStatus();
-            if (!canTransition(from, toStatus)) { em.getTransaction().rollback(); return false; }
+            if (!canTransition(from, toStatus)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if ("SHIPPER".equals(actorRole) && (order.getShipper() == null || actorUserId == null
-                    || order.getShipper().getUserId() != actorUserId || !requireCheckedInShipper(em, actorUserId))) { em.getTransaction().rollback(); return false; }
+                    || order.getShipper().getUserId() != actorUserId || !requireCheckedInShipper(em, actorUserId))) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if ("ASSIGNED".equals(toStatus)) {
                 User shipper = assignedShipperId == null ? null : em.find(User.class, assignedShipperId);
                 Long activeShifts = shipper == null ? 0L : em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :shipperId AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", Long.class)
                         .setParameter("shipperId", assignedShipperId).getSingleResult();
-                if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || activeShifts == 0 || order.getShipper() != null) { em.getTransaction().rollback(); return false; }
+                if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || activeShifts == 0 || order.getShipper() != null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
                 order.setShipper(shipper);
                 order.setAssignedAt(LocalDateTime.now());
             }
             if ("CONFIRMED".equals(toStatus) && "BANK_TRANSFER".equals(order.getPaymentMethod())
-                    && !"PAID".equals(order.getPaymentStatus())) { em.getTransaction().rollback(); return false; }
+                    && !"PAID".equals(order.getPaymentStatus())) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if ("PREPARING".equals(toStatus) && !inventoryReservationService.transition(em, order, "CONSUMED")) {
-                em.getTransaction().rollback(); return false;
+                em.getTransaction().rollback(); return MutationResult.INVALID;
             }
             if ("DELIVERED".equals(toStatus) && "COD".equals(order.getPaymentMethod())) {
                 if (collectedAmount == null || order.getFinalAmount() == null || collectedAmount.compareTo(order.getFinalAmount()) != 0) {
-                    em.getTransaction().rollback(); return false;
+                    em.getTransaction().rollback(); return MutationResult.INVALID;
                 }
                 order.setCodCollectedAmount(collectedAmount);
                 order.setCodCollectedAt(LocalDateTime.now());
@@ -156,7 +162,7 @@ public class OrderTransitionService {
                 order.setPaidAt(LocalDateTime.now());
             }
             if ("DELIVERED".equals(toStatus) && !canDeliver(order.getPaymentMethod(), order.getPaymentStatus())) {
-                em.getTransaction().rollback(); return false;
+                em.getTransaction().rollback(); return MutationResult.INVALID;
             }
 
             if ("CONFIRMED".equals(toStatus)) order.setConfirmedAt(LocalDateTime.now());
@@ -182,7 +188,7 @@ public class OrderTransitionService {
             em.persist(new OrderStatusHistory(orderId, actorUserId, actorRole, from, toStatus, note, LocalDateTime.now()));
             if ("DELIVERED".equals(toStatus)) new LoyaltyService().awardForDelivery(em, order);
             em.getTransaction().commit();
-            return true;
+            return MutationResult.SUCCESS;
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;
@@ -190,6 +196,12 @@ public class OrderTransitionService {
             em.close();
         }
     }
+
+    static boolean matchesExpectedStatus(Orders order, String expectedStatus) {
+        return order != null && expectedStatus != null && expectedStatus.equals(order.getOrderStatus());
+    }
+
+    public enum MutationResult { SUCCESS, CONFLICT, INVALID }
 
     private boolean requireCheckedInShipper(EntityManager em, int shipperId) {
         return em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :shipperId AND ws.user.role = 'SHIPPER' AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", Long.class)

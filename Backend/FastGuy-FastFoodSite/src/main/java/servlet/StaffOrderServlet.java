@@ -23,6 +23,7 @@ import utils.JwtUtil;
 
 @WebServlet("/api/staff/orders/*")
 public class StaffOrderServlet extends HttpServlet {
+    public static final String CONFLICT_MESSAGE = "Đơn hàng đã được cập nhật. Vui lòng thử lại.";
     private StaffOrderService staffOrderService = new StaffOrderService();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private OrdersDAO ordersDAO = new OrdersDAO();
@@ -41,15 +42,16 @@ public class StaffOrderServlet extends HttpServlet {
             try {
                 int orderId = Integer.parseInt(orderIdStr);
                 java.util.Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), java.util.Map.class);
-                String note = body != null ? (String) body.get("note") : null;
-                if (note != null) {
-                    Orders order = ordersDAO.findById(orderId);
-                    if (order != null) {
-                        String existing = order.getInternalNote();
-                        order.setInternalNote(existing != null ? existing + "\n---\n" + note : note);
-                        ordersDAO.save(order);
-                    }
+                Object rawNote = body != null ? body.get("note") : null;
+                String note = rawNote instanceof String ? (String) rawNote : null;
+                Orders order = ordersDAO.findById(orderId);
+                String validationError = validateNote(note, order != null ? order.getInternalNote() : null, order != null);
+                if (validationError != null) {
+                    ApiResponse.error(resp, validationError, "Order not found".equals(validationError) ? 404 : 400);
+                    return;
                 }
+                order.setInternalNote(appendNote(order.getInternalNote(), note));
+                ordersDAO.save(order);
                 ApiResponse.ok(resp, null, "Note saved");
             } catch (NumberFormatException e) {
                 ApiResponse.error(resp, "Invalid order ID", 400);
@@ -57,6 +59,19 @@ public class StaffOrderServlet extends HttpServlet {
         } else {
             resp.sendError(404);
         }
+    }
+
+    static String validateNote(String note, String existing, boolean orderExists) {
+        if (note == null || note.isBlank()) return "Note is required";
+        String trimmed = note.trim();
+        if (trimmed.length() > 1000) return "Note is too long";
+        if (!orderExists) return "Order not found";
+        return appendNote(existing, trimmed).length() <= 1000 ? null : "Note is too long";
+    }
+
+    static String appendNote(String existing, String note) {
+        String trimmed = note.trim();
+        return existing == null || existing.isBlank() ? trimmed : existing + "\n---\n" + trimmed;
     }
 
     public static boolean requiresCheckedInShift(String method, String pathInfo) {
@@ -212,6 +227,12 @@ public class StaffOrderServlet extends HttpServlet {
                 ApiResponse.error(resp, "Invalid status", 400);
                 return;
             }
+            Object rawExpectedStatus = body.get("expectedStatus");
+            String expectedStatus = rawExpectedStatus instanceof String ? (String) rawExpectedStatus : null;
+            if (expectedStatus == null) {
+                ApiResponse.error(resp, "Missing expectedStatus", 400);
+                return;
+            }
             Object rawReason = body.get("failureReason");
             String failureReason = rawReason instanceof String ? (String) rawReason : null;
             if ("CONFIRMED".equals(status)) {
@@ -221,8 +242,12 @@ public class StaffOrderServlet extends HttpServlet {
                     return;
                 }
             }
-            boolean ok = staffOrderService.updateStatus(orderId, status, staffId, failureReason);
-            if (!ok) {
+            OrderTransitionService.MutationResult result = staffOrderService.updateStatus(orderId, status, staffId, failureReason, expectedStatus);
+            if (result == OrderTransitionService.MutationResult.CONFLICT) {
+                ApiResponse.error(resp, CONFLICT_MESSAGE, 409);
+                return;
+            }
+            if (result != OrderTransitionService.MutationResult.SUCCESS) {
                 ApiResponse.error(resp, "Cannot update status: invalid transition", 400);
                 return;
             }
@@ -238,8 +263,18 @@ public class StaffOrderServlet extends HttpServlet {
                 return;
             }
             int shipperId = ((Number) body.get("shipperId")).intValue();
-            boolean ok = staffOrderService.assignShipper(orderId, shipperId, staffId);
-            if (!ok) {
+            Object rawExpectedStatus = body.get("expectedStatus");
+            String expectedStatus = rawExpectedStatus instanceof String ? (String) rawExpectedStatus : null;
+            if (expectedStatus == null) {
+                ApiResponse.error(resp, "Missing expectedStatus", 400);
+                return;
+            }
+            OrderTransitionService.MutationResult result = staffOrderService.assignShipper(orderId, shipperId, staffId, expectedStatus);
+            if (result == OrderTransitionService.MutationResult.CONFLICT) {
+                ApiResponse.error(resp, CONFLICT_MESSAGE, 409);
+                return;
+            }
+            if (result != OrderTransitionService.MutationResult.SUCCESS) {
                 ApiResponse.error(resp, "Cannot assign shipper", 400);
                 return;
             }
@@ -302,6 +337,7 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("totalAmount", o.getTotalAmount());
         m.put("shippingFee", o.getShippingFee());
         m.put("serviceFee", o.getServiceFee());
+        m.put("discountAmount", o.getDiscountAmount());
         m.put("finalAmount", o.getFinalAmount());
         m.put("codCollectedAmount", o.getCodCollectedAmount());
         m.put("codCollectedAt", o.getCodCollectedAt() != null ? o.getCodCollectedAt().toString() : null);
@@ -310,7 +346,7 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("cancelledBy", o.getCancelledBy());
         m.put("refundStatus", o.getRefundStatus());
         m.put("refundAmount", o.getRefundAmount());
-        m.put("refundedAt", o.getRefundedAt());
+        m.put("refundedAt", o.getRefundedAt() != null ? o.getRefundedAt().toString() : null);
         m.put("refundNote", o.getRefundNote());
         m.put("failureReason", o.getFailureReason());
         m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);

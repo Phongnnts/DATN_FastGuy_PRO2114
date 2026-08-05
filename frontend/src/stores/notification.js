@@ -9,6 +9,8 @@ export const useNotificationStore = defineStore('notification', () => {
   const items = ref([]);
   const unreadCount = ref(0);
   const open = ref(false);
+  const loading = ref(false);
+  const error = ref('');
 
   function reset() {
     items.value = [];
@@ -31,13 +33,19 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   async function fetchOnce() {
+    loading.value = true;
+    error.value = '';
     try {
       const auth = useAuthStore();
       if (!auth.isLoggedIn) { reset(); return; }
       const data = await notificationApi.get();
       items.value = data?.items || [];
       unreadCount.value = Number(data?.unreadCount) || 0;
-    } catch {}
+    } catch {
+      error.value = 'Không thể tải thông báo.';
+    } finally {
+      loading.value = false;
+    }
   }
 
   async function markRead(id) {
@@ -62,6 +70,8 @@ export const useNotificationStore = defineStore('notification', () => {
     items,
     unreadCount,
     open,
+    loading,
+    error,
     reset,
     startPolling,
     stopPolling,

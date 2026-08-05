@@ -38,6 +38,8 @@ public class StaffSupportTicketServlet extends HttpServlet {
             ApiResponse.ok(resp, supportTicketService.update(ticketId, staffId, (String) body.get("status"), (String) body.get("resolution")), "Ticket updated");
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid ticket ID", 400);
+        } catch (SupportTicketService.OwnershipConflictException e) {
+            ApiResponse.error(resp, e.getMessage(), 409);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), e.getMessage().equals("Ticket not found") ? 404 : 400);
         }
