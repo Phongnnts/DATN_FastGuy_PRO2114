@@ -48,6 +48,8 @@ export const useStaffStore = defineStore('staff', () => {
        cancelledBy: o.cancelledBy || null,
        failureReason: o.failureReason || '',
        refundStatus: o.refundStatus || null,
+       refundAmount: Number(o.refundAmount ?? 0),
+       refundedAt: o.refundedAt || null,
        refundNote: o.refundNote || '',
        shipperId: o.shipperId || null,
        shipperName: o.shipperName || '',
@@ -209,9 +211,9 @@ export const useStaffStore = defineStore('staff', () => {
     }
   }
 
-  async function updateOrderStatus(id, status, failureReason) {
+  async function updateOrderStatus(id, status, expectedStatus, failureReason) {
     try {
-      await staffApi.updateOrderStatus(id, status, failureReason);
+      await staffApi.updateOrderStatus(id, status, expectedStatus, failureReason);
       const order = allOrders.value.find((o) => o.id === id);
       if (order) {
         order.status = status;
@@ -223,7 +225,8 @@ export const useStaffStore = defineStore('staff', () => {
         });
       }
     } catch (e) {
-      throw new Error(e.message || 'Không thể cập nhật trạng thái');
+      if (!e.message) e.message = 'Không thể cập nhật trạng thái';
+      throw e;
     }
   }
 

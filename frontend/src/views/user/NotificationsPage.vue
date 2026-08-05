@@ -18,7 +18,12 @@ async function open(item) {
 <template>
   <main class="notifications-page">
     <header><div><span>Hộp thư</span><h1>Thông báo</h1><p>{{ store.unreadCount }} thông báo chưa đọc</p></div><button type="button" class="btn btn-outline" :disabled="!store.unreadCount" @click="store.markAllRead()">Đánh dấu tất cả đã đọc</button></header>
-    <section v-if="store.items.length" class="list" aria-label="Danh sách thông báo">
+    <div v-if="store.loading" class="empty" role="status" aria-live="polite">Đang tải thông báo...</div>
+    <div v-else-if="store.error" class="empty error" role="alert">
+      <p>{{ store.error }}</p>
+      <button type="button" class="btn btn-outline" @click="store.fetchOnce()">Thử lại</button>
+    </div>
+    <section v-else-if="store.items.length" class="list" aria-label="Danh sách thông báo">
       <article v-for="item in store.items" :key="item.notificationId" class="item" :class="{ unread: !item.isRead }">
         <button type="button" @click="open(item)"><span class="title">{{ item.title }}</span><span class="message">{{ item.message }}</span><time>{{ item.createdAt ? formatDate(item.createdAt) : '' }}</time></button>
         <button v-if="!item.isRead" type="button" class="read-btn" :aria-label="`Đánh dấu ${item.title} đã đọc`" @click="store.markRead(item.notificationId)">Đánh dấu đã đọc</button>
@@ -31,7 +36,7 @@ async function open(item) {
 <style scoped>
 .notifications-page { max-width:900px; margin:0 auto; color:var(--text-dark); }
 header { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:24px; }
-header span { color:var(--primary-dark); font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+header span { color:var(--role-accent, var(--primary-dark)); font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
 h1 { margin:4px 0 6px; font-size:clamp(26px,4vw,36px); }
 p { margin:0; color:var(--text-mid); }
 .list { display:flex; flex-direction:column; gap:10px; }

@@ -83,6 +83,7 @@ public class SupportTicketService {
             SupportTicket ticket = em.find(SupportTicket.class, ticketId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
             if (ticket == null) throw new IllegalArgumentException("Ticket not found");
             String currentStatus = ticket.getStatus();
+            if (!canUpdate(ticket, staffId, status)) throw new OwnershipConflictException("Ticket is assigned to another staff member");
             if (!status.equals(currentStatus) && !TRANSITIONS.getOrDefault(currentStatus, Set.of()).contains(status)) {
                 throw new IllegalArgumentException("Invalid status transition");
             }
@@ -90,7 +91,7 @@ public class SupportTicketService {
             boolean changed = !status.equals(currentStatus) || !same(resolution, ticket.getResolution());
             ticket.setStatus(status);
             ticket.setResolution(resolution);
-            ticket.setStaff(em.getReference(User.class, staffId));
+            if (ticket.getStaff() == null) ticket.setStaff(em.getReference(User.class, staffId));
             ticket.setResolvedAt("RESOLVED".equals(status) ? LocalDateTime.now() : null);
             em.getTransaction().commit();
             Map<String, Object> result = toMap(ticket);
@@ -106,6 +107,17 @@ public class SupportTicketService {
             throw e;
         } finally {
             em.close();
+        }
+    }
+
+    static boolean canUpdate(SupportTicket ticket, int staffId, String status) {
+        if (ticket.getStaff() != null) return ticket.getStaff().getUserId() == staffId;
+        return "OPEN".equals(ticket.getStatus()) && "PROCESSING".equals(status);
+    }
+
+    public static class OwnershipConflictException extends RuntimeException {
+        public OwnershipConflictException(String message) {
+            super(message);
         }
     }
 

@@ -12,7 +12,7 @@ const wrapper = ref(null);
 const trigger = ref(null);
 
 const show = computed(() => auth.isLoggedIn);
-const inboxRoute = computed(() => auth.role === 'USER' ? '/account/notifications' : null);
+const inboxRoute = computed(() => auth.role === 'USER' ? '/account/notifications' : auth.role === 'STAFF' ? '/staff/notifications' : null);
 
 onMounted(() => {
   document.addEventListener('click', handleOutside);
