@@ -43,8 +43,12 @@ public class ShipperService {
         return orders;
     }
 
-    public List<Orders> getMyHistory(int shipperId) {
-        return ordersDAO.findHistoryByShipperId(shipperId);
+    public List<Orders> getMyHistory(int shipperId, int page, int size, LocalDateTime from, LocalDateTime to) {
+        return ordersDAO.findHistoryByShipperId(shipperId, page, size, from, to);
+    }
+
+    public long countMyHistory(int shipperId, LocalDateTime from, LocalDateTime to) {
+        return ordersDAO.countHistoryByShipperId(shipperId, from, to);
     }
 
     public Map<String, Object> getDashboardStats(int shipperId) {
@@ -54,12 +58,15 @@ public class ShipperService {
         long todayPickedUp = ordersDAO.countByShipperAndStatus(shipperId, "PICKED_UP", LocalDate.now());
         long totalDelivered = ordersDAO.countByShipperAndStatus(shipperId, "DELIVERED", null);
         long activeCount = getMyActiveOrders(shipperId).size();
+        double todayCodCollected = ordersDAO.sumCodCollectedByShipperAndDateRange(shipperId, todayRange.start(), todayRange.end());
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("todayDelivered", todayDelivered);
         stats.put("todayPickedUp", todayPickedUp);
         stats.put("totalDelivered", totalDelivered);
         stats.put("activeCount", activeCount);
+        stats.put("todayCodCollected", todayCodCollected);
+        stats.put("pendingCodCollected", todayCodCollected);
         return stats;
     }
 

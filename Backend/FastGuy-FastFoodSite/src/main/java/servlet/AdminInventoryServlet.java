@@ -20,7 +20,7 @@ public class AdminInventoryServlet extends HttpServlet {
     private static final int DEFAULT_PAGE = 1;
     private static final int DEFAULT_SIZE = 50;
     private static final int MAX_SIZE = 200;
-    private static final Set<String> ALLOWED_TYPES = Set.of("RESERVE", "RELEASE", "CONSUME", "WASTE");
+    private static final Set<String> ALLOWED_TYPES = Set.of("RESERVE", "RELEASE", "CONSUME", "WASTE", "ADJUSTMENT");
     private final InventoryTransactionDAO transactionDAO = new InventoryTransactionDAO();
 
     static boolean isValidTransactionType(String type) {

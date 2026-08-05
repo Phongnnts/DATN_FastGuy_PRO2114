@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAdminStore } from '@/stores/admin';
+import { adminApi } from '@/api';
 import { formatPrice } from '@/utils/format';
 import { useToast } from '@/stores/toast';
 
@@ -16,6 +17,17 @@ const savingId = ref(null);
 const draftStock = ref({});
 const loading = ref(true);
 const loadError = ref('');
+const REASONS = [
+  { value: 'STOCK_COUNT', label: 'Kiểm kê' },
+  { value: 'DAMAGE', label: 'Hư hỏng' },
+  { value: 'EXPIRED', label: 'Hết hạn' },
+  { value: 'OTHER', label: 'Khác' },
+];
+const adjustmentRow = ref(null);
+const wasteRow = ref(null);
+const adjustmentForm = ref({ newQuantity: '', reasonCode: 'STOCK_COUNT', note: '' });
+const wasteForm = ref({ quantity: '', reasonCode: 'DAMAGE', note: '' });
+const submitting = ref(false);
 
 async function loadProducts() {
   loading.value = true;
@@ -137,6 +149,66 @@ async function saveStock(row) {
 function editProduct(row) {
   router.push({ name: 'AdminProductEdit', params: { id: row.productId } });
 }
+
+function openAdjust(row) {
+  wasteRow.value = null;
+  adjustmentRow.value = row;
+  adjustmentForm.value = { newQuantity: String(row.stock ?? ''), reasonCode: 'STOCK_COUNT', note: '' };
+}
+
+function openWaste(row) {
+  adjustmentRow.value = null;
+  wasteRow.value = row;
+  wasteForm.value = { quantity: '', reasonCode: 'DAMAGE', note: '' };
+}
+
+function closeModals() {
+  adjustmentRow.value = null;
+  wasteRow.value = null;
+}
+
+async function submitAdjust() {
+  const newQuantity = Number(adjustmentForm.value.newQuantity);
+  if (!Number.isInteger(newQuantity) || newQuantity < 0) return toast.error('Tồn kho mới phải là số nguyên không âm');
+  if (!adjustmentForm.value.reasonCode) return toast.error('Vui lòng chọn lý do điều chỉnh');
+  submitting.value = true;
+  try {
+    await adminApi.adjustInventory(adjustmentRow.value.variantId, {
+      newQuantity,
+      reasonCode: adjustmentForm.value.reasonCode,
+      note: adjustmentForm.value.note.trim(),
+    });
+    toast.success('Đã điều chỉnh tồn kho');
+    closeModals();
+    await loadProducts();
+  } catch (error) {
+    toast.error(error.message || 'Không thể điều chỉnh tồn kho');
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function submitWaste() {
+  const quantity = Number(wasteForm.value.quantity);
+  if (!Number.isInteger(quantity) || quantity <= 0) return toast.error('Số lượng lãng phí phải là số nguyên dương');
+  if (quantity > wasteRow.value.stock) return toast.error('Số lượng lãng phí vượt quá tồn kho hiện tại');
+  if (!wasteForm.value.reasonCode) return toast.error('Vui lòng chọn lý do lãng phí');
+  submitting.value = true;
+  try {
+    await adminApi.wasteInventory(wasteRow.value.variantId, {
+      quantity,
+      reasonCode: wasteForm.value.reasonCode,
+      note: wasteForm.value.note.trim(),
+    });
+    toast.success('Đã ghi nhận lãng phí');
+    closeModals();
+    await loadProducts();
+  } catch (error) {
+    toast.error(error.message || 'Không thể ghi nhận lãng phí');
+  } finally {
+    submitting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -201,12 +273,58 @@ function editProduct(row) {
               <td data-label="Giá">{{ formatPrice(row.price) }}</td>
               <td data-label="Trạng thái"><span class="badge" :class="statusClass(row)">{{ statusLabel(row) }}</span></td>
               <td data-label="Tồn kho"><div class="stock-edit"><label><span class="sr-only">Tồn kho {{ row.productName }} - {{ row.variantName }}</span><input class="form-input" type="number" min="0" step="1" :value="getDraft(row)" :aria-invalid="normalizedDraft(row) === undefined" placeholder="Không giới hạn" @input="setDraft(row, $event.target.value)" /></label><button class="btn btn-sm btn-primary" :disabled="savingId === row.variantId || !isChanged(row)" @click="saveStock(row)"><i v-if="savingId === row.variantId" class="bi bi-arrow-repeat spin" aria-hidden="true"></i><span v-else>Lưu</span></button></div></td>
-              <td data-label="Thao tác"><button class="btn btn-sm btn-ghost" :aria-label="`Sửa sản phẩm ${row.productName}`" @click="editProduct(row)"><i class="bi bi-pencil" aria-hidden="true"></i></button></td>
+              <td data-label="Thao tác">
+                <div class="row-actions">
+                  <template v-if="row.stock !== null">
+                    <button class="btn btn-sm btn-outline" @click="openAdjust(row)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
+                    <button class="btn btn-sm btn-outline" @click="openWaste(row)"><i class="bi bi-trash3" aria-hidden="true"></i> Lãng phí</button>
+                  </template>
+                  <button class="btn btn-sm btn-ghost" :aria-label="`Sửa sản phẩm ${row.productName}`" @click="editProduct(row)"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
+
+    <div v-if="adjustmentRow" class="modal-overlay" @mousedown.self="closeModals">
+      <form class="modal" role="dialog" aria-modal="true" aria-labelledby="adjust-title" @submit.prevent="submitAdjust">
+        <div class="modal-header">
+          <div><small>ĐIỀU CHỈNH TỒN KHO</small><h3 id="adjust-title">{{ adjustmentRow.productName }} – {{ adjustmentRow.variantName }}</h3></div>
+          <button type="button" class="icon-button" aria-label="Đóng" :disabled="submitting" @click="closeModals"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted">Tồn kho hiện tại: <strong>{{ adjustmentRow.stock }}</strong> · SKU: {{ adjustmentRow.sku || '—' }}</p>
+          <label class="form-group"><span class="form-label">Tồn kho mới</span><input v-model.number="adjustmentForm.newQuantity" class="form-input" type="number" min="0" step="1" required /></label>
+          <label class="form-group"><span class="form-label">Lý do</span><select v-model="adjustmentForm.reasonCode" class="form-select" required><option v-for="reason in REASONS" :key="reason.value" :value="reason.value">{{ reason.label }}</option></select></label>
+          <label class="form-group"><span class="form-label">Ghi chú</span><textarea v-model="adjustmentForm.note" class="form-input" rows="3" maxlength="500"></textarea></label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" :disabled="submitting" @click="closeModals">Hủy</button>
+          <button type="submit" class="btn btn-primary" :disabled="submitting">{{ submitting ? 'Đang lưu...' : 'Lưu điều chỉnh' }}</button>
+        </div>
+      </form>
+    </div>
+
+    <div v-if="wasteRow" class="modal-overlay" @mousedown.self="closeModals">
+      <form class="modal" role="dialog" aria-modal="true" aria-labelledby="waste-title" @submit.prevent="submitWaste">
+        <div class="modal-header">
+          <div><small>GHI NHẬN LÃNG PHÍ</small><h3 id="waste-title">{{ wasteRow.productName }} – {{ wasteRow.variantName }}</h3></div>
+          <button type="button" class="icon-button" aria-label="Đóng" :disabled="submitting" @click="closeModals"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted">Tồn kho hiện tại: <strong>{{ wasteRow.stock }}</strong> · SKU: {{ wasteRow.sku || '—' }}</p>
+          <label class="form-group"><span class="form-label">Số lượng lãng phí</span><input v-model.number="wasteForm.quantity" class="form-input" type="number" min="1" step="1" :max="wasteRow.stock" required /></label>
+          <label class="form-group"><span class="form-label">Lý do</span><select v-model="wasteForm.reasonCode" class="form-select" required><option v-for="reason in REASONS" :key="reason.value" :value="reason.value">{{ reason.label }}</option></select></label>
+          <label class="form-group"><span class="form-label">Ghi chú</span><textarea v-model="wasteForm.note" class="form-input" rows="3" maxlength="500"></textarea></label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" :disabled="submitting" @click="closeModals">Hủy</button>
+          <button type="submit" class="btn btn-danger" :disabled="submitting">{{ submitting ? 'Đang lưu...' : 'Xác nhận lãng phí' }}</button>
+        </div>
+      </form>
+    </div>
   </main>
 </template>
 
@@ -237,6 +355,18 @@ function editProduct(row) {
 .muted { color: var(--text-mid); font-size: 12px; margin-top: 3px; }
 .stock-edit { display: flex; gap: 8px; align-items: center; min-width: 210px; }
 .stock-edit .form-input { width: 145px; }
+.row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.modal-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(13,20,33,.64); backdrop-filter: blur(3px); }
+.modal { width: min(520px,100%); max-height: calc(100vh - 40px); overflow: hidden; display: flex; flex-direction: column; border-radius: 16px; background: #fff; box-shadow: 0 25px 80px rgba(0,0,0,.25); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--border-light); }
+.modal-header small { color: var(--role-admin); font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.modal-header h3 { margin: 3px 0 0; font-size: 18px; }
+.icon-button { border: 0; background: transparent; border-radius: 8px; font-size: 18px; padding: 8px; cursor: pointer; color: var(--text-mid); }
+.icon-button:hover { background: var(--surface); }
+.modal-body { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding: 22px 24px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border-light); background: #fff; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 12px; font-weight: 700; color: var(--text-mid); }
 .state-panel { min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-mid); text-align: center; }
 .state-panel > i { font-size: 32px; }
 .error-panel { color: var(--danger, #dc2626); }

@@ -40,7 +40,7 @@ public class Product {
     private String imageUrl;
 
     @Column(name = "gallery_images", columnDefinition = "nvarchar(max)")
-    private String galleryImages;
+    private String galleryImages = "[]";
 
     @Column(name = "status")
     private String status;
@@ -85,7 +85,7 @@ public class Product {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     @PrePersist
-    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); if (galleryImages == null || galleryImages.isBlank()) galleryImages = "[]"; updatedAt = LocalDateTime.now(); }
 
     @PreUpdate
     void preUpdate() { updatedAt = LocalDateTime.now(); }

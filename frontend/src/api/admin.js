@@ -142,4 +142,10 @@ export default {
   updateUserStatus(userId, data) {
     return client.put(`/admin/users/${userId}/status`, data);
   },
+  adjustInventory(variantId, data) {
+    return client.post('/admin/inventory/transactions/adjustments', { variantId, ...data });
+  },
+  wasteInventory(variantId, data) {
+    return client.post('/admin/inventory/transactions/waste', { variantId, ...data });
+  },
 };
