@@ -58,6 +58,17 @@ test('staff detail renders canonical data and guards refresh mutations', () => {
   assert.match(orderDetailPage, /Không có shipper khả dụng/);
 });
 
+test('staff detail maps and renders complete discounts refunds and note form', () => {
+  assert.match(staffStore, /refundAmount: Number\(o\.refundAmount \?\? 0\)/);
+  assert.match(staffStore, /refundedAt: o\.refundedAt \|\| null/);
+  assert.match(orderDetailPage, /formatPrice\(order\.refundAmount\)/);
+  assert.match(orderDetailPage, /formatDateTime\(order\.refundedAt\)/);
+  assert.match(orderDetailPage, /v-model="internalNote"/);
+  assert.match(orderDetailPage, /maxlength="1000"/);
+  assert.match(orderDetailPage, /await staffStore\.saveInternalNote\(order\.value\.id, note\)/);
+  assert.match(orderDetailPage, /await load\(\{ silent: true \}\)/);
+});
+
 test('staff detail rejects stale async work after unmount', () => {
   assert.match(orderDetailPage, /onBeforeUnmount/);
   assert.match(orderDetailPage, /let stopped = false/);

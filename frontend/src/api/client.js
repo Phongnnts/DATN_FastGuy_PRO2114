@@ -39,7 +39,9 @@ client.interceptors.response.use(
       }
     }
     const msg = err.response?.data?.message || err.message || 'Lỗi không xác định';
-    return Promise.reject(new Error(msg));
+    const error = new Error(msg);
+    error.status = err.response?.status;
+    return Promise.reject(error);
   },
 );
 

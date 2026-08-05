@@ -27,6 +27,16 @@ test('page and component use executable local-time utility and fire change event
   assert.match(staffLayout, /shiftSequence/);
 });
 
+test('staff page renders every same-day shift with independent action state', () => {
+  assert.match(shiftsPage, /const todayShifts = computed/);
+  assert.match(shiftsPage, /v-for="shift in todayShifts"/);
+  assert.match(shiftsPage, /:key="shift\.shiftId"/);
+  assert.match(shiftsPage, /savingShiftId\.value === shift\.shiftId/);
+  assert.match(shiftsPage, /aria-live="polite"/);
+  assert.doesNotMatch(shiftsPage, /const todayShift = computed/);
+  assert.doesNotMatch(shiftsPage, /const saving = ref/);
+});
+
 test('shipper shifts route stays unguarded and is unchecked-in fallback', () => {
   assert.match(router, /path: 'shifts',[\s\S]*name: 'ShipperShifts'/);
   assert.match(router, /SHIPPER: '\/shipper\/shifts'/);
