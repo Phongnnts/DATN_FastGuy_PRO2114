@@ -49,6 +49,15 @@ class OrderHistoryAtomicitySourceTest {
         assertTrue(transaction >= 0 && lock > transaction && shiftCheck > lock && history > shiftCheck && commit > history);
     }
 
+    @Test
+    void serializesModifiersBeforePersistingOrderItem() throws Exception {
+        String orderService = source("OrderService.java");
+        int setModifiers = orderService.indexOf("item.setModifiers(modifierItems);");
+        int persist = orderService.indexOf("em.persist(item);", setModifiers);
+        assertTrue(setModifiers >= 0);
+        assertTrue(persist > setModifiers);
+    }
+
     private static String source(String file) throws Exception {
         return Files.readString(Path.of("src/main/java/service", file));
     }
