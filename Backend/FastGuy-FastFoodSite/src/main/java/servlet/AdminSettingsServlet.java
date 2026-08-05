@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import service.StoreConfigService;
 import utils.ApiResponse;
 import utils.JwtUtil;
+import utils.PrivilegedAuth;
 
 @WebServlet("/api/admin/settings")
 public class AdminSettingsServlet extends HttpServlet {
@@ -38,7 +39,8 @@ public class AdminSettingsServlet extends HttpServlet {
     private boolean admin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String header = req.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return false; }
-        if (!"ADMIN".equals(JwtUtil.getRole(header.substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return false; }
+        String token = header.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return false; }
         return true;
     }
 }
