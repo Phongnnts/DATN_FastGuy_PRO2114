@@ -28,7 +28,7 @@ test('sidebar keeps Tồn kho overview and adds Sổ tồn kho link', () => {
 });
 
 test('ledger whitelists transaction types and builds filter params', () => {
-  assert.match(page, /TRANSACTION_TYPES\s*=\s*\[\s*'RESERVE'\s*,\s*'RELEASE'\s*,\s*'CONSUME'\s*,\s*'WASTE'\s*\]/);
+  assert.match(page, /TRANSACTION_TYPES\s*=\s*\[\s*'RESERVE'\s*,\s*'RELEASE'\s*,\s*'CONSUME'\s*,\s*'WASTE'\s*,\s*'ADJUSTMENT'\s*\]/);
   assert.match(page, /const params = \{ page: page\.value, size: size\.value \};/);
   assert.match(page, /if \(variantId\.value\.trim\(\)\) params\.variantId/);
   assert.match(page, /if \(productId\.value\.trim\(\)\) params\.productId/);

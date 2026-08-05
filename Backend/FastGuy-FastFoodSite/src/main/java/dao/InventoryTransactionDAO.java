@@ -17,7 +17,8 @@ public class InventoryTransactionDAO {
             "SELECT t.inventoryTransactionId, t.order.orderId, t.order.orderCode, " +
             "t.variant.variantId, t.variant.variantName, " +
             "t.variant.product.productId, t.variant.product.name, " +
-            "t.transactionType, t.quantity, t.createdAt " +
+            "t.transactionType, t.quantity, t.createdAt, " +
+            "t.reasonCode, t.note, t.quantityBefore, t.quantityAfter, t.createdBy.fullName " +
             "FROM InventoryTransaction t";
     private static final String COUNT_CLAUSE = "SELECT COUNT(t) FROM InventoryTransaction t";
     private static final String ORDER_CLAUSE = " ORDER BY t.createdAt DESC, t.inventoryTransactionId DESC";
@@ -57,6 +58,11 @@ public class InventoryTransactionDAO {
         m.put("productName", row[6]);
         m.put("orderId", row[1]);
         m.put("orderCode", row[2]);
+        m.put("reasonCode", row[10]);
+        m.put("note", row[11]);
+        m.put("quantityBefore", row[12]);
+        m.put("quantityAfter", row[13]);
+        m.put("createdByName", row[14]);
         return m;
     }
 

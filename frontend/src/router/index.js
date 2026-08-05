@@ -370,6 +370,11 @@ const routes = [
         component: () => import('@/views/shipper/ShipperShiftsPage.vue'),
       },
       {
+        path: 'cash',
+        name: 'ShipperCash',
+        component: () => import('@/views/shipper/CashPage.vue'),
+      },
+      {
         path: 'orders/history',
         redirect: { name: 'ShipperOrderHistory' },
       },
@@ -509,7 +514,7 @@ const pageTitles = {
   UserRewards: 'Ví điểm thưởng', UserNotifications: 'Thông báo', UserSupport: 'Hỗ trợ', StaffDashboard: 'Tổng quan nhân viên', StaffOrders: 'Quản lý đơn hàng',
   StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc',
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
-  ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
+  ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', ShipperCash: 'Đối soát COD', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
   AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
   AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền',
   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',

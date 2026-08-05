@@ -10,8 +10,8 @@ export default {
   getActiveOrders() {
     return client.get('/shipper/orders/active');
   },
-  getHistory() {
-    return client.get('/shipper/orders/history');
+  getHistory(params) {
+    return client.get('/shipper/orders/history', { params });
   },
   getOrderById(id) {
     return client.get(`/shipper/orders/${id}`);

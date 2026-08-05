@@ -1,0 +1,15 @@
+# System Test Defect — FastGuy (Website bán đồ ăn nhanh online)
+
+Cấu trúc theo template: `Bản sao của Nhóm 4_Danh sách công việc trong Sprint, Release backlog, product backlog.xlsx` (sheet System Test Defect).
+Tổng: 8 lỗi system test (có lỗi thực tế còn mở và lỗi tượng trưng để bảng đầy đủ).
+
+| Defect ID | Defect title | Assigned to | State | Priority (1,2,3,4) | Severity (1,2,3,4) | Occurrences | Created by | Date created | Re-produce steps | Test data | Detail | Related Testcase ID |
+| --------- | ------------ | ----------- | ----- | ------------------ | ------------------ | ---------- | ---------- | ----------- | ---------------- | --------- | -------------------- | ----- |
+| BUG-ST-001 | Tạo sản phẩm thiếu galleryImages gây HTTP 500 | Lập trình viên | Open | 1 | 3 | 5/5 lần | Bùi Đức Bình | 25/07/2026 | 1. POST /api/admin/products 2. Bỏ field galleryImages | thiếu galleryImages | AdminProductServlet chỉ set gallery khi payload chứa key; entity không có default → Hibernate chèn NULL, vi phạm NOT NULL → SQL Error 515 (HTTP 500). Cần mặc định "[]" khi thiếu | ST017 |
+| BUG-ST-002 | Tính phí GHN trả 502 khi chưa cấu hình token | Lập trình viên | Open | 2 | 3 | 1/1 lần | Phan Vũ Phúc Khang | 29/07/2026 | 1. POST /api/shipping/fee 2. Chưa đặt GHN_TOKEN | thiếu GHN token | Trả 502 "chưa cấu hình GHN" — hợp lý theo design; cần tài liệu rõ và kiểm tra lại khi có token | ST090 |
+| BUG-ST-003 | Đặt hàng COD bị chặn khi GHN chưa cấu hình | Lập trình viên | Open | 2 | 3 | 3/3 lần | Nguyễn Nam Phong | 29/07/2026 | 1. Chọn COD 2. Thanh toán khi chưa cấu hình GHN | payment=COD | Báo 400 "chọn đầy đủ địa chỉ GHN để tính phí" — không có fallback phí ship mặc định. Cần quyết định fallback delivery_fee | ST097 |
+| BUG-ST-004 | BANK_TRANSFER bị chặn khi PayOS chưa cấu hình | Lập trình viên | Open | 2 | 3 | 3/3 lần | Nguyễn Nam Phong | 29/07/2026 | 1. Chọn BANK_TRANSFER 2. Thanh toán khi chưa có PAYOS_* | payment=BANK_TRANSFER | Phương thức ẩn khi chưa cấu hình — đúng design, cần hiển thị rõ trên UI rằng PayOS chưa bật | ST096 |
+| BUG-ST-005 | Server không kiểm tra độ dài mật khẩu khi đăng ký | Lập trình viên | Close | 1 | 2 | 5/5 lần | Huy Hoàng | 23/07/2026 | 1. Truy cập trang đăng ký 2. Nhập password "123" 3. Click Đăng ký | password="123" | Đã sửa: server kiểm tra 8–72 ký tự trước khi tạo tài khoản | ST004 |
+| BUG-ST-006 | Đăng nhập không tự động trim khoảng trắng | Lập trình viên | Close | 2 | 3 | 4/5 lần | Huy Hoàng | 23/07/2026 | 1. Đăng nhập 2. Nhập email có khoảng trắng cuối | email="user1 " | Đã sửa: trim đầu/cuối email khi xác thực | ST041 |
+| BUG-ST-007 | Không khóa tài khoản khi nhập sai mật khẩu nhiều lần | Lập trình viên | Open | 1 | 1 | 10/10 lần | Huy Hoàng | 23/07/2026 | 1. Đăng nhập sai 5 lần liên tiếp 2. Lần 6 nhập đúng | sai 5 lần | Không có cơ chế khóa tạm thời sau 5 lần sai — rủi ro brute-force. Cần đếm lần sai + khóa tạm thời | ST043 |
+| BUG-ST-008 | Tra cứu đơn thông báo lỗi không rõ ràng khi sai mã | Lập trình viên | Close | 3 | 4 | 2/2 lần | Nguyễn Nam Phong | 31/07/2026 | 1. Tra cứu đơn 2. Nhập mã sai | code="FG-WRONG" | Đã sửa: thông báo "Không tìm thấy đơn hàng với thông tin đã nhập" | ST063 |

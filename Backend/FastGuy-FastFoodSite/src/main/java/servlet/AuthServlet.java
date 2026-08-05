@@ -121,7 +121,13 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        User user = authService.login(login, password);
+        User user;
+        try {
+            user = authService.login(login, password);
+        } catch (IllegalStateException e) {
+            JsonUtil.write(resp, ApiResponse.error(e.getMessage()));
+            return;
+        }
         if (user == null) {
             JsonUtil.write(resp, ApiResponse.error("Sai tài khoản hoặc mật khẩu"));
             return;

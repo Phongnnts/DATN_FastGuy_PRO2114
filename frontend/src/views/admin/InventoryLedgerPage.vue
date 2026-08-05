@@ -2,8 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { adminApi } from '@/api';
 
-const TRANSACTION_TYPES = ['RESERVE', 'RELEASE', 'CONSUME', 'WASTE'];
-const TYPE_LABELS = { RESERVE: 'Giữ chỗ', RELEASE: 'Trả lại', CONSUME: 'Tiêu thụ', WASTE: 'Hao hụt' };
+const TRANSACTION_TYPES = ['RESERVE', 'RELEASE', 'CONSUME', 'WASTE', 'ADJUSTMENT'];
+const TYPE_LABELS = { RESERVE: 'Giữ chỗ', RELEASE: 'Trả lại', CONSUME: 'Tiêu thụ', WASTE: 'Hao hụt', ADJUSTMENT: 'Điều chỉnh' };
 const SIZE_OPTIONS = [20, 50, 100];
 
 const rows = ref([]);
@@ -27,7 +27,7 @@ const rangeStart = computed(() => (total.value === 0 ? 0 : (page.value - 1) * si
 const rangeEnd = computed(() => Math.min(page.value * size.value, total.value));
 
 const kpi = computed(() => {
-  const counts = { RESERVE: 0, RELEASE: 0, CONSUME: 0, WASTE: 0 };
+  const counts = { RESERVE: 0, RELEASE: 0, CONSUME: 0, WASTE: 0, ADJUSTMENT: 0 };
   rows.value.forEach((row) => {
     if (counts[row.type] !== undefined) counts[row.type] += 1;
   });
@@ -35,7 +35,7 @@ const kpi = computed(() => {
 });
 
 function typeClass(type) {
-  return { RESERVE: 'badge-info', RELEASE: 'badge-success', CONSUME: 'badge-warning', WASTE: 'badge-danger' }[type] || 'badge-secondary';
+  return { RESERVE: 'badge-info', RELEASE: 'badge-success', CONSUME: 'badge-warning', WASTE: 'badge-danger', ADJUSTMENT: 'badge-secondary' }[type] || 'badge-secondary';
 }
 
 function buildParams() {
@@ -187,7 +187,7 @@ onBeforeUnmount(() => {
       <template v-else>
         <div class="table-wrapper">
           <table class="table">
-            <thead><tr><th scope="col">Thời gian</th><th scope="col">Loại</th><th scope="col">Số lượng</th><th scope="col">Biến thể</th><th scope="col">Sản phẩm</th><th scope="col">Đơn hàng</th></tr></thead>
+            <thead><tr><th scope="col">Thời gian</th><th scope="col">Loại</th><th scope="col">Số lượng</th><th scope="col">Biến thể</th><th scope="col">Sản phẩm</th><th scope="col">Đơn hàng</th><th scope="col">Biến động</th><th scope="col">Chi tiết</th></tr></thead>
             <tbody>
               <tr v-for="row in rows" :key="row.transactionId">
                 <td data-label="Thời gian"><time :datetime="row.createdAt">{{ row.createdAt }}</time></td>
@@ -196,6 +196,8 @@ onBeforeUnmount(() => {
                 <td data-label="Biến thể"><strong>{{ row.variantName || '—' }}</strong><small v-if="row.variantId" class="sub">ID: {{ row.variantId }}</small></td>
                 <td data-label="Sản phẩm"><strong>{{ row.productName || '—' }}</strong><small v-if="row.productId" class="sub">ID: {{ row.productId }}</small></td>
                 <td data-label="Đơn hàng"><router-link v-if="row.orderId" class="order-link" :to="`/admin/orders/${row.orderId}`">{{ row.orderCode || row.orderId }}</router-link><span v-else class="muted">—</span></td>
+                <td data-label="Biến động"><span v-if="row.quantityBefore !== null && row.quantityAfter !== null">{{ row.quantityBefore }} → {{ row.quantityAfter }}</span><span v-else class="muted">—</span></td>
+                <td data-label="Chi tiết"><div v-if="row.reasonCode || row.note || row.createdByName" class="detail-cell"><span v-if="row.reasonCode" class="badge badge-secondary">{{ row.reasonCode }}</span><small v-if="row.createdByName" class="sub">{{ row.createdByName }}</small><small v-if="row.note" class="sub">{{ row.note }}</small></div><span v-else class="muted">—</span></td>
               </tr>
             </tbody>
           </table>
@@ -249,6 +251,8 @@ onBeforeUnmount(() => {
 .table td { vertical-align: middle; }
 .sub { color: var(--text-light); display: block; font-size: 11px; }
 .muted { color: var(--text-light); }
+.detail-cell { display: flex; flex-direction: column; gap: 4px; }
+.detail-cell .badge { align-self: flex-start; }
 .order-link { color: var(--role-admin); font-weight: 700; }
 .order-link:hover, .order-link:focus { text-decoration: underline; }
 .table-footer { align-items: center; color: var(--text-mid); display: flex; font-size: 12px; justify-content: space-between; padding: 14px 16px; border-top: 1px solid var(--border); }

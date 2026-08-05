@@ -16,6 +16,9 @@ import utils.JwtUtil;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -114,10 +117,71 @@ public class ShipperServlet extends HttpServlet {
                 List<Orders> active = shipperService.getMyActiveOrders(shipperId);
                 ApiResponse.ok(resp, active.stream().map(this::toListItem).collect(Collectors.toList()));
                 break;
-            case "/orders/history":
-                List<Orders> history = shipperService.getMyHistory(shipperId);
-                ApiResponse.ok(resp, history.stream().map(this::toListItem).collect(Collectors.toList()));
+            case "/orders/history": {
+                int page = 1;
+                String pageRaw = req.getParameter("page");
+                if (pageRaw != null && !pageRaw.isBlank()) {
+                    try {
+                        page = Integer.parseInt(pageRaw.trim());
+                    } catch (NumberFormatException e) {
+                        ApiResponse.error(resp, "page must be a positive integer", 400);
+                        break;
+                    }
+                }
+                if (page < 1 || page > 10000) {
+                    ApiResponse.error(resp, "page must be between 1 and 10000", 400);
+                    break;
+                }
+                int size = 20;
+                String sizeRaw = req.getParameter("size");
+                if (sizeRaw != null && !sizeRaw.isBlank()) {
+                    try {
+                        size = Integer.parseInt(sizeRaw.trim());
+                    } catch (NumberFormatException e) {
+                        ApiResponse.error(resp, "size must be a positive integer", 400);
+                        break;
+                    }
+                }
+                if (size < 1) {
+                    ApiResponse.error(resp, "size must be a positive integer", 400);
+                    break;
+                }
+                if (size > 100) size = 100;
+                LocalDate fromDate = null;
+                String fromRaw = req.getParameter("fromDate");
+                if (fromRaw != null && !fromRaw.isBlank()) {
+                    try {
+                        fromDate = LocalDate.parse(fromRaw.trim());
+                    } catch (DateTimeParseException e) {
+                        ApiResponse.error(resp, "fromDate must be in yyyy-MM-dd format", 400);
+                        break;
+                    }
+                }
+                LocalDate toDate = null;
+                String toRaw = req.getParameter("toDate");
+                if (toRaw != null && !toRaw.isBlank()) {
+                    try {
+                        toDate = LocalDate.parse(toRaw.trim());
+                    } catch (DateTimeParseException e) {
+                        ApiResponse.error(resp, "toDate must be in yyyy-MM-dd format", 400);
+                        break;
+                    }
+                }
+                if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+                    ApiResponse.error(resp, "fromDate must not be after toDate", 400);
+                    break;
+                }
+                LocalDateTime from = fromDate != null ? fromDate.atStartOfDay() : null;
+                LocalDateTime to = toDate != null ? toDate.plusDays(1).atStartOfDay() : null;
+                Map<String, Object> data = new HashMap<>();
+                data.put("items", shipperService.getMyHistory(shipperId, page, size, from, to)
+                        .stream().map(this::toListItem).collect(Collectors.toList()));
+                data.put("total", shipperService.countMyHistory(shipperId, from, to));
+                data.put("page", page);
+                data.put("size", size);
+                ApiResponse.ok(resp, data);
                 break;
+            }
             default:
                 if (detailOrderId == null) {
                     ApiResponse.error(resp, "Not found", 404);
@@ -199,6 +263,8 @@ public class ShipperServlet extends HttpServlet {
         m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
         m.put("pickedUpAt", o.getPickedUpAt() != null ? o.getPickedUpAt().toString() : null);
         m.put("deliveredAt", o.getDeliveredAt() != null ? o.getDeliveredAt().toString() : null);
+        m.put("codCollectedAmount", o.getCodCollectedAmount());
+        m.put("codCollectedAt", o.getCodCollectedAt() != null ? o.getCodCollectedAt().toString() : null);
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
     }
@@ -214,6 +280,7 @@ public class ShipperServlet extends HttpServlet {
         data.put("totalAmount", o.getTotalAmount());
         data.put("shippingFee", o.getShippingFee());
         data.put("serviceFee", o.getServiceFee());
+        data.put("discountAmount", o.getDiscountAmount() != null ? o.getDiscountAmount() : BigDecimal.ZERO);
         data.put("finalAmount", o.getFinalAmount());
         data.put("codCollectedAmount", o.getCodCollectedAmount());
         data.put("codCollectedAt", o.getCodCollectedAt() != null ? o.getCodCollectedAt().toString() : null);

@@ -12,17 +12,17 @@ const router = useRouter();
 const route = useRoute();
 const shiftState = ref('UNKNOWN');
 const checkedIn = computed(() => shiftState.value === 'CHECKED_IN');
+const chipLabel = computed(() => shiftState.value === 'CHECKED_IN' ? 'Tuyến đang giao' : shiftState.value === 'CHECKED_OUT' ? 'Ca đã kết thúc' : 'Chưa check-in');
 
 let shiftSequence = 0;
 
-const navItems = computed(() => [
-  ...(checkedIn.value ? [
-    { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
-    { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
-  ] : []),
+const navItems = [
+  { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
+  { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
   { path: '/shipper/history', name: 'Lịch sử', icon: 'bi-clock-history' },
   { path: '/shipper/shifts', name: 'Ca làm', icon: 'bi-calendar-week' },
-]);
+  { path: '/shipper/cash', name: 'COD', icon: 'bi-cash-coin' },
+];
 
 function activeClass(path) {
   if (path === '/shipper/orders' && route.path.startsWith('/shipper/orders/')) return 'active';
@@ -62,7 +62,7 @@ function logout() {
       <div class="shipper-brand">
         <span>Fast<span class="accent">Guy</span></span>
         <span class="role-badge">Shipper</span>
-        <span class="fg-status-chip">Tuyến đang giao</span>
+        <span class="fg-status-chip">{{ chipLabel }}</span>
       </div>
       <div class="header-actions">
         <NotificationBell />
@@ -88,7 +88,7 @@ function logout() {
           <p>Vui lòng xem lịch làm việc để check-in đúng giờ.</p>
         </div>
       </div>
-      <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'ShipperShifts' || $route.name === 'ShipperOrderHistory'" aria-live="polite" role="region" />
+      <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'ShipperShifts' || $route.name === 'ShipperOrderHistory' || $route.name === 'ShipperCash'" aria-live="polite" role="region" />
     </main>
     <nav class="shipper-nav">
       <router-link
