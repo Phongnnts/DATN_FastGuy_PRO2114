@@ -534,7 +534,7 @@ SET IDENTITY_INSERT dbo.ProductComboItem OFF;
 INSERT dbo.ShippingConfig (config_key, config_value) VALUES
     ('ghn_from_district_id', '1442'), ('ghn_from_ward_code', '20107'),
     ('default_weight', '500'), ('default_length', '20'), ('default_width', '20'), ('default_height', '10'),
-    ('default_service_type_id', '2'), ('business_open_time', '08:00'), ('business_close_time', '22:00'), ('service_fee', '0');
+    ('default_service_type_id', '2'), ('business_open_time', '00:00'), ('business_close_time', '00:00'), ('service_fee', '0');
 
 -- Demo password for every account: 123456. Hash format is the PBKDF2 format used by utils.PasswordUtil.
 DECLARE @DemoPasswordHash varchar(255) = 'pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=';

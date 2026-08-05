@@ -543,12 +543,12 @@ public class OrderService {
             item.setQuantity(line.quantity);
             item.setUnitPrice(line.unitPrice);
             item.setTotalPrice(line.unitPrice.multiply(BigDecimal.valueOf(line.quantity)));
-            em.persist(item);
             List<OrderItem.ModifierItem> modifierItems = new ArrayList<>();
             for (ProductModifierOption option : line.modifiers) {
                 modifierItems.add(new OrderItem.ModifierItem(option.getModifierOptionId(), option.getGroup().getName(), option.getName(), option.getPrice() != null ? option.getPrice() : BigDecimal.ZERO));
             }
             item.setModifiers(modifierItems);
+            em.persist(item);
         }
     }
 
@@ -578,8 +578,8 @@ public class OrderService {
     }
 
     private BigDecimal validateBusinessHoursAndGetServiceFee(Map<String, String> config) {
-        String openTime = config.getOrDefault(StoreConfigService.OPEN_TIME, "08:00");
-        String closeTime = config.getOrDefault(StoreConfigService.CLOSE_TIME, "22:00");
+        String openTime = config.getOrDefault(StoreConfigService.OPEN_TIME, "00:00");
+        String closeTime = config.getOrDefault(StoreConfigService.CLOSE_TIME, "00:00");
         if (!StoreConfigService.isOpen(openTime, closeTime, LocalTime.now())) throw new IllegalArgumentException("Cửa hàng hiện đã đóng cửa");
         return StoreConfigService.parseFee(config.get(StoreConfigService.SERVICE_FEE));
     }

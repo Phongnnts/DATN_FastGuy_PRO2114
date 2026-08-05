@@ -23,8 +23,12 @@
 </template>
 
 <script setup>
+import { storeToRefs } from 'pinia';
 import { useToastStore } from '@/stores/toast';
-const { toasts, dismiss } = useToastStore();
+
+const toastStore = useToastStore();
+const { toasts } = storeToRefs(toastStore);
+const { dismiss } = toastStore;
 </script>
 
 <style scoped>
