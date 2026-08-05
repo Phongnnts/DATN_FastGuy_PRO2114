@@ -1,5 +1,6 @@
 package service;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import dao.UserDAO;
@@ -10,23 +11,55 @@ import utils.DatabaseUtil;
 import utils.PasswordUtil;
 
 public class AuthService {
+    public static final int MAX_FAILED_ATTEMPTS = 5;
+    public static final int LOCK_DURATION_MINUTES = 15;
+
     private UserDAO userDAO = new UserDAO();
 
     public User login(String login, String password) {
-        User user = userDAO.findByPhone(login);
-        if (user == null) {
-            user = userDAO.findByEmail(login);
+        User found = userDAO.findByPhone(login);
+        if (found == null) {
+            found = userDAO.findByEmail(login);
         }
-        if (user != null && PasswordUtil.check(password, user.getPasswordHash())) {
-            if ("ACTIVE".equals(user.getStatus())) {
-                if (!PasswordUtil.isHashed(user.getPasswordHash())) {
-                    user.setPasswordHash(PasswordUtil.hash(password));
-                    userDAO.save(user);
-                }
-                return user;
+        if (found == null) return null;
+
+        LocalDateTime now = LocalDateTime.now();
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            User user = em.find(User.class, found.getUserId(), LockModeType.PESSIMISTIC_WRITE);
+            if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)) {
+                em.getTransaction().rollback();
+                throw new IllegalStateException("Tài khoản đã bị khóa tạm thời, vui lòng thử lại sau");
             }
+            if (PasswordUtil.check(password, user.getPasswordHash())) {
+                if ("ACTIVE".equals(user.getStatus())) {
+                    if (user.getFailedLoginAttempts() != 0 || user.getLockedUntil() != null) {
+                        user.setFailedLoginAttempts(0);
+                        user.setLockedUntil(null);
+                    }
+                    if (!PasswordUtil.isHashed(user.getPasswordHash())) {
+                        user.setPasswordHash(PasswordUtil.hash(password));
+                    }
+                    em.getTransaction().commit();
+                    return user;
+                }
+                em.getTransaction().rollback();
+                return null;
+            }
+            int attempts = user.getFailedLoginAttempts() + 1;
+            user.setFailedLoginAttempts(attempts);
+            if (attempts >= MAX_FAILED_ATTEMPTS) {
+                user.setLockedUntil(now.plusMinutes(LOCK_DURATION_MINUTES));
+            }
+            em.getTransaction().commit();
+            return null;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
         }
-        return null;
     }
 
     public User register(String fullName, String phone, String email, String password) {

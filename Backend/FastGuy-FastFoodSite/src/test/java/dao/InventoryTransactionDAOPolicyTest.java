@@ -56,7 +56,8 @@ class InventoryTransactionDAOPolicyTest {
 
     @Test
     void toDtoFormatsCreatedAtAsIso() {
-        Object[] row = {11, 22, "FG0001", 33, "S", 44, "Coke", "RESERVE", 5, LocalDateTime.of(2024, 5, 6, 7, 8, 9, 123_000_000)};
+        Object[] row = {11, 22, "FG0001", 33, "S", 44, "Coke", "RESERVE", 5,
+                LocalDateTime.of(2024, 5, 6, 7, 8, 9, 123_000_000), "REASON", "ghi chu", 4, 5, "Admin"};
         Map<String, Object> dto = InventoryTransactionDAO.toDto(row);
         assertEquals(11, dto.get("transactionId"));
         assertEquals("RESERVE", dto.get("type"));
@@ -68,5 +69,10 @@ class InventoryTransactionDAOPolicyTest {
         assertEquals("Coke", dto.get("productName"));
         assertEquals(22, dto.get("orderId"));
         assertEquals("FG0001", dto.get("orderCode"));
+        assertEquals("REASON", dto.get("reasonCode"));
+        assertEquals("ghi chu", dto.get("note"));
+        assertEquals(4, dto.get("quantityBefore"));
+        assertEquals(5, dto.get("quantityAfter"));
+        assertEquals("Admin", dto.get("createdByName"));
     }
 }

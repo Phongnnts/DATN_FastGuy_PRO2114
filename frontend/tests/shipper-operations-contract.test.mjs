@@ -11,15 +11,21 @@ const layout = read('../src/layouts/ShipperLayout.vue');
 const router = read('../src/router/index.js');
 
 test('shipper store maps canonical list and detail fields with separate request states', () => {
-  for (const field of ['itemCount', 'assignedAt', 'pickedUpAt', 'deliveredAt', 'paymentMethod', 'paymentStatus', 'statusHistory', 'allowedActions', 'modifiers']) {
+  for (const field of ['itemCount', 'assignedAt', 'pickedUpAt', 'deliveredAt', 'paymentMethod', 'paymentStatus', 'statusHistory', 'allowedActions', 'modifiers', 'serviceFee', 'discount']) {
     assert.match(store, new RegExp(field));
   }
-  for (const state of ['dashboardLoading', 'dashboardError', 'listLoading', 'listError', 'detailLoading', 'detailError']) {
+  for (const state of ['dashboardLoading', 'dashboardError', 'listLoading', 'listError', 'detailLoading', 'detailError', 'historyLoading', 'historyError']) {
     assert.match(store, new RegExp(state));
   }
   assert.match(store, /getActiveOrders/);
   assert.match(store, /activeOrders/);
   assert.match(store, /historyOrders/);
+  assert.match(store, /historyTotal/);
+  assert.match(store, /historyPage/);
+  assert.match(store, /historySize/);
+  assert.match(store, /data\?\.items \|\| \[\]/);
+  assert.match(store, /data\?\.total/);
+  assert.match(store, /getHistory\(\{ page, size, fromDate, toDate \}\)/);
   assert.match(store, /listGeneration/);
   assert.match(store, /detailGeneration/);
   assert.match(store, /acceptsShipperRequest/);
@@ -56,6 +62,16 @@ test('active and history lists expose complete resilient operations UI', () => {
   assert.match(orders, /dateFrom/);
   assert.match(orders, /dateTo/);
   assert.match(orders, /type="date"/);
+  assert.match(orders, /fetchHistory\(\{ page: store\.historyPage, size: store\.historySize, fromDate/);
+  assert.match(orders, /historyTotal/);
+  assert.match(orders, /goPrev/);
+  assert.match(orders, /goNext/);
+  assert.match(orders, /Trước/);
+  assert.match(orders, /Sau/);
+  assert.match(orders, /OrderActionSheet/);
+  assert.match(orders, /tel:/);
+  assert.match(orders, /google\.com\/maps/);
+  assert.match(orders, /openSheet/);
 });
 
 test('detail uses backend actions, exact COD validation, mutation guard and refetch', () => {
@@ -64,7 +80,7 @@ test('detail uses backend actions, exact COD validation, mutation guard and refe
   assert.match(detail, /modifiers/);
   assert.match(detail, /submitting/);
   assert.match(detail, /validateExactCod\(collectedAmount\.value, order\.value\.total\)/);
-  assert.match(detail, /if \(!stopped\) await load\(\)/);
+  assert.match(detail, /if \(!stopped\) \{ confirmAction\.value = null; await load\(\); \}/);
   assert.match(detail, /detailError/);
   assert.match(detail, /onUnmounted/);
   assert.match(detail, /watch\(\(\) => route\.params\.id/);

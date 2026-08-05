@@ -6,26 +6,31 @@ import { acceptsShipperRequest } from '@/utils/shipperOperations';
 const number = value => Number(value ?? 0);
 const message = error => error?.response?.data?.message || error?.message || 'Không thể tải dữ liệu';
 const mapItem = item => ({ ...item, modifiers: Array.isArray(item.modifiers) ? item.modifiers : [] });
-const mapOrder = o => ({ id: o.orderId ?? o.id, orderCode: o.orderCode || '', status: o.status || '', customerName: o.customerName || '', customerPhone: o.customerPhone || '', customerAddress: o.customerAddress || '', total: number(o.finalAmount ?? o.total), shippingFee: number(o.shippingFee), paymentMethod: o.paymentMethod || '', paymentStatus: o.paymentStatus || '', itemCount: number(o.itemCount ?? (o.items || []).reduce((sum, item) => sum + number(item.quantity), 0)), assignedAt: o.assignedAt || null, pickedUpAt: o.pickedUpAt || null, deliveredAt: o.deliveredAt || null, createdAt: o.createdAt || null, codCollectedAmount: o.codCollectedAmount == null ? null : number(o.codCollectedAmount), codCollectedAt: o.codCollectedAt || null, deliveryNote: o.deliveryNote || '', items: Array.isArray(o.items) ? o.items.map(mapItem) : [], statusHistory: Array.isArray(o.statusHistory) ? o.statusHistory : [], allowedActions: Array.isArray(o.allowedActions) ? o.allowedActions : [] });
+const mapOrder = o => ({ id: o.orderId ?? o.id, orderCode: o.orderCode || '', status: o.status || '', customerName: o.customerName || '', customerPhone: o.customerPhone || '', customerAddress: o.customerAddress || '', total: number(o.finalAmount ?? o.total), shippingFee: number(o.shippingFee), serviceFee: number(o.serviceFee), discount: number(o.discountAmount), paymentMethod: o.paymentMethod || '', paymentStatus: o.paymentStatus || '', itemCount: number(o.itemCount ?? (o.items || []).reduce((sum, item) => sum + number(item.quantity), 0)), assignedAt: o.assignedAt || null, pickedUpAt: o.pickedUpAt || null, deliveredAt: o.deliveredAt || null, createdAt: o.createdAt || null, codCollectedAmount: o.codCollectedAmount == null ? null : number(o.codCollectedAmount), codCollectedAt: o.codCollectedAt || null, deliveryNote: o.deliveryNote || '', items: Array.isArray(o.items) ? o.items.map(mapItem) : [], statusHistory: Array.isArray(o.statusHistory) ? o.statusHistory : [], allowedActions: Array.isArray(o.allowedActions) ? o.allowedActions : [] });
 
 export const useShipperStore = defineStore('shipper', () => {
   const dashboard = ref(null);
   const activeOrders = ref([]);
   const historyOrders = ref([]);
+  const historyTotal = ref(0);
+  const historyPage = ref(1);
+  const historySize = ref(20);
   const currentOrder = ref(null);
   const dashboardLoading = ref(false);
   const dashboardError = ref('');
   const listLoading = ref(false);
   const listError = ref('');
+  const historyLoading = ref(false);
+  const historyError = ref('');
   const detailLoading = ref(false);
   const detailError = ref('');
   let dashboardGeneration = 0;
   let listGeneration = 0;
   let detailGeneration = 0;
 
-  async function fetchDashboard() {
+  async function fetchDashboard(silent = false) {
     const requestGeneration = ++dashboardGeneration;
-    dashboardLoading.value = true;
+    if (!silent) dashboardLoading.value = true;
     dashboardError.value = '';
     try {
       const data = await shipperApi.getDashboard();
@@ -35,7 +40,7 @@ export const useShipperStore = defineStore('shipper', () => {
       if (requestGeneration === dashboardGeneration) dashboardError.value = message(error);
       throw error;
     } finally {
-      if (requestGeneration === dashboardGeneration) dashboardLoading.value = false;
+      if (!silent && requestGeneration === dashboardGeneration) dashboardLoading.value = false;
     }
   }
 
@@ -61,7 +66,28 @@ export const useShipperStore = defineStore('shipper', () => {
 
   const fetchActiveOrders = (silent = false) => loadList('active', () => shipperApi.getActiveOrders(), silent);
   const fetchMyOrders = fetchActiveOrders;
-  const fetchHistory = () => loadList('history', () => shipperApi.getHistory());
+
+  async function fetchHistory({ page = 1, size = 20, fromDate, toDate } = {}) {
+    const requestGeneration = ++listGeneration;
+    historyLoading.value = true;
+    historyError.value = '';
+    try {
+      const data = await shipperApi.getHistory({ page, size, fromDate, toDate });
+      const mapped = (Array.isArray(data) ? data : data?.items || []).map(mapOrder);
+      if (acceptsShipperRequest({ requestGeneration, latestGeneration: listGeneration })) {
+        historyOrders.value = mapped;
+        historyTotal.value = Number(data?.total ?? mapped.length);
+        historyPage.value = page;
+        historySize.value = size;
+      }
+      return mapped;
+    } catch (error) {
+      if (requestGeneration === listGeneration) historyError.value = message(error);
+      throw error;
+    } finally {
+      if (requestGeneration === listGeneration) historyLoading.value = false;
+    }
+  }
   const invalidateListRequests = () => { listGeneration += 1; };
 
   async function fetchOrderById(id) {
@@ -86,5 +112,5 @@ export const useShipperStore = defineStore('shipper', () => {
   const pickUpOrder = id => shipperApi.pickUpOrder(id);
   const deliverOrder = (id, collectedAmount) => shipperApi.deliverOrder(id, collectedAmount);
 
-  return { dashboard, activeOrders, historyOrders, currentOrder, dashboardLoading, dashboardError, listLoading, listError, detailLoading, detailError, fetchDashboard, fetchActiveOrders, fetchMyOrders, fetchHistory, invalidateListRequests, fetchOrderById, invalidateDetailRequests, pickUpOrder, deliverOrder };
+  return { dashboard, activeOrders, historyOrders, historyTotal, historyPage, historySize, currentOrder, dashboardLoading, dashboardError, listLoading, listError, historyLoading, historyError, detailLoading, detailError, fetchDashboard, fetchActiveOrders, fetchMyOrders, fetchHistory, invalidateListRequests, fetchOrderById, invalidateDetailRequests, pickUpOrder, deliverOrder };
 });

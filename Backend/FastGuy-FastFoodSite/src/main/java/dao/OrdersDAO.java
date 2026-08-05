@@ -332,6 +332,57 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findHistoryByShipperId(int shipperId, int page, int size, LocalDateTime from, LocalDateTime to) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            StringBuilder jpql = new StringBuilder(
+                    "SELECT o FROM Orders o WHERE o.shipper.userId = :shipperId AND o.orderStatus IN ('DELIVERED','CANCELLED')");
+            if (from != null) jpql.append(" AND o.createdAt >= :from");
+            if (to != null) jpql.append(" AND o.createdAt < :to");
+            jpql.append(" ORDER BY COALESCE(o.deliveredAt, o.cancelledAt, o.createdAt) DESC, o.orderId DESC");
+            var q = em.createQuery(jpql.toString(), Orders.class)
+                    .setParameter("shipperId", shipperId);
+            if (from != null) q.setParameter("from", from);
+            if (to != null) q.setParameter("to", to);
+            return q.setFirstResult((page - 1) * size).setMaxResults(size).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countHistoryByShipperId(int shipperId, LocalDateTime from, LocalDateTime to) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            StringBuilder jpql = new StringBuilder(
+                    "SELECT COUNT(o) FROM Orders o WHERE o.shipper.userId = :shipperId AND o.orderStatus IN ('DELIVERED','CANCELLED')");
+            if (from != null) jpql.append(" AND o.createdAt >= :from");
+            if (to != null) jpql.append(" AND o.createdAt < :to");
+            var q = em.createQuery(jpql.toString(), Long.class)
+                    .setParameter("shipperId", shipperId);
+            if (from != null) q.setParameter("from", from);
+            if (to != null) q.setParameter("to", to);
+            return q.getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public double sumCodCollectedByShipperAndDateRange(int shipperId, LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            BigDecimal result = em.createQuery(
+                    "SELECT SUM(o.codCollectedAmount) FROM Orders o WHERE o.shipper.userId = :shipperId AND o.paymentMethod = 'COD' AND o.deliveredAt >= :start AND o.deliveredAt < :end AND o.codCollectedAmount IS NOT NULL",
+                    BigDecimal.class)
+                    .setParameter("shipperId", shipperId)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
+            return result != null ? result.doubleValue() : 0.0;
+        } finally {
+            em.close();
+        }
+    }
+
     public long countDeliveredByShipperAndDateRange(int shipperId, LocalDateTime start, LocalDateTime end) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
