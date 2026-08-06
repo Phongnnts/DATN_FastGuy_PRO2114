@@ -116,9 +116,11 @@ test('ledger shows per-type KPI cards and responsive card table', () => {
   assert.match(page, /\.table td::before \{ content: attr\(data-label\)/);
 });
 
-test('inventory overview keeps its controls and optionally links ledger', () => {
+test('inventory overview keeps read controls and links audited stock workflows', () => {
   assert.match(inventory, /Quản lý tồn kho/);
   assert.match(inventory, /adminStore\.fetchProducts\(\)/);
-  assert.match(inventory, /saveStock/);
+  assert.doesNotMatch(inventory, /saveStock|draftStock/);
+  assert.match(inventory, /openAdjust/);
+  assert.match(inventory, /openWaste/);
   assert.match(inventory, /router\.push\(\{ name: 'AdminInventoryLedger' \}\)/);
 });

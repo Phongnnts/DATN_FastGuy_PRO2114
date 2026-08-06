@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { reactive } from 'vue';
 import {
+  cloneProductState,
   createProductDraft,
   createVariantDraft,
   isCurrentEditorRequest,
@@ -16,6 +18,15 @@ import {
   variantPayload,
   withProductSlice,
 } from '../src/utils/adminProductEditor.js';
+
+test('cloneProductState clones Vue reactive product state without sharing nested values', () => {
+  const source = reactive({ galleryImages: ['one.jpg'], variants: [{ price: 10000 }] });
+  const clone = cloneProductState(source);
+  clone.galleryImages.push('two.jpg');
+  clone.variants[0].price = 20000;
+  assert.deepEqual(source.galleryImages, ['one.jpg']);
+  assert.equal(source.variants[0].price, 10000);
+});
 
 test('createProductDraft returns independent editor defaults', () => {
   const first = createProductDraft();

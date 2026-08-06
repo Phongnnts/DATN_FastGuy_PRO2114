@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { adminApi } from '@/api';
 import { useAdminStore } from '@/stores/admin';
-import { isValidProductId, sectionDirty, validateComboItem } from '@/utils/adminProductEditor';
+import { cloneProductState, isValidProductId, sectionDirty, validateComboItem } from '@/utils/adminProductEditor';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -18,7 +18,7 @@ const newItem = ref({ variantId: null, quantity: 1 });
 const itemErrors = ref({});
 const message = ref('');
 const mutating = ref(false);
-const snapshot = ref(structuredClone(props.modelValue.combo));
+const snapshot = ref(cloneProductState(props.modelValue.combo));
 let generation = 0;
 let stopped = false;
 
@@ -31,7 +31,7 @@ watch(() => props.modelValue.combo, (value) => {
 }, { deep: true });
 
 watch(() => props.baselineVersion, () => {
-  snapshot.value = structuredClone(props.modelValue.combo);
+  snapshot.value = cloneProductState(props.modelValue.combo);
   itemErrors.value = {};
   message.value = '';
   emit('dirty-change', false);

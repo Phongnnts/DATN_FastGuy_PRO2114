@@ -5,7 +5,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { adminApi } from '@/api';
 import { useAdminStore } from '@/stores/admin';
 import { useToast } from '@/stores/toast';
-import { createProductDraft, isCurrentEditorRequest, isValidProductId, nextEnabledSectionIndex, normalizeProductDetail, validateGeneral, variantPayload, withProductSlice } from '@/utils/adminProductEditor';
+import { cloneProductState, createProductDraft, isCurrentEditorRequest, isValidProductId, nextEnabledSectionIndex, normalizeProductDetail, validateGeneral, variantPayload, withProductSlice } from '@/utils/adminProductEditor';
 import ProductGeneralSection from '@/components/admin/product-editor/ProductGeneralSection.vue';
 import ProductMediaSection from '@/components/admin/product-editor/ProductMediaSection.vue';
 import ProductVariantsSection from '@/components/admin/product-editor/ProductVariantsSection.vue';
@@ -17,7 +17,7 @@ const router = useRouter();
 const adminStore = useAdminStore();
 const toast = useToast();
 const draft = ref(createProductDraft());
-const baseline = ref(structuredClone(draft.value));
+const baseline = ref(cloneProductState(draft.value));
 const baselineVersion = ref(0);
 const activeSection = ref('general');
 const loading = ref(false);
@@ -90,7 +90,7 @@ function setSectionDirty(section, value) {
 
 function acceptBaseline(scope) {
   if (!scope) {
-    baseline.value = structuredClone(draft.value);
+    baseline.value = cloneProductState(draft.value);
     baselineVersion.value += 1;
     dirtySections.value = { general: false, media: false, variants: false, modifiers: false, combo: false };
     return;

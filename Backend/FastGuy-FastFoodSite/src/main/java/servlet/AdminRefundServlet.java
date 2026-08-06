@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import service.RefundService;
 import utils.ApiResponse;
 import utils.JwtUtil;
+import utils.PrivilegedAuth;
 
 @WebServlet("/api/admin/refunds/*")
 public class AdminRefundServlet extends HttpServlet {
@@ -29,7 +30,8 @@ public class AdminRefundServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         String header = req.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return; }
-        if (!"ADMIN".equals(JwtUtil.getRole(header.substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        String token = header.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
 
         try {
             LocalDate from = toLocalDate(req.getParameter("fromDate"));
@@ -75,7 +77,7 @@ public class AdminRefundServlet extends HttpServlet {
         String header = req.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return; }
         String token = header.substring(7);
-        if (!"ADMIN".equals(JwtUtil.getRole(token))) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
         try {
             String pathInfo = req.getPathInfo();
             if (pathInfo == null || pathInfo.length() < 2) { ApiResponse.error(resp, "Invalid order ID", 400); return; }

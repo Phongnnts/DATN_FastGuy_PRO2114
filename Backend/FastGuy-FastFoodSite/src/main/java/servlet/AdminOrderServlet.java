@@ -27,6 +27,7 @@ import service.OrderTransitionService;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
+import utils.PrivilegedAuth;
 
 @WebServlet("/api/admin/orders/*")
 public class AdminOrderServlet extends HttpServlet {
@@ -70,7 +71,7 @@ public class AdminOrderServlet extends HttpServlet {
             return;
         }
         String token = authHeader.substring(7);
-        if (!"ADMIN".equals(JwtUtil.getRole(token))) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
 
         String path = req.getPathInfo();
         if (path == null || path.equals("/")) {
@@ -116,7 +117,8 @@ public class AdminOrderServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return; }
-        if (!"ADMIN".equals(JwtUtil.getRole(authHeader.substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        String token = authHeader.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
 
         String path = req.getPathInfo();
         if (path == null) { resp.sendError(404); return; }
@@ -153,7 +155,8 @@ public class AdminOrderServlet extends HttpServlet {
         resp.setContentType("application/json;charset=UTF-8");
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return; }
-        if (!"ADMIN".equals(JwtUtil.getRole(authHeader.substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        String token = authHeader.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
 
         String path = req.getPathInfo();
         if (path == null) { resp.sendError(404); return; }

@@ -2,10 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { adminApi } from '@/api';
 import { useAdminStore } from '@/stores/admin';
+import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/stores/toast';
 import { formatDate, formatPrice } from '@/utils/format';
 
 const adminStore = useAdminStore();
+const authStore = useAuthStore();
 const toast = useToast();
 const searchTerm = ref('');
 const activeRole = ref('');
@@ -90,6 +92,10 @@ function roleCount(role) {
   return role ? adminStore.allUsers.filter((user) => user.roleName === role).length : adminStore.allUsers.length;
 }
 
+function isSelf(user) {
+  return user.userId === authStore.user?.id;
+}
+
 function setRole(role) {
   activeRole.value = role;
   currentPage.value = 1;
@@ -157,8 +163,7 @@ async function toggleStatus(user) {
   if (!confirm(`${action[0].toUpperCase()}${action.slice(1)} tài khoản "${user.fullName}"?`)) return;
   actionId.value = user.userId;
   try {
-    await adminApi.updateUserStatus(user.userId, { status: nextStatus });
-    user.status = nextStatus;
+    await adminStore.updateUserStatus(user.userId, { status: nextStatus });
     toast.success(`Đã ${action} tài khoản`);
   } catch (error) {
     toast.error(error.message || `Không thể ${action} tài khoản`);
@@ -223,9 +228,9 @@ function initials(name) {
               <td><div class="identity"><div class="avatar" :class="roleMeta[user.roleName]?.className">{{ initials(user.fullName) }}</div><div><strong>{{ user.fullName }}</strong><span>#{{ user.userId }}</span></div></div></td>
               <td><div class="contact"><span><i class="bi bi-envelope"></i>{{ user.email }}</span><span><i class="bi bi-telephone"></i>{{ user.phone || 'Chưa cập nhật' }}</span></div></td>
               <td><span class="role-pill" :class="roleMeta[user.roleName]?.className"><i class="bi" :class="roleMeta[user.roleName]?.icon"></i>{{ roleMeta[user.roleName]?.label || user.roleName }}</span></td>
-              <td><button class="status-pill" :class="user.status === 'INACTIVE' ? 'inactive' : 'active'" :disabled="actionId === user.userId" @click="toggleStatus(user)"><span></span>{{ user.status === 'INACTIVE' ? 'Vô hiệu hóa' : 'Hoạt động' }}</button></td>
+              <td><button class="status-pill" :class="user.status === 'INACTIVE' ? 'inactive' : 'active'" :disabled="actionId === user.userId || (isSelf(user) && user.status !== 'INACTIVE')" @click="toggleStatus(user)"><span></span>{{ user.status === 'INACTIVE' ? 'Vô hiệu hóa' : 'Hoạt động' }}</button></td>
               <td><span class="points"><i class="bi bi-star-fill"></i>{{ Number(user.loyaltyPoints || 0).toLocaleString() }}</span></td>
-              <td><div class="row-actions"><button class="icon-button orders" title="Xem đơn hàng" @click="viewOrders(user)"><i class="bi bi-receipt"></i></button><button class="icon-button edit" title="Chỉnh sửa" @click="openEdit(user)"><i class="bi bi-pencil-square"></i></button><button class="icon-button disable" :title="user.status === 'INACTIVE' ? 'Kích hoạt' : 'Vô hiệu hóa'" :disabled="actionId === user.userId" @click="toggleStatus(user)"><i class="bi" :class="user.status === 'INACTIVE' ? 'bi-person-check' : 'bi-person-slash'"></i></button><button class="icon-button delete" title="Xóa" :disabled="actionId === user.userId" @click="removeUser(user)"><i class="bi bi-trash3"></i></button></div></td>
+              <td><div class="row-actions"><button class="icon-button orders" title="Xem đơn hàng" @click="viewOrders(user)"><i class="bi bi-receipt"></i></button><button class="icon-button edit" title="Chỉnh sửa" @click="openEdit(user)"><i class="bi bi-pencil-square"></i></button><button class="icon-button disable" :title="user.status === 'INACTIVE' ? 'Kích hoạt' : 'Vô hiệu hóa'" :disabled="actionId === user.userId || (isSelf(user) && user.status !== 'INACTIVE')" @click="toggleStatus(user)"><i class="bi" :class="user.status === 'INACTIVE' ? 'bi-person-check' : 'bi-person-slash'"></i></button><button class="icon-button delete" title="Xóa" :disabled="actionId === user.userId || isSelf(user)" @click="removeUser(user)"><i class="bi bi-trash3"></i></button></div></td>
             </tr>
           </tbody>
         </table>
@@ -239,7 +244,7 @@ function initials(name) {
         <div class="modal-accent"></div>
         <div class="modal-header"><div><span class="modal-icon"><i class="bi" :class="editingId ? 'bi-person-gear' : 'bi-person-plus'"></i></span><div><h2 id="user-modal-title" class="modal-title">{{ editingId ? 'Chỉnh sửa người dùng' : 'Thêm người dùng' }}</h2><p>{{ editingId ? 'Cập nhật thông tin và phân quyền.' : 'Tạo tài khoản mới trong hệ thống.' }}</p></div></div><button class="modal-close" aria-label="Đóng" @click="showForm = false"><i class="bi bi-x-lg"></i></button></div>
         <form class="modal-body" @submit.prevent="save">
-          <div class="form-grid"><div class="form-group full"><label class="form-label" for="user-name">Họ và tên *</label><input id="user-name" v-model="form.fullName" class="form-input" maxlength="100" autocomplete="name" required></div><div class="form-group"><label class="form-label" for="user-email">Email *</label><input id="user-email" v-model="form.email" class="form-input" type="email" maxlength="150" autocomplete="email" required></div><div class="form-group"><label class="form-label" for="user-phone">Số điện thoại</label><input id="user-phone" v-model="form.phone" class="form-input" maxlength="12" autocomplete="tel" placeholder="0912345678"></div><div class="form-group"><label class="form-label" for="user-role">Vai trò *</label><select id="user-role" v-model="form.roleName" class="form-select"><option value="USER">Khách hàng</option><option value="STAFF">Nhân viên</option><option value="SHIPPER">Shipper</option><option value="ADMIN">Quản trị viên</option></select></div><div class="form-group"><label class="form-label" for="user-password">{{ editingId ? 'Mật khẩu mới' : 'Mật khẩu *' }}</label><input id="user-password" v-model="form.password" class="form-input" type="password" minlength="6" maxlength="72" autocomplete="new-password" :required="!editingId" :placeholder="editingId ? 'Để trống nếu không đổi' : 'Tối thiểu 6 ký tự'"></div></div>
+          <div class="form-grid"><div class="form-group full"><label class="form-label" for="user-name">Họ và tên *</label><input id="user-name" v-model="form.fullName" class="form-input" maxlength="100" autocomplete="name" required></div><div class="form-group"><label class="form-label" for="user-email">Email *</label><input id="user-email" v-model="form.email" class="form-input" type="email" maxlength="150" autocomplete="email" required></div><div class="form-group"><label class="form-label" for="user-phone">Số điện thoại</label><input id="user-phone" v-model="form.phone" class="form-input" maxlength="12" autocomplete="tel" placeholder="0912345678"></div><div class="form-group"><label class="form-label" for="user-role">Vai trò *</label><select id="user-role" v-model="form.roleName" class="form-select" :disabled="editingId === authStore.user?.id"><option value="USER">Khách hàng</option><option value="STAFF">Nhân viên</option><option value="SHIPPER">Shipper</option><option value="ADMIN">Quản trị viên</option></select></div><div class="form-group"><label class="form-label" for="user-password">{{ editingId ? 'Mật khẩu mới' : 'Mật khẩu *' }}</label><input id="user-password" v-model="form.password" class="form-input" type="password" minlength="6" maxlength="72" autocomplete="new-password" :required="!editingId" :placeholder="editingId ? 'Để trống nếu không đổi' : 'Tối thiểu 6 ký tự'"></div></div>
           <div class="modal-footer"><button type="button" class="btn btn-ghost" @click="showForm = false">Hủy</button><button type="submit" class="btn btn-primary" :disabled="saving"><span v-if="saving" class="spinner"></span>{{ saving ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo tài khoản' }}</button></div>
         </form>
       </div>
