@@ -63,9 +63,11 @@ onUnmounted(() => { stopped = true; generation += 1; store.invalidateListRequest
         <h2>Đơn COD đã giao hôm nay</h2>
         <div v-if="!codOrders.length" class="state">Chưa có đơn COD nào được giao hôm nay.</div>
         <ul v-else>
-          <li v-for="order in codOrders" :key="order.id" class="cod-order">
-            <div class="cod-info"><strong>{{ order.orderCode }}</strong><small>{{ order.customerName }}</small></div>
-            <strong>{{ formatPrice(order.codCollectedAmount) }}</strong>
+          <li v-for="order in codOrders" :key="order.id">
+            <router-link class="cod-order" :to="`/shipper/orders/${order.id}`">
+              <div class="cod-info"><strong>{{ order.orderCode }}</strong><small>{{ order.customerName }}</small></div>
+              <strong>{{ formatPrice(order.codCollectedAmount) }}</strong>
+            </router-link>
           </li>
         </ul>
       </section>
@@ -81,9 +83,15 @@ onUnmounted(() => { stopped = true; generation += 1; store.invalidateListRequest
 .cash-list { background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius); padding: 14px; }
 .cash-list h2 { color: var(--text-mid); font-size: 12px; text-transform: uppercase; margin-bottom: 10px; }
 .cash-list ul { list-style: none; margin: 0; padding: 0; }
-.cod-order { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border-light); }
-.cod-order:first-child { border-top: 0; }
-.cod-info { display: flex; flex-direction: column; gap: 2px; }
-.cod-info small { color: var(--text-mid); font-size: 12px; }
+.cash-list li { border-top: 1px solid var(--border-light); }
+.cash-list li:first-child { border-top: 0; }
+.cod-order { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 44px; padding: 12px 0; color: inherit; text-decoration: none; }
+.cod-order:hover { color: var(--primary); }
+.cod-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cod-info small { color: var(--text-mid); font-size: 12px; overflow-wrap: anywhere; }
 .state { text-align: center; padding: 24px; color: var(--text-mid); }.error { color: var(--red-active); }
+@media(max-width:360px) {
+  .cash-stats { grid-template-columns: 1fr; }
+  .cash-card { text-align: left; }
+}
 </style>

@@ -72,55 +72,29 @@ onBeforeUnmount(() => {
 
     <template v-else>
       <section v-if="todayShifts.length" class="card">
-        <h3>Hôm nay</h3>
-        <div class="table-wrapper">
-          <table class="table">
-            <thead><tr><th>Ngày</th><th>Giờ</th><th>Check-in</th><th>Check-out</th><th>Trạng thái</th></tr></thead>
-            <tbody>
-              <tr v-for="s in todayShifts" :key="s.shiftId">
-                <td>{{ s.shiftDate }}</td>
-                <td>{{ time(s.startTime) }} – {{ time(s.endTime) }}</td>
-                <td>{{ s.checkInAt || '—' }}</td>
-                <td>{{ s.checkOutAt || '—' }}</td>
-                <td><span class="shift-badge" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <h2>Hôm nay</h2>
+        <article v-for="s in todayShifts" :key="s.shiftId" class="shift-card">
+          <div class="shift-main"><strong>{{ s.shiftDate }}</strong><span>{{ time(s.startTime) }} – {{ time(s.endTime) }}</span></div>
+          <dl class="shift-times"><div><dt>Check-in</dt><dd>{{ s.checkInAt || 'Chưa check-in' }}</dd></div><div><dt>Check-out</dt><dd>{{ s.checkOutAt || 'Chưa check-out' }}</dd></div></dl>
+          <span class="shift-badge" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</span>
+        </article>
       </section>
 
       <section v-if="upcomingShifts.length" class="card">
-        <h3>Ca sắp tới</h3>
-        <div class="table-wrapper">
-          <table class="table">
-            <thead><tr><th>Ngày</th><th>Giờ</th><th>Trạng thái</th></tr></thead>
-            <tbody>
-              <tr v-for="s in upcomingShifts" :key="s.shiftId">
-                <td>{{ s.shiftDate }}</td>
-                <td>{{ time(s.startTime) }} – {{ time(s.endTime) }}</td>
-                <td><span class="shift-badge" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <h2>Ca sắp tới</h2>
+        <article v-for="s in upcomingShifts" :key="s.shiftId" class="shift-card compact">
+          <div class="shift-main"><strong>{{ s.shiftDate }}</strong><span>{{ time(s.startTime) }} – {{ time(s.endTime) }}</span></div>
+          <span class="shift-badge" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</span>
+        </article>
       </section>
 
       <section v-if="pastShifts.length" class="card">
-        <h3>Lịch sử ca</h3>
-        <div class="table-wrapper">
-          <table class="table">
-            <thead><tr><th>Ngày</th><th>Giờ</th><th>Check-in</th><th>Check-out</th><th>Trạng thái</th></tr></thead>
-            <tbody>
-              <tr v-for="s in pastShifts" :key="s.shiftId">
-                <td>{{ s.shiftDate }}</td>
-                <td>{{ time(s.startTime) }} – {{ time(s.endTime) }}</td>
-                <td>{{ s.checkInAt || '—' }}</td>
-                <td>{{ s.checkOutAt || '—' }}</td>
-                <td><span class="shift-badge" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <h2>Lịch sử ca</h2>
+        <article v-for="s in pastShifts" :key="s.shiftId" class="shift-card">
+          <div class="shift-main"><strong>{{ s.shiftDate }}</strong><span>{{ time(s.startTime) }} – {{ time(s.endTime) }}</span></div>
+          <dl class="shift-times"><div><dt>Check-in</dt><dd>{{ s.checkInAt || '—' }}</dd></div><div><dt>Check-out</dt><dd>{{ s.checkOutAt || '—' }}</dd></div></dl>
+          <span class="shift-badge" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</span>
+        </article>
       </section>
 
       <p v-if="!upcomingShifts.length && !todayShifts.length && !pastShifts.length" class="state">Chưa có ca làm nào.</p>
@@ -129,12 +103,25 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.card { background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-.card h3 { margin-bottom: 12px; font-size: 15px; }
-.shift-badge { display: inline-block; padding: 2px 8px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600; }
+.card { margin-bottom: 14px; }
+.card h2 { margin-bottom: 10px; font-size: 15px; }
+.shift-card { display: grid; gap: 12px; padding: 14px; background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius); }
+.shift-card + .shift-card { margin-top: 10px; }
+.shift-main { display: flex; justify-content: space-between; gap: 12px; }
+.shift-main span { color: var(--text-mid); font-weight: 600; }
+.shift-times { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.shift-times div { padding: 9px; background: var(--surface); border-radius: var(--radius-sm); }
+.shift-times dt { color: var(--text-light); font-size: 11px; }
+.shift-times dd { margin: 3px 0 0; color: var(--text-dark); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.shift-badge { width: fit-content; display: inline-block; padding: 3px 9px; border-radius: var(--radius-full); font-size: 11px; font-weight: 700; }
 .status-active { background: #dcfce7; color: #166534; }
 .status-scheduled { background: #fef3c7; color: #92400e; }
-.status-done { background: #e5e7eb; color: #6b7280; }
+.status-done { background: #e5e7eb; color: #4b5563; }
 .state { text-align: center; padding: 24px; color: var(--text-mid); }
 .error { color: var(--red-active); }
+@media(min-width:600px) {
+  .shift-card { grid-template-columns: minmax(190px, 1fr) minmax(260px, 1.5fr) auto; align-items: center; }
+  .shift-card.compact { grid-template-columns: 1fr auto; }
+  .shift-main { justify-content: flex-start; gap: 24px; }
+}
 </style>
