@@ -58,6 +58,7 @@ function logout() {
 
 <template>
   <div class="shipper-layout fg-shell fg-shell-shipper">
+    <a class="skip-link" href="#shipper-main">Bỏ qua đến nội dung chính</a>
     <header class="shipper-header">
       <div class="shipper-brand">
         <span>Fast<span class="accent">Guy</span></span>
@@ -71,7 +72,7 @@ function logout() {
         </button>
       </div>
     </header>
-    <main class="shipper-main fg-page">
+    <main id="shipper-main" class="shipper-main fg-page" tabindex="-1">
       <div v-if="!checkedIn" class="no-shift-banner">
         <i class="bi bi-calendar-x"></i>
         <div v-if="shiftState === 'UNKNOWN'">
@@ -90,7 +91,7 @@ function logout() {
       </div>
       <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'ShipperShifts' || $route.name === 'ShipperOrderHistory' || $route.name === 'ShipperCash'" aria-live="polite" role="region" />
     </main>
-    <nav class="shipper-nav">
+    <nav class="shipper-nav" aria-label="Điều hướng Shipper">
       <router-link
         v-for="item in navItems"
         :key="item.path"
@@ -106,6 +107,20 @@ function logout() {
 </template>
 
 <style scoped>
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--text-dark);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-150%);
+}
+.skip-link:focus { transform: translateY(0); }
 .shipper-layout {
   display: flex;
   flex-direction: column;
@@ -171,7 +186,7 @@ function logout() {
 .shipper-main {
   flex: 1;
   padding: 16px;
-  padding-bottom: 80px;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
 .shipper-nav {
@@ -185,6 +200,7 @@ function logout() {
   width: 100%;
   max-width: 480px;
   z-index: 10;
+  padding-bottom: env(safe-area-inset-bottom);
   box-shadow: 0 -1px 3px rgba(0,0,0,0.04);
 }
 .shipper-nav-item {
@@ -192,6 +208,7 @@ function logout() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height:44px;
   padding: 10px 0 8px;
   font-size: 11px;
   color: var(--text-light);
@@ -208,4 +225,14 @@ function logout() {
 .no-shift-banner i { font-size:28px; flex-shrink:0; }
 .no-shift-banner strong { display:block; margin-bottom:2px; }
 .no-shift-banner p { margin:0; font-size:13px; opacity:.8; }
+@media(max-width:360px) {
+  .shipper-header { padding:0 10px; }
+  .shipper-brand { gap:6px; font-size:16px; }
+  .role-badge { display:none; }
+  .logout-btn span { display:none; }
+  .logout-btn { min-width:44px; min-height:44px; justify-content:center; }
+  .shipper-main { padding:12px; padding-bottom:calc(82px + env(safe-area-inset-bottom)); }
+  .shipper-nav-item { font-size:10px; }
+  .shipper-nav-item i { font-size:18px; }
+}
 </style>

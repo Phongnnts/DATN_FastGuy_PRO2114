@@ -4,6 +4,7 @@ import { useShipperStore } from '@/stores/shipper';
 import { formatPrice } from '@/utils/format';
 import { validateExactCod } from '@/utils/shipperOperations';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const props = defineProps({
   order: { type: Object, required: true },
@@ -15,7 +16,9 @@ const sheet = ref(null);
 const collectedAmount = ref('');
 const submitting = ref(false);
 const actionError = ref('');
+const confirmOpen = ref(false);
 let previousFocus = null;
+let previousBodyOverflow = '';
 
 const mapsUrl = computed(() => props.order.customerAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(props.order.customerAddress)}` : '');
 const isCodDeliver = computed(() => props.order.status === 'PICKED_UP' && props.order.paymentMethod === 'COD');
@@ -48,17 +51,32 @@ function handleKeydown(event) {
 
 onMounted(() => {
   previousFocus = document.activeElement;
+  previousBodyOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
   if (isCodDeliver.value) collectedAmount.value = String(props.order.total);
   document.addEventListener('keydown', handleKeydown);
   nextTick(() => sheet.value?.focus());
 });
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown);
+  document.body.style.overflow = previousBodyOverflow;
   if (previousFocus?.focus) previousFocus.focus();
 });
 
+function requestPrimary() {
+  if (!primaryAction.value || submitting.value) return;
+  actionError.value = '';
+  const cod = validateExactCod(collectedAmount.value, props.order.total);
+  if (isCodDeliver.value && !cod.valid) {
+    actionError.value = `Số tiền COD phải đúng ${formatPrice(props.order.total)}`;
+    return;
+  }
+  confirmOpen.value = true;
+}
+
 async function runPrimary() {
   if (!primaryAction.value || submitting.value) return;
+  confirmOpen.value = false;
   actionError.value = '';
   const cod = validateExactCod(collectedAmount.value, props.order.total);
   if (isCodDeliver.value && !cod.valid) {
@@ -112,10 +130,11 @@ async function runPrimary() {
       <div class="sheet-actions">
         <a v-if="order.customerPhone" class="btn btn-outline" :href="`tel:${order.customerPhone}`"><i class="bi bi-telephone"></i> Gọi</a>
         <a v-if="mapsUrl" class="btn btn-outline" :href="mapsUrl" target="_blank" rel="noopener noreferrer"><i class="bi bi-geo-alt"></i> Bản đồ</a>
-        <button v-if="primaryAction" class="btn btn-primary" :disabled="submitting" @click="runPrimary">{{ submitting ? 'Đang xử lý...' : primaryAction }}</button>
+        <button v-if="primaryAction" class="btn btn-primary" :disabled="submitting" @click="requestPrimary">{{ submitting ? 'Đang xử lý...' : primaryAction }}</button>
         <router-link class="btn btn-outline" :to="`/shipper/orders/${order.id}`" @click="close">Xem chi tiết</router-link>
       </div>
     </section>
+    <ConfirmDialog :open="confirmOpen" :title="order.status === 'ASSIGNED' ? 'Xác nhận lấy hàng' : 'Xác nhận giao hàng'" :message="order.status === 'ASSIGNED' ? 'Bạn đã lấy hàng từ cửa hàng?' : isCodDeliver ? `Bạn đã giao hàng và thu ${formatPrice(order.total)}?` : 'Bạn đã giao hàng thành công?'" :confirm-label="primaryAction" :busy="submitting" @confirm="runPrimary" @cancel="confirmOpen = false" />
   </div>
 </template>
 
