@@ -42,7 +42,7 @@ public class StaffDashboardServlet extends HttpServlet {
             return;
         }
 
-        var data = staffService.getDashboard();
+        var data = staffService.getDashboard(staffId);
         ApiResponse.ok(resp, data);
     }
 }

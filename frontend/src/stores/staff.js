@@ -6,6 +6,9 @@ import { kitchenItemCount, staffOrderDiscount, staffOrderItemTotal } from '@/uti
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
   const allOrders = ref([]);
+  const historyTotal = ref(0);
+  const historyPage = ref(1);
+  const historySize = ref(20);
   const loading = ref(false);
   const error = ref('');
   let fetchVersion = 0;
@@ -45,6 +48,7 @@ export const useStaffStore = defineStore('staff', () => {
       shippingAddress: o.customerAddress || '',
        note: o.deliveryNote || '',
        createdAt: o.createdAt,
+       endedAt: o.endedAt || o.updatedAt || null,
        cancelledBy: o.cancelledBy || null,
        failureReason: o.failureReason || '',
        refundStatus: o.refundStatus || null,
@@ -78,6 +82,7 @@ export const useStaffStore = defineStore('staff', () => {
       })),
       total: o.finalAmount ? parseFloat(o.finalAmount) : 0,
       createdAt: o.createdAt,
+      endedAt: o.endedAt || o.updatedAt || null,
        paymentMethod: o.paymentMethod || '',
        paymentStatus: o.paymentStatus || 'UNPAID',
        shipperId: o.shipperId || null,
@@ -181,12 +186,17 @@ export const useStaffStore = defineStore('staff', () => {
     }
   }
 
-  async function fetchHistory() {
+  async function fetchHistory(params = {}) {
+    const version = ++fetchVersion;
     loading.value = true;
     error.value = '';
     try {
-      const data = await staffApi.getOrderHistory();
-      allOrders.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+      const data = await staffApi.getOrderHistory(params);
+      if (version !== fetchVersion) return allOrders.value;
+      allOrders.value = Array.isArray(data?.items) ? data.items.map(mapOrderListItem) : [];
+      historyTotal.value = Number(data?.total) || 0;
+      historyPage.value = Number(data?.page) || 1;
+      historySize.value = Number(data?.size) || 20;
       return allOrders.value;
     } catch (e) {
       error.value = e.message || 'Không thể tải danh sách đơn hàng';
@@ -247,6 +257,9 @@ export const useStaffStore = defineStore('staff', () => {
   return {
     dashboard,
     allOrders,
+    historyTotal,
+    historyPage,
+    historySize,
     loading,
     error,
     fetchDashboard,
