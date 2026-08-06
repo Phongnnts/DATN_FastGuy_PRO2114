@@ -129,6 +129,44 @@ public class OrdersDAO {
         }
     }
 
+    public Object[] summarizeShift(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT "
+                    + "SUM(CASE WHEN o.orderStatus = 'DELIVERED' AND o.deliveredAt >= :start AND o.deliveredAt < :end THEN 1 ELSE 0 END), "
+                    + "SUM(CASE WHEN o.orderStatus = 'CANCELLED' AND o.cancelledAt >= :start AND o.cancelledAt < :end THEN 1 ELSE 0 END), "
+                    + "COALESCE(SUM(CASE WHEN o.orderStatus = 'DELIVERED' AND o.deliveredAt >= :start AND o.deliveredAt < :end THEN COALESCE(o.finalAmount, 0) - COALESCE(o.refundAmount, 0) ELSE 0 END), 0) "
+                    + "FROM Orders o", Object[].class)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countOverdueActive(LocalDateTime threshold) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.orderStatus IN ('PENDING', 'CONFIRMED', 'PREPARING') AND o.createdAt < :threshold", Long.class)
+                    .setParameter("threshold", threshold)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findPriorityOrders() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT o FROM Orders o WHERE o.orderStatus IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY') ORDER BY o.createdAt ASC, o.orderId ASC", Orders.class)
+                    .setMaxResults(6)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public long countByStatus(String status) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -317,6 +355,57 @@ public class OrdersDAO {
         } finally {
             em.close();
         }
+    }
+
+    public List<Orders> findStaffHistory(int page, int size, String status, LocalDateTime from, LocalDateTime to, String search) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            var query = em.createQuery(staffHistoryJpql("SELECT o", status, from, to, search)
+                    + " ORDER BY COALESCE(o.deliveredAt, o.cancelledAt, o.createdAt) DESC, o.orderId DESC", Orders.class);
+            bindStaffHistory(query, status, from, to, search);
+            return query.setFirstResult((page - 1) * size).setMaxResults(size).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countStaffHistory(String status, LocalDateTime from, LocalDateTime to, String search) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            var query = em.createQuery(staffHistoryJpql("SELECT COUNT(o)", status, from, to, search), Long.class);
+            bindStaffHistory(query, status, from, to, search);
+            return query.getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findStaffHistoryForExport(String status, LocalDateTime from, LocalDateTime to, String search) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            var query = em.createQuery(staffHistoryJpql("SELECT o", status, from, to, search)
+                    + " ORDER BY COALESCE(o.deliveredAt, o.cancelledAt, o.createdAt) DESC, o.orderId DESC", Orders.class);
+            bindStaffHistory(query, status, from, to, search);
+            return query.setMaxResults(10000).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    private String staffHistoryJpql(String select, String status, LocalDateTime from, LocalDateTime to, String search) {
+        StringBuilder jpql = new StringBuilder(select + " FROM Orders o WHERE o.orderStatus IN ('DELIVERED','CANCELLED')");
+        if (status != null) jpql.append(" AND o.orderStatus = :status");
+        if (from != null) jpql.append(" AND COALESCE(o.deliveredAt, o.cancelledAt, o.createdAt) >= :from");
+        if (to != null) jpql.append(" AND COALESCE(o.deliveredAt, o.cancelledAt, o.createdAt) < :to");
+        if (search != null) jpql.append(" AND (LOWER(o.orderCode) LIKE :search OR LOWER(o.customerName) LIKE :search OR LOWER(o.customerPhone) LIKE :search)");
+        return jpql.toString();
+    }
+
+    private void bindStaffHistory(Query query, String status, LocalDateTime from, LocalDateTime to, String search) {
+        if (status != null) query.setParameter("status", status);
+        if (from != null) query.setParameter("from", from);
+        if (to != null) query.setParameter("to", to);
+        if (search != null) query.setParameter("search", "%" + search.toLowerCase(Locale.ROOT) + "%");
     }
 
     public List<Orders> findHistoryByShipperId(int shipperId) {

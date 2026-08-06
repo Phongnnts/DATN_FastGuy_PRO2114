@@ -11,9 +11,11 @@ import servlet.StaffOrderServlet;
 
 class StaffShiftAccessPolicyTest {
     @Test
-    void historyBypassesOnlyCheckedInShift() {
+    void historyAndExportBypassOnlyCheckedInShift() {
         assertFalse(StaffOrderServlet.requiresCheckedInShift("GET", "/history"));
+        assertFalse(StaffOrderServlet.requiresCheckedInShift("GET", "/export"));
         assertTrue(StaffOrderServlet.hasRouteAccess("GET", "/history", true, false));
+        assertTrue(StaffOrderServlet.hasRouteAccess("GET", "/export", true, false));
         assertFalse(StaffOrderServlet.hasRouteAccess("GET", "/history", false, true));
         assertTrue(StaffOrderServlet.requiresCheckedInShift("POST", "/history"));
     }
@@ -26,7 +28,7 @@ class StaffShiftAccessPolicyTest {
         assertTrue(StaffOrderServlet.requiresCheckedInShift("GET", "/confirmed"));
         assertTrue(StaffOrderServlet.requiresCheckedInShift("GET", "/preparing"));
         assertTrue(StaffOrderServlet.requiresCheckedInShift("GET", "/ready"));
-        assertTrue(StaffOrderServlet.requiresCheckedInShift("GET", "/export"));
+        assertFalse(StaffOrderServlet.requiresCheckedInShift("GET", "/export"));
         assertTrue(StaffOrderServlet.requiresCheckedInShift("GET", "/12"));
         assertTrue(StaffOrderServlet.requiresCheckedInShift("POST", "/12/notes"));
         assertTrue(StaffOrderServlet.requiresCheckedInShift("PUT", "/12/status"));
