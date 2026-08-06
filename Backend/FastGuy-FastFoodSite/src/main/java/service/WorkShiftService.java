@@ -103,6 +103,19 @@ public class WorkShiftService {
         }
     }
 
+    public WorkShift currentCheckedInShift(int userId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<WorkShift> shifts = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.user.role = 'STAFF' AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL ORDER BY ws.checkInAt DESC, ws.shiftId DESC", WorkShift.class)
+                    .setParameter("userId", userId)
+                    .setMaxResults(1)
+                    .getResultList();
+            return shifts.isEmpty() ? null : shifts.get(0);
+        } finally {
+            em.close();
+        }
+    }
+
     public Map<String, Object> current(int userId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

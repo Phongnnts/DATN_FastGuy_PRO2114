@@ -1,6 +1,9 @@
 package servlet;
 
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +78,7 @@ public class StaffOrderServlet extends HttpServlet {
     }
 
     public static boolean requiresCheckedInShift(String method, String pathInfo) {
-        return !("GET".equals(method) && "/history".equals(pathInfo));
+        return !("GET".equals(method) && ("/history".equals(pathInfo) || "/export".equals(pathInfo)));
     }
 
     public static boolean hasRouteAccess(String method, String pathInfo, boolean validIdentity, boolean checkedIn) {
@@ -148,25 +151,30 @@ public class StaffOrderServlet extends HttpServlet {
                 List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
             } else if (path.equals("/history")) {
-                List<Orders> all = new java.util.ArrayList<>();
-                for (String s : new String[]{"DELIVERED", "CANCELLED"}) {
-                    all.addAll(ordersDAO.findByStatus(s));
-                }
-                all.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
-                ApiResponse.ok(resp, all.stream().map(o -> toListItem(o)).collect(Collectors.toList()));
+                HistoryFilter filter = getHistoryFilter(req);
+                List<Orders> orders = ordersDAO.findStaffHistory(filter.page(), filter.size(), filter.status(), filter.from(), filter.to(), filter.search());
+                long total = ordersDAO.countStaffHistory(filter.status(), filter.from(), filter.to(), filter.search());
+                long totalPages = total == 0 ? 0 : (total + filter.size() - 1) / filter.size();
+                Map<String, Object> result = new HashMap<>();
+                result.put("items", orders.stream().map(this::toListItem).collect(Collectors.toList()));
+                result.put("total", total);
+                result.put("page", filter.page());
+                result.put("size", filter.size());
+                result.put("totalPages", totalPages);
+                ApiResponse.ok(resp, result);
             } else if (path.equals("/export")) {
+                HistoryFilter filter = getHistoryFilter(req);
                 resp.setContentType("text/csv;charset=UTF-8");
-                resp.setHeader("Content-Disposition", "attachment; filename=orders.csv");
-                List<Orders> all = new java.util.ArrayList<>();
-                for (String s : new String[]{"PENDING","CONFIRMED","PREPARING","READY","ASSIGNED","PICKED_UP","DELIVERED","CANCELLED"}) {
-                    all.addAll(ordersDAO.findByStatus(s));
-                }
+                resp.setHeader("Content-Disposition", "attachment; filename=staff-order-history.csv");
+                List<Orders> orders = ordersDAO.findStaffHistoryForExport(filter.status(), filter.from(), filter.to(), filter.search());
                 var writer = resp.getWriter();
-                writer.write("orderCode,status,customerName,finalAmount,createdAt\n");
-                for (Orders o : all) {
-                    writer.write(String.format("%s,%s,%s,%s,%s\n",
-                        o.getOrderCode(), o.getOrderStatus(), o.getCustomerName(),
-                        o.getFinalAmount(), o.getCreatedAt()));
+                writer.write("\uFEFF");
+                writer.write("Mã đơn;Trạng thái;Khách hàng;Số điện thoại;Tổng tiền;Thời điểm kết thúc\r\n");
+                for (Orders order : orders) {
+                    LocalDateTime endedAt = order.getDeliveredAt() != null ? order.getDeliveredAt() : order.getCancelledAt();
+                    writer.write(String.join(";",
+                            csvCell(order.getOrderCode()), csvCell(order.getOrderStatus()), csvCell(order.getCustomerName()),
+                            csvCell(order.getCustomerPhone()), csvCell(order.getFinalAmount()), csvCell(endedAt)) + "\r\n");
                 }
                 writer.flush();
             } else {
@@ -182,11 +190,57 @@ public class StaffOrderServlet extends HttpServlet {
                     resp.sendError(404);
                 }
             }
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            ApiResponse.error(resp, e.getMessage(), 400);
         } catch (Exception e) {
             e.printStackTrace();
             ApiResponse.error(resp, "Internal error: " + e.getMessage(), 500);
         }
     }
+
+    private HistoryFilter getHistoryFilter(HttpServletRequest req) {
+        int page = parsePositiveInt(req.getParameter("page"), 1, "page must be positive");
+        int size = parsePositiveInt(req.getParameter("size"), 20, "pageSize must be between 1 and 100");
+        if (size > 100) throw new IllegalArgumentException("pageSize must be between 1 and 100");
+        String status = normalize(req.getParameter("status"));
+        if (status != null && !"DELIVERED".equals(status) && !"CANCELLED".equals(status)) throw new IllegalArgumentException("Invalid status");
+        String search = normalize(req.getParameter("search"));
+        if (search != null && search.length() > 100) throw new IllegalArgumentException("Search is too long");
+        LocalDate fromDate = parseDate(req.getParameter("from"));
+        LocalDate toDate = parseDate(req.getParameter("to"));
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) throw new IllegalArgumentException("from must not be after to");
+        return new HistoryFilter(page, size, status, fromDate != null ? fromDate.atStartOfDay() : null,
+                toDate != null ? toDate.plusDays(1).atStartOfDay() : null, search);
+    }
+
+    private int parsePositiveInt(String raw, int fallback, String message) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            int value = Integer.parseInt(raw);
+            if (value < 1) throw new IllegalArgumentException(message);
+            return value;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private LocalDate parseDate(String raw) {
+        return raw == null || raw.isBlank() ? null : LocalDate.parse(raw);
+    }
+
+    private String normalize(String raw) {
+        if (raw == null || raw.isBlank() || "ALL".equalsIgnoreCase(raw)) return null;
+        return raw.trim();
+    }
+
+    static String csvCell(Object value) {
+        String text = value == null ? "" : String.valueOf(value);
+        String trimmed = text.stripLeading();
+        if (trimmed.startsWith("=") || trimmed.startsWith("+") || trimmed.startsWith("-") || trimmed.startsWith("@")) text = "'" + text;
+        return "\"" + text.replace("\"", "\"\"") + "\"";
+    }
+
+    private record HistoryFilter(int page, int size, String status, LocalDateTime from, LocalDateTime to, String search) {}
 
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -321,6 +375,8 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
         m.put("updatedAt", o.getUpdatedAt() != null ? o.getUpdatedAt().toString() : null);
+        LocalDateTime endedAt = o.getDeliveredAt() != null ? o.getDeliveredAt() : o.getCancelledAt();
+        m.put("endedAt", endedAt != null ? endedAt.toString() : null);
         m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         return m;
     }
