@@ -1,3 +1,9 @@
+import { toRaw } from 'vue';
+
+export function cloneProductState(value) {
+  return structuredClone(toRaw(value));
+}
+
 function stableValue(value) {
   if (value === undefined) return ['undefined'];
   if (value === null) return ['null'];
@@ -112,16 +118,15 @@ export function createVariantDraft() {
   };
 }
 
-export function variantPayload(variant = {}) {
-  const quantity = variant.quantityAvailable === '' || variant.quantityAvailable === null || variant.quantityAvailable === undefined ? null : Math.max(0, Number(variant.quantityAvailable) || 0);
+export function variantPayload(variant = {}, { includeStock = true } = {}) {
   const payload = {
     variantName: String(variant.variantName ?? '').trim(),
     price: Number(variant.price) || 0,
     status: variant.status === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'AVAILABLE',
-    quantityAvailable: quantity,
     sku: variant.sku ?? '',
     isDefault: Boolean(variant.isDefault),
   };
+  if (includeStock) payload.quantityAvailable = variant.quantityAvailable === '' || variant.quantityAvailable === null || variant.quantityAvailable === undefined ? null : Math.max(0, Number(variant.quantityAvailable) || 0);
   if (variant.originalPrice !== '' && variant.originalPrice !== null && variant.originalPrice !== undefined) payload.originalPrice = Number(variant.originalPrice);
   return payload;
 }
@@ -164,10 +169,10 @@ export function withProductSlice(target, source, scope) {
   }
   if (scope.includes('media')) {
     next.image = source.image;
-    next.galleryImages = structuredClone(source.galleryImages);
+    next.galleryImages = cloneProductState(source.galleryImages);
   }
-  if (scope.includes('variants')) next.variants = structuredClone(source.variants);
-  if (scope.includes('modifiers')) next.modifierGroups = structuredClone(source.modifierGroups);
-  if (scope.includes('combo')) next.combo = structuredClone(source.combo);
+  if (scope.includes('variants')) next.variants = cloneProductState(source.variants);
+  if (scope.includes('modifiers')) next.modifierGroups = cloneProductState(source.modifierGroups);
+  if (scope.includes('combo')) next.combo = cloneProductState(source.combo);
   return next;
 }

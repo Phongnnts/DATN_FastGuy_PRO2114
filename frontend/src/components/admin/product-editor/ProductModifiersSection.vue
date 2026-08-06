@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { adminApi } from '@/api';
-import { isValidProductId, sectionDirty, validateModifierGroup, validateModifierOption } from '@/utils/adminProductEditor';
+import { cloneProductState, isValidProductId, sectionDirty, validateModifierGroup, validateModifierOption } from '@/utils/adminProductEditor';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -18,7 +18,7 @@ const groupErrors = ref({});
 const optionErrors = ref({});
 const message = ref('');
 const mutating = ref(false);
-const snapshot = ref(structuredClone(props.modelValue.modifierGroups || []));
+const snapshot = ref(cloneProductState(props.modelValue.modifierGroups || []));
 let generation = 0;
 let stopped = false;
 
@@ -30,7 +30,7 @@ watch(() => props.modelValue.modifierGroups, (value) => {
 }, { deep: true });
 
 watch(() => props.baselineVersion, () => {
-  snapshot.value = structuredClone(props.modelValue.modifierGroups || []);
+  snapshot.value = cloneProductState(props.modelValue.modifierGroups || []);
   groupFormErrors.value = {};
   optionFormErrors.value = {};
   groupErrors.value = {};

@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
+import utils.PrivilegedAuth;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -32,7 +33,8 @@ public class AdminCouponServlet extends HttpServlet {
             ApiResponse.error(resp, "Missing token", 401);
             return false;
         }
-        if (!"ADMIN".equals(JwtUtil.getRole(authHeader.substring(7)))) {
+        String token = authHeader.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) {
             ApiResponse.error(resp, "Forbidden", 403);
             return false;
         }

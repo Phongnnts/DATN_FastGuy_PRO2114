@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
+import utils.PrivilegedAuth;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,7 +27,8 @@ public class AdminCategoryServlet extends HttpServlet {
     private boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String auth = req.getHeader("Authorization");
         if (auth == null || !auth.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return false; }
-        if (!"ADMIN".equals(JwtUtil.getRole(auth.substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return false; }
+        String token = auth.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return false; }
         return true;
     }
 

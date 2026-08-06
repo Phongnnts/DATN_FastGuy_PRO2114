@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import utils.ApiResponse;
 import utils.JwtUtil;
+import utils.PrivilegedAuth;
 
 @WebServlet("/api/admin/variants/*")
 public class AdminVariantServlet extends HttpServlet {
@@ -26,8 +27,9 @@ public class AdminVariantServlet extends HttpServlet {
             ApiResponse.error(resp, "Missing token", 401);
             return false;
         }
-        String role = JwtUtil.getRole(authHeader.substring(7));
-        if (!"ADMIN".equals(role)) { ApiResponse.error(resp, "Forbidden", 403); return false; }
+        String token = authHeader.substring(7);
+        String role = JwtUtil.getRole(token);
+        if (!"ADMIN".equals(role) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return false; }
         return true;
     }
 
@@ -42,6 +44,10 @@ public class AdminVariantServlet extends HttpServlet {
         int value = ((Number) body.get("quantityAvailable")).intValue();
         if (value < 0) throw new IllegalArgumentException("Tồn kho không được âm");
         return value;
+    }
+
+    static boolean containsForbiddenStockUpdate(Map<String, ?> body) {
+        return body.containsKey("quantityAvailable");
     }
 
     private String readStatus(Map<String, Object> body) {
@@ -61,6 +67,10 @@ public class AdminVariantServlet extends HttpServlet {
             ProductVariant v = productDAO.findVariantById(id);
             if (v == null) { ApiResponse.error(resp, "Variant not found", 404); return; }
             Map<String, Object> body = mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {});
+            if (containsForbiddenStockUpdate(body)) {
+                ApiResponse.error(resp, "Tồn kho chỉ được thay đổi qua điều chỉnh hoặc lãng phí", 400);
+                return;
+            }
             if (body.containsKey("variantName")) {
                 String variantName = (String) body.get("variantName");
                 if (variantName == null || variantName.trim().isEmpty()) { ApiResponse.error(resp, "Tên biến thể không được trống", 400); return; }
@@ -70,7 +80,6 @@ public class AdminVariantServlet extends HttpServlet {
                 if (body.containsKey("price")) v.setPrice(readMoney(body, "price"));
                 if (body.containsKey("status")) v.setStatus(readStatus(body));
                 if (body.containsKey("originalPrice")) v.setOriginalPrice(readMoney(body, "originalPrice"));
-                if (body.containsKey("quantityAvailable")) v.setQuantityAvailable(readStock(body));
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
                 return;

@@ -13,8 +13,6 @@ const searchTerm = ref('');
 const activeFilter = ref('ALL');
 const categoryFilter = ref('ALL');
 const sortBy = ref('product-asc');
-const savingId = ref(null);
-const draftStock = ref({});
 const loading = ref(true);
 const loadError = ref('');
 const REASONS = [
@@ -95,26 +93,6 @@ const filteredRows = computed(() => {
   });
 });
 
-function getDraft(row) {
-  return Object.hasOwn(draftStock.value, row.variantId) ? draftStock.value[row.variantId] : row.stock;
-}
-
-function setDraft(row, value) {
-  draftStock.value[row.variantId] = value === '' ? null : value;
-}
-
-function normalizedDraft(row) {
-  const value = getDraft(row);
-  if (value === null) return null;
-  const number = Number(value);
-  return Number.isFinite(number) && Number.isInteger(number) && number >= 0 ? number : undefined;
-}
-
-function isChanged(row) {
-  const value = normalizedDraft(row);
-  return value !== undefined && value !== row.stock;
-}
-
 function statusLabel(row) {
   if (row.status !== 'AVAILABLE' || row.productStatus !== 'AVAILABLE') return 'Ngừng bán';
   if (row.stock === null) return 'Không giới hạn';
@@ -129,21 +107,6 @@ function statusClass(row) {
   if (row.stock <= 0) return 'badge-danger';
   if (row.stock <= 5) return 'badge-warning';
   return 'badge-success';
-}
-
-async function saveStock(row) {
-  const value = normalizedDraft(row);
-  if (value === undefined) return toast.error('Tồn kho phải là số nguyên không âm hoặc để trống');
-  savingId.value = row.variantId;
-  try {
-    await adminStore.updateVariant(row.variantId, { quantityAvailable: value });
-    delete draftStock.value[row.variantId];
-    toast.success('Đã cập nhật tồn kho');
-  } catch (error) {
-    toast.error(error.message || 'Không thể cập nhật tồn kho');
-  } finally {
-    savingId.value = null;
-  }
 }
 
 function editProduct(row) {
@@ -272,7 +235,7 @@ async function submitWaste() {
               <td data-label="Biến thể"><strong>{{ row.variantName }}</strong><div v-if="row.sku" class="muted">SKU: {{ row.sku }}</div></td>
               <td data-label="Giá">{{ formatPrice(row.price) }}</td>
               <td data-label="Trạng thái"><span class="badge" :class="statusClass(row)">{{ statusLabel(row) }}</span></td>
-              <td data-label="Tồn kho"><div class="stock-edit"><label><span class="sr-only">Tồn kho {{ row.productName }} - {{ row.variantName }}</span><input class="form-input" type="number" min="0" step="1" :value="getDraft(row)" :aria-invalid="normalizedDraft(row) === undefined" placeholder="Không giới hạn" @input="setDraft(row, $event.target.value)" /></label><button class="btn btn-sm btn-primary" :disabled="savingId === row.variantId || !isChanged(row)" @click="saveStock(row)"><i v-if="savingId === row.variantId" class="bi bi-arrow-repeat spin" aria-hidden="true"></i><span v-else>Lưu</span></button></div></td>
+               <td data-label="Tồn kho">{{ row.stock === null ? 'Không giới hạn' : row.stock }}</td>
               <td data-label="Thao tác">
                 <div class="row-actions">
                   <template v-if="row.stock !== null">
@@ -353,8 +316,6 @@ async function submitWaste() {
 .product-cell { display: flex; gap: 12px; align-items: center; min-width: 220px; }
 .product-cell img { width: 46px; height: 46px; border-radius: var(--radius-sm); object-fit: cover; background: var(--surface); }
 .muted { color: var(--text-mid); font-size: 12px; margin-top: 3px; }
-.stock-edit { display: flex; gap: 8px; align-items: center; min-width: 210px; }
-.stock-edit .form-input { width: 145px; }
 .row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .modal-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(13,20,33,.64); backdrop-filter: blur(3px); }
 .modal { width: min(520px,100%); max-height: calc(100vh - 40px); overflow: hidden; display: flex; flex-direction: column; border-radius: 16px; background: #fff; box-shadow: 0 25px 80px rgba(0,0,0,.25); }
@@ -372,5 +333,5 @@ async function submitWaste() {
 .error-panel { color: var(--danger, #dc2626); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 1024px) { .toolbar { align-items: stretch; flex-direction: column; } .search-box { max-width: none; } .filters { display: grid; grid-template-columns: repeat(3, 1fr); } .filters .form-select { width: 100%; min-width: 0; } }
-@media (max-width: 680px) { .inventory-page { gap: 16px; } .page-header { align-items: flex-start; } .filters { grid-template-columns: 1fr; } .table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } .product-cell { min-width: 0; } .stock-edit { min-width: 0; } .stock-edit label { min-width: 0; } .stock-edit .form-input { width: 100%; } }
+@media (max-width: 680px) { .inventory-page { gap: 16px; } .page-header { align-items: flex-start; } .filters { grid-template-columns: 1fr; } .table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } .product-cell { min-width: 0; } }
 </style>
