@@ -49,13 +49,14 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function fetchDashboard() {
+    error.value = '';
     try {
       const data = await adminApi.getDashboard();
       dashboard.value = data;
       return data;
     } catch (e) {
       error.value = e.message;
-      return null;
+      throw e;
     }
   }
 
@@ -103,6 +104,11 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function deleteUser(id) {
     await adminApi.deleteUser(id);
+    await fetchUsers();
+  }
+
+  async function updateUserStatus(id, data) {
+    await adminApi.updateUserStatus(id, data);
     await fetchUsers();
   }
 
@@ -229,6 +235,7 @@ export const useAdminStore = defineStore('admin', () => {
     createUser,
     updateUser,
     deleteUser,
+    updateUserStatus,
     createProduct,
     updateProduct,
     deleteProduct,

@@ -4,6 +4,7 @@ import java.util.List;
 
 import entity.User;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.NoResultException;
 import utils.DatabaseUtil;
 
@@ -69,6 +70,25 @@ public class UserDAO {
         try {
             return em.createQuery("SELECT COUNT(u) FROM User u", Long.class)
                     .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countActiveAdmins() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            em.createQuery("SELECT u FROM User u WHERE u.role = 'ADMIN' AND u.status = 'ACTIVE'", User.class)
+                    .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                    .getResultList();
+            long count = em.createQuery("SELECT COUNT(u) FROM User u WHERE u.role = 'ADMIN' AND u.status = 'ACTIVE'", Long.class)
+                    .getSingleResult();
+            em.getTransaction().commit();
+            return count;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
         } finally {
             em.close();
         }

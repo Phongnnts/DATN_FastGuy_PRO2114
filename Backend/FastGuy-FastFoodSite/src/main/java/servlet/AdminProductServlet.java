@@ -19,6 +19,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import utils.ApiResponse;
 import utils.JwtUtil;
 import utils.JsonUtil;
+import utils.PrivilegedAuth;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -43,8 +44,9 @@ public class AdminProductServlet extends HttpServlet {
             ApiResponse.error(resp, "Missing token", 401);
             return false;
         }
-        String role = JwtUtil.getRole(authHeader.substring(7));
-        if (!"ADMIN".equals(role)) {
+        String token = authHeader.substring(7);
+        String role = JwtUtil.getRole(token);
+        if (!"ADMIN".equals(role) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) {
             ApiResponse.error(resp, "Forbidden", 403);
             return false;
         }

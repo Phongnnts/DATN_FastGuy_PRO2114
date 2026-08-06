@@ -145,7 +145,7 @@ test('all save entries validate general and reveal focused errors', () => {
 
 test('parent owns canonical baseline and resets it only after accepted load or save', () => {
   assert.match(productEditorPage, /baselineVersion/);
-  assert.match(productEditorPage, /baseline\.value = structuredClone\(draft\.value\)/);
+  assert.match(productEditorPage, /baseline\.value = cloneProductState\(draft\.value\)/);
   assert.match(productEditorPage, /:baseline-version="baselineVersion"/);
   assert.match(productGeneralSection, /baselineVersion/);
   assert.match(productMediaSection, /baselineVersion/);

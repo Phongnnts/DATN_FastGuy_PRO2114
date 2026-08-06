@@ -124,7 +124,7 @@ async function saveRow(row) {
   mutating.value = true;
   try {
     if (row.variantId) {
-      await adminApi.updateVariant(row.variantId, variantPayload(row));
+      await adminApi.updateVariant(row.variantId, variantPayload(row, { includeStock: false }));
     } else {
       const created = await adminApi.createVariant(props.productId, variantPayload(row));
       if (currentRequest(request) && created) row.variantId = created.variantId ?? created.id;
@@ -226,7 +226,7 @@ function retryPending() {
       </div>
       <div class="field">
         <label :for="`variant-qty-${index}`">Tồn kho</label>
-        <input :id="`variant-qty-${index}`" type="number" min="0" :value="row.quantityAvailable ?? ''" :disabled="busy || mutating" :aria-invalid="Boolean(errors[index]?.quantityAvailable)" :aria-describedby="errors[index]?.quantityAvailable ? `variant-qty-error-${index}` : undefined" @input="updateRow(row, 'quantityAvailable', $event.target.value === '' ? null : Number($event.target.value))" placeholder="Trống = không giới hạn" />
+        <input :id="`variant-qty-${index}`" type="number" min="0" :value="row.quantityAvailable ?? ''" :disabled="busy || mutating || Boolean(row.variantId)" :aria-invalid="Boolean(errors[index]?.quantityAvailable)" :aria-describedby="errors[index]?.quantityAvailable ? `variant-qty-error-${index}` : undefined" @input="updateRow(row, 'quantityAvailable', $event.target.value === '' ? null : Number($event.target.value))" placeholder="Trống = không giới hạn" />
         <span v-if="errors[index]?.quantityAvailable" :id="`variant-qty-error-${index}`" role="alert">{{ errors[index].quantityAvailable }}</span>
       </div>
       <div class="field">

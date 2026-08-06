@@ -12,6 +12,7 @@ import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
 import utils.PasswordUtil;
+import utils.PrivilegedAuth;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -31,8 +32,25 @@ public class AdminUserServlet extends HttpServlet {
     private boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String auth = req.getHeader("Authorization");
         if (auth == null || !auth.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return false; }
-        if (!"ADMIN".equals(JwtUtil.getRole(auth.substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return false; }
+        String token = auth.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return false; }
         return true;
+    }
+
+    private int actorUserId(HttpServletRequest req) {
+        return JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
+    }
+
+    static String mutationConflict(int targetUserId, int actorUserId, String role, String status, String mutation, long activeAdmins) {
+        if (targetUserId == actorUserId) {
+            if ("DELETE".equals(mutation)) return "Không thể xóa tài khoản của chính bạn";
+            if ("DISABLE".equals(mutation)) return "Không thể vô hiệu hóa tài khoản của chính bạn";
+            if ("DEMOTE".equals(mutation)) return "Không thể hạ quyền quản trị của chính bạn";
+        }
+        if ("ADMIN".equals(role) && "ACTIVE".equals(status) && Set.of("DELETE", "DISABLE", "DEMOTE").contains(mutation) && activeAdmins <= 1) {
+            return "Phải giữ lại ít nhất một quản trị viên đang hoạt động";
+        }
+        return null;
     }
 
     private Map<String, Object> toMap(User user) {
@@ -108,7 +126,7 @@ public class AdminUserServlet extends HttpServlet {
         catch (PersistenceException e) { ApiResponse.error(resp, "Không thể lưu người dùng", 409); }
     }
 
-    @Override protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    @Override protected synchronized void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8"); if (!checkAdmin(req, resp)) return;
         String path = req.getPathInfo();
         String[] parts = path != null ? path.split("/") : new String[0];
@@ -123,6 +141,9 @@ public class AdminUserServlet extends HttpServlet {
                 if (status == null || (!"ACTIVE".equals(status) && !"INACTIVE".equals(status))) {
                     ApiResponse.error(resp, "Status must be ACTIVE or INACTIVE", 400); return;
                 }
+                String mutation = "INACTIVE".equals(status) ? "DISABLE" : "ENABLE";
+                String conflict = mutationConflict(userId, actorUserId(req), user.getRole(), user.getStatus(), mutation, userDAO.countActiveAdmins());
+                if (conflict != null) { ApiResponse.error(resp, conflict, 409); return; }
                 user.setStatus(status);
                 userDAO.save(user);
                 ApiResponse.ok(resp, toMap(user), "Status updated");
@@ -133,6 +154,10 @@ public class AdminUserServlet extends HttpServlet {
         try {
             User user = userDAO.findById(id(req)); if (user == null) { ApiResponse.error(resp, "Not found", 404); return; }
             Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class); if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+            if (body.containsKey("roleName") && !"ADMIN".equals(body.get("roleName")) && "ADMIN".equals(user.getRole())) {
+                String conflict = mutationConflict(user.getUserId(), actorUserId(req), user.getRole(), user.getStatus(), "DEMOTE", userDAO.countActiveAdmins());
+                if (conflict != null) { ApiResponse.error(resp, conflict, 409); return; }
+            }
             String oldEmail = user.getEmail(); String oldPhone = user.getPhone(); apply(body, user, false);
             if (!oldEmail.equals(user.getEmail())) { User existing = userDAO.findByEmail(user.getEmail()); if (existing != null && existing.getUserId() != user.getUserId()) { ApiResponse.error(resp, "Email already exists", 409); return; } }
             if (user.getPhone() != null && !user.getPhone().isBlank() && !user.getPhone().equals(oldPhone)) { User existing = userDAO.findByPhone(user.getPhone()); if (existing != null && existing.getUserId() != user.getUserId()) { ApiResponse.error(resp, "Số điện thoại đã tồn tại", 409); return; } }
@@ -142,9 +167,17 @@ public class AdminUserServlet extends HttpServlet {
         catch (PersistenceException e) { ApiResponse.error(resp, "Không thể lưu người dùng", 409); }
     }
 
-    @Override protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    @Override protected synchronized void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8"); if (!checkAdmin(req, resp)) return;
-        try { int id = id(req); if (userDAO.findById(id) == null) { ApiResponse.error(resp, "Not found", 404); return; } userDAO.delete(id); ApiResponse.ok(resp, null, "Deleted"); }
+        try {
+            int id = id(req);
+            User user = userDAO.findById(id);
+            if (user == null) { ApiResponse.error(resp, "Not found", 404); return; }
+            String conflict = mutationConflict(id, actorUserId(req), user.getRole(), user.getStatus(), "DELETE", userDAO.countActiveAdmins());
+            if (conflict != null) { ApiResponse.error(resp, conflict, 409); return; }
+            userDAO.delete(id);
+            ApiResponse.ok(resp, null, "Deleted");
+        }
         catch (NumberFormatException e) { ApiResponse.error(resp, "Invalid ID", 400); }
         catch (PersistenceException e) { ApiResponse.error(resp, "Không thể xóa người dùng đang được sử dụng", 409); }
     }

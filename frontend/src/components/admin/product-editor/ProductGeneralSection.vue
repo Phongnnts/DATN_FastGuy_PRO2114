@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { sectionDirty, validateGeneral } from '@/utils/adminProductEditor';
+import { cloneProductState, sectionDirty, validateGeneral } from '@/utils/adminProductEditor';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -11,10 +11,10 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue', 'save', 'dirty-change']);
 const errors = ref({});
-const snapshot = ref(structuredClone(props.modelValue));
+const snapshot = ref(cloneProductState(props.modelValue));
 
 watch(() => props.baselineVersion, () => {
-  snapshot.value = structuredClone(props.modelValue);
+  snapshot.value = cloneProductState(props.modelValue);
   errors.value = {};
   emit('dirty-change', false);
 });
