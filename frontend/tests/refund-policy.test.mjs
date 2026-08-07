@@ -8,14 +8,12 @@ import { validateRefund } from '../src/utils/refundPolicy.js';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const read = (p) => readFileSync(join(root, p), 'utf8');
 
-test('refunded requires amount > 0 and not exceeding finalAmount', () => {
-  assert.equal(validateRefund({ status: 'REFUNDED', amount: 50000, finalAmount: 100000, note: '' }), '');
-  assert.equal(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: 100000, note: '' }), '');
-  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 0, finalAmount: 100000, note: '' }), '');
-  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: -1, finalAmount: 100000, note: '' }), '');
-  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 100001, finalAmount: 100000, note: '' }), '');
-  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: NaN, finalAmount: 100000, note: '' }), '');
-  assert.equal(validateRefund({ status: 'REFUNDED', amount: 50000, finalAmount: null, note: '' }), '');
+test('refunded requires fixed full amount and manual reference', () => {
+  assert.equal(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: 100000, note: '', reference: 'BANK-123' }), '');
+  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 50000, finalAmount: 100000, note: '', reference: 'BANK-123' }), '');
+  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 100001, finalAmount: 100000, note: '', reference: 'BANK-123' }), '');
+  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: 100000, note: '', reference: '   ' }), '');
+  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: null, note: '', reference: 'BANK-123' }), '');
 });
 
 test('rejected requires non-blank note', () => {
@@ -61,6 +59,15 @@ test('OrderDetailPage renders payment attempt block', () => {
   for (const field of ['provider', 'providerReference', 'attemptStatus', 'attemptAmount']) {
     assert.match(page, new RegExp(`order\\.payment\\.${field}`));
   }
+});
+
+test('RefundsPage confirms manual full refund with required reference and fixed amount', () => {
+  const page = read('src/views/admin/RefundsPage.vue');
+  assert.match(page, /Xác nhận hoàn thủ công/);
+  assert.match(page, /refundReference/);
+  assert.match(page, /refundReference: refundForm\.value\.status === 'REFUNDED' \? refundForm\.value\.refundReference\.trim\(\) : null/);
+  assert.match(page, /:value="Number\(refundOrder\.finalAmount\)"/);
+  assert.match(page, /readonly/);
 });
 
 test('RefundsPage ships accessible dialog, mutation lock, no native confirm', () => {

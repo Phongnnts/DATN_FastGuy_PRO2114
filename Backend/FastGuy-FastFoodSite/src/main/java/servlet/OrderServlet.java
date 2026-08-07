@@ -35,6 +35,10 @@ public class OrderServlet extends HttpServlet {
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private service.OrderStatusHistoryService orderStatusHistoryService = new service.OrderStatusHistoryService();
 
+    static boolean shouldVerifyPaymentStatus(boolean authorized, String paymentMethod) {
+        return authorized && "BANK_TRANSFER".equals(paymentMethod);
+    }
+
     private int getUserId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -96,6 +100,10 @@ public class OrderServlet extends HttpServlet {
                 ApiResponse.error(resp, "Not found", 404);
                 return;
             }
+            if (shouldVerifyPaymentStatus(true, order.getPaymentMethod())) {
+                payOSPaymentService.verifyPayment(order.getOrderId());
+                order = ordersDAO.findById(order.getOrderId());
+            }
             ApiResponse.ok(resp, Map.of("orderCode", order.getOrderCode(), "paymentStatus", order.getPaymentStatus(), "orderStatus", order.getOrderStatus()));
             return;
         }
@@ -109,9 +117,14 @@ public class OrderServlet extends HttpServlet {
             try {
                 int orderId = Integer.parseInt(idStr);
                 Orders order = ordersDAO.findById(orderId);
-                if (!OrderService.canUserAccess(order, userId)) {
+                boolean authorized = OrderService.canUserAccess(order, userId);
+                if (!authorized) {
                     ApiResponse.error(resp, "Not found", 404);
                     return;
+                }
+                if (shouldVerifyPaymentStatus(authorized, order.getPaymentMethod())) {
+                    payOSPaymentService.verifyPayment(orderId);
+                    order = ordersDAO.findById(orderId);
                 }
                 java.util.Map<String, Object> pd = new HashMap<>();
                 pd.put("paymentStatus", order.getPaymentStatus());

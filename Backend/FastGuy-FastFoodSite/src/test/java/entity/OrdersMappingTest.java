@@ -30,4 +30,17 @@ class OrdersMappingTest {
             assertEquals(entry.getValue(), field.getAnnotation(Column.class).name());
         }
     }
+
+    @Test
+    void refundAuditMetadataIsPersisted() throws Exception {
+        Map<String, String> columns = Map.of(
+                "refundProcessedBy", "refund_processed_by",
+                "refundReference", "refund_reference");
+
+        for (Map.Entry<String, String> entry : columns.entrySet()) {
+            Field field = Orders.class.getDeclaredField(entry.getKey());
+            assertFalse(field.isAnnotationPresent(Transient.class), entry.getKey());
+            assertEquals(entry.getValue(), field.getAnnotation(Column.class).name());
+        }
+    }
 }

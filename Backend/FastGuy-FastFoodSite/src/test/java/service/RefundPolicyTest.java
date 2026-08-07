@@ -10,17 +10,17 @@ import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 
+import entity.Orders;
+
 class RefundPolicyTest {
 
     @Test
-    void refundedRequiresPositiveAmountNotExceedingFinalAmount() {
-        assertNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("50000"), new BigDecimal("100000"), null));
-        assertNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("100000"), new BigDecimal("100000"), null));
-        assertNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("50000"), null, null));
-        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", null, new BigDecimal("100000"), null));
-        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", BigDecimal.ZERO, new BigDecimal("100000"), null));
-        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("-1"), new BigDecimal("100000"), null));
-        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("100001"), new BigDecimal("100000"), null));
+    void refundedRequiresFullAmountAndNonBlankManualReference() {
+        assertNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("100000"), new BigDecimal("100000"), null, "BANK-123"));
+        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("50000"), new BigDecimal("100000"), null, "BANK-123"));
+        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("100001"), new BigDecimal("100000"), null, "BANK-123"));
+        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("100000"), null, null, "BANK-123"));
+        assertNotNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "CANCELLED", new BigDecimal("100000"), new BigDecimal("100000"), null, "   "));
     }
 
     @Test
@@ -45,8 +45,23 @@ class RefundPolicyTest {
         assertFalse(RefundService.isIdempotent("REFUNDED", "REJECTED"));
         assertFalse(RefundService.isIdempotent("REJECTED", "REFUNDED"));
         assertFalse(RefundService.isIdempotent("REFUNDED", "PENDING"));
-        assertNull(RefundService.validate("REJECTED", "REJECTED", "REFUNDED", "CANCELLED", null, new BigDecimal("100000"), null));
+        assertNotNull(RefundService.validate("REJECTED", "REJECTED", "REFUNDED", "CANCELLED", null, new BigDecimal("100000"), null));
         assertNotNull(RefundService.validate("REFUNDED", "REJECTED", "REFUNDED", "CANCELLED", new BigDecimal("50000"), new BigDecimal("100000"), null));
+    }
+
+    @Test
+    void terminalRetryMatchesStatusAmountAndNormalizedNoteReferenceOnly() {
+        Orders order = new Orders();
+        order.setRefundStatus("REFUNDED");
+        order.setRefundAmount(new BigDecimal("100000.00"));
+        order.setRefundNote(" manual ");
+        order.setRefundReference(" BANK-123 ");
+
+        assertTrue(RefundService.matchesTerminalRequest(order, "REFUNDED", new BigDecimal("100000"), "manual", "BANK-123"));
+        assertFalse(RefundService.matchesTerminalRequest(order, "REFUNDED", new BigDecimal("99999"), "manual", "BANK-123"));
+        assertFalse(RefundService.matchesTerminalRequest(order, "REFUNDED", new BigDecimal("100000"), "changed", "BANK-123"));
+        assertFalse(RefundService.matchesTerminalRequest(order, "REFUNDED", new BigDecimal("100000"), "manual", "OTHER"));
+        assertFalse(RefundService.matchesTerminalRequest(order, "REJECTED", null, "manual", null));
     }
 
     @Test

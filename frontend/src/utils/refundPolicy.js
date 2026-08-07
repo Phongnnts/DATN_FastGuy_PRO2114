@@ -1,9 +1,9 @@
 export const REFUND_STATUSES = ['PENDING', 'REFUNDED', 'REJECTED'];
 
-export function validateRefund({ status, amount, finalAmount, note }) {
+export function validateRefund({ status, amount, finalAmount, note, reference }) {
   if (status === 'REFUNDED') {
-    if (!Number.isFinite(amount) || amount <= 0) return 'Số tiền hoàn phải lớn hơn 0';
-    if (Number.isFinite(finalAmount) && amount > finalAmount) return 'Số tiền hoàn không được vượt quá giá trị đơn';
+    if (!Number.isFinite(finalAmount) || !Number.isFinite(amount) || amount !== finalAmount) return 'Chỉ hỗ trợ hoàn toàn bộ giá trị đơn';
+    if (!reference || !reference.trim()) return 'Vui lòng nhập mã tham chiếu hoàn tiền';
     return '';
   }
   if (status === 'REJECTED') {

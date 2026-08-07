@@ -267,6 +267,8 @@ CREATE TABLE dbo.Orders (
     refund_amount decimal(18,2) NULL,
     refunded_at datetime2(0) NULL,
     refund_note nvarchar(500) NULL,
+    refund_processed_by int NULL CONSTRAINT FK_Orders_RefundProcessedBy REFERENCES dbo.Users(user_id),
+    refund_reference nvarchar(200) NULL,
     internal_note nvarchar(1000) NULL,
     coupon_code varchar(50) NULL,
     discount_amount decimal(18,2) NOT NULL CONSTRAINT DF_Orders_Discount DEFAULT 0,
