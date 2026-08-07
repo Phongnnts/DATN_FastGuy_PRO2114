@@ -13,7 +13,7 @@ public class StaffShiftAccessService {
     }
 
     public boolean hasCheckedInShift(int userId) {
-        return isCheckedIn((String) workShiftService.current(userId).get("state"));
+        return workShiftService.currentCheckedInShift(userId) != null;
     }
 
     static boolean isValidStaffIdentity(String role, String status) {
