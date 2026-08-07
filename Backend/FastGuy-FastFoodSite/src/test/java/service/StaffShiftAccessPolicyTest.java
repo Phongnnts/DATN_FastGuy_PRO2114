@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import servlet.StaffOrderServlet;
+import servlet.StaffSupportTicketServlet;
 
 class StaffShiftAccessPolicyTest {
     @Test
@@ -49,6 +50,15 @@ class StaffShiftAccessPolicyTest {
         assertTrue(StaffShiftAccessService.isCheckedIn("CHECKED_IN"));
         assertFalse(StaffShiftAccessService.isCheckedIn("UPCOMING"));
         assertFalse(StaffShiftAccessService.isCheckedIn(null));
+    }
+
+    @Test
+    void supportReadsRequireActiveStaffButMutationsAlsoRequireShift() {
+        assertTrue(StaffSupportTicketServlet.hasRouteAccess("GET", true, false));
+        assertFalse(StaffSupportTicketServlet.hasRouteAccess("GET", false, true));
+        assertTrue(StaffSupportTicketServlet.hasRouteAccess("PUT", true, true));
+        assertFalse(StaffSupportTicketServlet.hasRouteAccess("PUT", true, false));
+        assertFalse(StaffSupportTicketServlet.hasRouteAccess("PUT", false, true));
     }
 
     @Test
