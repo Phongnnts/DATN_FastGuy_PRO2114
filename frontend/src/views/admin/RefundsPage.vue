@@ -20,7 +20,7 @@ const filterFromDate = ref('');
 const filterToDate = ref('');
 const refundOrder = ref(null);
 const refundDialog = ref(null);
-const refundForm = ref({ refundAmount: 0, refundNote: '', status: 'REFUNDED' });
+const refundForm = ref({ refundAmount: 0, refundNote: '', refundReference: '', status: 'REFUNDED' });
 const refunding = ref(false);
 const previousFocus = ref(null);
 
@@ -109,7 +109,7 @@ watch(() => route.query.status, (raw) => {
 function openRefund(order) {
   previousFocus.value = document.activeElement;
   refundOrder.value = order;
-  refundForm.value = { refundAmount: Number(order.finalAmount || 0), refundNote: '', status: 'REFUNDED' };
+  refundForm.value = { refundAmount: Number(order.finalAmount || 0), refundNote: '', refundReference: '', status: 'REFUNDED' };
   nextTick(() => refundDialog.value?.focus());
 }
 function dismissRefund() {
@@ -126,6 +126,7 @@ const formError = computed(() => validateRefund({
   amount: Number(refundForm.value.refundAmount),
   finalAmount: Number(refundOrder.value?.finalAmount),
   note: refundForm.value.refundNote,
+  reference: refundForm.value.refundReference,
 }));
 async function saveRefund() {
   if (refunding.value) return;
@@ -139,6 +140,7 @@ async function saveRefund() {
       status: refundForm.value.status,
       refundAmount: refundForm.value.status === 'REFUNDED' ? Number(refundForm.value.refundAmount) : null,
       refundNote: refundForm.value.refundNote.trim(),
+      refundReference: refundForm.value.status === 'REFUNDED' ? refundForm.value.refundReference.trim() : null,
     });
     toast.success(refundForm.value.status === 'REFUNDED' ? 'Đã hoàn tiền thành công' : 'Đã từ chối hoàn tiền');
     dismissRefund();
@@ -221,8 +223,9 @@ async function saveRefund() {
             <div><span>Giá trị đơn</span><strong>{{ formatPrice(refundOrder.finalAmount) }}</strong></div>
             <div><span>Thanh toán</span><strong>{{ refundOrder.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }} · {{ refundOrder.paymentStatus }}</strong></div>
           </div>
-          <label class="form-group"><span class="form-label">Hành động</span><select v-model="refundForm.status" class="form-select"><option value="REFUNDED">Xác nhận đã hoàn tiền</option><option value="REJECTED">Từ chối hoàn tiền</option></select></label>
-          <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Số tiền hoàn</span><input v-model.number="refundForm.refundAmount" class="form-input" type="number" min="1" step="1000" :max="Number(refundOrder.finalAmount)" required /><small>Tối đa {{ formatPrice(refundOrder.finalAmount) }}</small></label>
+          <label class="form-group"><span class="form-label">Hành động</span><select v-model="refundForm.status" class="form-select"><option value="REFUNDED">Xác nhận hoàn thủ công</option><option value="REJECTED">Từ chối hoàn tiền</option></select></label>
+          <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Số tiền hoàn toàn bộ</span><input class="form-input" type="number" :value="Number(refundOrder.finalAmount)" readonly /><small>Cố định bằng giá trị đơn: {{ formatPrice(refundOrder.finalAmount) }}</small></label>
+          <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Mã tham chiếu hoàn tiền *</span><input v-model="refundForm.refundReference" class="form-input" type="text" maxlength="200" required /></label>
           <label class="form-group"><span class="form-label">{{ refundForm.status === 'REJECTED' ? 'Lý do từ chối *' : 'Ghi chú' }}</span><textarea v-model="refundForm.refundNote" class="form-input" rows="3" :required="refundForm.status === 'REJECTED'"></textarea></label>
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-outline" :disabled="refunding" @click="closeRefund">Hủy</button><button class="btn" :class="refundForm.status === 'REFUNDED' ? 'btn-primary' : 'btn-danger'" :disabled="refunding">{{ refunding ? 'Đang xử lý...' : 'Xác nhận' }}</button></div>

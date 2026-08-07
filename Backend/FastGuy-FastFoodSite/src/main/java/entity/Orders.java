@@ -175,6 +175,12 @@ public class Orders {
     @Column(name = "refund_note")
     private String refundNote;
 
+    @Column(name = "refund_processed_by")
+    private Integer refundProcessedBy;
+
+    @Column(name = "refund_reference")
+    private String refundReference;
+
     @Column(name = "internal_note")
     private String internalNote;
 
@@ -304,6 +310,10 @@ public class Orders {
     public void setRefundedAt(LocalDateTime refundedAt) { this.refundedAt = refundedAt; }
     public String getRefundNote() { return refundNote; }
     public void setRefundNote(String refundNote) { this.refundNote = refundNote; }
+    public Integer getRefundProcessedBy() { return refundProcessedBy; }
+    public void setRefundProcessedBy(Integer refundProcessedBy) { this.refundProcessedBy = refundProcessedBy; }
+    public String getRefundReference() { return refundReference; }
+    public void setRefundReference(String refundReference) { this.refundReference = refundReference; }
     public String getInternalNote() { return internalNote; }
     public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
     public String getDeliveryNote() { return deliveryNote; }
