@@ -209,7 +209,7 @@ public class OrderTransitionService {
                 .getSingleResult() > 0;
     }
 
-    static boolean isCanonicalStatus(String status) {
+    public static boolean isCanonicalStatus(String status) {
         return TRANSITIONS.containsKey(status);
     }
 

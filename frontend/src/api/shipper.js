@@ -16,10 +16,10 @@ export default {
   getOrderById(id) {
     return client.get(`/shipper/orders/${id}`);
   },
-  pickUpOrder(id) {
-    return client.put(`/shipper/orders/${id}/pickup`);
+  pickUpOrder(id, expectedStatus) {
+    return client.put(`/shipper/orders/${id}/pickup`, { expectedStatus });
   },
-  deliverOrder(id, collectedAmount) {
-    return client.put(`/shipper/orders/${id}/deliver`, collectedAmount === undefined ? {} : { collectedAmount });
+  deliverOrder(id, collectedAmount, expectedStatus) {
+    return client.put(`/shipper/orders/${id}/deliver`, collectedAmount === undefined ? { expectedStatus } : { collectedAmount, expectedStatus });
   },
 };

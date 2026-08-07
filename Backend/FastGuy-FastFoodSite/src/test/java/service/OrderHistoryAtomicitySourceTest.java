@@ -33,15 +33,15 @@ class OrderHistoryAtomicitySourceTest {
         String transition = source("OrderTransitionService.java");
         assertTrue(staff.contains("transitionService.transition("));
         assertTrue(shipper.contains("transitionService.transition("));
-        int pickup = shipper.indexOf("public boolean pickUpOrder");
+        int pickup = shipper.indexOf("public OrderTransitionService.MutationResult pickUpOrder");
         int pickupTransition = shipper.indexOf("transitionService.transition(", pickup);
         int pickupLookup = shipper.indexOf("ordersDAO.findById(orderId)", pickup);
-        int delivery = shipper.indexOf("public String deliverOrder");
+        int delivery = shipper.indexOf("public OrderTransitionService.MutationResult deliverOrder");
         int deliveryTransition = shipper.indexOf("transitionService.transition(", delivery);
         int deliveryLookup = shipper.indexOf("ordersDAO.findById(orderId)", delivery);
         assertTrue(pickupTransition > pickup && pickupLookup > pickupTransition);
         assertTrue(deliveryTransition > delivery && deliveryLookup > deliveryTransition);
-        int transaction = transition.indexOf("EntityManager em = DatabaseUtil.getEntityManager();", transition.indexOf("public boolean transition(int orderId"));
+        int transaction = transition.indexOf("EntityManager em = DatabaseUtil.getEntityManager();", transition.indexOf("public MutationResult transition(int orderId"));
         int lock = transition.indexOf("em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE)", transaction);
         int shiftCheck = transition.indexOf("requireCheckedInShipper(em, actorUserId)", lock);
         int history = transition.indexOf("em.persist(new OrderStatusHistory", shiftCheck);

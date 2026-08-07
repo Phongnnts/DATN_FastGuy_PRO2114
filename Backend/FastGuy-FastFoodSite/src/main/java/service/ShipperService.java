@@ -70,19 +70,19 @@ public class ShipperService {
         return stats;
     }
 
-    public boolean pickUpOrder(int orderId, int shipperId) {
-        boolean ok = transitionService.transition(orderId, "PICKED_UP", "SHIPPER", shipperId, "Đã lấy hàng", null, null);
-        Orders order = ok ? ordersDAO.findById(orderId) : null;
+    public OrderTransitionService.MutationResult pickUpOrder(int orderId, int shipperId, String expectedStatus) {
+        OrderTransitionService.MutationResult result = transitionService.transition(orderId, "PICKED_UP", "SHIPPER", shipperId, "Đã lấy hàng", null, null, expectedStatus);
+        Orders order = result == OrderTransitionService.MutationResult.SUCCESS ? ordersDAO.findById(orderId) : null;
         if (order != null && order.getUser() != null) notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đang giao", "Đơn " + order.getOrderCode() + " đã được shipper lấy hàng", "ORDER_STATUS", "/account/orders/" + orderId);
-        return ok;
+        return result;
     }
 
-    public String deliverOrder(int orderId, int shipperId, BigDecimal collectedAmount) {
-        boolean ok = transitionService.transition(orderId, "DELIVERED", "SHIPPER", shipperId, "Đã giao hàng", null, collectedAmount);
-        if (!ok) return "Order cannot be delivered";
+    public OrderTransitionService.MutationResult deliverOrder(int orderId, int shipperId, BigDecimal collectedAmount, String expectedStatus) {
+        OrderTransitionService.MutationResult result = transitionService.transition(orderId, "DELIVERED", "SHIPPER", shipperId, "Đã giao hàng", null, collectedAmount, expectedStatus);
+        if (result != OrderTransitionService.MutationResult.SUCCESS) return result;
         Orders order = ordersDAO.findById(orderId);
         if (order != null && order.getUser() != null) notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đã giao", "Đơn " + order.getOrderCode() + " đã được giao thành công", "ORDER_STATUS", "/account/orders/" + orderId);
-        return null;
+        return result;
     }
 
 }

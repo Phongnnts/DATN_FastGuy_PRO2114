@@ -85,11 +85,11 @@ async function runPrimary() {
   }
   submitting.value = true;
   try {
-    if (props.order.status === 'ASSIGNED') await store.pickUpOrder(props.order.id);
-    else await store.deliverOrder(props.order.id, isCodDeliver.value ? cod.amount : undefined);
+    if (props.order.status === 'ASSIGNED') await store.pickUpOrder(props.order.id, props.order.status);
+    else await store.deliverOrder(props.order.id, isCodDeliver.value ? cod.amount : undefined, props.order.status);
     emit('updated');
   } catch (error) {
-    actionError.value = error?.response?.data?.message || error.message || 'Thao tác thất bại';
+    actionError.value = error?.status === 409 ? 'Đơn hàng đã thay đổi trạng thái. Dữ liệu mới nhất đã được tải lại.' : error.message || 'Thao tác thất bại';
   } finally {
     submitting.value = false;
   }
