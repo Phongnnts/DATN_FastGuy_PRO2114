@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "Notification")
@@ -46,6 +47,9 @@ public class Notification {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Transient
+    private boolean readForViewer;
+
     @PrePersist
     void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
 
@@ -68,6 +72,8 @@ public class Notification {
     public void setTargetUrl(String targetUrl) { this.targetUrl = targetUrl; }
     public Boolean getIsRead() { return isRead; }
     public void setIsRead(Boolean isRead) { this.isRead = isRead; }
+    public boolean isReadForViewer() { return readForViewer; }
+    public void setReadForViewer(boolean readForViewer) { this.readForViewer = readForViewer; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -3,6 +3,7 @@ package dao;
 import java.util.List;
 
 import entity.Notification;
+import entity.NotificationReadReceipt;
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
 
@@ -24,13 +25,20 @@ public class NotificationDAO {
     public List<Notification> findForUser(int userId, String roleName, int limit) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            return em.createQuery(
-                    "SELECT n FROM Notification n WHERE n.userId = :userId OR n.roleName = :roleName ORDER BY n.createdAt DESC",
-                    Notification.class)
+            List<Object[]> rows = em.createQuery(
+                    "SELECT n, CASE WHEN n.userId = :userId THEN n.isRead WHEN r.notificationId IS NOT NULL THEN true ELSE false END "
+                            + "FROM Notification n LEFT JOIN NotificationReadReceipt r ON r.notificationId = n.notificationId AND r.userId = :userId "
+                            + "WHERE n.userId = :userId OR n.roleName = :roleName ORDER BY n.createdAt DESC",
+                    Object[].class)
                     .setParameter("userId", userId)
                     .setParameter("roleName", roleName)
                     .setMaxResults(limit)
                     .getResultList();
+            return rows.stream().map(row -> {
+                Notification notification = (Notification) row[0];
+                notification.setReadForViewer(Boolean.TRUE.equals(row[1]));
+                return notification;
+            }).toList();
         } finally {
             em.close();
         }
@@ -40,7 +48,8 @@ public class NotificationDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT COUNT(n) FROM Notification n WHERE (n.userId = :userId OR n.roleName = :roleName) AND n.isRead = false",
+                    "SELECT COUNT(n) FROM Notification n LEFT JOIN NotificationReadReceipt r ON r.notificationId = n.notificationId AND r.userId = :userId "
+                            + "WHERE (n.userId = :userId AND n.isRead = false) OR (n.roleName = :roleName AND r.notificationId IS NULL)",
                     Long.class)
                     .setParameter("userId", userId)
                     .setParameter("roleName", roleName)
@@ -54,12 +63,16 @@ public class NotificationDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
-            Notification n = em.find(Notification.class, id);
-            if (n == null || !canAccess(n, userId, roleName)) {
+            Notification notification = em.find(Notification.class, id);
+            if (notification == null || !canAccess(notification, userId, roleName)) {
                 em.getTransaction().rollback();
                 return false;
             }
-            n.setIsRead(true);
+            if (notification.getUserId() != null) {
+                notification.setIsRead(true);
+            } else if (em.find(NotificationReadReceipt.class, new NotificationReadReceipt.Key(id, userId)) == null) {
+                em.persist(new NotificationReadReceipt(id, userId));
+            }
             em.getTransaction().commit();
             return true;
         } catch (Exception e) {
@@ -74,10 +87,19 @@ public class NotificationDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
-            em.createQuery("UPDATE Notification n SET n.isRead = true WHERE n.userId = :userId OR n.roleName = :roleName")
+            em.createQuery("UPDATE Notification n SET n.isRead = true WHERE n.userId = :userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            List<Notification> unreadRoleNotifications = em.createQuery(
+                    "SELECT n FROM Notification n LEFT JOIN NotificationReadReceipt r ON r.notificationId = n.notificationId AND r.userId = :userId "
+                            + "WHERE n.roleName = :roleName AND r.notificationId IS NULL",
+                    Notification.class)
                     .setParameter("userId", userId)
                     .setParameter("roleName", roleName)
-                    .executeUpdate();
+                    .getResultList();
+            for (Notification notification : unreadRoleNotifications) {
+                em.persist(new NotificationReadReceipt(notification.getNotificationId(), userId));
+            }
             em.getTransaction().commit();
         } catch (Exception e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
@@ -87,7 +109,8 @@ public class NotificationDAO {
         }
     }
 
-    private boolean canAccess(Notification n, int userId, String roleName) {
-        return (n.getUserId() != null && n.getUserId() == userId) || (n.getRoleName() != null && n.getRoleName().equals(roleName));
+    private boolean canAccess(Notification notification, int userId, String roleName) {
+        return (notification.getUserId() != null && notification.getUserId() == userId)
+                || (notification.getRoleName() != null && notification.getRoleName().equals(roleName));
     }
 }

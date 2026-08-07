@@ -23,6 +23,7 @@
         <class>entity.Banner</class>
         <class>entity.Review</class>
         <class>entity.Notification</class>
+        <class>entity.NotificationReadReceipt</class>
         <class>entity.SupportTicket</class>
         <class>entity.OrderStatusHistory</class>
         <class>entity.LoyaltyTransaction</class>
