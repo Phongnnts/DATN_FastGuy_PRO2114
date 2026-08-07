@@ -94,8 +94,8 @@ test('order action sheet is a dialog with call, map, primary action and detail l
   assert.match(sheet, /tel:/);
   assert.match(sheet, /google\.com\/maps\/search\/\?api=1&query=/);
   assert.match(sheet, /emit\('updated'\)/);
-  assert.match(sheet, /store\.pickUpOrder\(props\.order\.id\)/);
-  assert.match(sheet, /store\.deliverOrder\(props\.order\.id/);
+  assert.match(sheet, /store\.pickUpOrder\(props\.order\.id, props\.order\.status\)/);
+  assert.match(sheet, /store\.deliverOrder\(props\.order\.id[^\n]+props\.order\.status\)/);
   assert.match(sheet, /validateExactCod/);
   assert.match(sheet, /Xem chi tiết/);
   assert.match(sheet, /\/shipper\/orders\/\$\{order\.id\}/);
