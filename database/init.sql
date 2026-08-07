@@ -421,6 +421,13 @@ CREATE TABLE dbo.Notification (
     CONSTRAINT CK_Notification_Role CHECK (role_name IS NULL OR role_name IN ('ADMIN', 'STAFF', 'SHIPPER', 'USER'))
 );
 
+CREATE TABLE dbo.NotificationReadReceipt (
+    notification_id int NOT NULL CONSTRAINT FK_NotificationReadReceipt_Notification REFERENCES dbo.Notification(notification_id) ON DELETE CASCADE,
+    user_id int NOT NULL CONSTRAINT FK_NotificationReadReceipt_User REFERENCES dbo.Users(user_id),
+    read_at datetime2(0) NOT NULL CONSTRAINT DF_NotificationReadReceipt_ReadAt DEFAULT GETDATE(),
+    CONSTRAINT PK_NotificationReadReceipt PRIMARY KEY (notification_id, user_id)
+);
+
 CREATE TABLE dbo.OrderStatusHistory (
     history_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_OrderStatusHistory PRIMARY KEY,
     order_id int NOT NULL CONSTRAINT FK_OrderStatusHistory_Order REFERENCES dbo.Orders(order_id),

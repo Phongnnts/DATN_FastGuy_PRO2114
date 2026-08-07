@@ -63,7 +63,7 @@ public class NotificationService {
         m.put("message", n.getMessage());
         m.put("type", n.getType());
         m.put("targetUrl", n.getTargetUrl());
-        m.put("isRead", Boolean.TRUE.equals(n.getIsRead()));
+        m.put("isRead", n.isReadForViewer());
         m.put("createdAt", n.getCreatedAt() != null ? n.getCreatedAt().toString() : null);
         return m;
     }
