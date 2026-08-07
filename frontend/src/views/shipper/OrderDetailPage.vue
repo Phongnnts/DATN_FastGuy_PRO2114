@@ -71,9 +71,9 @@ async function mutate(action) {
   if (action === 'deliver' && order.value.paymentMethod === 'COD' && !cod.valid) { actionError.value = `Số tiền COD phải đúng ${formatPrice(order.value.total)}`; return; }
   submitting.value = true;
   try {
-    if (action === 'pickup') await store.pickUpOrder(order.value.id); else await store.deliverOrder(order.value.id, order.value.paymentMethod === 'COD' ? cod.amount : undefined);
+    if (action === 'pickup') await store.pickUpOrder(order.value.id, order.value.status); else await store.deliverOrder(order.value.id, order.value.paymentMethod === 'COD' ? cod.amount : undefined, order.value.status);
     if (!stopped) { confirmAction.value = null; await load(); }
-  } catch (error) { if (!stopped) { actionError.value = error?.response?.data?.message || error.message; toast.error(actionError.value); confirmAction.value = null; } } finally { if (!stopped) submitting.value = false; }
+  } catch (error) { if (!stopped) { actionError.value = error?.status === 409 ? 'Đơn hàng đã thay đổi trạng thái. Dữ liệu mới nhất đã được tải lại.' : error.message; toast.error(actionError.value); confirmAction.value = null; if (error?.status === 409) await load(); } } finally { if (!stopped) submitting.value = false; }
 }
 function requestAction(action) {
   if (!order.value || submitting.value) return;

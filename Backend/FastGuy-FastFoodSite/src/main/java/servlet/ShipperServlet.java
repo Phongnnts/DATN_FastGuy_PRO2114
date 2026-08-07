@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import dao.OrderItemDAO;
 import dao.UserDAO;
+import service.OrderTransitionService;
 import service.ShipperShiftAccessService;
 import service.ShipperService;
 import utils.ApiResponse;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 
 @WebServlet("/api/shipper/*")
 public class ShipperServlet extends HttpServlet {
+    static final String CONFLICT_MESSAGE = "Đơn hàng đã thay đổi trạng thái. Dữ liệu mới nhất đã được tải lại.";
     private ShipperService shipperService = new ShipperService();
     private ShipperShiftAccessService shipperShiftAccessService = new ShipperShiftAccessService();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
@@ -82,6 +84,10 @@ public class ShipperServlet extends HttpServlet {
     }
 
     record MutationPath(int orderId, String action) {}
+
+    static boolean isValidExpectedStatus(String status) {
+        return status != null && !status.isBlank() && OrderTransitionService.isCanonicalStatus(status);
+    }
 
     private boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int shipperId) throws IOException {
         if (shipperShiftAccessService.hasCheckedInShift(shipperId)) return true;
@@ -212,38 +218,43 @@ public class ShipperServlet extends HttpServlet {
             return;
         }
 
+        Map<String, Object> body = mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {});
+        Object rawExpectedStatus = body == null ? null : body.get("expectedStatus");
+        String expectedStatus = rawExpectedStatus instanceof String ? (String) rawExpectedStatus : null;
+        if (!isValidExpectedStatus(expectedStatus)) {
+            ApiResponse.error(resp, "Invalid expectedStatus", 400);
+            return;
+        }
+
         int orderId = mutation.orderId();
+        OrderTransitionService.MutationResult result;
         switch (mutation.action()) {
-                case "pickup": {
-                    boolean ok = shipperService.pickUpOrder(orderId, shipperId);
-                    if (ok) {
-                        ApiResponse.ok(resp, null, "Picked up successfully");
-                    } else {
-                        ApiResponse.error(resp, "Cannot pick up this order", 400);
+            case "pickup":
+                result = shipperService.pickUpOrder(orderId, shipperId, expectedStatus);
+                break;
+            case "deliver": {
+                BigDecimal collectedAmount = null;
+                if (body.get("collectedAmount") != null) {
+                    try {
+                        collectedAmount = new BigDecimal(body.get("collectedAmount").toString());
+                    } catch (NumberFormatException e) {
+                        ApiResponse.error(resp, "Collected amount must be a valid number", 400);
+                        return;
                     }
-                    break;
                 }
-                case "deliver": {
-                    Map<String, Object> body = mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {});
-                    BigDecimal collectedAmount = null;
-                    if (body != null && body.get("collectedAmount") != null) {
-                        try {
-                            collectedAmount = new BigDecimal(body.get("collectedAmount").toString());
-                        } catch (NumberFormatException e) {
-                            ApiResponse.error(resp, "Collected amount must be a valid number", 400);
-                            break;
-                        }
-                    }
-                    String error = shipperService.deliverOrder(orderId, shipperId, collectedAmount);
-                    if (error == null) {
-                        ApiResponse.ok(resp, null, "Delivered successfully");
-                    } else {
-                        ApiResponse.error(resp, error, 400);
-                    }
-                    break;
-                }
+                result = shipperService.deliverOrder(orderId, shipperId, collectedAmount, expectedStatus);
+                break;
+            }
             default:
                 ApiResponse.error(resp, "Not found", 404);
+                return;
+        }
+        if (result == OrderTransitionService.MutationResult.CONFLICT) {
+            ApiResponse.error(resp, CONFLICT_MESSAGE, 409);
+        } else if (result == OrderTransitionService.MutationResult.SUCCESS) {
+            ApiResponse.ok(resp, null, "pickup".equals(mutation.action()) ? "Picked up successfully" : "Delivered successfully");
+        } else {
+            ApiResponse.error(resp, "Cannot update this order", 400);
         }
     }
 

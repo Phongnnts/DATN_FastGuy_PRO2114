@@ -109,8 +109,19 @@ export const useShipperStore = defineStore('shipper', () => {
   }
 
   const invalidateDetailRequests = () => { detailGeneration += 1; };
-  const pickUpOrder = id => shipperApi.pickUpOrder(id);
-  const deliverOrder = (id, collectedAmount) => shipperApi.deliverOrder(id, collectedAmount);
+  async function mutateOrder(id, request) {
+    try {
+      return await request();
+    } catch (error) {
+      if (error.status === 409) {
+        await Promise.allSettled([fetchActiveOrders(true), fetchOrderById(id)]);
+        error.message = 'Đơn hàng đã thay đổi trạng thái. Dữ liệu mới nhất đã được tải lại.';
+      }
+      throw error;
+    }
+  }
+  const pickUpOrder = (id, expectedStatus) => mutateOrder(id, () => shipperApi.pickUpOrder(id, expectedStatus));
+  const deliverOrder = (id, collectedAmount, expectedStatus) => mutateOrder(id, () => shipperApi.deliverOrder(id, collectedAmount, expectedStatus));
 
   return { dashboard, activeOrders, historyOrders, historyTotal, historyPage, historySize, currentOrder, dashboardLoading, dashboardError, listLoading, listError, historyLoading, historyError, detailLoading, detailError, fetchDashboard, fetchActiveOrders, fetchMyOrders, fetchHistory, invalidateListRequests, fetchOrderById, invalidateDetailRequests, pickUpOrder, deliverOrder };
 });
