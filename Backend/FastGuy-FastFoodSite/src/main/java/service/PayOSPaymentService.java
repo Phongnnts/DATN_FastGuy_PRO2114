@@ -31,10 +31,33 @@ public class PayOSPaymentService {
         return !"PAID".equals(paymentStatus) && !RefundService.isTerminal(refundStatus);
     }
 
+    static void reconcilePaidOrder(Orders order, LocalDateTime paidAt) {
+        if (!"PAID".equals(order.getPaymentStatus()) || "CANCELLED".equals(order.getOrderStatus())) {
+            markPaid(order, paidAt);
+        }
+    }
+
     static boolean matchesProviderResponse(Map<String, Object> result, int orderId, long amount) {
-        return result.get("orderCode") instanceof Number code && code.intValue() == orderId
+        Object reference = result.get("paymentLinkId");
+        return reference != null && !String.valueOf(reference).isBlank()
+                && result.get("orderCode") instanceof Number code && code.intValue() == orderId
+                && result.get("amount") instanceof Number value && value.longValue() == amount;
+    }
+
+    static boolean matchesProviderResponse(Map<String, Object> result, String storedReference, int orderId, long amount) {
+        return storedReference != null && !storedReference.isBlank()
+                && result.get("orderCode") instanceof Number code && code.intValue() == orderId
                 && result.get("amount") instanceof Number value && value.longValue() == amount
-                && result.get("paymentLinkId") != null && !String.valueOf(result.get("paymentLinkId")).isBlank();
+                && storedReference.equals(result.get("paymentLinkId"));
+    }
+
+    static boolean matchesWebhookPayment(String orderReference, long orderAmount, String attemptReference,
+            long attemptAmount, String returnedReference) {
+        return orderReference != null && !orderReference.isBlank()
+                && attemptReference != null && !attemptReference.isBlank()
+                && orderReference.equals(returnedReference)
+                && attemptReference.equals(returnedReference)
+                && orderAmount == attemptAmount;
     }
 
     public void storeGuestReturnProof(int orderId, String token) {
@@ -180,11 +203,17 @@ public class PayOSPaymentService {
             if ("PAID".equals(status)) {
                 em.getTransaction().begin();
                 Orders locked = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-                if (shouldMarkPaid(locked.getPaymentStatus(), locked.getRefundStatus())) {
-                    markPaid(locked, LocalDateTime.now());
-                    PaymentAttempt attempt = findAttempt(em, orderId);
-                    if (attempt != null) attempt.setStatus("PAID");
+                PaymentAttempt attempt = findAttempt(em, orderId);
+                long amount = locked.getFinalAmount().longValueExact();
+                if (attempt == null || attempt.getAmount() == null
+                        || !matchesProviderResponse(info, locked.getPayosPaymentLinkId(), orderId, amount)
+                        || !matchesWebhookPayment(locked.getPayosPaymentLinkId(), amount, attempt.getProviderReference(),
+                                attempt.getAmount().longValueExact(), String.valueOf(info.get("paymentLinkId")))) {
+                    em.getTransaction().rollback();
+                    return false;
                 }
+                reconcilePaidOrder(locked, LocalDateTime.now());
+                attempt.setStatus("PAID");
                 em.getTransaction().commit();
                 return true;
             }
@@ -225,22 +254,16 @@ public class PayOSPaymentService {
                 em.getTransaction().rollback();
                 return false;
             }
-            if ("PAID".equals(order.getPaymentStatus())) {
-                em.getTransaction().commit();
-                return true;
-            }
-            if (RefundService.isTerminal(order.getRefundStatus())) {
-                em.getTransaction().commit();
-                return true;
-            }
-            String paymentLinkId = String.valueOf(data.getOrDefault("paymentLinkId", ""));
-            if (order.getPayosPaymentLinkId() != null && !order.getPayosPaymentLinkId().equals(paymentLinkId)) {
+            String paymentLinkId = data.get("paymentLinkId") instanceof String reference ? reference : null;
+            PaymentAttempt attempt = findAttempt(em, orderId);
+            if (attempt == null || attempt.getAmount() == null
+                    || !matchesWebhookPayment(order.getPayosPaymentLinkId(), order.getFinalAmount().longValueExact(),
+                            attempt.getProviderReference(), attempt.getAmount().longValueExact(), paymentLinkId)) {
                 em.getTransaction().rollback();
                 return false;
             }
-            markPaid(order, LocalDateTime.now());
-            PaymentAttempt attempt = findAttempt(em, orderId);
-            if (attempt != null) attempt.setStatus("PAID");
+            reconcilePaidOrder(order, LocalDateTime.now());
+            attempt.setStatus("PAID");
             em.getTransaction().commit();
             return true;
         } catch (RuntimeException e) {

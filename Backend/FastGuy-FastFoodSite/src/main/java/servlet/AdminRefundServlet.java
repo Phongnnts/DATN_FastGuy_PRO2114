@@ -53,6 +53,9 @@ public class AdminRefundServlet extends HttpServlet {
                 m.put("paymentStatus", o.getPaymentStatus());
                 m.put("refundStatus", o.getRefundStatus());
                 m.put("refundAmount", o.getRefundAmount());
+                m.put("refundNote", o.getRefundNote());
+                m.put("refundReference", o.getRefundReference());
+                m.put("refundProcessedBy", o.getRefundProcessedBy());
                 m.put("cancelledAt", o.getCancelledAt() != null ? o.getCancelledAt().toString() : null);
                 m.put("paidAt", o.getPaidAt() != null ? o.getPaidAt().toString() : null);
                 m.put("refundedAt", o.getRefundedAt() != null ? o.getRefundedAt().toString() : null);
@@ -86,13 +89,17 @@ public class AdminRefundServlet extends HttpServlet {
             Object rawStatus = body == null ? null : body.get("status");
             Object rawNote = body == null ? null : body.get("refundNote");
             Object rawAmount = body == null ? null : body.get("refundAmount");
+            Object rawReference = body == null ? null : body.get("refundReference");
             String status = rawStatus instanceof String s ? s : null;
             String note = rawNote instanceof String s ? s : null;
+            String reference = rawReference instanceof String s ? s : null;
             BigDecimal amount = rawAmount == null ? null : new BigDecimal(String.valueOf(rawAmount));
-            refundService.update(orderId, status, amount, note, JwtUtil.getUserId(token));
+            refundService.update(orderId, status, amount, note, reference, JwtUtil.getUserId(token));
             ApiResponse.ok(resp, null, "Refund updated");
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid refund amount or order ID", 400);
+        } catch (RefundService.RefundConflictException e) {
+            ApiResponse.error(resp, e.getMessage(), 409);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         }
