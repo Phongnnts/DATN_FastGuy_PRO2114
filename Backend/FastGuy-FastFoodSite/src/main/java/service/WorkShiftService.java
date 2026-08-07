@@ -106,11 +106,12 @@ public class WorkShiftService {
     public WorkShift currentCheckedInShift(int userId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            List<WorkShift> shifts = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.user.role = 'STAFF' AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL ORDER BY ws.checkInAt DESC, ws.shiftId DESC", WorkShift.class)
+            LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+            List<WorkShift> shifts = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.user.role = 'STAFF' AND ws.user.status = 'ACTIVE' AND ws.shiftDate = :today AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL ORDER BY ws.checkInAt DESC, ws.shiftId DESC", WorkShift.class)
                     .setParameter("userId", userId)
-                    .setMaxResults(1)
+                    .setParameter("today", now.toLocalDate())
                     .getResultList();
-            return shifts.isEmpty() ? null : shifts.get(0);
+            return shifts.stream().filter(shift -> isValidCheckedInShift(shift, now)).findFirst().orElse(null);
         } finally {
             em.close();
         }
@@ -119,7 +120,7 @@ public class WorkShiftService {
     public Map<String, Object> current(int userId) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
             List<WorkShift> shifts = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.shiftDate = :today ORDER BY ws.startTime, ws.shiftId", WorkShift.class)
                     .setParameter("userId", userId).setParameter("today", now.toLocalDate()).getResultList();
             CurrentShift current = current(shifts, now.toLocalTime());
@@ -135,7 +136,7 @@ public class WorkShiftService {
     record CurrentShift(String state, WorkShift shift) {}
 
     static CurrentShift current(List<WorkShift> shifts, LocalTime now) {
-        WorkShift selected = shifts.stream().filter(s -> "CHECKED_IN".equals(s.getStatus()) && s.getCheckOutAt() == null).findFirst().orElse(null);
+        WorkShift selected = shifts.stream().filter(s -> isCheckedInWithinGrace(s, now)).findFirst().orElse(null);
         if (selected != null) return new CurrentShift("CHECKED_IN", selected);
         if (!shifts.isEmpty() && shifts.stream().allMatch(s -> s.getCheckOutAt() != null)) return new CurrentShift("CHECKED_OUT", shifts.get(shifts.size() - 1));
         selected = shifts.stream().filter(s -> s.getCheckOutAt() == null && !now.isAfter(s.getEndTime().plusMinutes(SHIFT_GRACE_MINUTES))).findFirst().orElse(null);
@@ -149,7 +150,12 @@ public class WorkShiftService {
     }
 
     static boolean isCheckedInWithinGrace(WorkShift shift, LocalTime now) {
-        return "CHECKED_IN".equals(shift.getStatus()) && !now.isAfter(shift.getEndTime().plusMinutes(SHIFT_GRACE_MINUTES));
+        return "CHECKED_IN".equals(shift.getStatus()) && shift.getCheckInAt() != null && shift.getCheckOutAt() == null
+                && !now.isAfter(shift.getEndTime().plusMinutes(SHIFT_GRACE_MINUTES));
+    }
+
+    static boolean isValidCheckedInShift(WorkShift shift, LocalDateTime now) {
+        return shift != null && shift.getShiftDate().equals(now.toLocalDate()) && isCheckedInWithinGrace(shift, now.toLocalTime());
     }
 
     static boolean canCheckOut(WorkShift shift, LocalDateTime now) {

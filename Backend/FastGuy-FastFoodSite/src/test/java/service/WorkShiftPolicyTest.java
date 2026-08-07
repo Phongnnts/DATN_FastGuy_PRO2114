@@ -52,6 +52,7 @@ class WorkShiftPolicyTest {
     void checkedInShiftHasPriority() {
         WorkShift upcoming = shift(LocalTime.of(14, 0), LocalTime.of(16, 0), "SCHEDULED");
         WorkShift checkedIn = shift(LocalTime.of(8, 0), LocalTime.of(13, 0), "CHECKED_IN");
+        checkedIn.setCheckInAt(LocalDateTime.of(2026, 7, 21, 8, 0));
         WorkShiftService.CurrentShift current = WorkShiftService.current(List.of(upcoming, checkedIn), LocalTime.NOON);
         assertEquals("CHECKED_IN", current.state());
         assertSame(checkedIn, current.shift());
@@ -94,6 +95,27 @@ class WorkShiftPolicyTest {
     @Test
     void shiftOperationsUseVietnamBusinessTimezone() {
         assertEquals(ZoneId.of("Asia/Ho_Chi_Minh"), WorkShiftService.BUSINESS_ZONE);
+    }
+
+    @Test
+    void checkedInAccessRequiresBusinessTodayAndOpenShiftWithinGrace() {
+        WorkShift shift = shift(LocalTime.of(9, 0), LocalTime.of(17, 0), "CHECKED_IN");
+        shift.setCheckInAt(LocalDateTime.of(2026, 7, 21, 9, 0));
+
+        assertTrue(WorkShiftService.isValidCheckedInShift(shift, LocalDateTime.of(2026, 7, 21, 17, 15)));
+        assertFalse(WorkShiftService.isValidCheckedInShift(shift, LocalDateTime.of(2026, 7, 21, 17, 16)));
+        assertFalse(WorkShiftService.isValidCheckedInShift(shift, LocalDateTime.of(2026, 7, 22, 9, 0)));
+
+        shift.setCheckOutAt(LocalDateTime.of(2026, 7, 21, 16, 0));
+        assertFalse(WorkShiftService.isValidCheckedInShift(shift, LocalDateTime.of(2026, 7, 21, 16, 30)));
+    }
+
+    @Test
+    void expiredCheckedInShiftDoesNotRemainCurrent() {
+        WorkShift expired = shift(LocalTime.of(8, 0), LocalTime.of(9, 0), "CHECKED_IN");
+        expired.setCheckInAt(LocalDateTime.of(2026, 7, 21, 8, 0));
+
+        assertEquals("NONE", WorkShiftService.current(List.of(expired), LocalTime.of(9, 16)).state());
     }
 
     private WorkShift shift(LocalTime start, LocalTime end, String status) {
