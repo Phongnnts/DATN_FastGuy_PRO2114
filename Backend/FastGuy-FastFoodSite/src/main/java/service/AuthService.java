@@ -13,6 +13,7 @@ import utils.PasswordUtil;
 public class AuthService {
     public static final int MAX_FAILED_ATTEMPTS = 5;
     public static final int LOCK_DURATION_MINUTES = 15;
+    private static final String LOCKED_MESSAGE = "Tài khoản đã bị khóa tạm thời, vui lòng thử lại sau";
 
     private UserDAO userDAO = new UserDAO();
 
@@ -28,9 +29,17 @@ public class AuthService {
         try {
             em.getTransaction().begin();
             User user = em.find(User.class, found.getUserId(), LockModeType.PESSIMISTIC_WRITE);
+            if (user == null) {
+                em.getTransaction().rollback();
+                return null;
+            }
             if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(now)) {
                 em.getTransaction().rollback();
-                throw new IllegalStateException("Tài khoản đã bị khóa tạm thời, vui lòng thử lại sau");
+                throw new IllegalStateException(LOCKED_MESSAGE);
+            }
+            if (user.getLockedUntil() != null && !user.getLockedUntil().isAfter(now)) {
+                user.setFailedLoginAttempts(0);
+                user.setLockedUntil(null);
             }
             if (PasswordUtil.check(password, user.getPasswordHash())) {
                 if ("ACTIVE".equals(user.getStatus())) {
@@ -51,6 +60,8 @@ public class AuthService {
             user.setFailedLoginAttempts(attempts);
             if (attempts >= MAX_FAILED_ATTEMPTS) {
                 user.setLockedUntil(now.plusMinutes(LOCK_DURATION_MINUTES));
+                em.getTransaction().commit();
+                throw new IllegalStateException(LOCKED_MESSAGE);
             }
             em.getTransaction().commit();
             return null;
