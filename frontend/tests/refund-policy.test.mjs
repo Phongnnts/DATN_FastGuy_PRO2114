@@ -119,7 +119,7 @@ test('RefundsPage guards re-entry and restores focus on dialog close', () => {
 
 test('RefundsPage watches route query status without re-replacing', () => {
   const page = read('src/views/admin/RefundsPage.vue');
-  assert.match(page, /watch\(\(\) => route\.query\.status, \(raw\) => \{\n  const key = statusFromQuery\(raw\);\n  if \(activeStatus\.value !== key\) activeStatus\.value = key;\n\}\);/);
+  assert.match(page, /watch\(\(\) => route\.query\.status, \(raw\) => \{\r?\n  const key = statusFromQuery\(raw\);\r?\n  if \(activeStatus\.value !== key\) activeStatus\.value = key;\r?\n\}\);/);
   assert.ok(!/router\.replace/.test(page.match(/watch\(\(\) => route\.query\.status[\s\S]*?\}\);/)?.[0] || ''));
 });
 
