@@ -1,5 +1,6 @@
 package utils;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -49,10 +50,13 @@ public class AddressValidator {
         if (!(value instanceof Number number)) {
             return false;
         }
-        double doubleValue = number.doubleValue();
-        return Double.isFinite(doubleValue)
-                && doubleValue == Math.rint(doubleValue)
-                && doubleValue > 0
-                && doubleValue <= Integer.MAX_VALUE;
+        try {
+            BigDecimal decimal = new BigDecimal(number.toString());
+            return decimal.stripTrailingZeros().scale() <= 0
+                    && decimal.compareTo(BigDecimal.ZERO) > 0
+                    && decimal.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 }
