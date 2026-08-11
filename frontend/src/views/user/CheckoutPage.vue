@@ -26,7 +26,11 @@ const phone = ref('');
 const recipientName = ref('');
 const street = ref('');
 const paymentMethod = ref('COD');
-const availablePaymentMethods = ref(['COD']);
+const availablePaymentMethods = ref(['COD', 'BANK_TRANSFER']);
+const paymentAvailability = ref({
+  COD: { enabled: true },
+  BANK_TRANSFER: { enabled: false, reason: 'PayOS tạm không khả dụng' },
+});
 const couponCode = ref('');
 const appliedCoupon = ref(null);
 const couponDiscount = ref(0);
@@ -84,13 +88,14 @@ const hasInvalidItems = computed(() => cart.items.some(i => (i.variantStatus && 
 onMounted(async () => {
   try {
     const capabilities = await orderApi.getPaymentCapabilities();
-    availablePaymentMethods.value = Array.isArray(capabilities?.methods) && capabilities.methods.includes('COD')
-      ? capabilities.methods
-      : ['COD'];
+    paymentAvailability.value = {
+      COD: { enabled: true },
+      BANK_TRANSFER: capabilities?.availability?.BANK_TRANSFER || { enabled: false, reason: 'PayOS tạm không khả dụng' },
+    };
   } catch {
-    availablePaymentMethods.value = ['COD'];
+    paymentAvailability.value.BANK_TRANSFER = { enabled: false, reason: 'PayOS tạm không khả dụng' };
   }
-  if (!availablePaymentMethods.value.includes(paymentMethod.value)) paymentMethod.value = 'COD';
+  if (!isPaymentEnabled(paymentMethod.value)) paymentMethod.value = 'COD';
   try {
     storeConfig.value = await storeApi.getConfig();
   } catch {
@@ -186,7 +191,7 @@ async function calculateShipping(code = selectedWard.value) {
     if (result.expectedDeliveryTime) expectedDelivery.value = result.expectedDeliveryTime;
   } catch {
     shippingFee.value = null;
-    shippingError.value = 'Không thể tính phí giao hàng.';
+    shippingError.value = 'Dịch vụ giao hàng chưa được cấu hình hoặc tạm không khả dụng. Vui lòng thử lại sau.';
   } finally {
     feeLoading.value = false;
   }
@@ -238,6 +243,15 @@ function isValidPhone(value) {
 function canPlaceOrder() {
   return selectedWard.value && selectedDistrict.value && shippingFee.value !== null
     && recipientName.value.trim().length >= 2 && isValidPhone(phone.value) && street.value.trim().length >= 5;
+}
+
+function isPaymentEnabled(key) {
+  return paymentAvailability.value[key]?.enabled === true;
+}
+
+function selectPaymentMethod(key) {
+  if (!isPaymentEnabled(key)) return;
+  paymentMethod.value = key;
 }
 
 async function loadClaimedCoupons() {
@@ -316,6 +330,8 @@ async function placeOrder() {
   if (submitting.value) return;
   if (isStoreClosed.value) return toast.error('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
   if (hasInvalidItems.value) return toast.error('Co mon da het hang hoac vuot ton kho, vui long cap nhat gio hang');
+  if (shippingFee.value === null) return toast.error('Dịch vụ giao hàng tạm không khả dụng. Vui lòng thử lại sau.');
+  if (!isPaymentEnabled(paymentMethod.value)) return toast.error('Phương thức thanh toán đang chọn không khả dụng.');
   if (!canPlaceOrder()) return toast.error('Vui lòng điền đầy đủ thông tin giao hàng');
   const fullAddress = getFullAddress();
   if (!fullAddress) return toast.error('Vui lòng nhập địa chỉ');
@@ -510,15 +526,14 @@ async function placeOrder() {
                v-for="key in availablePaymentMethods"
                :key="key"
                class="payment-option"
-               :class="{ selected: paymentMethod === key }"
+               :class="{ selected: paymentMethod === key, disabled: !isPaymentEnabled(key) }"
                role="radio"
-                :tabindex="paymentMethod === key ? 0 : -1"
+                :tabindex="paymentMethod === key && isPaymentEnabled(key) ? 0 : -1"
                 :aria-checked="paymentMethod === key"
-                @click="paymentMethod = key"
-                @keydown.space.prevent="paymentMethod = key"
-                @keydown.enter="paymentMethod = key"
-                 @keydown.right.prevent="paymentMethod = availablePaymentMethods[(availablePaymentMethods.indexOf(key) + 1) % availablePaymentMethods.length]"
-                 @keydown.left.prevent="paymentMethod = availablePaymentMethods[(availablePaymentMethods.indexOf(key) - 1 + availablePaymentMethods.length) % availablePaymentMethods.length]"
+                :aria-disabled="!isPaymentEnabled(key)"
+                @click="selectPaymentMethod(key)"
+                @keydown.space.prevent="selectPaymentMethod(key)"
+                @keydown.enter="selectPaymentMethod(key)"
             >
               <i
                 :class="
@@ -528,11 +543,12 @@ async function placeOrder() {
                 "
               ></i>
                <span>{{ PAYMENT_METHOD_LABEL[key] }}</span>
-              <i
-                v-if="paymentMethod === key"
-                class="bi bi-check-circle-fill selected-icon"
-              ></i>
-            </div>
+               <i
+                 v-if="paymentMethod === key"
+                 class="bi bi-check-circle-fill selected-icon"
+               ></i>
+               <small v-if="!isPaymentEnabled(key)">{{ paymentAvailability[key]?.reason }}</small>
+             </div>
           </div>
           <div v-if="paymentMethod === 'BANK_TRANSFER'" class="card" style="margin-top:12px;padding:16px;background:#f8f9fa;border:1px solid var(--border);border-radius:var(--radius-sm)">
             <p><strong>Thanh toán PayOS</strong></p>
@@ -818,6 +834,13 @@ async function placeOrder() {
 }
 .payment-option:hover {
   border-color: var(--primary);
+}
+.payment-option.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.payment-option.disabled:hover {
+  border-color: var(--border);
 }
 .payment-option.selected {
   border-color: var(--primary);
