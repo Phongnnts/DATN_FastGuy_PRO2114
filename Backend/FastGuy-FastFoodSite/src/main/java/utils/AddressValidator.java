@@ -35,7 +35,7 @@ public class AddressValidator {
         if (!(body.get("ghnProvinceId") instanceof Number) || ((Number) body.get("ghnProvinceId")).intValue() <= 0) {
             return "Tinh/thanh pho GHN khong hop le";
         }
-        if (!(body.get("ghnDistrictId") instanceof Number) || ((Number) body.get("ghnDistrictId")).intValue() <= 0) {
+        if (!isPositiveInt(body.get("ghnDistrictId"))) {
             return "Quan/huyen GHN khong hop le";
         }
         String wardCode = body.get("ghnWardCode") instanceof String ? ((String) body.get("ghnWardCode")).trim() : "";
@@ -43,5 +43,16 @@ public class AddressValidator {
             return "Phuong/xa GHN khong hop le";
         }
         return null;
+    }
+
+    private static boolean isPositiveInt(Object value) {
+        if (!(value instanceof Number number)) {
+            return false;
+        }
+        double doubleValue = number.doubleValue();
+        return Double.isFinite(doubleValue)
+                && doubleValue == Math.rint(doubleValue)
+                && doubleValue > 0
+                && doubleValue <= Integer.MAX_VALUE;
     }
 }
