@@ -1,5 +1,6 @@
 package utils;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -150,6 +151,27 @@ class AddressValidatorTest {
         Map<String, Object> body = validBody();
         body.remove("ghnDistrictId");
         assertEquals("Quan/huyen GHN khong hop le", AddressValidator.validate(body));
+    }
+
+    @Test
+    @DisplayName("GHN district ID must be a positive integer JSON number")
+    void invalidGhnDistrictId_returnsError() {
+        String expected = "Quan/huyen GHN khong hop le";
+
+        assertAll(
+                () -> assertEquals(expected, validateGhnDistrictId(null)),
+                () -> assertEquals(expected, validateGhnDistrictId("123")),
+                () -> assertEquals(expected, validateGhnDistrictId("abc")),
+                () -> assertEquals(expected, validateGhnDistrictId(1.5)),
+                () -> assertEquals(expected, validateGhnDistrictId(0)),
+                () -> assertEquals(expected, validateGhnDistrictId(-1)),
+                () -> assertEquals(expected, validateGhnDistrictId((long) Integer.MAX_VALUE + 1)));
+    }
+
+    private String validateGhnDistrictId(Object value) {
+        Map<String, Object> body = validBody();
+        body.put("ghnDistrictId", value);
+        return AddressValidator.validate(body);
     }
 
     @Test
