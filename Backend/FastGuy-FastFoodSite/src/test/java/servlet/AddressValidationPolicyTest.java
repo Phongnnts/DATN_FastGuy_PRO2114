@@ -1,43 +1,110 @@
 package servlet;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.BufferedReader;
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 
 import org.junit.jupiter.api.Test;
 
+import entity.Address;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import service.AddressService;
+import utils.JwtUtil;
+
 class AddressValidationPolicyTest {
-    private static final Path SOURCE = Path.of("src/main/java/servlet/AddressServlet.java");
+    private static final String BODY = """
+            {"recipientName":"Nguyen Van A","phone":"0901234567","street":"1 Main St","wardName":"Ward 1","districtName":"District 1","provinceName":"Ho Chi Minh","ghnProvinceId":202,"ghnDistrictId":"abc","ghnWardCode":"20101"}
+            """;
 
     @Test
-    void invalidAddressReturns400BeforePostServiceCall() throws IOException {
-        String source = Files.readString(SOURCE);
-        String post = source.substring(source.indexOf("protected void doPost"), source.indexOf("protected void doPut"));
+    void invalidDistrictReturns400BeforePostServiceCall() throws Exception {
+        TestContext context = context(null);
 
-        assertValidationReturnsBefore(post, "addressService.create");
+        context.servlet.doPost(context.request, context.response);
+
+        assertRejectedBeforeService(context);
     }
 
     @Test
-    void invalidAddressReturns400BeforePutServiceCall() throws IOException {
-        String source = Files.readString(SOURCE);
-        String put = source.substring(source.indexOf("protected void doPut"), source.indexOf("protected void doDelete"));
+    void invalidDistrictReturns400BeforePutServiceCall() throws Exception {
+        TestContext context = context("/1");
 
-        assertValidationReturnsBefore(put, "addressService.update");
+        context.servlet.doPut(context.request, context.response);
+
+        assertRejectedBeforeService(context);
     }
 
-    private void assertValidationReturnsBefore(String method, String serviceCall) {
-        int validation = method.indexOf("AddressValidator.validate(body)");
-        int badRequest = method.indexOf("ApiResponse.error(resp, validationError, 400)", validation);
-        int earlyReturn = method.indexOf("return;", badRequest);
-        int conversion = method.indexOf("toAddress(body)");
-        int service = method.indexOf(serviceCall);
+    private TestContext context(String pathInfo) throws Exception {
+        AddressServlet servlet = new AddressServlet();
+        CountingAddressService service = new CountingAddressService();
+        Field field = AddressServlet.class.getDeclaredField("addressService");
+        field.setAccessible(true);
+        field.set(servlet, service);
+        ResponseCapture capture = new ResponseCapture();
+        HttpServletRequest request = (HttpServletRequest) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class<?>[] {HttpServletRequest.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getHeader" -> "Authorization".equals(args[0]) ? "Bearer " + JwtUtil.generate(1, "USER") : null;
+                    case "getPathInfo" -> pathInfo;
+                    case "getReader" -> new BufferedReader(new StringReader(BODY));
+                    default -> defaultValue(method.getReturnType());
+                });
+        HttpServletResponse response = (HttpServletResponse) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class<?>[] {HttpServletResponse.class},
+                (proxy, method, args) -> {
+                    if ("setStatus".equals(method.getName())) capture.status = (int) args[0];
+                    if ("getWriter".equals(method.getName())) return capture.writer;
+                    return defaultValue(method.getReturnType());
+                });
+        return new TestContext(servlet, service, request, response, capture);
+    }
 
-        assertTrue(validation >= 0);
-        assertTrue(badRequest > validation);
-        assertTrue(earlyReturn > badRequest);
-        assertTrue(conversion > earlyReturn);
-        assertTrue(service > earlyReturn);
+    private void assertRejectedBeforeService(TestContext context) {
+        context.capture.writer.flush();
+        assertEquals(400, context.capture.status);
+        assertTrue(context.capture.body.toString().contains("Quan/huyen GHN khong hop le"));
+        assertEquals(0, context.service.calls);
+    }
+
+    private Object defaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == char.class) return '\0';
+        return 0;
+    }
+
+    private record TestContext(AddressServlet servlet, CountingAddressService service,
+            HttpServletRequest request, HttpServletResponse response, ResponseCapture capture) {
+    }
+
+    private static class ResponseCapture {
+        private int status;
+        private final StringWriter body = new StringWriter();
+        private final PrintWriter writer = new PrintWriter(body);
+    }
+
+    private static class CountingAddressService extends AddressService {
+        private int calls;
+
+        @Override
+        public Address create(int userId, Address address) {
+            calls++;
+            return address;
+        }
+
+        @Override
+        public Address update(int userId, int addressId, Address address, Boolean isDefault) {
+            calls++;
+            return address;
+        }
     }
 }
