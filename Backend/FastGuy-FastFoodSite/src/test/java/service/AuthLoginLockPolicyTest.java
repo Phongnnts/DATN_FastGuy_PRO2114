@@ -26,7 +26,8 @@ class AuthLoginLockPolicyTest {
     @Test
     void lockedAccountIsRejectedAndWrongPasswordCountsAttempts() throws Exception {
         String src = read(AUTH);
-        assertTrue(src.contains("throw new IllegalStateException(\"Tài khoản đã bị khóa tạm thời, vui lòng thử lại sau\")"));
+        assertTrue(src.contains("LOCKED_MESSAGE = \"Tài khoản đã bị khóa tạm thời, vui lòng thử lại sau\""));
+        assertTrue(src.contains("throw new IllegalStateException(LOCKED_MESSAGE)"));
         assertTrue(src.contains("user.getFailedLoginAttempts() + 1"));
         assertTrue(src.contains("attempts >= MAX_FAILED_ATTEMPTS"));
         assertTrue(src.contains("setLockedUntil(now.plusMinutes(LOCK_DURATION_MINUTES))"));
@@ -37,6 +38,29 @@ class AuthLoginLockPolicyTest {
         String src = read(AUTH);
         assertTrue(src.contains("setFailedLoginAttempts(0)"));
         assertTrue(src.contains("setLockedUntil(null)"));
+    }
+
+    @Test
+    void expiredLockStartsAFreshAttemptWindow() throws Exception {
+        String src = read(AUTH);
+        assertTrue(src.contains("!user.getLockedUntil().isAfter(now)"));
+        assertTrue(src.contains("user.setFailedLoginAttempts(0);"));
+        assertTrue(src.contains("user.setLockedUntil(null);"));
+    }
+
+    @Test
+    void fifthFailureReportsLockImmediately() throws Exception {
+        String src = read(AUTH);
+        int lockAssignment = src.indexOf("user.setLockedUntil(now.plusMinutes(LOCK_DURATION_MINUTES));");
+        int commit = src.indexOf("em.getTransaction().commit();", lockAssignment);
+        int rejection = src.indexOf("throw new IllegalStateException(LOCKED_MESSAGE);", commit);
+        assertTrue(lockAssignment >= 0 && commit > lockAssignment && rejection > commit);
+    }
+
+    @Test
+    void missingUserAfterLookupIsRejectedSafely() throws Exception {
+        String src = read(AUTH);
+        assertTrue(src.contains("if (user == null)"));
     }
 
     @Test
