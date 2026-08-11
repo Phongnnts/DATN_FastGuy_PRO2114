@@ -11,7 +11,7 @@ Cấu trúc theo template: `Bản sao của Nhóm 4_Danh sách công việc tron
 | US005 | Người dùng | Tôi muốn đặt lại mật khẩu khi quên | Để lấy lại quyền truy cập | 2.0 | Cao | Nhập email; hệ thống gửi link đặt lại mật khẩu nếu email tồn tại (trả lời trùng lặp chống lộ email); token hết hạn và dùng một lần | Xong | |
 | US006 | Người dùng | Tôi muốn xem thông tin cá nhân | Để kiểm tra hồ sơ | 2.0 | Thấp | GET /api/auth/me trả về họ tên, email, điện thoại, avatar, vai trò | Xong | |
 | US007 | Người dùng | Tôi muốn cập nhật hồ sơ | Để thông tin luôn chính xác | 2.0 | Vừa | Sửa họ tên, email, điện thoại; kiểm tra trùng email/điện thoại và định dạng | Xong | |
-| US008 | Người dùng | Tôi muốn tài khoản bị khóa khi nhập sai mật khẩu nhiều lần | Để chống tấn công brute-force | 4.0 | Cao | Sau 5 lần nhập sai tạm khóa tài khoản một khoảng thời gian; thông báo rõ ràng | Mới | Backlog bảo mật |
+| US008 | Người dùng | Tôi muốn tài khoản bị khóa khi nhập sai mật khẩu nhiều lần | Để chống tấn công brute-force | 4.0 | Cao | Sau 5 lần nhập sai tạm khóa tài khoản một khoảng thời gian; thông báo rõ ràng | Xong | Khóa 15 phút ngay lần sai thứ 5; regression ST043 pass |
 | US009 | Người dùng | Tôi muốn đăng nhập không phân biệt chữ hoa/thường cho email | Để không nhập sai do viết hoa | 3.0 | Vừa | Email được chuẩn hóa chữ thường khi xác thực | Xong | |
 | US010 | Người dùng | Tôi muốn tự động cắt khoảng trắng khi đăng nhập | Để tránh lỗi do copy-paste | 3.0 | Thấp | Trim đầu/cuối username/email và mật khẩu không bị trim | Xong | |
 | US011 | Người dùng | Tôi muốn quản lý địa chỉ giao hàng | Để đặt hàng nhanh hơn | 2.0 | Cao | Thêm, sửa, xóa, đặt mặc định; duy nhất 1 địa chỉ mặc định; chọn tỉnh/quận/phường GHN | Xong | |

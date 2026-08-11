@@ -85,10 +85,15 @@ public class OrderServlet extends HttpServlet {
         }
 
         if ("/payment-capabilities".equals(path)) {
-            List<String> methods = new ArrayList<>();
-            methods.add("COD");
-            if (payOSPaymentService.isConfigured()) methods.add("BANK_TRANSFER");
-            ApiResponse.ok(resp, Map.of("methods", methods));
+            boolean payOSEnabled = payOSPaymentService.isConfigured();
+            Map<String, Object> transferAvailability = new HashMap<>();
+            transferAvailability.put("enabled", payOSEnabled);
+            transferAvailability.put("reason", payOSEnabled ? null : "PayOS chưa được cấu hình");
+            ApiResponse.ok(resp, Map.of(
+                    "methods", List.of("COD", "BANK_TRANSFER"),
+                    "availability", Map.of(
+                            "COD", Map.of("enabled", true),
+                            "BANK_TRANSFER", transferAvailability)));
             return;
         }
 
