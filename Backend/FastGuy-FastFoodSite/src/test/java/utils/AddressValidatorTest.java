@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -165,7 +166,9 @@ class AddressValidatorTest {
                 () -> assertEquals(expected, validateGhnDistrictId(1.5)),
                 () -> assertEquals(expected, validateGhnDistrictId(0)),
                 () -> assertEquals(expected, validateGhnDistrictId(-1)),
-                () -> assertEquals(expected, validateGhnDistrictId((long) Integer.MAX_VALUE + 1)));
+                () -> assertEquals(expected, validateGhnDistrictId((long) Integer.MAX_VALUE + 1)),
+                () -> assertEquals(expected, validateGhnDistrictId(new BigDecimal("1.0000000000000000001"))),
+                () -> assertEquals(expected, validateGhnDistrictId(new BigDecimal("2147483647.0000000001"))));
     }
 
     private String validateGhnDistrictId(Object value) {
