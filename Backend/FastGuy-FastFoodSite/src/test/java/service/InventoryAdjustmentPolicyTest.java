@@ -1,78 +1,121 @@
 package service;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.lang.reflect.Proxy;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import entity.InventoryTransaction;
+import entity.ProductVariant;
+import exception.InventoryConflictException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityTransaction;
 
 class InventoryAdjustmentPolicyTest {
 
-    private static final Path SERVICE = Path.of("src/main/java/service/InventoryAdjustmentService.java");
-    private static final Path SERVLET = Path.of("src/main/java/servlet/AdminInventoryAdjustmentServlet.java");
+    @Test
+    void staleExpectedQuantityDoesNotMutateOrPersist() {
+        ProductVariant variant = variant(27);
+        PersistenceCapture capture = new PersistenceCapture(variant);
+        InventoryAdjustmentService service = new InventoryAdjustmentService(capture::entityManager);
 
-    private static String read(Path p) throws Exception {
-        return Files.readString(p);
+        InventoryConflictException conflict = assertThrows(InventoryConflictException.class,
+                () -> service.adjust(12, "INCREASE", 3, 26, "STOCK_COUNT", null, 1));
+
+        assertEquals(12, conflict.getVariantId());
+        assertEquals(27, conflict.getCurrentQuantity());
+        assertEquals(27, variant.getQuantityAvailable());
+        assertFalse(capture.persisted);
+        assertTrue(capture.rolledBack);
     }
 
     @Test
-    void adjustmentSupportsThreeOperationsWithExpectedQuantity() throws Exception {
-        String src = read(SERVICE);
-        assertTrue(src.contains("\"INCREASE\""));
-        assertTrue(src.contains("\"DECREASE\""));
-        assertTrue(src.contains("\"SET\""));
-        assertTrue(src.contains("expectedQuantity"));
-        assertTrue(src.contains("InventoryConflictException"));
-        assertTrue(src.contains("Math.addExact"));
-        assertTrue(src.contains("changed\", false"));
+    void noOpSetDoesNotMutateOrPersist() {
+        ProductVariant variant = variant(27);
+        PersistenceCapture capture = new PersistenceCapture(variant);
+        InventoryAdjustmentService service = new InventoryAdjustmentService(capture::entityManager);
+
+        Map<String, Object> result = service.adjust(12, "SET", 27, 27, "STOCK_COUNT", null, 1);
+
+        assertEquals(false, result.get("changed"));
+        assertEquals(27, variant.getQuantityAvailable());
+        assertFalse(capture.persisted);
+        assertTrue(capture.committed);
     }
 
     @Test
-    void adjustmentValidatesReasonAndOtherNote() throws Exception {
-        String src = read(SERVICE);
-        assertTrue(src.contains("STOCK_COUNT"));
-        assertTrue(src.contains("DAMAGE"));
-        assertTrue(src.contains("EXPIRED"));
-        assertTrue(src.contains("OTHER"));
-        assertTrue(src.contains("Ghi chú là bắt buộc khi chọn lý do Khác"));
+    void changedAdjustmentMutatesAndPersistsLedger() {
+        ProductVariant variant = variant(27);
+        PersistenceCapture capture = new PersistenceCapture(variant);
+        InventoryAdjustmentService service = new InventoryAdjustmentService(capture::entityManager);
+
+        Map<String, Object> result = service.adjust(12, "DECREASE", 2, 27, "DAMAGE", "Damaged", 1);
+
+        assertEquals(true, result.get("changed"));
+        assertEquals(25, variant.getQuantityAvailable());
+        assertTrue(capture.persisted);
+        assertEquals(2, capture.transaction.getQuantity());
+        assertEquals(27, capture.transaction.getQuantityBefore());
+        assertEquals(25, capture.transaction.getQuantityAfter());
     }
 
-    @Test
-    void adjustmentLocksVariantAndRejectsUnmanagedStock() throws Exception {
-        String src = read(SERVICE);
-        assertTrue(src.contains("LockModeType.PESSIMISTIC_WRITE"));
-        assertTrue(src.contains("if (stock == null)"));
-        assertTrue(src.contains("Biến thể không quản lý tồn kho"));
+    private ProductVariant variant(int quantity) {
+        ProductVariant variant = new ProductVariant();
+        variant.setVariantId(12);
+        variant.setQuantityAvailable(quantity);
+        return variant;
     }
 
-    @Test
-    void adjustmentPersistsAuditLedgerWithBeforeAfter() throws Exception {
-        String src = read(SERVICE);
-        assertTrue(src.contains("setTransactionType(\"ADJUSTMENT\")"));
-        assertTrue(src.contains("setQuantity(Math.abs(after - before))"));
-        assertTrue(src.contains("setQuantityBefore(before)"));
-        assertTrue(src.contains("setQuantityAfter(after)"));
-        assertTrue(src.contains("setOrder(null)"));
+    private class PersistenceCapture {
+        private final ProductVariant variant;
+        private boolean persisted;
+        private boolean committed;
+        private boolean rolledBack;
+        private InventoryTransaction transaction;
+
+        private PersistenceCapture(ProductVariant variant) {
+            this.variant = variant;
+        }
+
+        private EntityManager entityManager() {
+            EntityTransaction tx = (EntityTransaction) Proxy.newProxyInstance(getClass().getClassLoader(),
+                    new Class<?>[] {EntityTransaction.class}, (proxy, method, args) -> {
+                        switch (method.getName()) {
+                            case "begin" -> { return null; }
+                            case "commit" -> { committed = true; return null; }
+                            case "rollback" -> { rolledBack = true; return null; }
+                            case "isActive" -> { return !committed && !rolledBack; }
+                            default -> { return defaultValue(method.getReturnType()); }
+                        }
+                    });
+            return (EntityManager) Proxy.newProxyInstance(getClass().getClassLoader(),
+                    new Class<?>[] {EntityManager.class}, (proxy, method, args) -> {
+                        switch (method.getName()) {
+                            case "getTransaction" -> { return tx; }
+                            case "find" -> {
+                                if (args[0] == ProductVariant.class) return variant;
+                                return null;
+                            }
+                            case "persist" -> {
+                                persisted = true;
+                                transaction = (InventoryTransaction) args[0];
+                                return null;
+                            }
+                            default -> { return defaultValue(method.getReturnType()); }
+                        }
+                    });
+        }
     }
 
-    @Test
-    void wasteRejectsQuantityAboveStockAndPersistsWaste() throws Exception {
-        String src = read(SERVICE);
-        assertTrue(src.contains("quantity <= 0"));
-        assertTrue(src.contains("quantity > stock"));
-        assertTrue(src.contains("setTransactionType(\"WASTE\")"));
-        assertTrue(src.contains("variant.setQuantityAvailable(after)"));
-    }
-
-    @Test
-    void mutationServletRoutesAdjustmentsAndWasteWithAdminAuth() throws Exception {
-        String src = read(SERVLET);
-        assertTrue(src.contains("@WebServlet(\"/api/admin/inventory/transactions/*\")"));
-        assertTrue(src.contains("\"/adjustments\".equals(path)"));
-        assertTrue(src.contains("\"/waste\".equals(path)"));
-        assertTrue(src.contains("PrivilegedAuth.isActiveRole"));
-        assertTrue(src.contains("adjustmentService.adjust("));
-        assertTrue(src.contains("adjustmentService.waste("));
+    private Object defaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == char.class) return '\0';
+        return 0;
     }
 }

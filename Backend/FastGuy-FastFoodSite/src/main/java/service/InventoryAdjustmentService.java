@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import entity.InventoryTransaction;
 import entity.ProductVariant;
@@ -15,6 +16,15 @@ import utils.DatabaseUtil;
 
 public class InventoryAdjustmentService {
     private static final Set<String> ADJUSTMENT_REASONS = Set.of("STOCK_COUNT", "DAMAGE", "EXPIRED", "OTHER");
+    private final Supplier<EntityManager> entityManagers;
+
+    public InventoryAdjustmentService() {
+        this(DatabaseUtil::getEntityManager);
+    }
+
+    InventoryAdjustmentService(Supplier<EntityManager> entityManagers) {
+        this.entityManagers = entityManagers;
+    }
 
     public Map<String, Object> adjust(int variantId, String operation, int quantity, Integer expectedQuantity,
             String reasonCode, String note, int adminId) {
@@ -24,7 +34,7 @@ public class InventoryAdjustmentService {
         if (!Set.of("INCREASE", "DECREASE", "SET").contains(operation)) throw new IllegalArgumentException("Thao tác điều chỉnh không hợp lệ");
         if (("INCREASE".equals(operation) || "DECREASE".equals(operation)) && quantity <= 0) throw new IllegalArgumentException("Số lượng điều chỉnh phải lớn hơn 0");
         if ("SET".equals(operation) && quantity < 0) throw new IllegalArgumentException("Số lượng tồn kho mới không hợp lệ");
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManagers.get();
         try {
             em.getTransaction().begin();
             ProductVariant variant = em.find(ProductVariant.class, variantId, LockModeType.PESSIMISTIC_WRITE);
@@ -79,7 +89,7 @@ public class InventoryAdjustmentService {
     public Map<String, Object> waste(int variantId, int quantity, String reasonCode, String note, int adminId) {
         if (quantity <= 0) throw new IllegalArgumentException("Số lượng lãng phí phải lớn hơn 0");
         if (reasonCode == null || reasonCode.isBlank()) throw new IllegalArgumentException("Vui lòng chọn lý do lãng phí");
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManagers.get();
         try {
             em.getTransaction().begin();
             ProductVariant variant = em.find(ProductVariant.class, variantId, LockModeType.PESSIMISTIC_WRITE);
