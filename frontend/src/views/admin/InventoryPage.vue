@@ -5,6 +5,7 @@ import { useAdminStore } from '@/stores/admin';
 import { adminApi } from '@/api';
 import { formatPrice } from '@/utils/format';
 import { useToast } from '@/stores/toast';
+import { adjustmentState } from '@/utils/inventoryAdjustment';
 
 const toast = useToast();
 const adminStore = useAdminStore();
@@ -35,14 +36,15 @@ const adjustmentError = ref('');
 const submitting = ref(false);
 let adjustmentTrigger = null;
 
-const projectedQuantity = computed(() => {
-  if (!adjustmentRow.value) return null;
-  const quantity = Number(adjustmentForm.value.quantity);
-  if (!Number.isInteger(quantity)) return null;
-  if (adjustmentForm.value.operation === 'INCREASE') return adjustmentRow.value.stock + quantity;
-  if (adjustmentForm.value.operation === 'DECREASE') return adjustmentRow.value.stock - quantity;
-  return quantity;
-});
+const adjustmentStatus = computed(() => adjustmentState(
+  adjustmentForm.value.operation,
+  adjustmentForm.value.quantity,
+  adjustmentRow.value?.stock,
+));
+const projectedQuantity = computed(() => adjustmentStatus.value.projectedQuantity);
+const canSubmitAdjustment = computed(() => adjustmentStatus.value.canSubmit
+  && adjustmentForm.value.reasonCode
+  && (adjustmentForm.value.reasonCode !== 'OTHER' || adjustmentForm.value.note.trim()));
 
 async function loadProducts() {
   loading.value = true;
@@ -209,19 +211,24 @@ async function submitAdjust(event) {
   }
   submitting.value = true;
   try {
-    await adminApi.adjustInventory(adjustmentRow.value.variantId, {
+    const result = await adminApi.adjustInventory(adjustmentRow.value.variantId, {
       operation: adjustmentForm.value.operation,
       quantity,
       expectedQuantity: adjustmentRow.value.stock,
       reasonCode: adjustmentForm.value.reasonCode,
       note: adjustmentForm.value.note.trim(),
     });
+    if (result?.changed === false) {
+      if (Number.isInteger(result.currentQuantity)) adjustmentRow.value.stock = result.currentQuantity;
+      adjustmentError.value = 'Tồn kho không thay đổi';
+      return;
+    }
     toast.success('Đã điều chỉnh tồn kho');
     await closeModals();
     await loadProducts();
   } catch (error) {
-    if (error.response?.status === 409) {
-      const currentQuantity = error.response.data?.data?.currentQuantity;
+    if (error.status === 409) {
+      const currentQuantity = error.data?.currentQuantity;
       if (Number.isInteger(currentQuantity)) adjustmentRow.value.stock = currentQuantity;
       adjustmentError.value = 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.';
       return;
@@ -354,7 +361,7 @@ async function submitWaste() {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" :disabled="submitting" @click="closeModals">Hủy</button>
-          <button type="submit" class="btn btn-primary" :disabled="submitting">{{ submitting ? 'Đang lưu...' : 'Lưu điều chỉnh' }}</button>
+          <button type="submit" class="btn btn-primary" :disabled="submitting || !canSubmitAdjustment">{{ submitting ? 'Đang lưu...' : 'Lưu điều chỉnh' }}</button>
         </div>
       </form>
     </div>

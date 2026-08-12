@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_BASE_URL } from '@/utils/constants';
 import { clearStoredSession, isTokenValid } from '@/utils/session';
+import { normalizeApiError } from './error';
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -38,10 +39,7 @@ client.interceptors.response.use(
         window.location.replace(`/?redirect=${encodeURIComponent(redirect)}`);
       }
     }
-    const msg = err.response?.data?.message || err.message || 'Lỗi không xác định';
-    const error = new Error(msg);
-    error.status = err.response?.status;
-    return Promise.reject(error);
+    return Promise.reject(normalizeApiError(err));
   },
 );
 

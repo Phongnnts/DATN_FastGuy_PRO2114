@@ -24,7 +24,7 @@ test('conflicts retain HTTP status and refetch canonical staff data', async () =
   const detail = await read('../src/views/staff/OrderDetailPage.vue');
   const dispatch = await read('../src/views/staff/DispatchPage.vue');
 
-  assert.match(client, /error\.status = err\.response\?\.status/);
+  assert.match(client, /normalizeApiError\(err\)/);
   assert.match(detail, /error\.status === 409/);
   assert.match(dispatch, /error\.status === 409/);
   assert.match(detail, /await load\(\{ silent: true \}\)/);
