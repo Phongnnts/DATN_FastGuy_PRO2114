@@ -3,6 +3,7 @@ package servlet;
 import java.io.IOException;
 import java.util.Map;
 
+import exception.InventoryConflictException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,9 +42,15 @@ public class AdminInventoryAdjustmentServlet extends HttpServlet {
                 int quantity = intOf(body.get("quantity"), "quantity");
                 ApiResponse.ok(resp, adjustmentService.waste(variantId, quantity, reasonCode, note, adminId), "Đã ghi nhận lãng phí");
             } else {
-                int newQuantity = intOf(body.get("newQuantity"), "newQuantity");
-                ApiResponse.ok(resp, adjustmentService.adjust(variantId, newQuantity, reasonCode, note, adminId), "Đã điều chỉnh tồn kho");
+                String operation = strOf(body.get("operation"));
+                int quantity = intOf(body.get("quantity"), "quantity");
+                Integer expectedQuantity = nullableIntOf(body.get("expectedQuantity"), "expectedQuantity");
+                ApiResponse.ok(resp, adjustmentService.adjust(variantId, operation, quantity, expectedQuantity, reasonCode, note, adminId), "Đã điều chỉnh tồn kho");
             }
+        } catch (InventoryConflictException e) {
+            ApiResponse.error(resp, e.getMessage(), 409, Map.of(
+                    "variantId", e.getVariantId(),
+                    "currentQuantity", e.getCurrentQuantity()));
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         } catch (IllegalArgumentException e) {
@@ -61,8 +68,16 @@ public class AdminInventoryAdjustmentServlet extends HttpServlet {
     }
 
     private int intOf(Object value, String name) {
-        if (!(value instanceof Number)) throw new NumberFormatException(name + " phải là số nguyên");
-        return ((Number) value).intValue();
+        if (!(value instanceof Number number)) throw new NumberFormatException(name + " phải là số nguyên");
+        long parsed = number.longValue();
+        if (number.doubleValue() != parsed || parsed < Integer.MIN_VALUE || parsed > Integer.MAX_VALUE) {
+            throw new NumberFormatException(name + " phải là số nguyên");
+        }
+        return (int) parsed;
+    }
+
+    private Integer nullableIntOf(Object value, String name) {
+        return value == null ? null : intOf(value, name);
     }
 
     private String strOf(Object value) {

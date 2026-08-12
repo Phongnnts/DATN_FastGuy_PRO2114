@@ -41,4 +41,11 @@ public class ApiResponse {
         resp.setStatus(statusCode);
         JsonUtil.write(resp, error(message));
     }
+
+    public static void error(HttpServletResponse resp, String message, int statusCode, Object data) throws IOException {
+        resp.setStatus(statusCode);
+        Map<String, Object> res = error(message);
+        res.put("data", data);
+        JsonUtil.write(resp, res);
+    }
 }

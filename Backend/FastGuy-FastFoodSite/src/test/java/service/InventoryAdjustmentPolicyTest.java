@@ -17,10 +17,25 @@ class InventoryAdjustmentPolicyTest {
     }
 
     @Test
-    void adjustmentRequiresReasonAndNonNegativeQuantity() throws Exception {
+    void adjustmentSupportsThreeOperationsWithExpectedQuantity() throws Exception {
         String src = read(SERVICE);
-        assertTrue(src.contains("newQuantity < 0"));
-        assertTrue(src.contains("Vui lòng chọn lý do điều chỉnh"));
+        assertTrue(src.contains("\"INCREASE\""));
+        assertTrue(src.contains("\"DECREASE\""));
+        assertTrue(src.contains("\"SET\""));
+        assertTrue(src.contains("expectedQuantity"));
+        assertTrue(src.contains("InventoryConflictException"));
+        assertTrue(src.contains("Math.addExact"));
+        assertTrue(src.contains("changed\", false"));
+    }
+
+    @Test
+    void adjustmentValidatesReasonAndOtherNote() throws Exception {
+        String src = read(SERVICE);
+        assertTrue(src.contains("STOCK_COUNT"));
+        assertTrue(src.contains("DAMAGE"));
+        assertTrue(src.contains("EXPIRED"));
+        assertTrue(src.contains("OTHER"));
+        assertTrue(src.contains("Ghi chú là bắt buộc khi chọn lý do Khác"));
     }
 
     @Test

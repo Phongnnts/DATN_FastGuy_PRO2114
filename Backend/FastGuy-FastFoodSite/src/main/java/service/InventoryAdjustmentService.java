@@ -2,19 +2,28 @@ package service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import entity.InventoryTransaction;
 import entity.ProductVariant;
 import entity.User;
+import exception.InventoryConflictException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
 
 public class InventoryAdjustmentService {
+    private static final Set<String> ADJUSTMENT_REASONS = Set.of("STOCK_COUNT", "DAMAGE", "EXPIRED", "OTHER");
 
-    public Map<String, Object> adjust(int variantId, int newQuantity, String reasonCode, String note, int adminId) {
-        if (newQuantity < 0) throw new IllegalArgumentException("Số lượng tồn kho mới không hợp lệ");
-        if (reasonCode == null || reasonCode.isBlank()) throw new IllegalArgumentException("Vui lòng chọn lý do điều chỉnh");
+    public Map<String, Object> adjust(int variantId, String operation, int quantity, Integer expectedQuantity,
+            String reasonCode, String note, int adminId) {
+        if (!ADJUSTMENT_REASONS.contains(reasonCode)) throw new IllegalArgumentException("Vui lòng chọn lý do điều chỉnh hợp lệ");
+        if ("OTHER".equals(reasonCode) && (note == null || note.isBlank())) throw new IllegalArgumentException("Ghi chú là bắt buộc khi chọn lý do Khác");
+        if (note != null && note.length() > 500) throw new IllegalArgumentException("Ghi chú không được vượt quá 500 ký tự");
+        if (!Set.of("INCREASE", "DECREASE", "SET").contains(operation)) throw new IllegalArgumentException("Thao tác điều chỉnh không hợp lệ");
+        if (("INCREASE".equals(operation) || "DECREASE".equals(operation)) && quantity <= 0) throw new IllegalArgumentException("Số lượng điều chỉnh phải lớn hơn 0");
+        if ("SET".equals(operation) && quantity < 0) throw new IllegalArgumentException("Số lượng tồn kho mới không hợp lệ");
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -22,8 +31,28 @@ public class InventoryAdjustmentService {
             if (variant == null) throw new IllegalArgumentException("Biến thể không tồn tại");
             Integer stock = variant.getQuantityAvailable();
             if (stock == null) throw new IllegalArgumentException("Biến thể không quản lý tồn kho");
+            if (!Objects.equals(stock, expectedQuantity)) throw new InventoryConflictException(variantId, stock);
             int before = stock;
-            int after = newQuantity;
+            int after;
+            try {
+                after = switch (operation) {
+                    case "INCREASE" -> Math.addExact(before, quantity);
+                    case "DECREASE" -> Math.subtractExact(before, quantity);
+                    default -> quantity;
+                };
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("Số lượng tồn kho vượt quá giới hạn", e);
+            }
+            if (after < 0) throw new IllegalArgumentException("Số lượng tồn kho mới không hợp lệ");
+            Map<String, Object> result = new HashMap<>();
+            result.put("variantId", variantId);
+            result.put("before", before);
+            result.put("after", after);
+            if (after == before) {
+                result.put("changed", false);
+                em.getTransaction().commit();
+                return result;
+            }
             variant.setQuantityAvailable(after);
             InventoryTransaction txn = new InventoryTransaction();
             txn.setVariant(variant);
@@ -37,10 +66,7 @@ public class InventoryAdjustmentService {
             txn.setQuantityAfter(after);
             em.persist(txn);
             em.getTransaction().commit();
-            Map<String, Object> result = new HashMap<>();
-            result.put("variantId", variantId);
-            result.put("before", before);
-            result.put("after", after);
+            result.put("changed", true);
             return result;
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
