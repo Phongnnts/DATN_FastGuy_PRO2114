@@ -159,9 +159,10 @@ async function saveRow(row) {
       const result = await submitVariantUpdate(
         (payload) => adminApi.updateVariant(row.variantId, payload),
         buildVariantUpdatePayload(row, expectedQuantity),
-        expectedQuantity,
+        () => currentRequest(request),
       );
-      if (!result.saved) {
+      if (result.ignored) return;
+      if (!result.saved && currentRequest(request)) {
         const original = snapshot.value.find((variant) => variant.variantId === row.variantId);
         if (original) original.quantityAvailable = result.currentQuantity;
         errors.value = { ...errors.value, [rowIndex(row)]: { _server: result.error } };
