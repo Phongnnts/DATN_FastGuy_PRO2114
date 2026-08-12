@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { normalizeApiError } from '../src/api/error.js';
-import { adjustmentState } from '../src/utils/inventoryAdjustment.js';
+import {
+  adjustmentState,
+  nextFocusIndex,
+  nextOperationIndex,
+  submitAdjustment,
+} from '../src/utils/inventoryAdjustment.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const api = read('../src/api/admin.js');
@@ -61,23 +66,45 @@ test('adjustment state projects quantities and disables invalid or no-op input',
   assert.deepEqual(adjustmentState('INCREASE', '', 10), { projectedQuantity: null, canSubmit: false });
 });
 
-test('stale conflict updates snapshot and stays open without automatic retry', () => {
-  const submitBody = inventory.match(/async function submitAdjust[\s\S]*?\r?\n}\r?\n\r?\nasync function submitWaste/)[0];
-  assert.match(submitBody, /error\.status === 409/);
-  assert.match(submitBody, /error\.data\?\.currentQuantity/);
-  assert.match(submitBody, /adjustmentRow\.value\.stock = currentQuantity/);
-  assert.match(inventory, /v-if="adjustmentRow"/);
-  assert.equal(submitBody.match(/adminApi\.adjustInventory/g)?.length, 1);
+test('submit coordinator calls mutation once and keeps conflict modal state', async () => {
+  let calls = 0;
+  const state = await submitAdjustment(async () => {
+    calls += 1;
+    throw Object.assign(new Error('Stale'), { status: 409, data: { currentQuantity: 27 } });
+  }, { variantId: 12 });
+  assert.equal(calls, 1);
+  assert.deepEqual(state, {
+    close: false,
+    currentQuantity: 27,
+    error: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.',
+  });
 });
 
-test('modal enforces no-op, changed false, keyboard, focus and live feedback contracts', () => {
+test('submit coordinator keeps server no-op open without success', async () => {
+  const state = await submitAdjustment(async () => ({ changed: false, currentQuantity: 10 }), {});
+  assert.deepEqual(state, { close: false, currentQuantity: 10, error: 'Tồn kho không thay đổi' });
+});
+
+test('tab navigation reducer handles arrows home end and ignores other keys', () => {
+  assert.equal(nextOperationIndex('ArrowRight', 2, 3), 0);
+  assert.equal(nextOperationIndex('ArrowLeft', 0, 3), 2);
+  assert.equal(nextOperationIndex('Home', 2, 3), 0);
+  assert.equal(nextOperationIndex('End', 0, 3), 2);
+  assert.equal(nextOperationIndex('Enter', 1, 3), null);
+});
+
+test('focus trap reducer wraps forward and backward only at boundaries', () => {
+  assert.equal(nextFocusIndex(2, 3, false), 0);
+  assert.equal(nextFocusIndex(0, 3, true), 2);
+  assert.equal(nextFocusIndex(1, 3, false), null);
+  assert.equal(nextFocusIndex(1, 3, true), null);
+});
+
+test('component wires tested helpers to DOM focus and live feedback', () => {
   assert.match(inventory, /:disabled="submitting \|\| !canSubmitAdjustment"/);
-  assert.match(inventory, /result\?\.changed === false/);
-  assert.match(inventory, /adjustmentError\.value = 'Tồn kho không thay đổi'/);
-  assert.match(inventory, /ArrowRight/);
-  assert.match(inventory, /ArrowLeft/);
-  assert.match(inventory, /Home/);
-  assert.match(inventory, /End/);
+  assert.match(inventory, /nextOperationIndex\(/);
+  assert.match(inventory, /nextFocusIndex\(/);
+  assert.match(inventory, /submitAdjustment\(/);
   assert.match(inventory, /event\.key === 'Escape'/);
   assert.match(inventory, /adjustmentTrigger = event\.currentTarget/);
   assert.match(inventory, /restoreTarget\?\.focus\(\)/);
