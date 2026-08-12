@@ -5,7 +5,12 @@ import { useAdminStore } from '@/stores/admin';
 import { adminApi } from '@/api';
 import { formatPrice } from '@/utils/format';
 import { useToast } from '@/stores/toast';
-import { adjustmentState } from '@/utils/inventoryAdjustment';
+import {
+  adjustmentState,
+  nextFocusIndex,
+  nextOperationIndex,
+  submitAdjustment,
+} from '@/utils/inventoryAdjustment';
 
 const toast = useToast();
 const adminStore = useAdminStore();
@@ -164,12 +169,8 @@ function selectOperation(operation) {
 
 function handleTabKey(event) {
   const current = OPERATIONS.findIndex(({ value }) => value === adjustmentForm.value.operation);
-  let next = current;
-  if (event.key === 'ArrowRight') next = (current + 1) % OPERATIONS.length;
-  else if (event.key === 'ArrowLeft') next = (current - 1 + OPERATIONS.length) % OPERATIONS.length;
-  else if (event.key === 'Home') next = 0;
-  else if (event.key === 'End') next = OPERATIONS.length - 1;
-  else return;
+  const next = nextOperationIndex(event.key, current, OPERATIONS.length);
+  if (next === null) return;
   event.preventDefault();
   selectOperation(OPERATIONS[next].value);
   nextTick(() => document.getElementById(OPERATIONS[next].id)?.focus());
@@ -179,14 +180,11 @@ function handleModalKey(event) {
   if (event.key === 'Escape' && !submitting.value) return closeModals();
   if (event.key !== 'Tab') return;
   const controls = [...adjustmentModal.value.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
-  const first = controls[0];
-  const last = controls.at(-1);
-  if (event.shiftKey && document.activeElement === first) {
+  const current = controls.indexOf(document.activeElement);
+  const next = nextFocusIndex(current, controls.length, event.shiftKey);
+  if (next !== null) {
     event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
+    controls[next].focus();
   }
 }
 
@@ -211,28 +209,23 @@ async function submitAdjust(event) {
   }
   submitting.value = true;
   try {
-    const result = await adminApi.adjustInventory(adjustmentRow.value.variantId, {
-      operation: adjustmentForm.value.operation,
-      quantity,
-      expectedQuantity: adjustmentRow.value.stock,
-      reasonCode: adjustmentForm.value.reasonCode,
-      note: adjustmentForm.value.note.trim(),
-    });
-    if (result?.changed === false) {
-      if (Number.isInteger(result.currentQuantity)) adjustmentRow.value.stock = result.currentQuantity;
-      adjustmentError.value = 'Tồn kho không thay đổi';
-      return;
-    }
+    const state = await submitAdjustment(
+      (payload) => adminApi.adjustInventory(adjustmentRow.value.variantId, payload),
+      {
+        operation: adjustmentForm.value.operation,
+        quantity,
+        expectedQuantity: adjustmentRow.value.stock,
+        reasonCode: adjustmentForm.value.reasonCode,
+        note: adjustmentForm.value.note.trim(),
+      },
+    );
+    if (Number.isInteger(state.currentQuantity)) adjustmentRow.value.stock = state.currentQuantity;
+    adjustmentError.value = state.error;
+    if (!state.close) return;
     toast.success('Đã điều chỉnh tồn kho');
     await closeModals();
     await loadProducts();
   } catch (error) {
-    if (error.status === 409) {
-      const currentQuantity = error.data?.currentQuantity;
-      if (Number.isInteger(currentQuantity)) adjustmentRow.value.stock = currentQuantity;
-      adjustmentError.value = 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.';
-      return;
-    }
     adjustmentError.value = error.message || 'Không thể điều chỉnh tồn kho';
   } finally {
     submitting.value = false;
