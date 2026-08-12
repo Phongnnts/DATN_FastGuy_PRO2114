@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { normalizeApiError } from '../src/api/error.js';
+import { adjustmentState } from '../src/utils/inventoryAdjustment.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const api = read('../src/api/admin.js');
@@ -42,10 +44,45 @@ test('adjustment modal supports operation tabs and expected stock', () => {
   assert.match(inventory, /role="tabpanel"/);
 });
 
-test('stale conflict refreshes snapshot without automatic retry', () => {
-  assert.match(inventory, /currentQuantity/);
-  assert.match(inventory, /409/);
-  assert.doesNotMatch(inventory, /submitAdjust\(\)/);
+test('normalized API errors preserve conflict response data', () => {
+  const error = normalizeApiError({
+    message: 'Request failed',
+    response: { status: 409, data: { message: 'Stale', data: { variantId: 12, currentQuantity: 27 } } },
+  });
+  assert.equal(error.status, 409);
+  assert.deepEqual(error.data, { variantId: 12, currentQuantity: 27 });
+});
+
+test('adjustment state projects quantities and disables invalid or no-op input', () => {
+  assert.deepEqual(adjustmentState('INCREASE', '3', 10), { projectedQuantity: 13, canSubmit: true });
+  assert.deepEqual(adjustmentState('DECREASE', '11', 10), { projectedQuantity: -1, canSubmit: false });
+  assert.deepEqual(adjustmentState('SET', '10', 10), { projectedQuantity: 10, canSubmit: false });
+  assert.deepEqual(adjustmentState('SET', '0', 10), { projectedQuantity: 0, canSubmit: true });
+  assert.deepEqual(adjustmentState('INCREASE', '', 10), { projectedQuantity: null, canSubmit: false });
+});
+
+test('stale conflict updates snapshot and stays open without automatic retry', () => {
+  const submitBody = inventory.match(/async function submitAdjust[\s\S]*?\r?\n}\r?\n\r?\nasync function submitWaste/)[0];
+  assert.match(submitBody, /error\.status === 409/);
+  assert.match(submitBody, /error\.data\?\.currentQuantity/);
+  assert.match(submitBody, /adjustmentRow\.value\.stock = currentQuantity/);
+  assert.match(inventory, /v-if="adjustmentRow"/);
+  assert.equal(submitBody.match(/adminApi\.adjustInventory/g)?.length, 1);
+});
+
+test('modal enforces no-op, changed false, keyboard, focus and live feedback contracts', () => {
+  assert.match(inventory, /:disabled="submitting \|\| !canSubmitAdjustment"/);
+  assert.match(inventory, /result\?\.changed === false/);
+  assert.match(inventory, /adjustmentError\.value = 'Tồn kho không thay đổi'/);
+  assert.match(inventory, /ArrowRight/);
+  assert.match(inventory, /ArrowLeft/);
+  assert.match(inventory, /Home/);
+  assert.match(inventory, /End/);
+  assert.match(inventory, /event\.key === 'Escape'/);
+  assert.match(inventory, /adjustmentTrigger = event\.currentTarget/);
+  assert.match(inventory, /restoreTarget\?\.focus\(\)/);
+  assert.match(inventory, /aria-live="polite"/);
+  assert.match(inventory, /role="alert"/);
 });
 
 test('OTHER requires note', () => {
