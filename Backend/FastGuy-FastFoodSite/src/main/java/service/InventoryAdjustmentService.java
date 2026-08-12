@@ -86,6 +86,52 @@ public class InventoryAdjustmentService {
         }
     }
 
+    public Map<String, Object> setManagedQuantity(int variantId, Integer newQuantity, Integer expectedQuantity,
+            String reasonCode, String note, int adminId) {
+        if (!ADJUSTMENT_REASONS.contains(reasonCode)) throw new IllegalArgumentException("Vui lòng chọn lý do điều chỉnh hợp lệ");
+        if ("OTHER".equals(reasonCode) && (note == null || note.isBlank())) throw new IllegalArgumentException("Ghi chú là bắt buộc khi chọn lý do Khác");
+        if (note != null && note.length() > 500) throw new IllegalArgumentException("Ghi chú không được vượt quá 500 ký tự");
+        if (newQuantity != null && newQuantity < 0) throw new IllegalArgumentException("Tồn kho không được âm");
+        EntityManager em = entityManagers.get();
+        try {
+            em.getTransaction().begin();
+            ProductVariant variant = em.find(ProductVariant.class, variantId, LockModeType.PESSIMISTIC_WRITE);
+            if (variant == null) throw new IllegalArgumentException("Biến thể không tồn tại");
+            Integer before = variant.getQuantityAvailable();
+            if (!Objects.equals(before, expectedQuantity)) throw new InventoryConflictException(variantId, before);
+            Map<String, Object> result = new HashMap<>();
+            result.put("variantId", variantId);
+            result.put("before", before);
+            result.put("after", newQuantity);
+            if (Objects.equals(before, newQuantity)) {
+                result.put("changed", false);
+                em.getTransaction().commit();
+                return result;
+            }
+            variant.setQuantityAvailable(newQuantity);
+            InventoryTransaction txn = new InventoryTransaction();
+            txn.setVariant(variant);
+            txn.setOrder(null);
+            txn.setCreatedBy(em.find(User.class, adminId));
+            txn.setTransactionType("ADJUSTMENT");
+            int quantity = before == null ? newQuantity : newQuantity == null ? before : Math.abs(newQuantity - before);
+            txn.setQuantity(quantity == 0 ? 1 : quantity);
+            txn.setReasonCode(reasonCode);
+            txn.setNote(note);
+            txn.setQuantityBefore(before);
+            txn.setQuantityAfter(newQuantity);
+            em.persist(txn);
+            em.getTransaction().commit();
+            result.put("changed", true);
+            return result;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
     public Map<String, Object> waste(int variantId, int quantity, String reasonCode, String note, int adminId) {
         if (quantity <= 0) throw new IllegalArgumentException("Số lượng lãng phí phải lớn hơn 0");
         if (reasonCode == null || reasonCode.isBlank()) throw new IllegalArgumentException("Vui lòng chọn lý do lãng phí");

@@ -64,6 +64,23 @@ class InventoryAdjustmentPolicyTest {
         assertEquals(25, capture.transaction.getQuantityAfter());
     }
 
+    @Test
+    void managedModeChangePreservesNullableLedgerValues() {
+        ProductVariant variant = new ProductVariant();
+        variant.setVariantId(12);
+        PersistenceCapture capture = new PersistenceCapture(variant);
+        InventoryAdjustmentService service = new InventoryAdjustmentService(capture::entityManager);
+
+        Map<String, Object> result = service.setManagedQuantity(12, 0, null, "STOCK_COUNT", null, 1);
+
+        assertEquals(true, result.get("changed"));
+        assertEquals(0, variant.getQuantityAvailable());
+        assertTrue(capture.persisted);
+        assertEquals(1, capture.transaction.getQuantity());
+        assertEquals(null, capture.transaction.getQuantityBefore());
+        assertEquals(0, capture.transaction.getQuantityAfter());
+    }
+
     private ProductVariant variant(int quantity) {
         ProductVariant variant = new ProductVariant();
         variant.setVariantId(12);
