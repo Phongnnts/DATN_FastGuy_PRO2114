@@ -16,7 +16,7 @@ test('admin API exposes inventory adjustment and waste mutations', () => {
 });
 
 test('inventory page offers adjustment and waste actions for managed stock only', () => {
-  assert.match(inventory, /openAdjust\(row\)/);
+  assert.match(inventory, /openAdjust\(row, \$event\)/);
   assert.match(inventory, /openWaste\(row\)/);
   assert.match(inventory, /v-if="row\.stock !== null"/);
   assert.match(inventory, /submitAdjust/);
@@ -26,11 +26,31 @@ test('inventory page offers adjustment and waste actions for managed stock only'
 });
 
 test('inventory page validates adjustment and waste inputs', () => {
-  assert.match(inventory, /newQuantity < 0/);
   assert.match(inventory, /quantity <= 0/);
+  assert.match(inventory, /projectedQuantity\.value < 0/);
   assert.match(inventory, /quantity > wasteRow\.value\.stock/);
   assert.match(inventory, /Vui lòng chọn lý do điều chỉnh/);
   assert.match(inventory, /Vui lòng chọn lý do lãng phí/);
+});
+
+test('adjustment modal supports operation tabs and expected stock', () => {
+  assert.match(inventory, /INCREASE/);
+  assert.match(inventory, /DECREASE/);
+  assert.match(inventory, /SET/);
+  assert.match(inventory, /expectedQuantity/);
+  assert.match(inventory, /role="tablist"/);
+  assert.match(inventory, /role="tabpanel"/);
+});
+
+test('stale conflict refreshes snapshot without automatic retry', () => {
+  assert.match(inventory, /currentQuantity/);
+  assert.match(inventory, /409/);
+  assert.doesNotMatch(inventory, /submitAdjust\(\)/);
+});
+
+test('OTHER requires note', () => {
+  assert.match(inventory, /reasonCode === 'OTHER'/);
+  assert.match(inventory, /Ghi chú là bắt buộc/);
 });
 
 test('inventory page ships reason codes and accessible modals', () => {
