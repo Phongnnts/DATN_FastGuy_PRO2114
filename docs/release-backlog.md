@@ -77,7 +77,7 @@ Chia theo 6 Sprint; mỗi backlog gộp 5 user story.
 | PB14 | Admin — Người dùng & Danh mục | Quản trị viên | Editor sản phẩm tách theo route | Chỉnh sửa rõ ràng | 2.0 | Vừa | 4 | Xong | |
 | PB15 | Admin — Tồn kho | Quản trị viên | Quản lý tồn kho | Không hết hàng | 1.0 | Cao | 4 | Xong | |
 | PB15 | Admin — Tồn kho | Quản trị viên | Xem sổ giao dịch tồn kho | Truy vết biến động | 2.0 | Vừa | 4 | Xong | |
-| PB15 | Admin — Tồn kho | Quản trị viên | Điều chỉnh tồn kho thủ công | Sửa sai lệch kiểm kê | 3.0 | Cao | 4 | Mới | Cần schema |
+| PB15 | Admin — Tồn kho | Quản trị viên | Điều chỉnh tồn kho thủ công | Sửa sai lệch kiểm kê | 3.0 | Cao | 4 | Xong | Endpoint + ledger audit; xử lý conflict; backend 176 test, frontend 247 test |
 | PB15 | Admin — Tồn kho | Quản trị viên | Ghi nhận lãng phí thủ công | Quản lý hao hụt | 3.0 | Vừa | 4 | Mới | Cần schema |
 | PB15 | Admin — Tồn kho | Quản trị viên | Giỏ hàng xóa món không khả dụng | Tránh lỗi | 2.0 | Vừa | 4 | Xong | |
 | PB16 | Admin — Đơn hàng & Hoàn tiền | Quản trị viên | Xem và xử lý đơn hàng | Giám sát | 1.0 | Cao | 4 | Xong | |

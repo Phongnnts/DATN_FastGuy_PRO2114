@@ -79,7 +79,7 @@ Cấu trúc theo template: `Bản sao của Nhóm 4_Danh sách công việc tron
 | US073 | Quản trị viên | Tôi muốn xem báo cáo doanh thu | Để đánh giá kinh doanh | 1.0 | Cao | Full report: periodRevenue, netRevenue (trừ refund), top products, category, payment stats | Xong | |
 | US074 | Quản trị viên | Tôi muốn xuất báo cáo ra CSV | Để lưu trữ | 2.0 | Vừa | Export CSV UTF-8 BOM; chống Excel formula injection | Xong | |
 | US075 | Quản trị viên | Tôi muốn cấu hình cửa hàng | Để vận hành linh hoạt | 1.0 | Vừa | Settings: store info, giờ mở cửa, phí/thuế, giao hàng; xem trạng thái PayOS/GHN | Xong | |
-| US076 | Quản trị viên | Tôi muốn điều chỉnh tồn kho thủ công | Để sửa sai lệch kiểm kê | 3.0 | Cao | Endpoint adjustment ghi ledger kèm actor/reason; chặn stock không quản lý | Mới | Cần schema |
+| US076 | Quản trị viên | Tôi muốn điều chỉnh tồn kho thủ công | Để sửa sai lệch kiểm kê | 3.0 | Cao | Endpoint adjustment ghi ledger kèm actor/reason; chặn stock không quản lý | Xong | Endpoint + ledger audit; xử lý conflict; backend 176 test, frontend 247 test |
 | US077 | Quản trị viên | Tôi muốn ghi nhận lãng phí thủ công | Để quản lý hao hụt | 3.0 | Vừa | Waste entry ghi ledger, lý do, người tạo | Mới | Cần schema |
 | US078 | Quản trị viên | Tôi muốn xem audit log thao tác | Để truy vết | 4.0 | Vừa | Ghi log ai làm gì, khi nào, resource nào | Mới | Cần schema |
 | US079 | Khách hàng | Tôi muốn theo dõi vị trí Shipper thời gian thực | Để biết đơn đến đâu | 4.0 | Cao | GPS Shipper + bản đồ; ước tính ETA | Mới | Cần GPS |
