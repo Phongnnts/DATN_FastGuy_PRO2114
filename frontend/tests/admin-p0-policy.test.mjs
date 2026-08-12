@@ -17,9 +17,8 @@ test('inventory stock changes only through adjustment and waste workflows', () =
 });
 
 test('persisted variant update audits stock changes while create keeps initial stock', () => {
-  assert.match(variants, /variantPayload\(row, \{ includeStock: false \}\)/);
-  assert.match(variants, /if \(stockChanged\(row\)\) Object\.assign\(payload/);
-  assert.match(variants, /expectedQuantity: originalQuantity\(row\)/);
+  assert.match(variants, /buildVariantUpdatePayload\(row, expectedQuantity\)/);
+  assert.match(variants, /submitVariantUpdate\(/);
   assert.match(variants, /adminApi\.createVariant\(props\.productId, variantPayload\(row\)\)/);
 });
 

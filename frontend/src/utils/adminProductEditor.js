@@ -131,6 +131,31 @@ export function variantPayload(variant = {}, { includeStock = true } = {}) {
   return payload;
 }
 
+export function buildVariantUpdatePayload(variant, expectedQuantity) {
+  const payload = variantPayload(variant, { includeStock: false });
+  if (variant.quantityAvailable !== expectedQuantity) Object.assign(payload, {
+    quantityAvailable: variant.quantityAvailable,
+    expectedQuantity,
+    reasonCode: variant.reasonCode,
+    note: String(variant.note ?? '').trim(),
+  });
+  return payload;
+}
+
+export async function submitVariantUpdate(mutate, payload, expectedQuantity) {
+  try {
+    await mutate(payload);
+    return { saved: true };
+  } catch (error) {
+    if (error.status !== 409) throw error;
+    return {
+      saved: false,
+      currentQuantity: error.data?.currentQuantity ?? null,
+      error: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.',
+    };
+  }
+}
+
 export function validateModifierGroup(group = {}) {
   const errors = {};
   if (!String(group.name ?? '').trim()) errors.name = 'Nhập tên nhóm tùy chọn';
