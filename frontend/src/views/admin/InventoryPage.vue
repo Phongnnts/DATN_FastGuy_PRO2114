@@ -154,6 +154,7 @@ function openWaste(row) {
 }
 
 async function closeModals() {
+  if (submitting.value) return;
   const restoreTarget = adjustmentRow.value ? adjustmentTrigger : null;
   adjustmentRow.value = null;
   wasteRow.value = null;
@@ -207,22 +208,24 @@ async function submitAdjust(event) {
     adjustmentError.value = 'Ghi chú là bắt buộc khi chọn lý do Khác';
     return;
   }
+  const row = adjustmentRow.value;
   submitting.value = true;
   try {
     const state = await submitAdjustment(
-      (payload) => adminApi.adjustInventory(adjustmentRow.value.variantId, payload),
+      (payload) => adminApi.adjustInventory(row.variantId, payload),
       {
         operation: adjustmentForm.value.operation,
         quantity,
-        expectedQuantity: adjustmentRow.value.stock,
+        expectedQuantity: row.stock,
         reasonCode: adjustmentForm.value.reasonCode,
         note: adjustmentForm.value.note.trim(),
       },
     );
-    if (Number.isInteger(state.currentQuantity)) adjustmentRow.value.stock = state.currentQuantity;
+    if (Number.isInteger(state.currentQuantity)) row.stock = state.currentQuantity;
     adjustmentError.value = state.error;
     if (!state.close) return;
     toast.success('Đã điều chỉnh tồn kho');
+    submitting.value = false;
     await closeModals();
     await loadProducts();
   } catch (error) {
