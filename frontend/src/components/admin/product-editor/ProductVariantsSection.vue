@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { adminApi } from '@/api';
-import { createVariantDraft, isValidProductId, sectionDirty, validateVariant, variantPayload } from '@/utils/adminProductEditor';
+import { buildVariantUpdatePayload, createVariantDraft, isValidProductId, sectionDirty, submitVariantUpdate, validateVariant, variantPayload } from '@/utils/adminProductEditor';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -145,8 +145,8 @@ async function saveRow(row) {
   if (props.busy || mutating.value || locked.value) return;
   const found = validateVariant(row);
   if (stockChanged(row) && !row.reasonCode) found.reasonCode = 'Vui lòng chọn lý do điều chỉnh';
-  if (stockChanged(row) && row.reasonCode === 'OTHER' && !row.note.trim()) found.note = 'Ghi chú là bắt buộc khi chọn lý do Khác';
-  if (row.note.length > 500) found.note = 'Ghi chú không được vượt quá 500 ký tự';
+  if (stockChanged(row) && row.reasonCode === 'OTHER' && !String(row.note ?? '').trim()) found.note = 'Ghi chú là bắt buộc khi chọn lý do Khác';
+  if (stockChanged(row) && String(row.note ?? '').length > 500) found.note = 'Ghi chú không được vượt quá 500 ký tự';
   if (Object.keys(found).length) {
     errors.value = { ...errors.value, [rowIndex(row)]: found };
     return;
@@ -155,14 +155,18 @@ async function saveRow(row) {
   mutating.value = true;
   try {
     if (row.variantId) {
-      const payload = variantPayload(row, { includeStock: false });
-      if (stockChanged(row)) Object.assign(payload, {
-        quantityAvailable: row.quantityAvailable,
-        expectedQuantity: originalQuantity(row),
-        reasonCode: row.reasonCode,
-        note: row.note.trim(),
-      });
-      await adminApi.updateVariant(row.variantId, payload);
+      const expectedQuantity = originalQuantity(row);
+      const result = await submitVariantUpdate(
+        (payload) => adminApi.updateVariant(row.variantId, payload),
+        buildVariantUpdatePayload(row, expectedQuantity),
+        expectedQuantity,
+      );
+      if (!result.saved) {
+        const original = snapshot.value.find((variant) => variant.variantId === row.variantId);
+        if (original) original.quantityAvailable = result.currentQuantity;
+        errors.value = { ...errors.value, [rowIndex(row)]: { _server: result.error } };
+        return;
+      }
     } else {
       const created = await adminApi.createVariant(props.productId, variantPayload(row));
       if (currentRequest(request) && created) row.variantId = created.variantId ?? created.id;
@@ -174,14 +178,7 @@ async function saveRow(row) {
       emit('reload');
     }
   } catch (error) {
-    if (currentRequest(request) && error.status === 409) {
-      const currentQuantity = error.data?.currentQuantity ?? null;
-      const original = snapshot.value.find((variant) => variant.variantId === row.variantId);
-      if (original) original.quantityAvailable = currentQuantity;
-      errors.value = { ...errors.value, [rowIndex(row)]: { _server: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.' } };
-    } else if (currentRequest(request)) {
-      errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể lưu biến thể' } };
-    }
+    if (currentRequest(request)) errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể lưu biến thể' } };
   } finally {
     if (currentRequest(request)) mutating.value = false;
   }
