@@ -16,7 +16,15 @@ import utils.PrivilegedAuth;
 
 @WebServlet("/api/admin/inventory/transactions/*")
 public class AdminInventoryAdjustmentServlet extends HttpServlet {
-    private final InventoryAdjustmentService adjustmentService = new InventoryAdjustmentService();
+    private final InventoryAdjustmentService adjustmentService;
+
+    public AdminInventoryAdjustmentServlet() {
+        this(new InventoryAdjustmentService());
+    }
+
+    AdminInventoryAdjustmentServlet(InventoryAdjustmentService adjustmentService) {
+        this.adjustmentService = adjustmentService;
+    }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -58,7 +66,7 @@ public class AdminInventoryAdjustmentServlet extends HttpServlet {
         }
     }
 
-    private int requireAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected int requireAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String header = req.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return -1; }
         String token = header.substring(7);
