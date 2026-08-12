@@ -19,4 +19,17 @@ class AdminVariantServletPolicyTest {
         assertTrue(product.indexOf("setQuantityAvailable(readStock(") == product.lastIndexOf("setQuantityAvailable(readStock("));
         assertFalse(variant.contains("containsForbiddenStockUpdate"));
     }
+
+    @Test
+    void stockFieldsRequireExactIntegersAndRejectMalformedAuditValues() throws Exception {
+        String product = Files.readString(Path.of("src/main/java/servlet/AdminProductServlet.java"));
+        String variant = Files.readString(Path.of("src/main/java/servlet/AdminVariantServlet.java"));
+
+        assertTrue(product.contains("intValueExact()"));
+        assertTrue(variant.contains("intValueExact()"));
+        assertTrue(product.contains("readAuditString(body, \"reasonCode\")"));
+        assertTrue(variant.contains("readAuditString(body, \"reasonCode\")"));
+        assertTrue(product.contains("readAuditString(body, \"note\")"));
+        assertTrue(variant.contains("readAuditString(body, \"note\")"));
+    }
 }

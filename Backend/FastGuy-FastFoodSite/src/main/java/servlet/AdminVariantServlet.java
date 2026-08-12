@@ -46,9 +46,19 @@ public class AdminVariantServlet extends HttpServlet {
 
     private Integer readStock(Map<String, Object> body) {
         if (body.get("quantityAvailable") == null) return null;
-        int value = ((Number) body.get("quantityAvailable")).intValue();
-        if (value < 0) throw new IllegalArgumentException("Tồn kho không được âm");
-        return value;
+        if (!(body.get("quantityAvailable") instanceof Number)) throw new IllegalArgumentException("quantityAvailable must be an integer");
+        try {
+            int value = new BigDecimal(body.get("quantityAvailable").toString()).intValueExact();
+            if (value < 0) throw new IllegalArgumentException("Tồn kho không được âm");
+            return value;
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("quantityAvailable must be an integer");
+        }
+    }
+
+    private String readAuditString(Map<String, Object> body, String key) {
+        if (!(body.get(key) instanceof String)) throw new IllegalArgumentException(key + " must be a string");
+        return (String) body.get(key);
     }
 
     private String readStatus(Map<String, Object> body) {
@@ -101,7 +111,7 @@ public class AdminVariantServlet extends HttpServlet {
                     expectedBody.put("quantityAvailable", body.get("expectedQuantity"));
                     Integer expected = readStock(expectedBody);
                     int adminId = JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
-                    inventoryAdjustmentService.setManagedQuantity(id, requested, expected, (String) body.get("reasonCode"), (String) body.get("note"), adminId, v);
+                    inventoryAdjustmentService.setManagedQuantity(id, requested, expected, readAuditString(body, "reasonCode"), readAuditString(body, "note"), adminId, v);
                 } catch (InventoryConflictException e) {
                     Map<String, Object> data = new HashMap<>();
                     data.put("variantId", e.getVariantId());
@@ -118,6 +128,8 @@ public class AdminVariantServlet extends HttpServlet {
             ApiResponse.ok(resp, null, "Updated");
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid ID", 400);
+        } catch (IllegalArgumentException e) {
+            ApiResponse.error(resp, e.getMessage(), 400);
         }
     }
 

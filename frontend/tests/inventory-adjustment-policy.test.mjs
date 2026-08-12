@@ -30,7 +30,7 @@ test('inventory page offers adjustment and waste actions for managed stock only'
   assert.match(inventory, /v-if="row\.stock !== null"/);
   assert.match(inventory, /submitAdjust/);
   assert.match(inventory, /submitWaste/);
-  assert.match(inventory, /adminApi\.adjustInventory\(adjustmentRow\.value\.variantId/);
+  assert.match(inventory, /adminApi\.adjustInventory\(row\.variantId/);
   assert.match(inventory, /adminApi\.wasteInventory\(wasteRow\.value\.variantId/);
 });
 
@@ -112,6 +112,14 @@ test('component wires tested helpers to DOM focus and live feedback', () => {
   assert.match(inventory, /restoreTarget\?\.focus\(\)/);
   assert.match(inventory, /aria-live="polite"/);
   assert.match(inventory, /role="alert"/);
+});
+
+test('submitting modal ignores close attempts and keeps submitted row stable', () => {
+  assert.match(inventory, /if \(submitting\.value\) return;/);
+  assert.match(inventory, /const row = adjustmentRow\.value;/);
+  assert.match(inventory, /adminApi\.adjustInventory\(row\.variantId/);
+  assert.match(inventory, /expectedQuantity: row\.stock/);
+  assert.match(inventory, /if \(Number\.isInteger\(state\.currentQuantity\)\) row\.stock = state\.currentQuantity/);
 });
 
 test('OTHER requires note', () => {

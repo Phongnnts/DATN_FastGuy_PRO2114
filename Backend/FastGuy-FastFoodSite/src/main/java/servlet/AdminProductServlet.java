@@ -148,10 +148,19 @@ public class AdminProductServlet extends HttpServlet {
 
     private Integer readStock(Map<String, Object> body, String key, Integer fallback) {
         if (!body.containsKey(key) || body.get(key) == null) return fallback;
-        if (!(body.get(key) instanceof Number)) throw new IllegalArgumentException(key + " must be a number");
-        int value = ((Number) body.get(key)).intValue();
-        if (value < 0) throw new IllegalArgumentException("Tồn kho không được âm");
-        return value;
+        if (!(body.get(key) instanceof Number)) throw new IllegalArgumentException(key + " must be an integer");
+        try {
+            int value = new BigDecimal(body.get(key).toString()).intValueExact();
+            if (value < 0) throw new IllegalArgumentException("Tồn kho không được âm");
+            return value;
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException(key + " must be an integer");
+        }
+    }
+
+    private String readAuditString(Map<String, Object> body, String key) {
+        if (!(body.get(key) instanceof String)) throw new IllegalArgumentException(key + " must be a string");
+        return (String) body.get(key);
     }
 
     private String readStatus(Map<String, Object> body, String key, String fallback) {
@@ -458,7 +467,7 @@ public class AdminProductServlet extends HttpServlet {
                 try {
                     Integer expected = readStock(body, "expectedQuantity", null);
                     int adminId = JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
-                    inventoryAdjustmentService.setManagedQuantity(vid, requested, expected, (String) body.get("reasonCode"), (String) body.get("note"), adminId, v);
+                    inventoryAdjustmentService.setManagedQuantity(vid, requested, expected, readAuditString(body, "reasonCode"), readAuditString(body, "note"), adminId, v);
                     v.setQuantityAvailable(requested);
                 } catch (InventoryConflictException e) {
                     Map<String, Object> data = new HashMap<>();
