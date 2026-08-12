@@ -81,6 +81,39 @@ class InventoryAdjustmentPolicyTest {
         assertEquals(0, capture.transaction.getQuantityAfter());
     }
 
+    @Test
+    void managedStockAndMetadataUseLockedEntityWithoutMerge() {
+        ProductVariant managed = variant(27);
+        ProductVariant metadata = variant(27);
+        metadata.setSku("NEW-SKU");
+        PersistenceCapture capture = new PersistenceCapture(managed);
+        InventoryAdjustmentService service = new InventoryAdjustmentService(capture::entityManager);
+
+        service.setManagedQuantity(12, 25, 27, "STOCK_COUNT", null, 1, metadata);
+
+        assertEquals(25, managed.getQuantityAvailable());
+        assertEquals("NEW-SKU", managed.getSku());
+        assertFalse(capture.merged);
+        assertTrue(capture.committed);
+    }
+
+    @Test
+    void ledgerFailureRollsBackMetadataAndStockTransaction() {
+        ProductVariant managed = variant(27);
+        ProductVariant metadata = variant(27);
+        metadata.setSku("NEW-SKU");
+        PersistenceCapture capture = new PersistenceCapture(managed);
+        capture.failPersist = true;
+        InventoryAdjustmentService service = new InventoryAdjustmentService(capture::entityManager);
+
+        assertThrows(RuntimeException.class,
+                () -> service.setManagedQuantity(12, 25, 27, "STOCK_COUNT", null, 1, metadata));
+
+        assertTrue(capture.rolledBack);
+        assertFalse(capture.committed);
+        assertFalse(capture.merged);
+    }
+
     private ProductVariant variant(int quantity) {
         ProductVariant variant = new ProductVariant();
         variant.setVariantId(12);
@@ -93,6 +126,8 @@ class InventoryAdjustmentPolicyTest {
         private boolean persisted;
         private boolean committed;
         private boolean rolledBack;
+        private boolean merged;
+        private boolean failPersist;
         private InventoryTransaction transaction;
 
         private PersistenceCapture(ProductVariant variant) {
@@ -119,10 +154,12 @@ class InventoryAdjustmentPolicyTest {
                                 return null;
                             }
                             case "persist" -> {
+                                if (failPersist) throw new RuntimeException("ledger failure");
                                 persisted = true;
                                 transaction = (InventoryTransaction) args[0];
                                 return null;
                             }
+                            case "merge" -> { merged = true; return args[0]; }
                             default -> { return defaultValue(method.getReturnType()); }
                         }
                     });

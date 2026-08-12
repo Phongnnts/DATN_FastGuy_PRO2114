@@ -70,6 +70,7 @@ public class AdminVariantServlet extends HttpServlet {
             Map<String, Object> body = mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {});
             Integer before = v.getQuantityAvailable();
             Integer requested = body.containsKey("quantityAvailable") ? readStock(body) : before;
+            boolean stockChanged = !Objects.equals(before, requested);
             if (body.containsKey("variantName")) {
                 String variantName = (String) body.get("variantName");
                 if (variantName == null || variantName.trim().isEmpty()) { ApiResponse.error(resp, "Tên biến thể không được trống", 400); return; }
@@ -79,20 +80,7 @@ public class AdminVariantServlet extends HttpServlet {
                 if (body.containsKey("price")) v.setPrice(readMoney(body, "price"));
                 if (body.containsKey("status")) v.setStatus(readStatus(body));
                 if (body.containsKey("originalPrice")) v.setOriginalPrice(readMoney(body, "originalPrice"));
-                if (!Objects.equals(before, requested)) {
-                    if (!body.containsKey("expectedQuantity") || !body.containsKey("reasonCode") || !body.containsKey("note")) throw new IllegalArgumentException("Thiếu thông tin kiểm toán tồn kho");
-                    Map<String, Object> expectedBody = new HashMap<>();
-                    expectedBody.put("quantityAvailable", body.get("expectedQuantity"));
-                    Integer expected = readStock(expectedBody);
-                    int adminId = JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
-                    inventoryAdjustmentService.setManagedQuantity(id, requested, expected, (String) body.get("reasonCode"), (String) body.get("note"), adminId);
-                }
-            } catch (InventoryConflictException e) {
-                Map<String, Object> data = new HashMap<>();
-                data.put("variantId", e.getVariantId());
-                data.put("currentQuantity", e.getCurrentQuantity());
-                ApiResponse.error(resp, e.getMessage(), 409, data);
-                return;
+                if (stockChanged && (!body.containsKey("expectedQuantity") || !body.containsKey("reasonCode") || !body.containsKey("note"))) throw new IllegalArgumentException("Thiếu thông tin kiểm toán tồn kho");
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
                 return;
@@ -107,7 +95,26 @@ public class AdminVariantServlet extends HttpServlet {
                 v.setWidth(BigDecimal.valueOf(((Number) body.get("width")).doubleValue()));
             if (body.containsKey("height"))
                 v.setHeight(BigDecimal.valueOf(((Number) body.get("height")).doubleValue()));
-            productDAO.saveVariant(v);
+            if (stockChanged) {
+                try {
+                    Map<String, Object> expectedBody = new HashMap<>();
+                    expectedBody.put("quantityAvailable", body.get("expectedQuantity"));
+                    Integer expected = readStock(expectedBody);
+                    int adminId = JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
+                    inventoryAdjustmentService.setManagedQuantity(id, requested, expected, (String) body.get("reasonCode"), (String) body.get("note"), adminId, v);
+                } catch (InventoryConflictException e) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("variantId", e.getVariantId());
+                    data.put("currentQuantity", e.getCurrentQuantity());
+                    ApiResponse.error(resp, e.getMessage(), 409, data);
+                    return;
+                } catch (IllegalArgumentException e) {
+                    ApiResponse.error(resp, e.getMessage(), 400);
+                    return;
+                }
+            } else {
+                productDAO.saveVariant(v);
+            }
             ApiResponse.ok(resp, null, "Updated");
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid ID", 400);

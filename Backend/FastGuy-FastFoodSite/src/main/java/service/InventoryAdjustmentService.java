@@ -88,6 +88,11 @@ public class InventoryAdjustmentService {
 
     public Map<String, Object> setManagedQuantity(int variantId, Integer newQuantity, Integer expectedQuantity,
             String reasonCode, String note, int adminId) {
+        return setManagedQuantity(variantId, newQuantity, expectedQuantity, reasonCode, note, adminId, null);
+    }
+
+    public Map<String, Object> setManagedQuantity(int variantId, Integer newQuantity, Integer expectedQuantity,
+            String reasonCode, String note, int adminId, ProductVariant metadata) {
         if (!ADJUSTMENT_REASONS.contains(reasonCode)) throw new IllegalArgumentException("Vui lòng chọn lý do điều chỉnh hợp lệ");
         if ("OTHER".equals(reasonCode) && (note == null || note.isBlank())) throw new IllegalArgumentException("Ghi chú là bắt buộc khi chọn lý do Khác");
         if (note != null && note.length() > 500) throw new IllegalArgumentException("Ghi chú không được vượt quá 500 ký tự");
@@ -99,6 +104,19 @@ public class InventoryAdjustmentService {
             if (variant == null) throw new IllegalArgumentException("Biến thể không tồn tại");
             Integer before = variant.getQuantityAvailable();
             if (!Objects.equals(before, expectedQuantity)) throw new InventoryConflictException(variantId, before);
+            if (metadata != null) {
+                variant.setVariantName(metadata.getVariantName());
+                variant.setPrice(metadata.getPrice());
+                variant.setOriginalPrice(metadata.getOriginalPrice());
+                variant.setSku(metadata.getSku());
+                variant.setWeight(metadata.getWeight());
+                variant.setLength(metadata.getLength());
+                variant.setWidth(metadata.getWidth());
+                variant.setHeight(metadata.getHeight());
+                variant.setIsDefault(metadata.getIsDefault());
+                variant.setStatus(metadata.getStatus());
+                variant.setUpdatedAt(metadata.getUpdatedAt());
+            }
             Map<String, Object> result = new HashMap<>();
             result.put("variantId", variantId);
             result.put("before", before);
