@@ -12,6 +12,7 @@ import entity.ProductComboItem;
 import entity.ProductModifierGroup;
 import entity.ProductModifierOption;
 import entity.ProductVariant;
+import exception.InventoryConflictException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,7 +30,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
+import service.InventoryAdjustmentService;
 
 @WebServlet("/api/admin/products/*")
 public class AdminProductServlet extends HttpServlet {
@@ -37,6 +41,7 @@ public class AdminProductServlet extends HttpServlet {
     private ProductDAO productDAO = new ProductDAO();
     private ProductModifierDAO modifierDAO = new ProductModifierDAO();
     private CategoryDAO categoryDAO = new CategoryDAO();
+    private InventoryAdjustmentService inventoryAdjustmentService = new InventoryAdjustmentService();
 
     private boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
@@ -427,6 +432,8 @@ public class AdminProductServlet extends HttpServlet {
             ProductVariant v = productDAO.findVariantById(vid);
             if (v == null) { ApiResponse.error(resp, "Not found", 404); return; }
 
+            Integer before = v.getQuantityAvailable();
+            Integer requested = before;
             if (body.containsKey("variantName")) {
                 String variantName = (String) body.get("variantName");
                 if (variantName == null || variantName.trim().isEmpty()) { ApiResponse.error(resp, "Tên biến thể không được trống", 400); return; }
@@ -435,8 +442,20 @@ public class AdminProductServlet extends HttpServlet {
             try {
                 if (body.containsKey("price")) v.setPrice(readMoney(body, "price", v.getPrice()));
                 if (body.containsKey("originalPrice")) v.setOriginalPrice(readMoney(body, "originalPrice", v.getOriginalPrice()));
-                if (body.containsKey("quantityAvailable")) v.setQuantityAvailable(readStock(body, "quantityAvailable", v.getQuantityAvailable()));
+                if (body.containsKey("quantityAvailable")) requested = readStock(body, "quantityAvailable", before);
                 if (body.containsKey("status")) v.setStatus(readStatus(body, "status", v.getStatus()));
+                if (!Objects.equals(before, requested)) {
+                    if (!body.containsKey("expectedQuantity") || !body.containsKey("reasonCode") || !body.containsKey("note")) throw new IllegalArgumentException("Thiếu thông tin kiểm toán tồn kho");
+                    Integer expected = readStock(body, "expectedQuantity", null);
+                    int adminId = JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
+                    inventoryAdjustmentService.setManagedQuantity(vid, requested, expected, (String) body.get("reasonCode"), (String) body.get("note"), adminId);
+                }
+            } catch (InventoryConflictException e) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("variantId", e.getVariantId());
+                data.put("currentQuantity", e.getCurrentQuantity());
+                ApiResponse.error(resp, e.getMessage(), 409, data);
+                return;
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
                 return;

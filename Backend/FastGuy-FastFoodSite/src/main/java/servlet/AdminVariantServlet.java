@@ -2,12 +2,15 @@ package servlet;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dao.ProductDAO;
 import entity.ProductVariant;
+import exception.InventoryConflictException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,11 +18,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import utils.ApiResponse;
 import utils.JwtUtil;
 import utils.PrivilegedAuth;
+import service.InventoryAdjustmentService;
 
 @WebServlet("/api/admin/variants/*")
 public class AdminVariantServlet extends HttpServlet {
     private ProductDAO productDAO = new ProductDAO();
     private ObjectMapper mapper = new ObjectMapper();
+    private InventoryAdjustmentService inventoryAdjustmentService = new InventoryAdjustmentService();
 
     private boolean isAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
@@ -46,10 +51,6 @@ public class AdminVariantServlet extends HttpServlet {
         return value;
     }
 
-    static boolean containsForbiddenStockUpdate(Map<String, ?> body) {
-        return body.containsKey("quantityAvailable");
-    }
-
     private String readStatus(Map<String, Object> body) {
         String status = (String) body.get("status");
         if (!"AVAILABLE".equals(status) && !"UNAVAILABLE".equals(status)) throw new IllegalArgumentException("Trạng thái không hợp lệ");
@@ -67,10 +68,8 @@ public class AdminVariantServlet extends HttpServlet {
             ProductVariant v = productDAO.findVariantById(id);
             if (v == null) { ApiResponse.error(resp, "Variant not found", 404); return; }
             Map<String, Object> body = mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {});
-            if (containsForbiddenStockUpdate(body)) {
-                ApiResponse.error(resp, "Tồn kho chỉ được thay đổi qua điều chỉnh hoặc lãng phí", 400);
-                return;
-            }
+            Integer before = v.getQuantityAvailable();
+            Integer requested = body.containsKey("quantityAvailable") ? readStock(body) : before;
             if (body.containsKey("variantName")) {
                 String variantName = (String) body.get("variantName");
                 if (variantName == null || variantName.trim().isEmpty()) { ApiResponse.error(resp, "Tên biến thể không được trống", 400); return; }
@@ -80,6 +79,20 @@ public class AdminVariantServlet extends HttpServlet {
                 if (body.containsKey("price")) v.setPrice(readMoney(body, "price"));
                 if (body.containsKey("status")) v.setStatus(readStatus(body));
                 if (body.containsKey("originalPrice")) v.setOriginalPrice(readMoney(body, "originalPrice"));
+                if (!Objects.equals(before, requested)) {
+                    if (!body.containsKey("expectedQuantity") || !body.containsKey("reasonCode") || !body.containsKey("note")) throw new IllegalArgumentException("Thiếu thông tin kiểm toán tồn kho");
+                    Map<String, Object> expectedBody = new HashMap<>();
+                    expectedBody.put("quantityAvailable", body.get("expectedQuantity"));
+                    Integer expected = readStock(expectedBody);
+                    int adminId = JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
+                    inventoryAdjustmentService.setManagedQuantity(id, requested, expected, (String) body.get("reasonCode"), (String) body.get("note"), adminId);
+                }
+            } catch (InventoryConflictException e) {
+                Map<String, Object> data = new HashMap<>();
+                data.put("variantId", e.getVariantId());
+                data.put("currentQuantity", e.getCurrentQuantity());
+                ApiResponse.error(resp, e.getMessage(), 409, data);
+                return;
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
                 return;
