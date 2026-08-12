@@ -16,10 +16,11 @@ test('inventory stock changes only through adjustment and waste workflows', () =
   assert.match(inventory, /adminApi\.wasteInventory/);
 });
 
-test('persisted variant update omits stock while create keeps initial stock', () => {
-  assert.match(variants, /adminApi\.updateVariant\(row\.variantId, variantPayload\(row, \{ includeStock: false \}\)\)/);
+test('persisted variant update audits stock changes while create keeps initial stock', () => {
+  assert.match(variants, /variantPayload\(row, \{ includeStock: false \}\)/);
+  assert.match(variants, /if \(stockChanged\(row\)\) Object\.assign\(payload/);
+  assert.match(variants, /expectedQuantity: originalQuantity\(row\)/);
   assert.match(variants, /adminApi\.createVariant\(props\.productId, variantPayload\(row\)\)/);
-  assert.match(variants, /:disabled="busy \|\| mutating \|\| Boolean\(row\.variantId\)"[^>]*variant-qty|variant-qty-[^]*:disabled="busy \|\| mutating \|\| Boolean\(row\.variantId\)"/);
 });
 
 test('dashboard exposes loading error retry and ready without failure KPI fallback', () => {
