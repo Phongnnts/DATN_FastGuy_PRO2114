@@ -58,4 +58,48 @@ Result: 174 tests run, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS.
 
 ## Commit
 
-Pending commit `fix(inventory): audit editor stock changes`.
+Initial commit: `9eb0646 fix(inventory): audit editor stock changes`.
+
+## Reviewer fix: atomic metadata and stock persistence
+
+### Root cause
+
+Existing editor flow called `setManagedQuantity(...)`, committed stock and ledger, then called `ProductDAO.saveVariant(v)`. `saveVariant` opened another transaction and merged a detached entity carrying stale `quantityAvailable`, allowing audited stock overwrite and partial persistence when metadata save failed.
+
+### RED
+
+Command:
+
+`mvn "-Dtest=InventoryAdjustmentPolicyTest" test`
+
+Result: test compilation failed because atomic `setManagedQuantity(..., ProductVariant metadata)` did not exist. Added runtime proxy cases require metadata to update locked managed entity without `merge`, and require ledger failure to roll back the shared transaction.
+
+### GREEN
+
+Focused command:
+
+`mvn "-Dtest=InventoryAdjustmentPolicyTest,AdminVariantServletPolicyTest" test`
+
+Result: 7 tests run, 0 failures, 0 errors, BUILD SUCCESS.
+
+Full backend command:
+
+`mvn test`
+
+Result: 176 tests run, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS.
+
+### Fix
+
+- Stock-changing editor requests now copy metadata onto pessimistically locked managed variant inside inventory service transaction.
+- Stock, metadata, and ledger commit or roll back together.
+- Stock-changing paths no longer call detached `ProductDAO.saveVariant(v)` after inventory commit.
+- Metadata-only updates retain existing DAO save path.
+- New variant creation remains unchanged.
+
+### Verification
+
+- `git diff --check` passed.
+- Runtime proxy tests verify no `EntityManager.merge` call and rollback on ledger persistence failure.
+- Existing unrelated `frontend/package-lock.json` change remains unstaged.
+
+Reviewer fix commit: pending.
