@@ -13,6 +13,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const api = read('../src/api/admin.js');
 const inventory = read('../src/views/admin/InventoryPage.vue');
 const ledger = read('../src/views/admin/InventoryLedgerPage.vue');
+const variantSection = read('../src/components/admin/product-editor/ProductVariantsSection.vue');
 
 test('admin API exposes inventory adjustment and waste mutations', () => {
   assert.match(api, /adjustInventory\(variantId, data\)/);
@@ -125,6 +126,17 @@ test('inventory page ships reason codes and accessible modals', () => {
   assert.match(inventory, /role="dialog"/);
   assert.match(inventory, /aria-modal="true"/);
   assert.doesNotMatch(inventory, /window\.confirm\(/);
+});
+
+test('variant editor exposes managed stock audit fields only after existing stock changes', () => {
+  assert.match(variantSection, /quantityAvailable/);
+  assert.match(variantSection, /reasonCode/);
+  assert.match(variantSection, /note/);
+  assert.match(variantSection, /expectedQuantity/);
+  assert.match(variantSection, /Quản lý tồn kho/);
+  assert.match(variantSection, /v-if="row\.variantId && stockChanged\(row\)"/);
+  assert.match(variantSection, /currentQuantity/);
+  assert.match(variantSection, /status === 409/);
 });
 
 test('ledger exposes adjustment type and audit columns', () => {

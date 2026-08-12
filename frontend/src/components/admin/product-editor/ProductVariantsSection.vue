@@ -17,6 +17,7 @@ const snapshot = ref([]);
 const pendingRows = ref([]);
 const errors = ref({});
 const mutating = ref(false);
+const confirmDisableUid = ref(null);
 let uid = 0;
 let generation = 0;
 let stopped = false;
@@ -29,13 +30,40 @@ function withUid(list) {
 }
 
 function variantShape(row) {
-  const { _uid, ...rest } = row;
+  const { _uid, reasonCode, note, ...rest } = row;
   return rest;
 }
 
 function syncRows() {
-  rows.value = withUid(props.modelValue.variants || []);
-  snapshot.value = (props.modelValue.variants || []).map((variant) => ({ ...variant }));
+  const variants = props.modelValue.variants || [];
+  rows.value = withUid(variants.map((variant) => ({ ...variant, reasonCode: '', note: '' })));
+  snapshot.value = variants.map((variant) => ({ ...variant }));
+  confirmDisableUid.value = null;
+}
+
+function originalQuantity(row) {
+  return snapshot.value.find((variant) => variant.variantId === row.variantId)?.quantityAvailable ?? null;
+}
+
+function stockChanged(row) {
+  return Boolean(row.variantId) && row.quantityAvailable !== originalQuantity(row);
+}
+
+function setManaged(row, managed) {
+  if (!managed && row.quantityAvailable !== null) {
+    confirmDisableUid.value = row._uid;
+    return;
+  }
+  updateRow(row, 'quantityAvailable', managed ? 0 : null);
+}
+
+function confirmDisable(row) {
+  confirmDisableUid.value = null;
+  updateRow(row, 'quantityAvailable', null);
+}
+
+function cancelDisable() {
+  confirmDisableUid.value = null;
 }
 
 function rowsDirty() {
@@ -116,6 +144,9 @@ function saveAll() {
 async function saveRow(row) {
   if (props.busy || mutating.value || locked.value) return;
   const found = validateVariant(row);
+  if (stockChanged(row) && !row.reasonCode) found.reasonCode = 'Vui lòng chọn lý do điều chỉnh';
+  if (stockChanged(row) && row.reasonCode === 'OTHER' && !row.note.trim()) found.note = 'Ghi chú là bắt buộc khi chọn lý do Khác';
+  if (row.note.length > 500) found.note = 'Ghi chú không được vượt quá 500 ký tự';
   if (Object.keys(found).length) {
     errors.value = { ...errors.value, [rowIndex(row)]: found };
     return;
@@ -124,7 +155,14 @@ async function saveRow(row) {
   mutating.value = true;
   try {
     if (row.variantId) {
-      await adminApi.updateVariant(row.variantId, variantPayload(row, { includeStock: false }));
+      const payload = variantPayload(row, { includeStock: false });
+      if (stockChanged(row)) Object.assign(payload, {
+        quantityAvailable: row.quantityAvailable,
+        expectedQuantity: originalQuantity(row),
+        reasonCode: row.reasonCode,
+        note: row.note.trim(),
+      });
+      await adminApi.updateVariant(row.variantId, payload);
     } else {
       const created = await adminApi.createVariant(props.productId, variantPayload(row));
       if (currentRequest(request) && created) row.variantId = created.variantId ?? created.id;
@@ -136,7 +174,14 @@ async function saveRow(row) {
       emit('reload');
     }
   } catch (error) {
-    if (currentRequest(request)) errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể lưu biến thể' } };
+    if (currentRequest(request) && error.status === 409) {
+      const currentQuantity = error.data?.currentQuantity ?? null;
+      const original = snapshot.value.find((variant) => variant.variantId === row.variantId);
+      if (original) original.quantityAvailable = currentQuantity;
+      errors.value = { ...errors.value, [rowIndex(row)]: { _server: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.' } };
+    } else if (currentRequest(request)) {
+      errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể lưu biến thể' } };
+    }
   } finally {
     if (currentRequest(request)) mutating.value = false;
   }
@@ -225,10 +270,30 @@ function retryPending() {
         <input :id="`variant-sku-${index}`" :value="row.sku" :disabled="busy || mutating" @input="updateRow(row, 'sku', $event.target.value)" placeholder="Mã hàng (tùy chọn)" />
       </div>
       <div class="field">
+        <label class="checkbox-field"><input type="checkbox" :checked="row.quantityAvailable !== null" :disabled="busy || mutating" @change="setManaged(row, $event.target.checked)" /> Quản lý tồn kho</label>
         <label :for="`variant-qty-${index}`">Tồn kho</label>
-        <input :id="`variant-qty-${index}`" type="number" min="0" :value="row.quantityAvailable ?? ''" :disabled="busy || mutating || Boolean(row.variantId)" :aria-invalid="Boolean(errors[index]?.quantityAvailable)" :aria-describedby="errors[index]?.quantityAvailable ? `variant-qty-error-${index}` : undefined" @input="updateRow(row, 'quantityAvailable', $event.target.value === '' ? null : Number($event.target.value))" placeholder="Trống = không giới hạn" />
+        <input :id="`variant-qty-${index}`" type="number" min="0" :value="row.quantityAvailable ?? ''" :disabled="busy || mutating || row.quantityAvailable === null" :aria-invalid="Boolean(errors[index]?.quantityAvailable)" :aria-describedby="errors[index]?.quantityAvailable ? `variant-qty-error-${index}` : undefined" @input="updateRow(row, 'quantityAvailable', $event.target.value === '' ? 0 : Number($event.target.value))" />
         <span v-if="errors[index]?.quantityAvailable" :id="`variant-qty-error-${index}`" role="alert">{{ errors[index].quantityAvailable }}</span>
       </div>
+      <div v-if="confirmDisableUid === row._uid" class="stock-confirm" role="alert">
+        <span>Tắt quản lý tồn kho sẽ chuyển biến thể sang không giới hạn.</span>
+        <button class="btn btn-sm btn-primary" type="button" @click="confirmDisable(row)">Xác nhận</button>
+        <button class="btn btn-sm btn-outline" type="button" @click="cancelDisable">Hủy</button>
+      </div>
+      <template v-if="row.variantId && stockChanged(row)">
+        <div class="field">
+          <label :for="`variant-reason-${index}`">Lý do điều chỉnh</label>
+          <select :id="`variant-reason-${index}`" v-model="row.reasonCode" :disabled="busy || mutating" :aria-invalid="Boolean(errors[index]?.reasonCode)">
+            <option value="">Chọn lý do</option><option value="STOCK_COUNT">Kiểm kê</option><option value="DAMAGE">Hư hỏng</option><option value="EXPIRED">Hết hạn</option><option value="OTHER">Khác</option>
+          </select>
+          <span v-if="errors[index]?.reasonCode" role="alert">{{ errors[index].reasonCode }}</span>
+        </div>
+        <div class="field">
+          <label :for="`variant-note-${index}`">Ghi chú</label>
+          <textarea :id="`variant-note-${index}`" v-model="row.note" maxlength="500" :disabled="busy || mutating" :required="row.reasonCode === 'OTHER'"></textarea>
+          <span v-if="errors[index]?.note" role="alert">{{ errors[index].note }}</span>
+        </div>
+      </template>
       <div class="field">
         <label :for="`variant-status-${index}`">Trạng thái</label>
         <select :id="`variant-status-${index}`" :value="row.status" :disabled="busy || mutating" @change="updateRow(row, 'status', $event.target.value)"><option value="AVAILABLE">Còn bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
