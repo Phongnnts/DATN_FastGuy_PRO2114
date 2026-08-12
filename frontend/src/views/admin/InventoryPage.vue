@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAdminStore } from '@/stores/admin';
 import { adminApi } from '@/api';
@@ -21,11 +21,28 @@ const REASONS = [
   { value: 'EXPIRED', label: 'Hết hạn' },
   { value: 'OTHER', label: 'Khác' },
 ];
+const OPERATIONS = [
+  { value: 'INCREASE', label: 'Tăng', id: 'adjust-increase' },
+  { value: 'DECREASE', label: 'Giảm', id: 'adjust-decrease' },
+  { value: 'SET', label: 'Đặt mới', id: 'adjust-set' },
+];
 const adjustmentRow = ref(null);
 const wasteRow = ref(null);
-const adjustmentForm = ref({ newQuantity: '', reasonCode: 'STOCK_COUNT', note: '' });
+const adjustmentModal = ref(null);
+const adjustmentForm = ref({ operation: 'INCREASE', quantity: '', reasonCode: 'STOCK_COUNT', note: '' });
 const wasteForm = ref({ quantity: '', reasonCode: 'DAMAGE', note: '' });
+const adjustmentError = ref('');
 const submitting = ref(false);
+let adjustmentTrigger = null;
+
+const projectedQuantity = computed(() => {
+  if (!adjustmentRow.value) return null;
+  const quantity = Number(adjustmentForm.value.quantity);
+  if (!Number.isInteger(quantity)) return null;
+  if (adjustmentForm.value.operation === 'INCREASE') return adjustmentRow.value.stock + quantity;
+  if (adjustmentForm.value.operation === 'DECREASE') return adjustmentRow.value.stock - quantity;
+  return quantity;
+});
 
 async function loadProducts() {
   loading.value = true;
@@ -113,10 +130,14 @@ function editProduct(row) {
   router.push({ name: 'AdminProductEdit', params: { id: row.productId } });
 }
 
-function openAdjust(row) {
+async function openAdjust(row, event) {
   wasteRow.value = null;
-  adjustmentRow.value = row;
-  adjustmentForm.value = { newQuantity: String(row.stock ?? ''), reasonCode: 'STOCK_COUNT', note: '' };
+  adjustmentTrigger = event.currentTarget;
+  adjustmentRow.value = { ...row };
+  adjustmentError.value = '';
+  adjustmentForm.value = { operation: 'INCREASE', quantity: '', reasonCode: 'STOCK_COUNT', note: '' };
+  await nextTick();
+  adjustmentModal.value.querySelector('[role="tab"]').focus();
 }
 
 function openWaste(row) {
@@ -125,27 +146,87 @@ function openWaste(row) {
   wasteForm.value = { quantity: '', reasonCode: 'DAMAGE', note: '' };
 }
 
-function closeModals() {
+async function closeModals() {
+  const restoreTarget = adjustmentRow.value ? adjustmentTrigger : null;
   adjustmentRow.value = null;
   wasteRow.value = null;
+  await nextTick();
+  restoreTarget?.focus();
 }
 
-async function submitAdjust() {
-  const newQuantity = Number(adjustmentForm.value.newQuantity);
-  if (!Number.isInteger(newQuantity) || newQuantity < 0) return toast.error('Tồn kho mới phải là số nguyên không âm');
-  if (!adjustmentForm.value.reasonCode) return toast.error('Vui lòng chọn lý do điều chỉnh');
+function selectOperation(operation) {
+  adjustmentForm.value.operation = operation;
+  adjustmentForm.value.quantity = '';
+  adjustmentError.value = '';
+}
+
+function handleTabKey(event) {
+  const current = OPERATIONS.findIndex(({ value }) => value === adjustmentForm.value.operation);
+  let next = current;
+  if (event.key === 'ArrowRight') next = (current + 1) % OPERATIONS.length;
+  else if (event.key === 'ArrowLeft') next = (current - 1 + OPERATIONS.length) % OPERATIONS.length;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = OPERATIONS.length - 1;
+  else return;
+  event.preventDefault();
+  selectOperation(OPERATIONS[next].value);
+  nextTick(() => document.getElementById(OPERATIONS[next].id)?.focus());
+}
+
+function handleModalKey(event) {
+  if (event.key === 'Escape' && !submitting.value) return closeModals();
+  if (event.key !== 'Tab') return;
+  const controls = [...adjustmentModal.value.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
+  const first = controls[0];
+  const last = controls.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+async function submitAdjust(event) {
+  adjustmentError.value = '';
+  const quantity = Number(adjustmentForm.value.quantity);
+  if (!Number.isInteger(quantity) || (adjustmentForm.value.operation === 'SET' ? quantity < 0 : quantity <= 0)) {
+    adjustmentError.value = adjustmentForm.value.operation === 'SET' ? 'Tồn kho mới phải là số nguyên không âm' : 'Số lượng phải là số nguyên dương';
+    return;
+  }
+  if (projectedQuantity.value < 0) {
+    adjustmentError.value = 'Tồn kho dự kiến không thể âm';
+    return;
+  }
+  if (!adjustmentForm.value.reasonCode) {
+    adjustmentError.value = 'Vui lòng chọn lý do điều chỉnh';
+    return;
+  }
+  if (adjustmentForm.value.reasonCode === 'OTHER' && !adjustmentForm.value.note.trim()) {
+    adjustmentError.value = 'Ghi chú là bắt buộc khi chọn lý do Khác';
+    return;
+  }
   submitting.value = true;
   try {
     await adminApi.adjustInventory(adjustmentRow.value.variantId, {
-      newQuantity,
+      operation: adjustmentForm.value.operation,
+      quantity,
+      expectedQuantity: adjustmentRow.value.stock,
       reasonCode: adjustmentForm.value.reasonCode,
       note: adjustmentForm.value.note.trim(),
     });
     toast.success('Đã điều chỉnh tồn kho');
-    closeModals();
+    await closeModals();
     await loadProducts();
   } catch (error) {
-    toast.error(error.message || 'Không thể điều chỉnh tồn kho');
+    if (error.response?.status === 409) {
+      const currentQuantity = error.response.data?.data?.currentQuantity;
+      if (Number.isInteger(currentQuantity)) adjustmentRow.value.stock = currentQuantity;
+      adjustmentError.value = 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.';
+      return;
+    }
+    adjustmentError.value = error.message || 'Không thể điều chỉnh tồn kho';
   } finally {
     submitting.value = false;
   }
@@ -239,7 +320,7 @@ async function submitWaste() {
               <td data-label="Thao tác">
                 <div class="row-actions">
                   <template v-if="row.stock !== null">
-                    <button class="btn btn-sm btn-outline" @click="openAdjust(row)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
+                    <button class="btn btn-sm btn-outline" @click="openAdjust(row, $event)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
                     <button class="btn btn-sm btn-outline" @click="openWaste(row)"><i class="bi bi-trash3" aria-hidden="true"></i> Lãng phí</button>
                   </template>
                   <button class="btn btn-sm btn-ghost" :aria-label="`Sửa sản phẩm ${row.productName}`" @click="editProduct(row)"><i class="bi bi-pencil" aria-hidden="true"></i></button>
@@ -252,16 +333,24 @@ async function submitWaste() {
     </section>
 
     <div v-if="adjustmentRow" class="modal-overlay" @mousedown.self="closeModals">
-      <form class="modal" role="dialog" aria-modal="true" aria-labelledby="adjust-title" @submit.prevent="submitAdjust">
+      <form ref="adjustmentModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="adjust-title" @keydown="handleModalKey" @submit.prevent="submitAdjust">
         <div class="modal-header">
           <div><small>ĐIỀU CHỈNH TỒN KHO</small><h3 id="adjust-title">{{ adjustmentRow.productName }} – {{ adjustmentRow.variantName }}</h3></div>
-          <button type="button" class="icon-button" aria-label="Đóng" :disabled="submitting" @click="closeModals"><i class="bi bi-x-lg"></i></button>
+          <button type="button" class="icon-button" aria-label="Đóng" :disabled="submitting" @click="closeModals"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </div>
         <div class="modal-body">
           <p class="muted">Tồn kho hiện tại: <strong>{{ adjustmentRow.stock }}</strong> · SKU: {{ adjustmentRow.sku || '—' }}</p>
-          <label class="form-group"><span class="form-label">Tồn kho mới</span><input v-model.number="adjustmentForm.newQuantity" class="form-input" type="number" min="0" step="1" required /></label>
-          <label class="form-group"><span class="form-label">Lý do</span><select v-model="adjustmentForm.reasonCode" class="form-select" required><option v-for="reason in REASONS" :key="reason.value" :value="reason.value">{{ reason.label }}</option></select></label>
-          <label class="form-group"><span class="form-label">Ghi chú</span><textarea v-model="adjustmentForm.note" class="form-input" rows="3" maxlength="500"></textarea></label>
+          <div class="adjust-tabs" role="tablist" aria-label="Kiểu điều chỉnh" @keydown="handleTabKey">
+            <button v-for="operation in OPERATIONS" :id="operation.id" :key="operation.value" type="button" role="tab" :aria-selected="adjustmentForm.operation === operation.value" aria-controls="adjust-panel" :tabindex="adjustmentForm.operation === operation.value ? 0 : -1" @click="selectOperation(operation.value)">{{ operation.label }}</button>
+          </div>
+          <div id="adjust-panel" role="tabpanel" :aria-labelledby="OPERATIONS.find(({ value }) => value === adjustmentForm.operation).id">
+            <label class="form-group" for="adjust-quantity"><span class="form-label">{{ adjustmentForm.operation === 'SET' ? 'Tồn kho mới' : 'Số lượng' }}</span></label>
+            <input id="adjust-quantity" v-model="adjustmentForm.quantity" class="form-input" type="number" :min="adjustmentForm.operation === 'SET' ? 0 : 1" step="1" required />
+          </div>
+          <p class="stock-preview" aria-live="polite">Tồn kho dự kiến: <strong>{{ projectedQuantity === null ? '—' : projectedQuantity }}</strong></p>
+          <label class="form-group" for="adjust-reason"><span class="form-label">Lý do</span></label><select id="adjust-reason" v-model="adjustmentForm.reasonCode" class="form-select" required><option v-for="reason in REASONS" :key="reason.value" :value="reason.value">{{ reason.label }}</option></select>
+          <label class="form-group" for="adjust-note"><span class="form-label">Ghi chú{{ adjustmentForm.reasonCode === 'OTHER' ? ' (bắt buộc)' : '' }}</span></label><textarea id="adjust-note" v-model="adjustmentForm.note" class="form-input" rows="3" maxlength="500" :required="adjustmentForm.reasonCode === 'OTHER'"></textarea>
+          <p v-if="adjustmentError" class="adjust-error" role="alert">{{ adjustmentError }}</p>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" :disabled="submitting" @click="closeModals">Hủy</button>
@@ -328,6 +417,12 @@ async function submitWaste() {
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border-light); background: #fff; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-label { font-size: 12px; font-weight: 700; color: var(--text-mid); }
+.adjust-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.adjust-tabs button { min-height: 40px; border: 1px solid var(--border-light); border-radius: 8px; background: #fff; color: var(--text-mid); font-weight: 700; cursor: pointer; }
+.adjust-tabs button[aria-selected="true"] { border-color: var(--primary); background: var(--primary-50); color: var(--primary); }
+.adjust-tabs button:focus-visible, .icon-button:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.stock-preview { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--surface); }
+.adjust-error { margin: 0; color: var(--danger, #dc2626); font-size: 13px; font-weight: 600; }
 .state-panel { min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-mid); text-align: center; }
 .state-panel > i { font-size: 32px; }
 .error-panel { color: var(--danger, #dc2626); }
