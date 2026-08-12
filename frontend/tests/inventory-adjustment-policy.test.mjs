@@ -146,14 +146,17 @@ test('existing variant update includes exact audit fields only for stock changes
   });
 });
 
-test('variant conflict coordinator calls mutation once and updates snapshot without retry', async () => {
+test('variant conflict coordinator applies current conflict and ignores stale conflict', async () => {
   let calls = 0;
-  const state = await submitVariantUpdate(async () => {
+  const conflict = async () => {
     calls += 1;
     throw Object.assign(new Error('Stale'), { status: 409, data: { currentQuantity: 9 } });
-  }, { quantityAvailable: 7 }, 5);
-  assert.equal(calls, 1);
-  assert.deepEqual(state, { saved: false, currentQuantity: 9, error: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.' });
+  };
+  const current = await submitVariantUpdate(conflict, { quantityAvailable: 7 }, () => true);
+  const stale = await submitVariantUpdate(conflict, { quantityAvailable: 7 }, () => false);
+  assert.equal(calls, 2);
+  assert.deepEqual(current, { saved: false, currentQuantity: 9, error: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.' });
+  assert.deepEqual(stale, { ignored: true });
 });
 
 test('variant editor exposes managed stock audit fields only after existing stock changes', () => {

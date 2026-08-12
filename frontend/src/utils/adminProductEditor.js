@@ -142,12 +142,13 @@ export function buildVariantUpdatePayload(variant, expectedQuantity) {
   return payload;
 }
 
-export async function submitVariantUpdate(mutate, payload, expectedQuantity) {
+export async function submitVariantUpdate(mutate, payload, isCurrent = () => true) {
   try {
     await mutate(payload);
     return { saved: true };
   } catch (error) {
     if (error.status !== 409) throw error;
+    if (!isCurrent()) return { ignored: true };
     return {
       saved: false,
       currentQuantity: error.data?.currentQuantity ?? null,
