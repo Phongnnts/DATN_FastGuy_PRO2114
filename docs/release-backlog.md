@@ -112,7 +112,7 @@ Chia theo 6 Sprint; mỗi backlog gộp 5 user story.
 | PB21 | Nâng cao — Realtime & Điểm | Khách hàng | Nhận gợi ý món theo lịch sử | Đặt nhanh | 4.0 | Thấp | 6 | Mới | |
 | PB22 | Nâng cao — Bếp & SLA | Nhân viên | Thấy cảnh báo đơn quá hạn theo SLA | Ưu tiên bếp | 3.0 | Vừa | 6 | Mới | Cần SLA |
 | PB22 | Nâng cao — Bếp & SLA | Nhân viên | Xem tùy chọn món trong ticket bếp | Chế biến chính xác | 2.0 | Vừa | 6 | Xong | |
-| PB22 | Nâng cao — Bếp & SLA | Shipper | Báo cáo giao thất bại | Xử lý ngoại lệ | 3.0 | Vừa | 6 | Mới | Cần workflow |
+| PB22 | Nâng cao — Bếp & SLA | Shipper | Báo cáo giao thất bại | Xử lý ngoại lệ | 3.0 | Vừa | 6 | Đang làm | Backend 212 test + frontend 262 test và build/package pass; migration runtime + smoke thủ công chờ môi trường |
 | PB22 | Nâng cao — Bếp & SLA | Shipper | Xem đối soát tiền COD | Khớp ca | 3.0 | Vừa | 6 | Mới | Cần API |
 | PB22 | Nâng cao — Bếp & SLA | Khách hàng | Chat/trả lời ticket hỗ trợ | Giải quyết nhanh | 3.0 | Vừa | 6 | Mới | Cần schema |
 | PB23 | Nâng cao — Thông báo & Biên nhận | Quản trị viên | Thông báo riêng từng người cùng vai trò | Không lộ trạng thái đọc | 3.0 | Cao | 6 | Mới | Cần schema |

@@ -111,7 +111,7 @@ Chia theo 6 Sprint, mỗi Sprint 20 task (tổng 120 task).
 | T104 | Public rating sản phẩm | Rating/review summary trên product | US082 | PB21 | 6 | Mới | 6 | Nam Phong | Cần API |
 | T105 | Gợi ý món | Recommendation theo lịch sử | US091 | PB21 | 6 | Mới | 10 | Nam Phong | |
 | T106 | SLA cảnh báo bếp | Đơn quá hạn theo SLA | US083 | PB22 | 6 | Mới | 6 | Nam Phong | Cần SLA |
-| T107 | Delivery exception | Báo giao thất bại + trả đơn về cửa hàng | US084 | PB22 | 6 | Mới | 10 | Nam Phong | Cần workflow |
+| T107 | Delivery exception | Báo giao thất bại + trả đơn về cửa hàng | US084 | PB22 | 6 | Đang làm | 10 | Nam Phong | Backend 212 test + frontend 262 test và build/package pass; migration runtime + smoke thủ công chờ môi trường |
 | T108 | COD settlement | Đối soát tiền thu/nộp | US085 | PB22 | 6 | Mới | 8 | Nam Phong | Cần API |
 | T109 | Ticket conversation | Trả lời theo chuỗi trong ticket | US086 | PB22 | 6 | Mới | 8 | Nam Phong | Cần schema |
 | T110 | Per-recipient notification | Read state riêng từng user | US087 | PB23 | 6 | Mới | 8 | Nam Phong | Cần schema |

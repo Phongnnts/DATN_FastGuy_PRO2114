@@ -19,6 +19,10 @@ public class WorkShiftService {
     static final long SHIFT_GRACE_MINUTES = 15;
     static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
+    static LocalDateTime businessNow() {
+        return LocalDateTime.now(BUSINESS_ZONE);
+    }
+
     public List<Map<String, Object>> list(Integer userId, String role, String fromDate, String toDate) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

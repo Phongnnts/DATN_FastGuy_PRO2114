@@ -8,11 +8,14 @@ import java.util.List;
 import java.util.Map;
 
 import dao.OrdersDAO;
+import dao.ProductDAO;
 import entity.Orders;
 import entity.WorkShift;
 
 public class StaffService {
     private OrdersDAO ordersDAO = new OrdersDAO();
+    private ProductDAO productDAO = new ProductDAO();
+    private StoreConfigService storeConfigService = new StoreConfigService();
     private WorkShiftService workShiftService = new WorkShiftService();
 
     public Map<String, Object> getDashboard(int staffId) {
@@ -58,6 +61,11 @@ public class StaffService {
         data.put("shiftNetRevenue", decimal(shiftSummary[2]));
         data.put("priorityOrders", priorityOrders);
         data.put("updatedAt", now);
+        int lowStockThreshold = storeConfigService.getLowStockThreshold();
+        long[] stockRiskCounts = productDAO.countStockRiskSkus(lowStockThreshold);
+        data.put("lowStockThreshold", lowStockThreshold);
+        data.put("outOfStockSkuCount", stockRiskCounts[0]);
+        data.put("lowStockSkuCount", stockRiskCounts[1]);
         return data;
     }
 

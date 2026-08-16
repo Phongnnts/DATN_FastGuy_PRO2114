@@ -22,4 +22,7 @@ export default {
   deliverOrder(id, collectedAmount, expectedStatus) {
     return client.put(`/shipper/orders/${id}/deliver`, collectedAmount === undefined ? { expectedStatus } : { collectedAmount, expectedStatus });
   },
+  failOrder(orderId, { expectedStatus, reasonCode, note }) {
+    return client.post(`/shipper/orders/${orderId}/fail`, { expectedStatus, reasonCode, note });
+  },
 };

@@ -26,3 +26,26 @@ test('disabled payment cannot be selected or submitted from stale state', () => 
   assert.match(checkout, /if \(!isPaymentEnabled\(paymentMethod\.value\)\)/);
   assert.match(checkout, /@click="selectPaymentMethod\(key\)"/);
 });
+
+test('manual coupon form is available to guest and user while wallet remains user-only', () => {
+  assert.match(checkout, /<form class="coupon-manual" @submit\.prevent="verifyCoupon"/);
+  assert.match(checkout, /id="checkout-coupon-code"/);
+  assert.match(checkout, /aria-describedby="checkout-coupon-status"/);
+  assert.match(checkout, /<div v-if="!isGuest && !appliedCoupon" class="my-coupons">/);
+  assert.doesNotMatch(checkout, /<div v-if="!isGuest" class="checkout-coupon">/);
+});
+
+test('coupon verification announces loading, errors, and applied state', () => {
+  assert.match(checkout, /id="checkout-coupon-status"/);
+  assert.match(checkout, /role="status"/);
+  assert.match(checkout, /role="alert"/);
+  assert.match(checkout, /:disabled="verifyingCoupon \|\| !couponCode\.trim\(\)"/);
+  assert.equal(checkout.match(/couponCode: appliedCoupon\.value\?\.code \|\| ''/g)?.length, 2);
+});
+
+test('checkout uses coupon controller invalidation and accessible remove control', () => {
+  assert.match(checkout, /createCouponController/);
+  assert.match(checkout, /watch\(\[\(\) => cart\.subtotal, shippingFee\], invalidateCoupon\)/);
+  assert.match(checkout, /aria-label="Xoá mã giảm giá"/);
+  assert.match(checkout, /\.applied-remove \{[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px;/);
+});

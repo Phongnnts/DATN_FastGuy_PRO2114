@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { formatPrice, formatDate } from '@/utils/format'
+import { createReorderController, reorderItemKey } from '@/utils/reorderPlanner'
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue'
 import OrderTimeline from '@/components/common/OrderTimeline.vue'
 import StarRating from '@/components/common/StarRating.vue'
@@ -12,7 +13,6 @@ import { useToast } from '@/stores/toast'
 
 const toast = useToast()
 const route = useRoute()
-const router = useRouter()
 const cart = useCartStore()
 const productStore = useProductStore()
 const order = ref(null)
@@ -26,6 +26,7 @@ const cancelling = ref(false)
 const showReviewForm = ref(false)
 const showCancelForm = ref(false)
 const reordering = ref(false)
+const reorderResult = ref(null)
 const justCreated = ref(route.query.created === '1')
 let pollTimer = null
 let loadingOrder = false
@@ -40,7 +41,7 @@ const refundLabel = computed(() => ({ PENDING: 'Đang xử lý', PROCESSING: 'Đ
 onMounted(async () => {
   await loadOrder()
   pollTimer = setInterval(() => {
-    if (order.value && !['DELIVERED', 'CANCELLED'].includes(order.value.status)) loadOrder(true)
+    if (order.value && !['DELIVERED', 'CANCELLED', 'RETURNED_TO_STORE'].includes(order.value.status)) loadOrder(true)
   }, 30000)
 })
 onBeforeUnmount(() => {
@@ -62,6 +63,7 @@ async function loadOrder(silent = false) {
         orderCode: data.orderCode,
         status: data.status,
         items: (data.items || []).map(i => ({
+          orderItemId: i.orderItemId,
           productId: i.productId,
           variantId: i.variantId || null,
           productName: i.productName,
@@ -69,7 +71,8 @@ async function loadOrder(silent = false) {
           price: i.unitPrice || 0,
           quantity: i.quantity,
           totalPrice: i.totalPrice || 0,
-          image: i.image || ''
+          image: i.image || '',
+          modifiers: Array.isArray(i.modifiers) ? i.modifiers : [],
         })),
         subtotal: data.totalAmount || 0,
         shippingFee: data.shippingFee || 0,
@@ -82,13 +85,14 @@ async function loadOrder(silent = false) {
         shippingAddress: data.customerAddress || '',
         note: data.deliveryNote || '',
         createdAt: data.createdAt,
-        statusHistory: data.statusHistory || [{ status: data.status, time: data.createdAt, note: '' }],
+        statusHistory: (data.statusHistory || [{ status: data.status, time: data.createdAt }]).map(entry => ({ status: entry.status, time: entry.time || entry.timestamp })),
         cancelledBy: data.cancelledBy || null,
         refundStatus: data.refundStatus || null,
         refundAmount: data.refundAmount ?? null,
         refundedAt: data.refundedAt || null,
         refundNote: data.refundNote || '',
-        failureReason: data.failureReason || '',
+        failureReason: data.status === 'CANCELLED' ? data.failureReason || '' : '',
+        retryScheduledAt: data.retryScheduledAt || null,
         checkoutUrl: data.checkoutUrl || null,
       }
     }
@@ -128,27 +132,21 @@ async function submitReview() {
   }
 }
 
+const reorderController = createReorderController({
+  fetchProduct: productId => productStore.fetchById(productId),
+  addItem: (productId, variantId, quantity, modifiers) => cart.addItem(productId, variantId, quantity, modifiers),
+})
+
 async function reorder() {
   if (!order.value || reordering.value) return
   reordering.value = true
-  const unavailable = []
+  reorderResult.value = null
   try {
-    for (const item of order.value.items) {
-      try {
-        const product = await productStore.fetchById(item.productId)
-        const variant = (product?.variants || []).find(v => v.variantId === item.variantId)
-        const stock = variant?.quantityAvailable
-        if (!variant || variant.status !== 'AVAILABLE' || (stock !== null && stock !== undefined && Number(stock) < item.quantity)) {
-          unavailable.push(item.productName)
-          continue
-        }
-        await cart.addItem(item.productId, item.variantId, item.quantity)
-      } catch {
-        unavailable.push(item.productName)
-      }
-    }
-    if (unavailable.length) toast.error(`Không thể thêm: ${unavailable.join(', ')}. Tùy chọn cũ có thể không còn khả dụng.`)
-    if (unavailable.length < order.value.items.length) router.push('/cart')
+    const result = await reorderController.run(order.value.items)
+    if (result.ignored) return
+    reorderResult.value = result
+    if (result.kind === 'success') toast.success(result.message)
+    else toast.error(result.message)
   } finally {
     reordering.value = false
   }
@@ -199,13 +197,23 @@ async function cancelOrder() {
         <p><i class="bi bi-credit-card"></i> {{ order.paymentMethod === 'COD' ? 'Thanh toán khi nhận hàng' : 'Thanh toán PayOS' }}</p>
         <p><i class="bi bi-receipt"></i> Trạng thái thanh toán: {{ paymentLabel }}</p>
       </div>
+      <div v-if="order.status === 'DELIVERY_FAILED'" class="detail-section" aria-live="polite">
+        <h4>Thông tin giao hàng</h4>
+        <p>Giao chưa thành công, cửa hàng đang xử lý</p>
+        <p v-if="order.retryScheduledAt">Dự kiến giao lại {{ formatDate(order.retryScheduledAt) }}</p>
+      </div>
       <div class="detail-section">
         <h4>Sản phẩm</h4>
-        <div v-for="(item, index) in order.items" :key="`${item.productId}-${item.variantId || 'default'}-${index}`" class="detail-item">
+        <div v-for="(item, index) in order.items" :key="reorderItemKey(item, index)" class="detail-item">
           <img :src="item.image" :alt="item.productName" class="detail-item-img" />
           <div class="detail-item-info">
             <div class="detail-item-name">{{ item.productName }}</div>
             <div v-if="item.variantName" class="item-variant" style="font-size:12px;color:var(--text-mid)">{{ item.variantName }}</div>
+            <ul v-if="item.modifiers.length" class="item-modifiers" aria-label="Tùy chọn món">
+              <li v-for="modifier in item.modifiers" :key="`${modifier.groupId}:${modifier.modifierOptionId}`">
+                {{ modifier.groupName ? `${modifier.groupName}: ` : '' }}{{ modifier.name }}
+              </li>
+            </ul>
             <div class="detail-item-price">{{ formatPrice(item.price) }}</div>
           </div>
           <div class="detail-item-qty">x{{ item.quantity }}</div>
@@ -214,7 +222,7 @@ async function cancelOrder() {
       </div>
       <div class="detail-summary">
         <div class="detail-summary-row"><span>Tạm tính</span><span>{{ formatPrice(order.subtotal) }}</span></div>
-        <div class="detail-summary-row"><span>Phí giao hàng</span><span>{{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</span></div>
+        <div class="detail-summary-row"><span>Phí giao hàng</span><span>{{ formatPrice(order.shippingFee) }}</span></div>
         <div v-if="order.discount > 0" class="detail-summary-row" style="color:var(--red-active)"><span>Giảm giá</span><span>-{{ formatPrice(order.discount) }}</span></div>
         <div class="detail-summary-row detail-total"><span>Tổng cộng</span><span>{{ formatPrice(order.total) }}</span></div>
       </div>
@@ -262,7 +270,8 @@ async function cancelOrder() {
         <p v-if="order.refundedAt"><i class="bi bi-calendar-check"></i> Ngày hoàn: {{ formatDate(order.refundedAt) }}</p>
       </div>
       <div v-if="isDelivered || isCancelled" style="margin-top:16px">
-        <button class="btn btn-primary" :disabled="reordering" @click="reorder"><i class="bi bi-cart-plus"></i> {{ reordering ? 'Đang thêm...' : 'Đặt lại đơn' }}</button>
+        <button class="btn btn-primary" :disabled="reordering" @click="reorder"><i class="bi bi-cart-plus" aria-hidden="true"></i> {{ reordering ? 'Đang thêm...' : 'Đặt lại đơn' }}</button>
+        <p v-if="reorderResult" class="reorder-result" role="status" aria-live="polite" aria-atomic="true">{{ reorderResult.message }}</p>
       </div>
       <div v-if="canCancel && !showCancelForm" style="margin-top:16px">
         <button class="btn btn-outline" style="border-color:var(--red-active);color:var(--red-active)" @click="showCancelForm = true">
@@ -306,6 +315,7 @@ async function cancelOrder() {
 .detail-item-img { width: 52px; height: 52px; border-radius: var(--radius-sm); object-fit: cover; }
 .detail-item-info { flex: 1; }
 .detail-item-name { font-size: 14px; font-weight: 600; }
+.item-modifiers { margin: var(--space-1) 0 0; padding-left: var(--space-4); color: var(--text-mid); font-size: 12px; }
 .detail-item-price { font-size: 13px; color: var(--text-mid); }
 .detail-item-qty { font-size: 14px; color: var(--text-mid); }
 .detail-item-total { font-size: 14px; font-weight: 600; min-width: 80px; text-align: right; }

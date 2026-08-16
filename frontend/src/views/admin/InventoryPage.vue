@@ -1,9 +1,16 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAdminStore } from '@/stores/admin';
 import { adminApi } from '@/api';
 import { formatPrice } from '@/utils/format';
+import { stockState } from '@/utils/stockPolicy';
+import {
+  createStockPageLoader,
+  inventoryMatchesStockFilter,
+  inventoryRowCanMutate,
+  inventoryRowsSummary,
+} from '@/utils/adminStockOperations';
 import { useToast } from '@/stores/toast';
 import {
   adjustmentState,
@@ -14,6 +21,7 @@ import {
 
 const toast = useToast();
 const adminStore = useAdminStore();
+const route = useRoute();
 const router = useRouter();
 const searchTerm = ref('');
 const activeFilter = ref('ALL');
@@ -21,6 +29,18 @@ const categoryFilter = ref('ALL');
 const sortBy = ref('product-asc');
 const loading = ref(true);
 const loadError = ref('');
+const dashboardError = ref('');
+const threshold = ref(null);
+const loader = createStockPageLoader({
+  get loading() { return loading.value; },
+  set loading(value) { loading.value = value; },
+  get error() { return loadError.value; },
+  set error(value) { loadError.value = value; },
+  get threshold() { return threshold.value; },
+  set threshold(value) { threshold.value = value; },
+  get dashboardError() { return dashboardError.value; },
+  set dashboardError(value) { dashboardError.value = value; },
+});
 const REASONS = [
   { value: 'STOCK_COUNT', label: 'Kiểm kê' },
   { value: 'DAMAGE', label: 'Hư hỏng' },
@@ -35,6 +55,7 @@ const OPERATIONS = [
 const adjustmentRow = ref(null);
 const wasteRow = ref(null);
 const adjustmentModal = ref(null);
+const wasteModal = ref(null);
 const adjustmentForm = ref({ operation: 'INCREASE', quantity: '', reasonCode: 'STOCK_COUNT', note: '' });
 const wasteForm = ref({ quantity: '', reasonCode: 'DAMAGE', note: '' });
 const adjustmentError = ref('');
@@ -52,18 +73,20 @@ const canSubmitAdjustment = computed(() => adjustmentStatus.value.canSubmit
   && (adjustmentForm.value.reasonCode !== 'OTHER' || adjustmentForm.value.note.trim()));
 
 async function loadProducts() {
-  loading.value = true;
-  loadError.value = '';
-  try {
-    await adminStore.fetchProducts();
-  } catch (error) {
-    loadError.value = error.message || 'Không thể tải dữ liệu tồn kho';
-  } finally {
-    loading.value = false;
-  }
+  await loader.load({
+    required: [() => adminStore.fetchProducts()],
+    dashboard: () => adminStore.fetchDashboard(),
+    errorMessage: 'Không thể tải dữ liệu tồn kho',
+  });
+}
+
+const requestedFilter = String(route.query.filter || '').toUpperCase();
+if (['ALL', 'LOW', 'OUT', 'UNMANAGED', 'UNKNOWN', 'UNAVAILABLE'].includes(requestedFilter)) {
+  activeFilter.value = requestedFilter;
 }
 
 onMounted(loadProducts);
+onUnmounted(loader.stop);
 
 const rows = computed(() => adminStore.allProducts.flatMap((product) => (product.variants || []).map((variant) => ({
   productId: product.id,
@@ -84,11 +107,14 @@ const categories = computed(() => [...new Map(rows.value.map((row) => [String(ro
   id: String(row.categoryId ?? row.categoryName),
   name: row.categoryName || 'Chưa phân loại',
 }])).values()].sort((a, b) => a.name.localeCompare(b.name, 'vi')));
-const managedRows = computed(() => rows.value.filter((row) => row.stock !== null));
-const outOfStockRows = computed(() => managedRows.value.filter((row) => row.stock <= 0));
-const lowStockRows = computed(() => managedRows.value.filter((row) => row.stock > 0 && row.stock <= 5));
-const unmanagedRows = computed(() => rows.value.filter((row) => row.stock === null));
-const totalStock = computed(() => managedRows.value.reduce((sum, row) => sum + row.stock, 0));
+const lowStockThreshold = computed(() => threshold.value);
+const stockSummary = computed(() => inventoryRowsSummary(rows.value, lowStockThreshold.value));
+const managedRows = computed(() => stockSummary.value.managedRows);
+const outOfStockRows = computed(() => stockSummary.value.outOfStockRows);
+const lowStockRows = computed(() => stockSummary.value.lowStockRows);
+const unmanagedRows = computed(() => stockSummary.value.unmanagedRows);
+const unknownRows = computed(() => stockSummary.value.unknownRows);
+const totalStock = computed(() => stockSummary.value.totalStock);
 
 const filteredRows = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase('vi');
@@ -97,11 +123,7 @@ const filteredRows = computed(() => {
     const categoryId = String(row.categoryId ?? row.categoryName);
     if (query && !searchable.includes(query)) return false;
     if (categoryFilter.value !== 'ALL' && categoryFilter.value !== categoryId) return false;
-    if (activeFilter.value === 'OUT') return row.stock !== null && row.stock <= 0;
-    if (activeFilter.value === 'LOW') return row.stock !== null && row.stock > 0 && row.stock <= 5;
-    if (activeFilter.value === 'UNMANAGED') return row.stock === null;
-    if (activeFilter.value === 'UNAVAILABLE') return row.status !== 'AVAILABLE' || row.productStatus !== 'AVAILABLE';
-    return true;
+    return inventoryMatchesStockFilter(row, activeFilter.value, lowStockThreshold.value);
   });
   const [field, direction] = sortBy.value.split('-');
   const multiplier = direction === 'desc' ? -1 : 1;
@@ -119,17 +141,21 @@ const filteredRows = computed(() => {
 
 function statusLabel(row) {
   if (row.status !== 'AVAILABLE' || row.productStatus !== 'AVAILABLE') return 'Ngừng bán';
-  if (row.stock === null) return 'Không giới hạn';
-  if (row.stock <= 0) return 'Hết hàng';
-  if (row.stock <= 5) return 'Sắp hết';
+  const state = stockState(row.stock, lowStockThreshold.value);
+  if (state === 'UNMANAGED') return 'Không giới hạn';
+  if (state === 'UNKNOWN') return 'Không xác định';
+  if (state === 'OUT') return 'Hết hàng';
+  if (state === 'LOW') return 'Sắp hết';
   return 'Còn hàng';
 }
 
 function statusClass(row) {
   if (row.status !== 'AVAILABLE' || row.productStatus !== 'AVAILABLE') return 'badge-secondary';
-  if (row.stock === null) return 'badge-info';
-  if (row.stock <= 0) return 'badge-danger';
-  if (row.stock <= 5) return 'badge-warning';
+  const state = stockState(row.stock, lowStockThreshold.value);
+  if (state === 'UNMANAGED') return 'badge-info';
+  if (state === 'UNKNOWN') return 'badge-secondary';
+  if (state === 'OUT') return 'badge-danger';
+  if (state === 'LOW') return 'badge-warning';
   return 'badge-success';
 }
 
@@ -147,15 +173,18 @@ async function openAdjust(row, event) {
   adjustmentModal.value.querySelector('[role="tab"]').focus();
 }
 
-function openWaste(row) {
+async function openWaste(row, event) {
   adjustmentRow.value = null;
+  adjustmentTrigger = event.currentTarget;
   wasteRow.value = row;
   wasteForm.value = { quantity: '', reasonCode: 'DAMAGE', note: '' };
+  await nextTick();
+  wasteModal.value.querySelector('input').focus();
 }
 
 async function closeModals() {
   if (submitting.value) return;
-  const restoreTarget = adjustmentRow.value ? adjustmentTrigger : null;
+  const restoreTarget = adjustmentRow.value || wasteRow.value ? adjustmentTrigger : null;
   adjustmentRow.value = null;
   wasteRow.value = null;
   await nextTick();
@@ -180,7 +209,8 @@ function handleTabKey(event) {
 function handleModalKey(event) {
   if (event.key === 'Escape' && !submitting.value) return closeModals();
   if (event.key !== 'Tab') return;
-  const controls = [...adjustmentModal.value.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
+  const modal = adjustmentModal.value || wasteModal.value;
+  const controls = [...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
   const current = controls.indexOf(document.activeElement);
   const next = nextFocusIndex(current, controls.length, event.shiftKey);
   if (next !== null) {
@@ -275,18 +305,23 @@ async function submitWaste() {
       </div>
     </header>
 
+    <div v-if="dashboardError" class="state-panel warning-panel" role="status">Đang dùng ngưỡng tồn kho đã lưu gần nhất ({{ lowStockThreshold }}). Không thể xác nhận dữ liệu dashboard mới: {{ dashboardError }}</div>
+
     <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
       <button class="stat-card" :class="{ active: activeFilter === 'ALL' }" :aria-pressed="activeFilter === 'ALL'" @click="activeFilter = 'ALL'">
         <span class="stat-icon stat-blue"><i class="bi bi-boxes" aria-hidden="true"></i></span><strong class="stat-value">{{ rows.length }}</strong><span class="stat-label">Tổng biến thể</span>
       </button>
       <button class="stat-card" :class="{ active: activeFilter === 'LOW' }" :aria-pressed="activeFilter === 'LOW'" @click="activeFilter = 'LOW'">
-        <span class="stat-icon stat-yellow"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><strong class="stat-value">{{ lowStockRows.length }}</strong><span class="stat-label">Sắp hết</span>
+        <span class="stat-icon stat-yellow"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><strong class="stat-value">{{ lowStockRows.length }}</strong><span class="stat-label">Sắp hết (1–{{ lowStockThreshold }})</span>
       </button>
       <button class="stat-card" :class="{ active: activeFilter === 'OUT' }" :aria-pressed="activeFilter === 'OUT'" @click="activeFilter = 'OUT'">
         <span class="stat-icon stat-red"><i class="bi bi-x-circle" aria-hidden="true"></i></span><strong class="stat-value">{{ outOfStockRows.length }}</strong><span class="stat-label">Hết hàng</span>
       </button>
       <button class="stat-card" :class="{ active: activeFilter === 'UNMANAGED' }" :aria-pressed="activeFilter === 'UNMANAGED'" @click="activeFilter = 'UNMANAGED'">
         <span class="stat-icon stat-cyan"><i class="bi bi-infinity" aria-hidden="true"></i></span><strong class="stat-value">{{ unmanagedRows.length }}</strong><span class="stat-label">Không giới hạn</span>
+      </button>
+      <button class="stat-card" :class="{ active: activeFilter === 'UNKNOWN' }" :aria-pressed="activeFilter === 'UNKNOWN'" @click="activeFilter = 'UNKNOWN'">
+        <span class="stat-icon stat-gray"><i class="bi bi-database-exclamation" aria-hidden="true"></i></span><strong class="stat-value">{{ unknownRows.length }}</strong><span class="stat-label">Lỗi dữ liệu</span>
       </button>
       <div class="stat-card stat-total">
         <span class="stat-icon stat-green"><i class="bi bi-stack" aria-hidden="true"></i></span><strong class="stat-value">{{ totalStock }}</strong><span class="stat-label">Tổng đơn vị tồn</span>
@@ -301,7 +336,7 @@ async function submitWaste() {
         </label>
         <div class="filters">
           <label><span class="sr-only">Danh mục</span><select v-model="categoryFilter" class="form-select"><option value="ALL">Mọi danh mục</option><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></label>
-          <label><span class="sr-only">Trạng thái kho</span><select v-model="activeFilter" class="form-select"><option value="ALL">Mọi trạng thái</option><option value="LOW">Sắp hết</option><option value="OUT">Hết hàng</option><option value="UNMANAGED">Không giới hạn</option><option value="UNAVAILABLE">Ngừng bán</option></select></label>
+          <label><span class="sr-only">Trạng thái kho</span><select v-model="activeFilter" class="form-select"><option value="ALL">Mọi trạng thái</option><option value="LOW">Sắp hết</option><option value="OUT">Hết hàng</option><option value="UNMANAGED">Không giới hạn</option><option value="UNKNOWN">Lỗi dữ liệu</option><option value="UNAVAILABLE">Ngừng bán</option></select></label>
           <label><span class="sr-only">Sắp xếp</span><select v-model="sortBy" class="form-select"><option value="product-asc">Sản phẩm A–Z</option><option value="product-desc">Sản phẩm Z–A</option><option value="variant-asc">Biến thể A–Z</option><option value="category-asc">Danh mục A–Z</option><option value="stock-asc">Tồn kho tăng dần</option><option value="stock-desc">Tồn kho giảm dần</option></select></label>
         </div>
       </div>
@@ -322,10 +357,11 @@ async function submitWaste() {
                <td data-label="Tồn kho">{{ row.stock === null ? 'Không giới hạn' : row.stock }}</td>
               <td data-label="Thao tác">
                 <div class="row-actions">
-                  <template v-if="row.stock !== null">
+                  <template v-if="inventoryRowCanMutate(row, lowStockThreshold)">
                     <button class="btn btn-sm btn-outline" @click="openAdjust(row, $event)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
-                    <button class="btn btn-sm btn-outline" @click="openWaste(row)"><i class="bi bi-trash3" aria-hidden="true"></i> Lãng phí</button>
+                    <button class="btn btn-sm btn-outline" @click="openWaste(row, $event)"><i class="bi bi-trash3" aria-hidden="true"></i> Lãng phí</button>
                   </template>
+                  <span v-else-if="stockState(row.stock, lowStockThreshold) === 'UNKNOWN'" class="data-error" role="status">Lỗi dữ liệu tồn kho</span>
                   <button class="btn btn-sm btn-ghost" :aria-label="`Sửa sản phẩm ${row.productName}`" @click="editProduct(row)"><i class="bi bi-pencil" aria-hidden="true"></i></button>
                 </div>
               </td>
@@ -363,7 +399,7 @@ async function submitWaste() {
     </div>
 
     <div v-if="wasteRow" class="modal-overlay" @mousedown.self="closeModals">
-      <form class="modal" role="dialog" aria-modal="true" aria-labelledby="waste-title" @submit.prevent="submitWaste">
+      <form ref="wasteModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="waste-title" @keydown="handleModalKey" @submit.prevent="submitWaste">
         <div class="modal-header">
           <div><small>GHI NHẬN LÃNG PHÍ</small><h3 id="waste-title">{{ wasteRow.productName }} – {{ wasteRow.variantName }}</h3></div>
           <button type="button" class="icon-button" aria-label="Đóng" :disabled="submitting" @click="closeModals"><i class="bi bi-x-lg"></i></button>
@@ -396,6 +432,7 @@ async function submitWaste() {
 .stat-yellow { background: linear-gradient(135deg,#d97706,#fbbf24); }
 .stat-red { background: linear-gradient(135deg,#dc2626,#f87171); }
 .stat-cyan { background: linear-gradient(135deg,#0891b2,#22d3ee); }
+.stat-gray { background: linear-gradient(135deg,#475569,#94a3b8); }
 .stat-green { background: linear-gradient(135deg,#059669,#34d399); }
 .stat-total { cursor: default; }
 .toolbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
@@ -426,6 +463,7 @@ async function submitWaste() {
 .adjust-tabs button:focus-visible, .icon-button:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .stock-preview { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--surface); }
 .adjust-error { margin: 0; color: var(--danger, #dc2626); font-size: 13px; font-weight: 600; }
+.data-error { color: var(--danger, #dc2626); font-size: 12px; font-weight: 700; }
 .state-panel { min-height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-mid); text-align: center; }
 .state-panel > i { font-size: 32px; }
 .error-panel { color: var(--danger, #dc2626); }

@@ -18,7 +18,7 @@ test('routes successful COD checkout through safe success page', () => {
 test('polls active authenticated and guest orders every 30 seconds and cleans timers', () => {
   for (const source of [detail, tracking]) {
     assert.match(source, /setInterval\([\s\S]*30000/);
-    assert.match(source, /\['DELIVERED', 'CANCELLED'\]\.includes/);
+    assert.match(source, /\['DELIVERED', 'CANCELLED', 'RETURNED_TO_STORE'\]\.includes/);
     assert.match(source, /onBeforeUnmount\(\(\) => \{[\s\S]*clearInterval\(pollTimer\)[\s\S]*\}\)/);
     assert.match(source, /stopped = true/);
   }

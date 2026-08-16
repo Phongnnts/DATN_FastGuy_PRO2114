@@ -348,7 +348,7 @@ public class OrderServlet extends HttpServlet {
         data.put("refundAmount", o.getRefundAmount());
         data.put("refundedAt", o.getRefundedAt());
         data.put("refundNote", o.getRefundNote());
-        data.put("failureReason", o.getFailureReason());
+        data.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
         data.put("customerAddress", o.getCustomerAddress());
         data.put("deliveryNote", o.getDeliveryNote());
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
@@ -391,12 +391,21 @@ public class OrderServlet extends HttpServlet {
             history.add(Map.of("status", "CANCELLED", "time", o.getCancelledAt().toString(), "note", reason));
         }
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
-        data.put("statusHistory", savedHistory.isEmpty() ? history : savedHistory);
+        data.put("statusHistory", toCustomerHistory(savedHistory.isEmpty() ? history : savedHistory));
 
         OrderTransitionService transitionService = new OrderTransitionService();
         data.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "USER", o.getPaymentStatus()));
 
         return data;
+    }
+
+    static List<Map<String, Object>> toCustomerHistory(List<Map<String, Object>> history) {
+        return history.stream().map(entry -> {
+            Map<String, Object> safe = new HashMap<>();
+            safe.put("status", String.valueOf(entry.get("status")));
+            safe.put("time", String.valueOf(entry.get("time")));
+            return safe;
+        }).collect(Collectors.toList());
     }
 
     private Map<String, Object> toPublicTrack(Orders o) {
@@ -407,6 +416,7 @@ public class OrderServlet extends HttpServlet {
         data.put("paymentStatus", o.getPaymentStatus());
         data.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
         data.put("estimatedDeliveryAt", o.getExpectedDeliveryTime() != null ? o.getExpectedDeliveryTime().toString() : null);
+        data.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
 
         List<Map<String, Object>> items = orderItemDAO.findByOrderId(o.getOrderId())
                 .stream()
@@ -438,9 +448,9 @@ public class OrderServlet extends HttpServlet {
         }
         var savedHistory = orderStatusHistoryService.getByOrderId(o.getOrderId());
         if (!savedHistory.isEmpty()) {
-            history = savedHistory.stream()
-                    .map(entry -> Map.<String, Object>of("status", String.valueOf(entry.get("status")),
-                            "timestamp", String.valueOf(entry.get("time"))))
+            history = toCustomerHistory(savedHistory).stream()
+                    .map(entry -> Map.<String, Object>of("status", entry.get("status"),
+                            "timestamp", entry.get("time")))
                     .collect(Collectors.toList());
         }
         data.put("statusHistory", history);

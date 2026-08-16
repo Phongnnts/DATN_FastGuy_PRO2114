@@ -6,6 +6,7 @@ import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 
+import dao.CodSettlementDAO;
 import dao.OrdersDAO;
 import dao.ProductDAO;
 import dao.UserDAO;
@@ -14,6 +15,8 @@ public class AdminService {
     private UserDAO userDAO = new UserDAO();
     private OrdersDAO ordersDAO = new OrdersDAO();
     private ProductDAO productDAO = new ProductDAO();
+    private CodSettlementDAO codSettlementDAO = new CodSettlementDAO();
+    private StoreConfigService storeConfigService = new StoreConfigService();
 
     public Map<String, Object> getDashboard() {
         return getDashboardWithPeriod(null);
@@ -42,6 +45,8 @@ public class AdminService {
         data.put("totalRevenue", totalRevenue);
         data.put("ordersByStatus", ordersByStatus);
         data.put("pendingOrders", ordersDAO.countByStatus("PENDING"));
+        data.put("pendingCodAmount", codSettlementDAO.sumPendingAmount());
+        data.put("pendingCodCount", codSettlementDAO.countPending());
         data.put("ordersToday", ordersDAO.countToday());
         data.put("revenueToday", ordersDAO.sumRevenueToday());
         data.put("revenueByMonth", ordersDAO.sumRevenueByMonth());
@@ -69,6 +74,11 @@ public class AdminService {
             data.put("periodTopProducts", periodTopProducts);
         }
 
+        int lowStockThreshold = storeConfigService.getLowStockThreshold();
+        long[] stockRiskCounts = productDAO.countStockRiskSkus(lowStockThreshold);
+        data.put("lowStockThreshold", lowStockThreshold);
+        data.put("outOfStockSkuCount", stockRiskCounts[0]);
+        data.put("lowStockSkuCount", stockRiskCounts[1]);
         return data;
     }
 

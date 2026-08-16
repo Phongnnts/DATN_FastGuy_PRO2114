@@ -5,12 +5,18 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import dao.OrdersDAO;
+import dao.UserDAO;
 import entity.Orders;
+import entity.User;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +30,7 @@ import utils.PrivilegedAuth;
 public class AdminRefundServlet extends HttpServlet {
     private RefundService refundService = new RefundService();
     private OrdersDAO ordersDAO = new OrdersDAO();
+    private UserDAO userDAO = new UserDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -42,6 +49,7 @@ public class AdminRefundServlet extends HttpServlet {
             }
             List<Orders> pending = ordersDAO.findRefunds(
                     req.getParameter("status"), from, to, req.getParameter("search"));
+            Map<Integer, String> processorNames = resolveProcessorNames(pending, userDAO::findByIds);
             List<Map<String, Object>> result = pending.stream().map(o -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("orderId", o.getOrderId());
@@ -55,7 +63,10 @@ public class AdminRefundServlet extends HttpServlet {
                 m.put("refundAmount", o.getRefundAmount());
                 m.put("refundNote", o.getRefundNote());
                 m.put("refundReference", o.getRefundReference());
-                m.put("refundProcessedBy", o.getRefundProcessedBy());
+                Integer processorId = o.getRefundProcessedBy();
+                m.put("refundProcessedBy", processorId);
+                String processorName = processorId == null ? null : processorNames.get(processorId);
+                m.put("refundProcessedByName", processorName == null || processorName.isBlank() ? null : processorName);
                 m.put("cancelledAt", o.getCancelledAt() != null ? o.getCancelledAt().toString() : null);
                 m.put("paidAt", o.getPaidAt() != null ? o.getPaidAt().toString() : null);
                 m.put("refundedAt", o.getRefundedAt() != null ? o.getRefundedAt().toString() : null);
@@ -67,6 +78,22 @@ public class AdminRefundServlet extends HttpServlet {
         } catch (DateTimeParseException e) {
             ApiResponse.error(resp, "Invalid date format, expected yyyy-MM-dd", 400);
         }
+    }
+
+    public static Map<Integer, String> resolveProcessorNames(List<Orders> orders,
+            Function<Set<Integer>, List<User>> batchLoader) {
+        Set<Integer> processorIds = orders.stream()
+                .map(Orders::getRefundProcessedBy)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (processorIds.isEmpty()) return Map.of();
+        Map<Integer, String> names = new LinkedHashMap<>();
+        processorIds.forEach(id -> names.put(id, null));
+        for (User user : batchLoader.apply(processorIds)) {
+            String fullName = user.getFullName();
+            names.put(user.getUserId(), fullName == null || fullName.isBlank() ? null : fullName);
+        }
+        return names;
     }
 
     private LocalDate toLocalDate(String value) {

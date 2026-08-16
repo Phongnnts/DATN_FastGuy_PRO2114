@@ -2,7 +2,7 @@
 
 1. Stop writes; record row counts and business totals.
 2. Take and verify a full `FastGuyDB` backup. Copy it off-host. Test restore to another database.
-3. Run `000_preflight_history.sql`, `010_expand_schema.sql`, `020_backfill_legacy.sql`, `030_constraints_indexes.sql`, `035_backend_hardening.sql`, `039_inventory_waste_state.sql`, `040_production_hardening.sql`, then `040_validate.sql` in order using an account with DDL rights. Never run `init.sql` against retained data. Do not run retired `database/20260802_backend_hardening.sql`.
+3. Run `000_preflight_history.sql`, `010_expand_schema.sql`, `020_backfill_legacy.sql`, `030_constraints_indexes.sql`, `035_backend_hardening.sql`, `039_inventory_waste_state.sql`, `040_production_hardening.sql`, `040_validate.sql`, `041_delivery_failure_recovery.sql`, then `041_validate.sql` in order using an account with DDL rights. Rerun `041_delivery_failure_recovery.sql` once to verify its migration-history idempotency guard. Never run `init.sql` against retained data. Do not run retired `database/20260802_backend_hardening.sql`.
 4. `041_local_demo_seed.sql` is optional and local-development only. Never run it in production. Opt in per connection with `EXEC sys.sp_set_session_context @key=N'FASTGUY_ALLOW_DEMO_SEED', @value=1;`, then run seed and rerun `040_validate.sql`.
 5. Treat any thrown error as a stop. Correct source data or script assumptions; rerun from `000_preflight_history.sql`.
 6. Manually inspect unknown roles, duplicate email/SKU/default variants/idempotency keys, product/variant mismatches, malformed modifier CSV/JSON, coupon ownership/order links, order totals/status history, and application reads/writes.

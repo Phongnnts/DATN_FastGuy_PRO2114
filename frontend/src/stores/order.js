@@ -46,9 +46,11 @@ export const useOrderStore = defineStore('order', () => {
       checkoutUrl: o.checkoutUrl || '',
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,
-      statusHistory: o.statusHistory || [
-        { status: o.status, time: o.createdAt, note: '' },
-      ],
+      retryScheduledAt: o.retryScheduledAt || null,
+      statusHistory: (o.statusHistory || [{ status: o.status, time: o.createdAt }]).map((entry) => ({
+        status: entry.status,
+        time: entry.time || entry.timestamp,
+      })),
     };
   }
 
@@ -61,6 +63,7 @@ export const useOrderStore = defineStore('order', () => {
       paymentMethod: o.paymentMethod || '',
       paymentStatus: o.paymentStatus || 'UNPAID',
       createdAt: o.createdAt,
+      retryScheduledAt: o.retryScheduledAt || null,
       items: o.items || [],
     };
   }
@@ -115,6 +118,7 @@ export const useOrderStore = defineStore('order', () => {
           image: item.image || item.imageUrl || '',
         })),
         estimatedDeliveryAt: data.estimatedDeliveryAt || null,
+        retryScheduledAt: data.retryScheduledAt || null,
         statusHistory: (data.statusHistory || []).map((entry) => ({
           status: entry.status,
           time: entry.timestamp,

@@ -160,6 +160,24 @@ public class Orders {
     @Column(name = "failure_reason")
     private String failureReason;
 
+    @Column(name = "delivery_attempt_count")
+    private int deliveryAttemptCount = 0;
+
+    @Column(name = "delivery_attempt_limit")
+    private int deliveryAttemptLimit = 2;
+
+    @Column(name = "delivery_failure_code")
+    private String deliveryFailureCode;
+
+    @Column(name = "delivery_failed_at")
+    private LocalDateTime deliveryFailedAt;
+
+    @Column(name = "retry_scheduled_at")
+    private LocalDateTime retryScheduledAt;
+
+    @Column(name = "returned_to_store_at")
+    private LocalDateTime returnedToStoreAt;
+
     @Column(name = "cancelled_by")
     private String cancelledBy;
 
@@ -300,6 +318,18 @@ public class Orders {
     public void setCancelledAt(LocalDateTime cancelledAt) { this.cancelledAt = cancelledAt; }
     public String getFailureReason() { return failureReason; }
     public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
+    public int getDeliveryAttemptCount() { return deliveryAttemptCount; }
+    public void setDeliveryAttemptCount(int deliveryAttemptCount) { this.deliveryAttemptCount = deliveryAttemptCount; }
+    public int getDeliveryAttemptLimit() { return deliveryAttemptLimit; }
+    public void setDeliveryAttemptLimit(int deliveryAttemptLimit) { this.deliveryAttemptLimit = deliveryAttemptLimit; }
+    public String getDeliveryFailureCode() { return deliveryFailureCode; }
+    public void setDeliveryFailureCode(String deliveryFailureCode) { this.deliveryFailureCode = deliveryFailureCode; }
+    public LocalDateTime getDeliveryFailedAt() { return deliveryFailedAt; }
+    public void setDeliveryFailedAt(LocalDateTime deliveryFailedAt) { this.deliveryFailedAt = deliveryFailedAt; }
+    public LocalDateTime getRetryScheduledAt() { return retryScheduledAt; }
+    public void setRetryScheduledAt(LocalDateTime retryScheduledAt) { this.retryScheduledAt = retryScheduledAt; }
+    public LocalDateTime getReturnedToStoreAt() { return returnedToStoreAt; }
+    public void setReturnedToStoreAt(LocalDateTime returnedToStoreAt) { this.returnedToStoreAt = returnedToStoreAt; }
     public String getCancelledBy() { return cancelledBy; }
     public void setCancelledBy(String cancelledBy) { this.cancelledBy = cancelledBy; }
     public String getRefundStatus() { return refundStatus; }

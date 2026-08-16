@@ -12,14 +12,17 @@ class ShipperActionPolicyTest {
     }
 
     @Test
-    void codPickedUpOrderAllowsDeliveryCollection() {
-        assertEquals(Set.of("DELIVERED"), ShipperService.getAllowedActions("PICKED_UP", "COD", "UNPAID"));
+    void codPickedUpOrderAllowsDeliveryOrFailure() {
+        assertEquals(Set.of("DELIVERED", "DELIVERY_FAILED"),
+                ShipperService.getAllowedActions("PICKED_UP", "COD", "UNPAID"));
     }
 
     @Test
     void nonCodDeliveryRequiresPaidStatus() {
-        assertEquals(Set.of(), ShipperService.getAllowedActions("PICKED_UP", "BANK_TRANSFER", "UNPAID"));
-        assertEquals(Set.of("DELIVERED"), ShipperService.getAllowedActions("PICKED_UP", "BANK_TRANSFER", "PAID"));
+        assertEquals(Set.of("DELIVERY_FAILED"),
+                ShipperService.getAllowedActions("PICKED_UP", "BANK_TRANSFER", "UNPAID"));
+        assertEquals(Set.of("DELIVERED", "DELIVERY_FAILED"),
+                ShipperService.getAllowedActions("PICKED_UP", "BANK_TRANSFER", "PAID"));
     }
 
     @Test

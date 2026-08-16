@@ -11,10 +11,11 @@ const tabs = [
   { id: 'hours', label: 'Giờ hoạt động', icon: 'bi-clock' },
   { id: 'fees', label: 'Phí & thuế', icon: 'bi-cash-stack' },
   { id: 'delivery', label: 'Giao hàng', icon: 'bi-truck' },
+  { id: 'inventory', label: 'Tồn kho', icon: 'bi-boxes' },
   { id: 'payment', label: 'Thanh toán', icon: 'bi-credit-card' },
   { id: 'ghn', label: 'Vận chuyển GHN', icon: 'bi-box' },
 ];
-const EDITABLE_SCOPES = ['store', 'hours', 'fees', 'delivery'];
+const EDITABLE_SCOPES = ['store', 'hours', 'fees', 'delivery', 'inventory'];
 const PAYMENT_METHODS = [
   { key: 'COD', label: 'Thanh toán khi nhận hàng' },
   { key: 'BANK_TRANSFER', label: 'Chuyển khoản ngân hàng (PayOS)' },
@@ -29,7 +30,7 @@ const loading = ref(true);
 const loadState = ref('loading');
 const loadMessage = ref('');
 const saving = ref(false);
-const tabErrors = ref({ store: {}, hours: {}, fees: {}, delivery: {} });
+const tabErrors = ref({ store: {}, hours: {}, fees: {}, delivery: {}, inventory: {} });
 let stopped = false;
 
 function createForm() {
@@ -38,6 +39,7 @@ function createForm() {
     business_open_time: '00:00', business_close_time: '00:00',
     service_fee: 0, tax_rate: 0, delivery_fee: 0, min_order_amount: 0,
     estimated_delivery_minutes: 30,
+    low_stock_threshold: 5,
     ghn_from_district_id: '', ghn_from_ward_code: '', default_service_type_id: '',
     default_weight: '', default_length: '', default_width: '', default_height: '',
   };
@@ -75,13 +77,14 @@ function applySettings(settings) {
   form.value.delivery_fee = Number(form.value.delivery_fee || 0);
   form.value.min_order_amount = Number(form.value.min_order_amount || 0);
   form.value.estimated_delivery_minutes = Number(form.value.estimated_delivery_minutes || 30);
+  form.value.low_stock_threshold = Number(form.value.low_stock_threshold || 5);
 }
 
 async function load() {
   loading.value = true;
   loadState.value = 'loading';
   loadMessage.value = '';
-  tabErrors.value = { store: {}, hours: {}, fees: {}, delivery: {} };
+  tabErrors.value = { store: {}, hours: {}, fees: {}, delivery: {}, inventory: {} };
   try {
     const settings = await adminApi.getSettings();
     if (stopped) return;
@@ -236,6 +239,17 @@ onUnmounted(() => {
             <label class="form-label" for="settings-delivery-minutes">Thời gian giao ước tính (phút)</label>
             <input id="settings-delivery-minutes" v-model.number="form.estimated_delivery_minutes" class="form-input" type="number" min="10" max="180">
             <p v-if="fieldError('delivery', 'delivery')" class="field-error" role="alert">{{ fieldError('delivery', 'delivery') }}</p>
+          </div>
+          <div class="panel-actions"><button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? 'Đang lưu...' : 'Lưu cài đặt' }}</button></div>
+        </form>
+
+        <form v-else-if="activeTab === 'inventory'" class="card card-flat settings-card" @submit.prevent="saveTab('inventory')" novalidate>
+          <h3 class="panel-title"><i class="bi bi-boxes"></i> Tồn kho</h3>
+          <div class="form-group" style="max-width:280px">
+            <label class="form-label" for="settings-low-stock-threshold">Ngưỡng cảnh báo sắp hết (SKU)</label>
+            <input id="settings-low-stock-threshold" v-model.number="form.low_stock_threshold" class="form-input" type="number" min="1" max="1000" step="1" :aria-invalid="Boolean(fieldError('inventory', 'low_stock_threshold'))" :aria-describedby="fieldError('inventory', 'low_stock_threshold') ? 'settings-low-stock-help settings-low-stock-error' : 'settings-low-stock-help'">
+            <small id="settings-low-stock-help" class="readonly-note">SKU có tồn từ 1 đến ngưỡng này được tính là sắp hết.</small>
+            <p v-if="fieldError('inventory', 'low_stock_threshold')" id="settings-low-stock-error" class="field-error" role="alert">{{ fieldError('inventory', 'low_stock_threshold') }}</p>
           </div>
           <div class="panel-actions"><button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? 'Đang lưu...' : 'Lưu cài đặt' }}</button></div>
         </form>

@@ -74,7 +74,7 @@ test('RefundsPage ships accessible dialog, mutation lock, no native confirm', ()
   const page = read('src/views/admin/RefundsPage.vue');
   assert.match(page, /role="dialog"/);
   assert.match(page, /aria-modal="true"/);
-  assert.match(page, /@keydown\.esc/);
+  assert.match(page, /onEscape: closeActiveDialog/);
   assert.match(page, /validateRefund/);
   assert.match(page, /refunding/);
   assert.ok(!/\bconfirm\(/.test(page));
@@ -86,7 +86,7 @@ test('RefundsPage reads and validates status from route query on mount', () => {
   assert.match(page, /statusFromQuery/);
   assert.match(page, /REFUND_STATUS_KEYS\.includes\(raw\)/);
   assert.match(page, /route\.query\.status/);
-  assert.match(page, /onMounted\(loadPreset\)/);
+  assert.match(page, /onMounted\(\(\) => \{[\s\S]*?loadPreset\(\);[\s\S]*?\}\);/);
 });
 
 test('RefundsPage syncs active status tab to route query', () => {
@@ -111,10 +111,10 @@ test('RefundsPage dates label by createdAt and drops dead payment markup', () =>
 test('RefundsPage guards re-entry and restores focus on dialog close', () => {
   const page = read('src/views/admin/RefundsPage.vue');
   assert.match(page, /if \(refunding\.value\) return/);
-  assert.match(page, /previousFocus/);
+  assert.match(page, /refundTrigger/);
   assert.match(page, /document\.activeElement/);
   assert.match(page, /dismissRefund/);
-  assert.match(page, /\.focus\(\)/);
+  assert.match(page, /modalLifecycle\.close\(\)/);
 });
 
 test('RefundsPage watches route query status without re-replacing', () => {
@@ -129,6 +129,34 @@ test('RefundsPage guards stale load responses with generation', () => {
   assert.match(page, /\+\+loadGeneration/);
   assert.match(page, /generation !== loadGeneration/);
   assert.match(page, /generation === loadGeneration\) loading\.value = false/);
+});
+
+test('refund queue wires executable presentation and pending-only state policy', () => {
+  const page = read('src/views/admin/RefundsPage.vue');
+  assert.match(page, /buildRefundPresentation/);
+  assert.match(page, /presentation\(row\)\.paymentLabel/);
+  assert.match(page, /refundAuditDetail\(refundDetailOrder\)/);
+  assert.match(page, /canMutateRefund\(row\)/);
+  assert.match(page, /submitPendingRefund/);
+});
+
+test('terminal rows wire explicit read-only detail modal without mutation controls', () => {
+  const page = read('src/views/admin/RefundsPage.vue');
+  assert.match(page, /Xem chi tiết/);
+  assert.match(page, /openRefundDetail/);
+  assert.match(page, /refund-detail-title/);
+  assert.match(page, /refundAuditDetail/);
+  assert.match(page, /canViewRefundDetail/);
+});
+
+test('refund dialog wires production modal lifecycle and live feedback', () => {
+  const page = read('src/views/admin/RefundsPage.vue');
+  assert.match(page, /createRefundModalLifecycle/);
+  assert.match(page, /modalLifecycle\.attach\(\)/);
+  assert.match(page, /modalLifecycle\.detach\(\)/);
+  assert.match(page, /@keydown="handleRefundKeydown"/);
+  assert.match(page, /aria-live="polite"/);
+  assert.match(page, /role="alert"/);
 });
 
 

@@ -1,7 +1,8 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useOrderStore } from '@/stores/order';
+import { createEtaModel } from '@/utils/eta';
 import { formatDate } from '@/utils/format';
 import OrderTimeline from '@/components/common/OrderTimeline.vue';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
@@ -12,6 +13,7 @@ const orderStore = useOrderStore();
 const orderCode = ref('');
 const phoneSuffix = ref('');
 const trackingResult = ref(null);
+const eta = computed(() => createEtaModel(trackingResult.value?.estimatedDeliveryAt));
 const error = ref('');
 const loading = ref(false);
 const justCreated = ref(route.query.created === '1');
@@ -56,7 +58,7 @@ function normalizePhoneInput() {
 onMounted(() => {
   if (route.query.code) orderCode.value = String(route.query.code);
   pollTimer = setInterval(() => {
-    if (trackingResult.value && !['DELIVERED', 'CANCELLED'].includes(trackingResult.value.status)) track(true);
+    if (trackingResult.value && !['DELIVERED', 'CANCELLED', 'RETURNED_TO_STORE'].includes(trackingResult.value.status)) track(true);
   }, 30000);
 });
 onBeforeUnmount(() => {
@@ -125,6 +127,15 @@ onBeforeUnmount(() => {
           <OrderStatusBadge :status="trackingResult.status" />
         </div>
 
+        <div v-if="eta" class="eta-card" role="status">
+          <i class="bi bi-clock-history" aria-hidden="true"></i>
+          <div>
+            <span>Thời gian giao dự kiến · Giờ Việt Nam</span>
+            <strong><time :datetime="eta.datetime">{{ eta.display }}</time></strong>
+          </div>
+        </div>
+
+        <p v-if="trackingResult.status === 'DELIVERY_FAILED'" class="message">Giao chưa thành công, cửa hàng đang xử lý<span v-if="trackingResult.retryScheduledAt"> · Dự kiến giao lại {{ formatDate(trackingResult.retryScheduledAt) }}</span></p>
         <div v-if="trackingResult.items.length" class="result-section">
           <h3>Sản phẩm</h3>
           <ul class="item-list">
@@ -174,6 +185,11 @@ onBeforeUnmount(() => {
 .result-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
 .result-header h2 { margin: 0 0 6px; font-size: 22px; }
 .result-header p { margin: 0; color: var(--text-mid); font-size: 13px; }
+.eta-card { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-top: var(--space-5); padding: var(--space-4); border: 1px solid var(--primary-100); border-radius: var(--radius-sm); background: var(--primary-light); }
+.eta-card i { flex: 0 0 auto; color: var(--primary-dark); font-size: 22px; }
+.eta-card div { display: grid; min-width: 0; gap: var(--space-1); }
+.eta-card span { color: var(--text-mid); font-size: 12px; }
+.eta-card strong { color: var(--text-dark); overflow-wrap: anywhere; }
 .result-section { padding-top: 24px; }
 .result-section h3 { margin: 0 0 16px; font-size: 16px; }
 .item-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }

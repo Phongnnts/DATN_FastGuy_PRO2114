@@ -150,7 +150,7 @@ http://localhost:5173
 
 Route `/` là trang đăng nhập; trang chủ công khai ở `/home`.
 
-Luồng trạng thái đơn chuẩn: `PENDING → CONFIRMED → PREPARING → READY → ASSIGNED → PICKED_UP → DELIVERED`; `CANCELLED` là trạng thái kết thúc qua lệnh hủy riêng. Staff và Shipper chỉ thao tác nghiệp vụ khi tài khoản active và ca hiện tại `CHECKED_IN`; Staff gán Shipper ở `READY`, Shipper chỉ xem/thao tác đơn đã gán cho mình. Hủy từ `PREPARING` trở đi ghi tồn kho `WASTE`, không hoàn hàng đã chế biến vào tồn bán.
+Luồng trạng thái đơn chuẩn: `PENDING → CONFIRMED → PREPARING → READY → ASSIGNED → PICKED_UP → DELIVERED`; nhánh giao thất bại là `PICKED_UP → DELIVERY_FAILED → PICKED_UP | RETURNED_TO_STORE`, mặc định tối đa hai lần giao. `CANCELLED` là trạng thái kết thúc qua lệnh hủy riêng. Staff và Shipper chỉ thao tác nghiệp vụ khi tài khoản active và ca hiện tại `CHECKED_IN`; Staff gán Shipper ở `READY`, Shipper chỉ xem/thao tác đơn đã gán cho mình. Giao thất bại và giao lại không đổi tồn kho, thanh toán, coupon hoặc điểm; trả về cửa hàng ghi `WASTE`, trả coupon, không cộng điểm và chỉ tạo hoàn tiền với đơn trả trước. Hủy từ `PREPARING` trở đi ghi tồn kho `WASTE`, không hoàn hàng đã chế biến vào tồn bán.
 
 ---
 

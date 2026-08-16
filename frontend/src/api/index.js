@@ -10,6 +10,7 @@ export { default as adminApi } from './admin';
 export { default as shippingApi } from './shipping';
 export { default as shipperApi } from './shipper';
 export { default as shiftApi } from './shift';
+export { default as codSettlementApi } from './codSettlement';
 export { default as reviewApi } from './review';
 export { default as favoriteApi } from './favorite';
 export { default as notificationApi } from './notification';

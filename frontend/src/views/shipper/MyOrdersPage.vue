@@ -24,10 +24,11 @@ let timer;
 let inFlight = false;
 let stopped = false;
 const timestamp = order => order.deliveredAt || order.pickedUpAt || order.assignedAt || order.createdAt;
+const activeStatuses = ['ASSIGNED', 'PICKED_UP'];
 const visibleOrders = computed(() => {
   const q = searchTerm.value.trim().toLowerCase();
   return orders.value.filter(order => {
-    return (historyOnly.value || order.status === activeTab.value)
+    return (historyOnly.value || activeStatuses.includes(order.status) && order.status === activeTab.value)
       && (!q || [order.orderCode, order.customerName, order.customerPhone, order.customerAddress].some(value => String(value || '').toLowerCase().includes(q)));
   }).sort((a, b) => (sort.value === 'oldest' ? 1 : -1) * String(timestamp(a) || '').localeCompare(String(timestamp(b) || '')) || String(a.orderCode).localeCompare(String(b.orderCode)));
 });

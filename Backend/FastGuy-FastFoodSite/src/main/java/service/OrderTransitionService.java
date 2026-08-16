@@ -7,6 +7,7 @@ import entity.OrderStatusHistory;
 import entity.Orders;
 import entity.ProductVariant;
 import entity.User;
+import entity.WorkShift;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
@@ -22,7 +23,9 @@ public class OrderTransitionService {
             "PREPARING", Set.of("READY", "CANCELLED"),
             "READY", Set.of("ASSIGNED", "CANCELLED"),
             "ASSIGNED", Set.of("PICKED_UP", "CANCELLED"),
-            "PICKED_UP", Set.of("DELIVERED", "CANCELLED"),
+            "PICKED_UP", Set.of("DELIVERED", "DELIVERY_FAILED"),
+            "DELIVERY_FAILED", Set.of("PICKED_UP", "RETURNED_TO_STORE"),
+            "RETURNED_TO_STORE", Set.of(),
             "DELIVERED", Set.of(),
             "CANCELLED", Set.of()
     );
@@ -42,7 +45,7 @@ public class OrderTransitionService {
         if (expectedUserId != null && (order.getUser() == null || order.getUser().getUserId() != expectedUserId)) return false;
         if (expectedPaymentStatus != null && !expectedPaymentStatus.equals(order.getPaymentStatus())) return false;
         String status = order.getOrderStatus();
-        if ("CANCELLED".equals(status) || "DELIVERED".equals(status)) return false;
+        if (Set.of("CANCELLED", "DELIVERED", "RETURNED_TO_STORE").contains(status)) return false;
         if (pendingOnly && !"PENDING".equals(status)) return false;
         return !("READY".equals(status) && ("USER".equals(actorRole) || "CUSTOMER".equals(actorRole)));
     }
@@ -84,7 +87,7 @@ public class OrderTransitionService {
     public record CancellationResult(String orderCode, Integer orderUserId) {}
 
     public static boolean canUseGenericTransition(String toStatus) {
-        return !Set.of("ASSIGNED", "CANCELLED").contains(toStatus);
+        return !Set.of("ASSIGNED", "PICKED_UP", "RETURNED_TO_STORE").contains(toStatus);
     }
 
     public Set<String> getAllowedActions(String currentStatus, String role, String paymentStatus) {
@@ -101,7 +104,7 @@ public class OrderTransitionService {
                 next.remove("CONFIRMED");
             }
         } else if ("SHIPPER".equals(role)) {
-            next.retainAll(Set.of("PICKED_UP", "DELIVERED", "CANCELLED"));
+            next.retainAll(Set.of("PICKED_UP", "DELIVERED", "DELIVERY_FAILED", "CANCELLED"));
         } else {
             next.clear();
         }
@@ -122,12 +125,13 @@ public class OrderTransitionService {
 
     public boolean transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
                               Integer assignedShipperId, java.math.BigDecimal collectedAmount) {
+        if (!canUseGenericTransition(toStatus)) return false;
         return transition(orderId, toStatus, actorRole, actorUserId, note, assignedShipperId, collectedAmount, null) == MutationResult.SUCCESS;
     }
 
     public MutationResult transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
                                      Integer assignedShipperId, java.math.BigDecimal collectedAmount, String expectedStatus) {
-        if (!isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
+        if (!canUseGenericTransition(toStatus) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -197,16 +201,175 @@ public class OrderTransitionService {
         }
     }
 
+    public MutationResult reportDeliveryFailure(int orderId, int shipperId, String expectedStatus, String reasonCode, String note) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            if (!"PICKED_UP".equals(order.getOrderStatus()) || order.getShipper() == null
+                    || order.getShipper().getUserId() != shipperId || !requireCheckedInShipper(em, shipperId)
+                    || !DeliveryFailurePolicy.isValidFailure(reasonCode, note)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (order.getDeliveryAttemptCount() >= order.getDeliveryAttemptLimit()) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
+            order.setDeliveryAttemptCount(order.getDeliveryAttemptCount() + 1);
+            order.setOrderStatus("DELIVERY_FAILED");
+            order.setDeliveryFailureCode(reasonCode);
+            order.setFailureReason(note.trim());
+            order.setDeliveryFailedAt(LocalDateTime.now());
+            order.setRetryScheduledAt(null);
+            em.persist(new OrderStatusHistory(orderId, shipperId, "SHIPPER", "PICKED_UP", "DELIVERY_FAILED", note.trim(), LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
+    }
+
+    public MutationResult retryDelivery(int orderId, int staffId, String expectedStatus, int shipperId, String retryMode, LocalDateTime scheduledAt, String note) {
+        String normalizedNote = DeliveryFailurePolicy.normalizeNote(note);
+        if (normalizedNote == null) return MutationResult.INVALID;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            User shipper = em.find(User.class, shipperId);
+            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !requireCheckedInStaff(em, staffId)
+                    || shipper == null || !"SHIPPER".equals(shipper.getRole()) || !requireCheckedInShipper(em, shipperId)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (!DeliveryFailurePolicy.canRetry(order.getDeliveryAttemptCount(), order.getDeliveryAttemptLimit())
+                    || !validRetrySchedule(em, retryMode, scheduledAt)) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
+            order.setShipper(shipper);
+            order.setStaff(em.find(User.class, staffId));
+            order.setRetryScheduledAt(scheduledAt);
+            String to = "IMMEDIATE".equals(retryMode) ? "PICKED_UP" : "DELIVERY_FAILED";
+            order.setOrderStatus(to);
+            if ("PICKED_UP".equals(to)) order.setPickedUpAt(LocalDateTime.now());
+            em.persist(new OrderStatusHistory(orderId, staffId, "STAFF", "DELIVERY_FAILED", to, normalizedNote, LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
+    }
+
+    public MutationResult startScheduledRetry(int orderId, int staffId, String expectedStatus) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            WorkShift shipperShift = currentActiveShift(em, order.getShipper(), "SHIPPER");
+            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !requireCheckedInStaff(em, staffId)
+                    || !canStartScheduledRetry(order, shipperShift, WorkShiftService.businessNow())) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (order.getRetryScheduledAt() == null || order.getRetryScheduledAt().isAfter(WorkShiftService.businessNow())) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
+            order.setOrderStatus("PICKED_UP");
+            order.setPickedUpAt(LocalDateTime.now());
+            order.setRetryScheduledAt(null);
+            em.persist(new OrderStatusHistory(orderId, staffId, "STAFF", "DELIVERY_FAILED", "PICKED_UP", "Bắt đầu giao lại theo lịch", LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
+    }
+
+    public MutationResult returnToStore(int orderId, int staffId, String expectedStatus, String note) {
+        String normalizedNote = DeliveryFailurePolicy.normalizeNote(note);
+        if (normalizedNote == null) return MutationResult.INVALID;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !requireCheckedInStaff(em, staffId)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            inventoryReservationService.cancel(em, order);
+            releaseCoupon(em, orderId);
+            order.setOrderStatus("RETURNED_TO_STORE");
+            order.setReturnedToStoreAt(LocalDateTime.now());
+            order.setRetryScheduledAt(null);
+            order.setStaff(em.find(User.class, staffId));
+            if ("PAID".equals(order.getPaymentStatus())) order.setRefundStatus("PENDING");
+            em.persist(new OrderStatusHistory(orderId, staffId, "STAFF", "DELIVERY_FAILED", "RETURNED_TO_STORE", normalizedNote, LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
+    }
+
+    public MutationResult overrideDeliveryAttemptLimit(int orderId, int adminId, String expectedStatus, String note) {
+        String normalizedNote = DeliveryFailurePolicy.normalizeNote(note);
+        if (normalizedNote == null) return MutationResult.INVALID;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            User admin = em.find(User.class, adminId);
+            if (admin == null || !"ADMIN".equals(admin.getRole()) || !"ACTIVE".equals(admin.getStatus())) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            order.setDeliveryAttemptLimit(order.getDeliveryAttemptLimit() + 1);
+            String status = order.getOrderStatus();
+            em.persist(new OrderStatusHistory(orderId, adminId, "ADMIN", status, status, normalizedNote, LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
+    }
+
     static boolean matchesExpectedStatus(Orders order, String expectedStatus) {
         return order != null && expectedStatus != null && expectedStatus.equals(order.getOrderStatus());
     }
 
-    public enum MutationResult { SUCCESS, CONFLICT, INVALID }
+    public enum MutationResult { SUCCESS, CONFLICT, INVALID, UNPROCESSABLE }
+
+    private boolean requireCheckedInStaff(EntityManager em, int staffId) {
+        User staff = em.find(User.class, staffId);
+        return currentActiveShift(em, staff, "STAFF") != null;
+    }
+
+    private boolean validRetrySchedule(EntityManager em, String retryMode, LocalDateTime scheduledAt) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = em.createNativeQuery("SELECT config_key, config_value FROM ShippingConfig WHERE config_key IN ('business_open_time', 'business_close_time')").getResultList();
+        Map<String, String> config = new HashMap<>();
+        for (Object[] row : rows) config.put((String) row[0], (String) row[1]);
+        return DeliveryFailurePolicy.isValidSchedule(retryMode, scheduledAt, WorkShiftService.businessNow(),
+                java.time.LocalTime.parse(config.getOrDefault(StoreConfigService.OPEN_TIME, "00:00")),
+                java.time.LocalTime.parse(config.getOrDefault(StoreConfigService.CLOSE_TIME, "00:00")));
+    }
 
     private boolean requireCheckedInShipper(EntityManager em, int shipperId) {
-        return em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :shipperId AND ws.user.role = 'SHIPPER' AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", Long.class)
-                .setParameter("shipperId", shipperId)
-                .getSingleResult() > 0;
+        User shipper = em.find(User.class, shipperId);
+        return currentActiveShift(em, shipper, "SHIPPER") != null;
+    }
+
+    private WorkShift currentActiveShift(EntityManager em, User user, String role) {
+        if (user == null) return null;
+        LocalDateTime now = WorkShiftService.businessNow();
+        List<WorkShift> shifts = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.shiftDate = :today AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL ORDER BY ws.checkInAt DESC, ws.shiftId DESC", WorkShift.class)
+                .setParameter("userId", user.getUserId()).setParameter("today", now.toLocalDate())
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
+        return shifts.stream().filter(shift -> isCurrentActiveShift(shift, user, role, now)).findFirst().orElse(null);
+    }
+
+    static boolean isCurrentActiveShift(WorkShift shift, User user, String role, LocalDateTime now) {
+        return user != null && role.equals(user.getRole()) && "ACTIVE".equals(user.getStatus())
+                && WorkShiftService.isValidCheckedInShift(shift, now);
+    }
+
+    static boolean canStartScheduledRetry(Orders order, WorkShift shipperShift, LocalDateTime now) {
+        return order != null && order.getShipper() != null
+                && isCurrentActiveShift(shipperShift, order.getShipper(), "SHIPPER", now);
     }
 
     public static boolean isCanonicalStatus(String status) {

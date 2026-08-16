@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   catalogCounts,
@@ -6,6 +7,10 @@ import {
   paginateProducts,
   productTypes,
 } from '../src/utils/adminProductCatalog.js';
+
+const productsPage = readFileSync(new URL('../src/views/admin/ProductsPage.vue', import.meta.url), 'utf8');
+const inventoryPage = readFileSync(new URL('../src/views/admin/InventoryPage.vue', import.meta.url), 'utf8');
+const adminStore = readFileSync(new URL('../src/stores/admin.js', import.meta.url), 'utf8');
 
 const products = [
   { id: 1, name: 'Burger', productType: 'SIMPLE', status: 'AVAILABLE', inStock: true, discountPrice: null, categoryId: 1, categoryName: 'Món chính', basePrice: 50000, variants: [] },
@@ -30,4 +35,16 @@ test('paginateProducts clamps pages and returns stable bounds', () => {
   assert.deepEqual(paginateProducts(products, 2, 2), { page: 2, pageCount: 2, start: 2, end: 3, items: [products[2]] });
   assert.deepEqual(paginateProducts(products, 9, 2), { page: 2, pageCount: 2, start: 2, end: 3, items: [products[2]] });
   assert.deepEqual(paginateProducts([], 1, 10), { page: 1, pageCount: 1, start: 0, end: 0, items: [] });
+});
+
+test('products and inventory consume one shared low-stock policy', () => {
+  assert.match(productsPage, /productStockSummary/);
+  assert.match(productsPage, /lowStockThreshold/);
+  assert.doesNotMatch(productsPage, /stock <= 10|stock > 10/);
+  assert.match(inventoryPage, /stockState/);
+  assert.match(inventoryPage, /lowStockThreshold/);
+  assert.doesNotMatch(inventoryPage, /stock <= 5|stock > 0 && row\.stock <= 5/);
+  assert.match(inventoryPage, /inventoryRowsSummary/);
+  assert.match(inventoryPage, /Lỗi dữ liệu tồn kho/);
+  assert.match(adminStore, /createLatestCatalogFetcher/);
 });

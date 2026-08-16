@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { cartApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import { useProductStore } from '@/stores/product';
+import { createCartMigrationController } from '@/utils/cartMigration';
 
 const GUEST_KEY = 'cart_guest';
 
@@ -156,7 +157,7 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
-  async function fetchCart() {
+  async function fetchCart(strict = false) {
     try {
       const data = await cartApi.get();
       if (data && data.items) {
@@ -176,8 +177,12 @@ export const useCartStore = defineStore('cart', () => {
           productStatus: ci.productStatus || 'UNAVAILABLE',
         }));
         save();
+        return data;
       }
+      if (strict) throw new Error('Dữ liệu giỏ hàng không hợp lệ');
+      return null;
     } catch (err) {
+      if (strict) throw err;
       console.error('Cart fetchCart failed:', err);
       return null;
     }
@@ -195,30 +200,13 @@ export const useCartStore = defineStore('cart', () => {
 
   async function migrateToUser() {
     const auth = useAuthStore();
-    if (!auth.isLoggedIn) return;
-    const localItems = [...items.value];
-    const failedItems = [];
-    if (localItems.length > 0) {
-      for (const item of localItems) {
-        try {
-          await cartApi.addItem({
-            productId: item.productId,
-            variantId: item.variantId,
-            quantity: item.quantity,
-            modifierOptionIds: (item.modifiers || []).map((modifier) => modifier.modifierOptionId),
-          });
-        } catch {
-          failedItems.push(item);
-        }
-      }
-    }
-    if (failedItems.length) {
-      items.value = failedItems;
-      save();
-      throw new Error(`Không thể đồng bộ ${failedItems.length} món trong giỏ hàng`);
-    }
-    sessionStorage.removeItem(GUEST_KEY);
-    await fetchCart();
+    if (!auth.isLoggedIn) return { failedCount: 0, canonical: null };
+    return createCartMigrationController({
+      guestStorage: sessionStorage,
+      guestKey: GUEST_KEY,
+      addItem: (payload) => cartApi.addItem(payload),
+      fetchCanonical: () => fetchCart(true),
+    }).migrate();
   }
 
   loadFromStorage();

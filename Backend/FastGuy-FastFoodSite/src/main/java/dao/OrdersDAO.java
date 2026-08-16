@@ -85,6 +85,18 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findDeliveryFailureQueue() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.orderStatus = 'DELIVERY_FAILED' ORDER BY COALESCE(o.retryScheduledAt, o.deliveryFailedAt) ASC, o.orderId ASC",
+                    Orders.class)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Orders> findPendingRefunds() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

@@ -15,8 +15,8 @@ const pageSize = 6
 const tabs = [
   { key: 'pending', label: 'Chờ xử lý', statuses: ['PENDING'] },
   { key: 'processing', label: 'Đang xử lý', statuses: ['CONFIRMED', 'PREPARING', 'READY'] },
-  { key: 'delivering', label: 'Đang giao', statuses: ['ASSIGNED', 'PICKED_UP'] },
-  { key: 'delivered', label: 'Đã giao', statuses: ['DELIVERED'] },
+  { key: 'delivering', label: 'Đang giao', statuses: ['ASSIGNED', 'PICKED_UP', 'DELIVERY_FAILED'] },
+  { key: 'delivered', label: 'Đã giao / trả về', statuses: ['DELIVERED', 'RETURNED_TO_STORE'] },
   { key: 'cancelled', label: 'Đã hủy', statuses: ['CANCELLED'] },
 ]
 
@@ -51,6 +51,7 @@ onMounted(() => orderStore.fetchOrders())
     <div v-else class="orders-list">
       <article v-for="order in visibleOrders" :key="order.id" class="order-card">
         <div class="order-card-header"><div><strong>{{ order.orderCode }}</strong><time :datetime="order.createdAt">{{ formatDate(order.createdAt) }}</time></div><OrderStatusBadge :status="order.status" /></div>
+        <p v-if="order.status === 'DELIVERY_FAILED'" class="delivery-notice">Giao chưa thành công, cửa hàng đang xử lý<span v-if="order.retryScheduledAt"> · Dự kiến giao lại {{ formatDate(order.retryScheduledAt) }}</span></p>
         <div class="order-card-items">
           <img v-for="(item, index) in order.items.slice(0, 3)" :key="`${item.productId}-${item.variantId || 'default'}-${index}`" :src="item.image" :alt="item.productName" />
           <span v-if="order.items.length > 3">+{{ order.items.length - 3 }}</span>
@@ -75,7 +76,7 @@ h1 { font-size: 20px; margin-bottom: 20px; }
 .order-card { border: 1px solid var(--border-light); border-radius: var(--radius); padding: 18px; }
 .order-card-header, .order-card-footer { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .order-card-header time, .order-card-footer small { display: block; margin-top: 3px; color: var(--text-light); font-size: 12px; }
-.order-card-items { display: flex; gap: 8px; margin: 14px 0; }
+.delivery-notice { margin: 12px 0 0; color: var(--text-mid); font-size: 13px; }.order-card-items { display: flex; gap: 8px; margin: 14px 0; }
 .order-card-items img, .order-card-items span { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: cover; }
 .order-card-items span { display: grid; place-items: center; background: var(--surface); }
 .state { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }

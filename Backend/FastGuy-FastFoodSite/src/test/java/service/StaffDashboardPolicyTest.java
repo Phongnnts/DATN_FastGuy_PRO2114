@@ -24,4 +24,16 @@ class StaffDashboardPolicyTest {
         assertTrue(daoSrc.contains("COALESCE(o.finalAmount, 0) - COALESCE(o.refundAmount, 0)"));
         assertTrue(daoSrc.contains(".setMaxResults(6)"));
     }
+
+    @Test
+    void dashboardPublishesSharedSkuStockAlerts() throws IOException {
+        String src = Files.readString(Path.of("src/main/java/service/StaffService.java"));
+        assertTrue(src.contains("storeConfigService.getLowStockThreshold()"));
+        assertTrue(src.contains("productDAO.countStockRiskSkus(lowStockThreshold)"));
+        assertTrue(src.contains("stockRiskCounts[0]"));
+        assertTrue(src.contains("stockRiskCounts[1]"));
+        assertTrue(src.contains("data.put(\"lowStockThreshold\", lowStockThreshold)"));
+        assertTrue(src.contains("data.put(\"outOfStockSkuCount\""));
+        assertTrue(src.contains("data.put(\"lowStockSkuCount\""));
+    }
 }

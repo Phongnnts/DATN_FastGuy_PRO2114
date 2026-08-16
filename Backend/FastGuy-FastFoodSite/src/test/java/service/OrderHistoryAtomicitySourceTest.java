@@ -50,6 +50,17 @@ class OrderHistoryAtomicitySourceTest {
     }
 
     @Test
+    void recoveryMutationsKeepHistoryAndSideEffectsBeforeCommit() throws Exception {
+        String transition = source("OrderTransitionService.java");
+        for (String method : new String[] {"reportDeliveryFailure", "retryDelivery", "startScheduledRetry", "returnToStore", "overrideDeliveryAttemptLimit"}) {
+            int start = transition.indexOf("MutationResult " + method + "(");
+            int history = transition.indexOf("em.persist(new OrderStatusHistory", start);
+            int commit = transition.indexOf("em.getTransaction().commit();", history);
+            assertTrue(start >= 0 && history > start && commit > history, method);
+        }
+    }
+
+    @Test
     void serializesModifiersBeforePersistingOrderItem() throws Exception {
         String orderService = source("OrderService.java");
         int setModifiers = orderService.indexOf("item.setModifiers(modifierItems);");

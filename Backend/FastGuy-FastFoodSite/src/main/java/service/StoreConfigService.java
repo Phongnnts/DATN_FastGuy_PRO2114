@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
@@ -14,11 +15,22 @@ public class StoreConfigService {
     public static final String OPEN_TIME = "business_open_time";
     public static final String CLOSE_TIME = "business_close_time";
     public static final String SERVICE_FEE = "service_fee";
+    public static final String LOW_STOCK_THRESHOLD = "low_stock_threshold";
+    public static final int DEFAULT_LOW_STOCK_THRESHOLD = 5;
     public static final Set<String> GHN_KEYS = Set.of("ghn_from_district_id", "ghn_from_ward_code", "default_service_type_id", "default_weight", "default_length", "default_width", "default_height");
     private static final BigDecimal HUNDRED = new BigDecimal("100");
+    private final Supplier<EntityManager> entityManagers;
+
+    public StoreConfigService() {
+        this(DatabaseUtil::getEntityManager);
+    }
+
+    StoreConfigService(Supplier<EntityManager> entityManagers) {
+        this.entityManagers = entityManagers;
+    }
 
     public Map<String, String> getAll() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManagers.get();
         try {
             Map<String, String> result = new LinkedHashMap<>();
             @SuppressWarnings("unchecked")
@@ -32,7 +44,7 @@ public class StoreConfigService {
 
     private static final java.util.Set<String> TIME_KEYS = Set.of(OPEN_TIME, CLOSE_TIME);
     private static final java.util.Set<String> FEE_KEYS = Set.of(SERVICE_FEE, "tax_rate", "delivery_fee", "min_order_amount");
-    private static final java.util.Set<String> INT_KEYS = Set.of("estimated_delivery_minutes");
+    private static final java.util.Set<String> INT_KEYS = Set.of("estimated_delivery_minutes", LOW_STOCK_THRESHOLD);
     private static final java.util.Set<String> TEXT_KEYS = Set.of("store_name", "store_phone", "store_address", "store_logo");
 
     public Map<String, Object> getPublicConfig() {
@@ -61,9 +73,14 @@ public class StoreConfigService {
         catch (NumberFormatException e) { return defaultVal; }
     }
 
+    public int getLowStockThreshold() {
+        int threshold = parseIntSafe(getAll().get(LOW_STOCK_THRESHOLD), DEFAULT_LOW_STOCK_THRESHOLD);
+        return threshold >= 1 && threshold <= 1000 ? threshold : DEFAULT_LOW_STOCK_THRESHOLD;
+    }
+
     public void update(Map<String, Object> values) {
         if (values == null || values.isEmpty()) throw new IllegalArgumentException("Missing config values");
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManagers.get();
         try {
             em.getTransaction().begin();
             for (Map.Entry<String, Object> entry : values.entrySet()) {
@@ -87,6 +104,12 @@ public class StoreConfigService {
                         int minutes = Integer.parseInt(value);
                         if ("estimated_delivery_minutes".equals(key) && (minutes < 10 || minutes > 180)) {
                             throw new IllegalArgumentException("estimated_delivery_minutes must be between 10 and 180");
+                        }
+                        if (LOW_STOCK_THRESHOLD.equals(key)) {
+                            int threshold = minutes;
+                            if (threshold < 1 || threshold > 1000) {
+                                throw new IllegalArgumentException("low_stock_threshold must be between 1 and 1000");
+                            }
                         }
                     }
                 }

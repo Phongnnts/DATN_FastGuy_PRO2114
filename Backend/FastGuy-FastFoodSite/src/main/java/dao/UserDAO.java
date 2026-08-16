@@ -1,6 +1,7 @@
 package dao;
 
 import java.util.List;
+import java.util.Set;
 
 import entity.User;
 import jakarta.persistence.EntityManager;
@@ -13,6 +14,18 @@ public class UserDAO {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.find(User.class, id);
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<User> findByIds(Set<Integer> ids) {
+        if (ids.isEmpty()) return List.of();
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT u FROM User u WHERE u.userId IN :ids", User.class)
+                    .setParameter("ids", ids)
+                    .getResultList();
         } finally {
             em.close();
         }

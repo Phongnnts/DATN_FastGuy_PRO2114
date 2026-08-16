@@ -16,6 +16,9 @@ export default {
   getReadyOrders(params) {
     return client.get('/staff/orders/ready', { params });
   },
+  getDeliveryFailedOrders(params) {
+    return client.get('/staff/orders/delivery-failures', { params });
+  },
   getOrderById(id) {
     return client.get(`/staff/orders/${id}`);
   },
@@ -24,6 +27,15 @@ export default {
   },
   assignShipper(id, shipperId, expectedStatus) {
     return client.put(`/staff/orders/${id}/assign-shipper`, { shipperId, expectedStatus });
+  },
+  retryDelivery(id, data) {
+    return client.post(`/staff/orders/${id}/retry-delivery`, data);
+  },
+  startScheduledRetry(id, expectedStatus) {
+    return client.post(`/staff/orders/${id}/start-scheduled-retry`, { expectedStatus });
+  },
+  returnToStore(id, expectedStatus, note) {
+    return client.post(`/staff/orders/${id}/return-to-store`, { expectedStatus, note });
   },
   getAvailableShippers() {
     return client.get('/staff/orders/shippers');

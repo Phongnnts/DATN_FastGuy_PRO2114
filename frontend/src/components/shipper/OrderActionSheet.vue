@@ -130,8 +130,8 @@ async function runPrimary() {
       <div class="sheet-actions">
         <a v-if="order.customerPhone" class="btn btn-outline" :href="`tel:${order.customerPhone}`"><i class="bi bi-telephone"></i> Gọi</a>
         <a v-if="mapsUrl" class="btn btn-outline" :href="mapsUrl" target="_blank" rel="noopener noreferrer"><i class="bi bi-geo-alt"></i> Bản đồ</a>
-        <button v-if="primaryAction" class="btn btn-primary" :disabled="submitting" @click="requestPrimary">{{ submitting ? 'Đang xử lý...' : primaryAction }}</button>
-        <router-link class="btn btn-outline" :to="`/shipper/orders/${order.id}`" @click="close">Xem chi tiết</router-link>
+        <button v-if="primaryAction" class="btn btn-primary" :disabled="submitting" @click="requestPrimary">{{ submitting ? 'Đang xử lý...' : order.status === 'PICKED_UP' ? 'Giao thành công' : primaryAction }}</button>
+        <router-link class="btn btn-outline" :to="`/shipper/orders/${order.id}`" @click="close">{{ order.status === 'PICKED_UP' ? 'Mở chi tiết để báo thất bại' : 'Xem chi tiết' }}</router-link>
       </div>
     </section>
     <ConfirmDialog :open="confirmOpen" :title="order.status === 'ASSIGNED' ? 'Xác nhận lấy hàng' : 'Xác nhận giao hàng'" :message="order.status === 'ASSIGNED' ? 'Bạn đã lấy hàng từ cửa hàng?' : isCodDeliver ? `Bạn đã giao hàng và thu ${formatPrice(order.total)}?` : 'Bạn đã giao hàng thành công?'" :confirm-label="primaryAction" :busy="submitting" @confirm="runPrimary" @cancel="confirmOpen = false" />

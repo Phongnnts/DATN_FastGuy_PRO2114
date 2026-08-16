@@ -25,7 +25,8 @@ public class ShipperService {
     public static Set<String> getAllowedActions(String status, String paymentMethod, String paymentStatus) {
         if ("ASSIGNED".equals(status)) return Set.of("PICKED_UP");
         if (!"PICKED_UP".equals(status)) return Set.of();
-        return "COD".equals(paymentMethod) || "PAID".equals(paymentStatus) ? Set.of("DELIVERED") : Set.of();
+        return "COD".equals(paymentMethod) || "PAID".equals(paymentStatus)
+                ? Set.of("DELIVERED", "DELIVERY_FAILED") : Set.of("DELIVERY_FAILED");
     }
 
     public List<Orders> getMyOrders(int shipperId) {
@@ -35,6 +36,10 @@ public class ShipperService {
     public Orders getOwnedOrder(int orderId, int shipperId) {
         Orders order = ordersDAO.findById(orderId);
         return order != null && order.getShipper() != null && order.getShipper().getUserId() == shipperId ? order : null;
+    }
+
+    public Orders getOrder(int orderId) {
+        return ordersDAO.findById(orderId);
     }
 
     public List<Orders> getMyActiveOrders(int shipperId) {
@@ -66,7 +71,6 @@ public class ShipperService {
         stats.put("totalDelivered", totalDelivered);
         stats.put("activeCount", activeCount);
         stats.put("todayCodCollected", todayCodCollected);
-        stats.put("pendingCodCollected", todayCodCollected);
         return stats;
     }
 
@@ -83,6 +87,10 @@ public class ShipperService {
         Orders order = ordersDAO.findById(orderId);
         if (order != null && order.getUser() != null) notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đã giao", "Đơn " + order.getOrderCode() + " đã được giao thành công", "ORDER_STATUS", "/account/orders/" + orderId);
         return result;
+    }
+
+    public OrderTransitionService.MutationResult fail(int orderId, int shipperId, String expectedStatus, String reasonCode, String note) {
+        return transitionService.reportDeliveryFailure(orderId, shipperId, expectedStatus, reasonCode, note);
     }
 
 }

@@ -5,6 +5,7 @@ import { useStaffStore } from '@/stores/staff';
 import { formatPrice, formatDate } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import { acceptsKitchenRequest, matchesKitchenSearch, waitingDuration } from '@/utils/staffKitchen';
+import { DELIVERY_FAILURE_REASON_LABEL } from '@/utils/constants';
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +24,7 @@ const tabs = [
   { key: 'CONFIRMED', label: 'Đã xác nhận' },
   { key: 'PREPARING', label: 'Đang chế biến' },
   { key: 'READY', label: 'Sẵn sàng giao' },
+  { key: 'DELIVERY_FAILED', label: 'Giao chưa thành công' },
 ];
 const staleErrors = ref(Object.fromEntries(tabs.map((tab) => [tab.key, ''])));
 const staleError = computed(() => staleErrors.value[activeTab.value]);
@@ -144,7 +146,7 @@ onUnmounted(() => clearInterval(refreshTimer));
             <tr v-for="order in filteredOrders" :key="order.id" :class="{ overdue: isOverdue(order) }">
               <td data-label="Mã đơn"><router-link :to="`/staff/orders/${order.id}`" class="order-link">{{ order.orderCode }}</router-link></td>
               <td data-label="Khách hàng"><strong>{{ order.customerName || 'Khách vãng lai' }}</strong><a v-if="order.customerPhone" class="customer-phone" :href="`tel:${order.customerPhone}`">{{ order.customerPhone }}</a></td>
-              <td data-label="Sản phẩm"><span>{{ order.itemCount }} món</span><small v-if="modifierSummary(order)" class="modifier-summary">{{ modifierSummary(order) }}</small></td>
+              <td data-label="Sản phẩm"><span>{{ order.itemCount }} món</span><small v-if="modifierSummary(order)" class="modifier-summary">{{ modifierSummary(order) }}</small><template v-if="order.status === 'DELIVERY_FAILED'"><small><strong>{{ DELIVERY_FAILURE_REASON_LABEL[order.deliveryFailureCode] || order.deliveryFailureCode }}</strong></small><small v-if="order.failureNote">{{ order.failureNote }}</small><small>{{ formatDate(order.deliveryFailedAt) }} · Lần {{ order.deliveryAttemptCount }} / {{ order.deliveryAttemptLimit }}</small><small v-if="order.retryScheduledAt">Lịch giao lại {{ formatDate(order.retryScheduledAt) }}</small></template></td>
               <td data-label="Tổng tiền">{{ formatPrice(order.total) }}</td>
               <td data-label="Chờ"><span :class="{ 'overdue-label': isOverdue(order) }"><i v-if="isOverdue(order)" class="bi bi-exclamation-triangle-fill"></i> {{ waitingDuration(order.createdAt) }}</span><small v-if="order.createdAt">{{ formatDate(order.createdAt) }}</small></td>
               <td data-label="Trạng thái"><OrderStatusBadge :status="order.status" /></td>

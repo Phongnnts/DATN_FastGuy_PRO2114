@@ -3,26 +3,37 @@ import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
+import { useToast } from '@/stores/toast';
+import { createLoginMigrationController } from '@/utils/cartMigration';
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const cart = useCartStore();
+const toast = useToast();
 
 const email = ref('');
 const password = ref('');
 const error = ref('');
+const migrationWarning = ref('');
 const loading = ref(false);
+const loginMigration = createLoginMigrationController({
+  login: (emailValue, passwordValue) => auth.login(emailValue, passwordValue),
+  migrate: () => cart.migrateToUser(),
+  warn: (message) => {
+    migrationWarning.value = message;
+    toast.error(message);
+  },
+  navigate: (redirect) => router.push(redirect),
+});
 
 async function handleLogin() {
+  if (loading.value) return;
   error.value = '';
+  migrationWarning.value = '';
   loading.value = true;
   try {
-    const user = await auth.login(email.value, password.value);
-    cart.migrateToUser().catch(() => {});
-    const role = user?.role || '';
-    const redirect = route.query.redirect || (role === 'USER' ? '/home' : `/${role.toLowerCase()}`);
-    router.push(redirect);
+    await loginMigration.submit(email.value, password.value, route.query.redirect);
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -52,7 +63,8 @@ async function handleLogin() {
           <div class="form-row">
             <router-link to="/forgot-password" class="forgot-link">Quên mật khẩu?</router-link>
           </div>
-          <p v-if="error" class="form-error">{{ error }}</p>
+          <p v-if="error" class="form-error" role="alert">{{ error }}</p>
+          <p v-if="migrationWarning" class="form-error" role="alert">{{ migrationWarning }}</p>
           <button type="submit" class="btn btn-primary btn-lg submit-btn" :disabled="loading">
             <i v-if="loading" class="bi bi-arrow-repeat spin"></i>
             {{ loading ? 'Đang đăng nhập...' : 'Đăng nhập' }}

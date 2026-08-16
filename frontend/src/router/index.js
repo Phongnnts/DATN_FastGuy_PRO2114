@@ -30,7 +30,7 @@ const routes = [
         meta: {
           guest: true,
           robots: 'index,follow',
-          description: 'FastGuy — đặt đồ ăn nhanh giao tận nơi chỉ trong 30 phút. Đa dạng món ngon, combo tiết kiệm và nhiều ưu đãi hấp dẫn mỗi ngày.',
+          description: 'FastGuy — đặt đồ ăn nhanh trực tuyến với thực đơn đa dạng, combo tiết kiệm và nhiều ưu đãi hấp dẫn mỗi ngày.',
           canonical: '/home',
         },
       },
@@ -453,6 +453,12 @@ const routes = [
         component: () => import('@/views/admin/OrdersPage.vue'),
       },
       {
+        path: 'cod-settlements',
+        name: 'AdminCodSettlements',
+        component: () => import('@/views/admin/CodSettlementsPage.vue'),
+        meta: { breadcrumb: [{ label: 'Tổng quan', to: '/admin' }, { label: 'Đối soát COD' }] },
+      },
+      {
         path: 'refunds',
         name: 'AdminRefunds',
         component: () => import('@/views/admin/RefundsPage.vue'),
@@ -525,7 +531,7 @@ const pageTitles = {
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
   ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', ShipperCash: 'Đối soát COD', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
   AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
-  AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền',
+  AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền', AdminCodSettlements: 'Đối soát COD',
   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',
 };
 

@@ -4,6 +4,7 @@ import { ROLES } from '@/utils/constants';
 import { authApi } from '@/api';
 import { useCartStore } from '@/stores/cart';
 import { clearStoredSession, isTokenValid, parseStoredUser } from '@/utils/session';
+import { createProfileHydrationController } from '@/utils/profileHydration';
 
 export const useAuthStore = defineStore('auth', () => {
   const storedToken = localStorage.getItem('token');
@@ -12,8 +13,11 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(token.value ? parseStoredUser(localStorage.getItem('user')) : null);
   if (token.value && !user.value) clearStoredSession();
   if (!user.value) token.value = null;
+  let sessionGeneration = 0;
 
   function clearReactiveSession() {
+    sessionGeneration += 1;
+    profileHydration.invalidate();
     token.value = null;
     user.value = null;
   }
@@ -36,8 +40,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const profileHydration = createProfileHydrationController({
+    getSession: () => ({ token: token.value, userId: user.value?.id, role: user.value?.role, generation: sessionGeneration }),
+    requestProfile: () => authApi.getProfile(),
+    applyProfile: (profile) => { user.value = profile; },
+    persist,
+  });
+
   async function login(email, password) {
     const data = await authApi.login({ login: email, password });
+    sessionGeneration += 1;
+    profileHydration.invalidate();
     token.value = data.token;
     user.value = {
       id: data.userId,
@@ -58,6 +71,8 @@ export const useAuthStore = defineStore('auth', () => {
       email: data.email,
       password: data.password,
     });
+    sessionGeneration += 1;
+    profileHydration.invalidate();
     token.value = result.token;
     user.value = {
       id: result.userId,
@@ -74,6 +89,8 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     const cart = useCartStore();
     cart.clear();
+    sessionGeneration += 1;
+    profileHydration.invalidate();
     token.value = null;
     user.value = null;
     persist();
@@ -87,10 +104,16 @@ export const useAuthStore = defineStore('auth', () => {
     return false;
   }
 
+  async function hydrateProfile() {
+    return await profileHydration.hydrate();
+  }
+
   async function updateProfile(data) {
     if (!user.value) throw new Error('Chưa đăng nhập');
     try {
       await authApi.updateProfile(data);
+      sessionGeneration += 1;
+      profileHydration.invalidate();
       Object.assign(user.value, data);
       persist();
       return user.value;
@@ -116,6 +139,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     validateSession,
+    hydrateProfile,
     updateProfile,
     changePassword,
   };

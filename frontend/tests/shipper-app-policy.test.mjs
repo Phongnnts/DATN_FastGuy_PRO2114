@@ -102,24 +102,20 @@ test('order action sheet is a dialog with call, map, primary action and detail l
   assert.match(sheet, /OrderStatusBadge/);
 });
 
-test('cash page fetches dashboard and 7-day history in parallel and lists COD delivered today', () => {
-  assert.match(cash, /todayCodCollected/);
-  assert.match(cash, /pendingCodCollected/);
-  assert.match(cash, /Tổng thu hôm nay/);
-  assert.match(cash, /COD đang giữ/);
-  assert.match(cash, /Chưa có luồng nộp tiền — tạm tính bằng tổng thu hôm nay/);
-  assert.match(cash, /store\.fetchDashboard\(true\)/);
-  assert.match(cash, /shipperApi\.getHistory\(\{ page: 1, size: 100, fromDate: daysAgo\(7\), toDate: today\.value \}\)/);
-  assert.match(cash, /toLocalDateKey/);
-  assert.match(cash, /daysAgo/);
-  assert.match(cash, /paymentMethod === 'COD'/);
-  assert.match(cash, /status === 'DELIVERED'/);
-  assert.match(cash, /String\(order\.deliveredAt \|\| ''\)\.startsWith\(today\.value\)/);
-  assert.match(cash, /codCollectedAmount/);
-  assert.match(cash, /orderCode/);
-  assert.match(cash, /customerName/);
-  assert.match(cash, /Đối soát COD/);
-  assert.match(cash, /load\(\)/);
+test('cash page uses settlement current and history without client-side COD derivation', () => {
+  assert.match(cash, /codSettlementApi\.getCurrent\(\)/);
+  assert.match(cash, /codSettlementApi\.getMine\(\)/);
+  assert.match(cash, /Promise\.all/);
+  assert.match(cash, /Tiền dự kiến theo ca/);
+  assert.match(cash, /Đã gửi bàn giao/);
+  assert.match(cash, /Kết quả Admin xác nhận/);
+  assert.match(cash, /history-card/);
+  assert.match(cash, /receivedByName/);
+  assert.doesNotMatch(cash, /store\.fetchDashboard/);
+  assert.doesNotMatch(cash, /shipperApi\.getHistory/);
+  assert.doesNotMatch(cash, /todayCodCollected|pendingCodCollected/);
+  assert.doesNotMatch(cash, /tạm tính bằng tổng thu hôm nay/);
+  assert.doesNotMatch(cash, /paymentMethod === 'COD'|status === 'DELIVERED'/);
 });
 
 test('detail shows back link routed by terminal status', () => {

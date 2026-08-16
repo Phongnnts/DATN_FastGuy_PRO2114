@@ -6,6 +6,7 @@ import { useCartStore } from '@/stores/cart';
 import { useOrderStore } from '@/stores/order';
 import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
+import { createCouponController } from '@/utils/checkoutCoupon';
 import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
 import { useToast } from '@/stores/toast';
@@ -280,40 +281,32 @@ function getWardName() {
   return wards.value.find(w => w.code === selectedWard.value)?.name || selectedAddress()?.wardName || '';
 }
 
-let couponVerification = 0;
+const couponState = {
+  get code() { return couponCode.value; },
+  set code(value) { couponCode.value = value; },
+  get applied() { return appliedCoupon.value; },
+  set applied(value) { appliedCoupon.value = value; },
+  get discount() { return couponDiscount.value; },
+  set discount(value) { couponDiscount.value = value; },
+  get verifying() { return verifyingCoupon.value; },
+  set verifying(value) { verifyingCoupon.value = value; },
+  get error() { return couponError.value; },
+  set error(value) { couponError.value = value; },
+};
+const couponController = createCouponController(couponState, couponApi.verify);
 
-async function verifyCoupon() {
-  if (!couponCode.value.trim()) return;
-  const verification = ++couponVerification;
-  verifyingCoupon.value = true;
-  couponError.value = '';
-  appliedCoupon.value = null;
-  couponDiscount.value = 0;
-  try {
-    const res = await couponApi.verify(couponCode.value, cart.subtotal, shippingFee.value || 0);
-    if (verification !== couponVerification) return;
-    if (res.valid) {
-      appliedCoupon.value = res;
-      couponDiscount.value = res.discount;
-    } else {
-      couponError.value = res.message || 'Mã không hợp lệ';
-    }
-  } catch {
-    if (verification === couponVerification) couponError.value = 'Lỗi kiểm tra mã';
-  } finally {
-    if (verification === couponVerification) verifyingCoupon.value = false;
-  }
+function verifyCoupon() {
+  return couponController.verify(cart.subtotal, shippingFee.value || 0);
 }
 
-watch([() => cart.subtotal, shippingFee], () => {
-  if (appliedCoupon.value) verifyCoupon();
-});
+function invalidateCoupon() {
+  couponController.invalidate();
+}
+
+watch([() => cart.subtotal, shippingFee], invalidateCoupon);
 
 function cancelCoupon() {
-  couponCode.value = '';
-  appliedCoupon.value = null;
-  couponDiscount.value = 0;
-  couponError.value = '';
+  couponController.remove();
   showMyCoupons.value = false;
 }
 
@@ -591,11 +584,33 @@ async function placeOrder() {
               </div>
             </div>
           </div>
-          <div v-if="!isGuest" class="checkout-coupon">
+          <div class="checkout-coupon">
             <div class="coupon-header">
               <i class="bi bi-tag"></i>
               <span>Mã giảm giá</span>
             </div>
+
+            <form class="coupon-manual" @submit.prevent="verifyCoupon" v-if="!appliedCoupon">
+              <label for="checkout-coupon-code">Nhập mã giảm giá</label>
+              <div class="coupon-manual-row">
+                <input
+                  id="checkout-coupon-code"
+                  v-model.trim="couponCode"
+                  class="form-input"
+                  type="text"
+                  autocomplete="off"
+                  maxlength="50"
+                  aria-describedby="checkout-coupon-status"
+                  placeholder="Ví dụ: FASTGUY10"
+                />
+                <button type="submit" class="btn btn-outline" :disabled="verifyingCoupon || !couponCode.trim()">
+                  {{ verifyingCoupon ? 'Đang kiểm tra...' : 'Áp dụng' }}
+                </button>
+              </div>
+              <p v-if="verifyingCoupon" id="checkout-coupon-status" class="coupon-msg" role="status">Đang kiểm tra mã giảm giá.</p>
+              <p v-else-if="couponError" id="checkout-coupon-status" class="coupon-msg error" role="alert">{{ couponError }}</p>
+              <p v-else id="checkout-coupon-status" class="sr-only">Nhập mã rồi chọn Áp dụng.</p>
+            </form>
 
             <div v-if="!isGuest && !appliedCoupon" class="my-coupons">
               <div class="my-coupons-heading">
@@ -631,13 +646,7 @@ async function placeOrder() {
               </transition>
             </div>
 
-            <div v-if="!appliedCoupon && couponError" class="coupon-body">
-              <div class="coupon-msg error">
-                <i class="bi bi-exclamation-circle"></i> {{ couponError }}
-              </div>
-            </div>
-
-            <div v-if="appliedCoupon" class="coupon-applied">
+            <div v-if="appliedCoupon" class="coupon-applied" role="status">
               <div class="applied-left">
                 <i class="bi bi-check-circle-fill"></i>
                 <div>
@@ -647,7 +656,7 @@ async function placeOrder() {
               </div>
               <div class="applied-right">
                 <span class="applied-discount">-{{ formatPrice(couponDiscount) }}</span>
-                <button class="applied-remove" @click="cancelCoupon" title="Xoá mã"><i class="bi bi-x-lg"></i></button>
+                <button type="button" class="applied-remove" @click="cancelCoupon" aria-label="Xoá mã giảm giá" title="Xoá mã"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
               </div>
             </div>
 
@@ -1026,8 +1035,8 @@ async function placeOrder() {
 .applied-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .applied-discount { font-size: 15px; font-weight: 800; color: #16a34a; }
 .applied-remove {
-  width: 28px;
-  height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #fff;
@@ -1099,6 +1108,14 @@ async function placeOrder() {
 .claimed-desc { font-size: 12px; color: var(--text-mid); margin-top: 1px; }
 .claimed-item i { color: var(--text-light); font-size: 12px; }
 .coupon-manual-label { display: block; margin-bottom: 7px; color: var(--text-mid); font-size: 12px; font-weight: 700; }
+.coupon-manual { display: grid; gap: var(--space-2); margin: var(--space-3); }
+.coupon-manual > label { font-size: 13px; font-weight: 700; }
+.coupon-manual-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
+.coupon-manual-row .form-input,
+.coupon-manual-row .btn { min-height: var(--control-height); }
+.coupon-msg { margin: 0; color: var(--text-mid); font-size: 13px; }
+.coupon-msg.error { color: var(--red-active); }
+@media (max-width: 480px) { .coupon-manual-row { grid-template-columns: 1fr; } .coupon-manual-row .btn { width: 100%; } }
 .slide-enter-active,
 .slide-leave-active { transition: all 0.2s ease; }
 .slide-enter-from,

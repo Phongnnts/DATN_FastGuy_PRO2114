@@ -74,7 +74,7 @@ public class ShipperServlet extends HttpServlet {
     }
 
     static MutationPath parseMutationPath(String path) {
-        if (path == null || !path.matches("/orders/\\d+/(pickup|deliver)")) return null;
+        if (path == null || !path.matches("/orders/\\d+/(pickup|deliver|fail)")) return null;
         String[] segments = path.split("/");
         try {
             return new MutationPath(Integer.parseInt(segments[2]), segments[3]);
@@ -87,6 +87,34 @@ public class ShipperServlet extends HttpServlet {
 
     static boolean isValidExpectedStatus(String status) {
         return status != null && !status.isBlank() && OrderTransitionService.isCanonicalStatus(status);
+    }
+
+    static Map<String, Object> validateFailurePayload(Map<String, Object> body) {
+        if (body == null || !(body.get("expectedStatus") instanceof String expectedStatus)
+                || !(body.get("reasonCode") instanceof String reasonCode) || !(body.get("note") instanceof String note)) return null;
+        expectedStatus = expectedStatus.trim();
+        reasonCode = reasonCode.trim();
+        note = note.trim();
+        if (!isValidExpectedStatus(expectedStatus) || reasonCode.isEmpty() || note.isEmpty()) return null;
+        Map<String, Object> result = new HashMap<>();
+        result.put("expectedStatus", expectedStatus);
+        result.put("reasonCode", reasonCode);
+        result.put("note", note);
+        return result;
+    }
+
+    static int statusFor(OrderTransitionService.MutationResult result) {
+        return switch (result) {
+            case SUCCESS -> 200;
+            case CONFLICT -> 409;
+            case UNPROCESSABLE -> 422;
+            case INVALID -> 400;
+        };
+    }
+
+    static int ownershipStatus(Orders order, int shipperId) {
+        if (order == null) return 404;
+        return order.getShipper() != null && order.getShipper().getUserId() == shipperId ? 200 : 403;
     }
 
     private boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int shipperId) throws IOException {
@@ -203,6 +231,39 @@ public class ShipperServlet extends HttpServlet {
                     ApiResponse.ok(resp, toDetail(order));
                 }
         }
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.setContentType("application/json;charset=UTF-8");
+        int shipperId = getShipperId(req, resp);
+        if (shipperId < 0 || !requireCheckedInShift(req, resp, shipperId)) return;
+        MutationPath mutation = parseMutationPath(req.getPathInfo());
+        if (mutation == null || !"fail".equals(mutation.action())) {
+            ApiResponse.error(resp, "Not found", 404);
+            return;
+        }
+        Map<String, Object> payload;
+        try {
+            payload = validateFailurePayload(mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {}));
+        } catch (IOException | RuntimeException e) {
+            payload = null;
+        }
+        if (payload == null) {
+            ApiResponse.error(resp, "Invalid delivery failure payload", 400);
+            return;
+        }
+        Orders order = shipperService.getOrder(mutation.orderId());
+        int ownershipStatus = ownershipStatus(order, shipperId);
+        if (ownershipStatus != 200) {
+            ApiResponse.error(resp, ownershipStatus == 404 ? "Order not found" : "Forbidden", ownershipStatus);
+            return;
+        }
+        OrderTransitionService.MutationResult result = shipperService.fail(mutation.orderId(), shipperId,
+                (String) payload.get("expectedStatus"), (String) payload.get("reasonCode"), (String) payload.get("note"));
+        int status = statusFor(result);
+        if (status == 200) ApiResponse.ok(resp, null, "Delivery failure reported");
+        else ApiResponse.error(resp, status == 409 ? CONFLICT_MESSAGE : "Cannot report delivery failure", status);
     }
 
     @Override

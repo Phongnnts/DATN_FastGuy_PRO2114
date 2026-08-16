@@ -18,6 +18,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.DeliveryFailurePolicy;
 import service.OrderTransitionService;
 import service.StaffOrderService;
 import service.StaffShiftAccessService;
@@ -34,13 +35,102 @@ public class StaffOrderServlet extends HttpServlet {
     private StaffShiftAccessService staffShiftAccessService = new StaffShiftAccessService();
     private ObjectMapper mapper = new ObjectMapper();
 
+    record DeliveryMutationPath(int orderId, String action) {}
+
+    static DeliveryMutationPath parseDeliveryMutationPath(String path) {
+        if (path == null || !path.matches("/\\d+/(retry-delivery|start-scheduled-retry|return-to-store)")) return null;
+        String[] parts = path.split("/");
+        try {
+            return new DeliveryMutationPath(Integer.parseInt(parts[1]), parts[2]);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    static Map<String, Object> validateRetryPayload(Map<String, Object> body) {
+        if (body == null || !(body.get("expectedStatus") instanceof String expectedStatus)
+                || !(body.get("shipperId") instanceof Number shipperId) || !(body.get("retryMode") instanceof String retryMode)) return null;
+        int parsedShipperId;
+        try {
+            parsedShipperId = new java.math.BigDecimal(shipperId.toString()).intValueExact();
+        } catch (ArithmeticException | NumberFormatException e) {
+            return null;
+        }
+        expectedStatus = expectedStatus.trim();
+        retryMode = retryMode.trim();
+        if (parsedShipperId < 1 || !"DELIVERY_FAILED".equals(expectedStatus) || !("IMMEDIATE".equals(retryMode) || "SCHEDULED".equals(retryMode))) return null;
+        LocalDateTime scheduledAt = null;
+        if (body.get("scheduledAt") != null) {
+            if (!(body.get("scheduledAt") instanceof String rawScheduledAt)) return null;
+            try {
+                scheduledAt = LocalDateTime.parse(rawScheduledAt.trim());
+            } catch (DateTimeParseException e) {
+                return null;
+            }
+        }
+        if ("SCHEDULED".equals(retryMode) && scheduledAt == null) return null;
+        String note = body.get("note") instanceof String rawNote ? DeliveryFailurePolicy.normalizeNote(rawNote) : null;
+        if (note == null) return null;
+        Map<String, Object> result = new HashMap<>();
+        result.put("expectedStatus", expectedStatus);
+        result.put("shipperId", parsedShipperId);
+        result.put("retryMode", retryMode);
+        result.put("scheduledAt", scheduledAt);
+        result.put("note", note);
+        return result;
+    }
+
+    private static int statusFor(OrderTransitionService.MutationResult result) {
+        return switch (result) {
+            case SUCCESS -> 200;
+            case CONFLICT -> 409;
+            case UNPROCESSABLE -> 422;
+            case INVALID -> 400;
+        };
+    }
+
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int staffId = getStaffId(req, resp);
         if (staffId < 0 || !requireCheckedInShift(req, resp, staffId)) return;
         String path = req.getPathInfo();
-        if (path != null && path.contains("/notes")) {
+        DeliveryMutationPath mutation = parseDeliveryMutationPath(path);
+        if (mutation != null) {
+            Map<String, Object> body;
+            try {
+                body = mapper.readValue(req.getReader(), new TypeReference<Map<String, Object>>() {});
+            } catch (IOException | RuntimeException e) {
+                body = null;
+            }
+            if (staffOrderService.getOrderDetail(mutation.orderId()) == null) {
+                ApiResponse.error(resp, "Order not found", 404);
+                return;
+            }
+            OrderTransitionService.MutationResult result;
+            if ("retry-delivery".equals(mutation.action())) {
+                Map<String, Object> payload = validateRetryPayload(body);
+                if (payload == null) { ApiResponse.error(resp, "Invalid retry payload", 400); return; }
+                result = staffOrderService.retryDelivery(mutation.orderId(), staffId, (String) payload.get("expectedStatus"),
+                        (Integer) payload.get("shipperId"), (String) payload.get("retryMode"),
+                        (LocalDateTime) payload.get("scheduledAt"), (String) payload.get("note"));
+            } else {
+                Object rawExpectedStatus = body == null ? null : body.get("expectedStatus");
+                String expectedStatus = rawExpectedStatus instanceof String value ? value.trim() : null;
+                if (!"DELIVERY_FAILED".equals(expectedStatus)) { ApiResponse.error(resp, "Invalid expectedStatus", 400); return; }
+                if ("start-scheduled-retry".equals(mutation.action())) {
+                    result = staffOrderService.startScheduledRetry(mutation.orderId(), staffId, expectedStatus);
+                } else {
+                    Object rawNote = body.get("note");
+                    String note = rawNote instanceof String value ? DeliveryFailurePolicy.normalizeNote(value) : null;
+                    if (note == null) { ApiResponse.error(resp, "Invalid note", 400); return; }
+                    result = staffOrderService.returnToStore(mutation.orderId(), staffId, expectedStatus, note);
+                }
+            }
+            int status = statusFor(result);
+            if (status == 200) ApiResponse.ok(resp, null, "Delivery failure updated");
+            else ApiResponse.error(resp, status == 409 ? CONFLICT_MESSAGE : "Cannot update delivery failure", status);
+        } else if (path != null && path.contains("/notes")) {
             String orderIdStr = path.substring(1, path.indexOf("/notes"));
             try {
                 int orderId = Integer.parseInt(orderIdStr);
@@ -150,6 +240,8 @@ public class StaffOrderServlet extends HttpServlet {
                 List<Orders> orders = staffOrderService.getReadyOrders();
                 List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
+            } else if (path.equals("/delivery-failures")) {
+                ApiResponse.ok(resp, staffOrderService.getDeliveryFailureQueue().stream().map(o -> toFailureQueueItem(o, toListItem(o))).collect(Collectors.toList()));
             } else if (path.equals("/history")) {
                 HistoryFilter filter = getHistoryFilter(req);
                 List<Orders> orders = ordersDAO.findStaffHistory(filter.page(), filter.size(), filter.status(), filter.from(), filter.to(), filter.search());
@@ -338,6 +430,22 @@ public class StaffOrderServlet extends HttpServlet {
         }
     }
 
+    static Map<String, Object> toFailureQueueItem(Orders o) {
+        return toFailureQueueItem(o, new HashMap<>());
+    }
+
+    static Map<String, Object> toFailureQueueItem(Orders o, Map<String, Object> commonFields) {
+        Map<String, Object> m = new HashMap<>(commonFields);
+        m.put("deliveryAttemptCount", o.getDeliveryAttemptCount());
+        m.put("deliveryAttemptLimit", o.getDeliveryAttemptLimit());
+        m.put("deliveryFailureCode", o.getDeliveryFailureCode());
+        m.put("failureNote", o.getFailureReason());
+        m.put("deliveryFailedAt", o.getDeliveryFailedAt() != null ? o.getDeliveryFailedAt().toString() : null);
+        m.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
+        m.put("returnedToStoreAt", o.getReturnedToStoreAt() != null ? o.getReturnedToStoreAt().toString() : null);
+        return m;
+    }
+
     private Map<String, Object> toListItem(Orders o) {
         Map<String, Object> m = new HashMap<>();
         m.put("orderId", o.getOrderId());
@@ -404,7 +512,13 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("refundAmount", o.getRefundAmount());
         m.put("refundedAt", o.getRefundedAt() != null ? o.getRefundedAt().toString() : null);
         m.put("refundNote", o.getRefundNote());
-        m.put("failureReason", o.getFailureReason());
+        m.put("failureNote", o.getFailureReason());
+        m.put("deliveryFailureCode", o.getDeliveryFailureCode());
+        m.put("deliveryAttemptCount", o.getDeliveryAttemptCount());
+        m.put("deliveryAttemptLimit", o.getDeliveryAttemptLimit());
+        m.put("deliveryFailedAt", o.getDeliveryFailedAt() != null ? o.getDeliveryFailedAt().toString() : null);
+        m.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
+        m.put("returnedToStoreAt", o.getReturnedToStoreAt() != null ? o.getReturnedToStoreAt().toString() : null);
         m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);
         m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);

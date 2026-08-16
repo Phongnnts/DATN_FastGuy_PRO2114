@@ -29,6 +29,7 @@ const sidebarLinks = [
    { label: 'Sổ tồn kho', path: '/admin/inventory/ledger', icon: 'bi-journal-text' },
    { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
   { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
+  { label: 'Đối soát COD', path: '/admin/cod-settlements', icon: 'bi-cash-stack' },
   { label: 'Hoàn tiền', path: '/admin/refunds', icon: 'bi-arrow-return-left' },
   { label: 'Báo cáo', path: '/admin/reports', icon: 'bi-graph-up' },
    { label: 'Mã giảm giá', path: '/admin/coupons', icon: 'bi-ticket-perforated' },

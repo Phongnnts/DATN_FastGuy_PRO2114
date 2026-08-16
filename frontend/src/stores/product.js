@@ -1,17 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { productApi } from '@/api';
-
-const PLACEHOLDER_IMAGE =
-  'https://placehold.co/400x300/FFF0E8/D4764A?text=FastGuy';
-
-function ensureImage(url) {
-  return url && url.trim() ? url : PLACEHOLDER_IMAGE;
-}
-
-function parsePrice(v) {
-  return typeof v === 'string' ? parseFloat(v) : v;
-}
+import { mapProduct } from '@/utils/productMapper';
 
 export const useProductStore = defineStore('product', () => {
   const allProducts = ref([]);
@@ -55,46 +45,6 @@ export const useProductStore = defineStore('product', () => {
   const inStockProducts = computed(() =>
     allProducts.value.filter((p) => p.inStock),
   );
-
-  function mapVariant(v) {
-    return {
-      ...v,
-      price: parsePrice(v.price) || 0,
-      quantityAvailable: v.quantityAvailable === null || v.quantityAvailable === undefined ? null : Number(v.quantityAvailable),
-      status: v.status || 'UNAVAILABLE',
-    };
-  }
-
-  function mapProduct(p) {
-    const variants = Array.isArray(p.variants) ? p.variants.map(mapVariant) : [];
-    const defaultVariant = p.defaultVariant ? mapVariant(p.defaultVariant) : null;
-    return {
-      productId: p.productId,
-      name: p.name,
-      categoryId: p.categoryId,
-      categoryName: p.categoryName || '',
-      basePrice: parsePrice(p.basePrice),
-      price: parsePrice(p.price),
-      discountPrice: parsePrice(p.discountPrice) || null,
-      defaultVariant,
-      variants,
-      image: ensureImage(p.imageUrl),
-      description: p.description || '',
-      rating: p.rating || 0,
-      reviewCount: p.reviewCount || 0,
-      soldCount: Number(p.soldCount ?? p.totalSold) || 0,
-      bestSeller: Boolean(p.bestSeller ?? p.isBestSeller),
-      productType: p.productType || (p.combo ? 'COMBO' : 'SIMPLE'),
-       availableFrom: p.availableFrom || '',
-       availableTo: p.availableTo || '',
-       isAvailableNow: p.isAvailableNow !== undefined ? p.isAvailableNow : true,
-       inStock: p.inStock !== undefined ? p.inStock : variants.some(v => v.status === 'AVAILABLE' && (v.quantityAvailable === null || v.quantityAvailable > 0)),
-       featured: p.featured || false,
-       galleryImages: p.galleryImages || [],
-       modifierGroups: Array.isArray(p.modifierGroups) ? p.modifierGroups.map(group => ({ ...group, options: (group.options || []).map(option => ({ ...option, price: parsePrice(option.price) || 0 })) })) : [],
-       combo: p.combo ? { ...p.combo, items: p.combo.items || [] } : null,
-     };
-  }
 
   function mapCategory(c) {
     return {
