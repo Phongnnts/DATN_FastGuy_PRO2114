@@ -48,7 +48,7 @@ test('seven indexable routes carry robots description and canonical', () => {
 });
 
 test('breadcrumb meta covers account, admin detail, and staff operations pages', () => {
-  assert.equal((router.match(/breadcrumb:/g) || []).length, 22);
+  assert.equal((router.match(/breadcrumb:/g) || []).length, 23);
   const productEditor = router.slice(
     router.indexOf("name: 'AdminProductCreate'"),
     router.indexOf("name: 'AdminProducts'"),

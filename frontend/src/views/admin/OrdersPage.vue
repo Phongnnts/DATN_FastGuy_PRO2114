@@ -28,6 +28,8 @@ const statusFilters = [
   { key: 'ASSIGNED', label: 'Đã gán shipper' },
   { key: 'PICKED_UP', label: 'Đang giao' },
   { key: 'DELIVERED', label: 'Đã giao' },
+  { key: 'DELIVERY_FAILED', label: 'Giao chưa thành công' },
+  { key: 'RETURNED_TO_STORE', label: 'Đã trả về cửa hàng' },
   { key: 'CANCELLED', label: 'Đã hủy' },
 ];
 
@@ -35,7 +37,7 @@ const dateError = computed(() => filterFromDate.value && filterToDate.value && f
 const statusCount = (key) => key === 'REFUND_PENDING'
   ? adminStore.allOrders.filter((o) => o.status === 'CANCELLED' && o.refundStatus === 'PENDING').length
   : key ? adminStore.allOrders.filter((o) => o.status === key).length : adminStore.allOrders.length;
-const totalRevenue = computed(() => adminStore.allOrders.filter((o) => o.paymentStatus === 'PAID' && o.status !== 'CANCELLED').reduce((sum, o) => sum + Number(o.finalAmount || 0), 0));
+const totalRevenue = computed(() => adminStore.allOrders.filter((o) => o.paymentStatus === 'PAID' && o.status === 'DELIVERED').reduce((sum, o) => sum + Number(o.finalAmount || 0), 0));
 const todayCount = computed(() => {
   const today = new Date().toLocaleDateString('en-CA');
   return adminStore.allOrders.filter((o) => String(o.createdAt || '').slice(0, 10) === today).length;

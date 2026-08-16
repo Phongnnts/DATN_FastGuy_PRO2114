@@ -112,7 +112,7 @@ Tổng: 120 unit test (UT001–UT120).
 | UT105 | RefundService | Không đủ điều kiện | "Order is not eligible for refund" | Trả về lỗi | Pass | Manual (Demo Account) | Nguyễn Thành Phát | 30/07/2026 | order PENDING/UNPAID | PENDING | |
 | UT106 | RefundService | Amount âm | "Invalid refund amount" | Trả về lỗi | Pass | Automated (JUnit 5) | Nguyễn Thành Phát | 30/07/2026 | amount=-1000 | -1000 | |
 | UT107 | RefundService | Amount vượt total | "Invalid refund amount" | Trả về lỗi | Pass | Automated (JUnit 5) | Nguyễn Thành Phát | 30/07/2026 | amount>finalAmount | 500000/200000 | |
-| UT108 | RefundService | Refund hợp lệ | refundStatus=REFUNDED, reverseForRefund chạy | Refund thành công, reverse kích hoạt | Pass | Manual (Demo Account) | Nguyễn Thành Phát | 30/07/2026 | REFUNDED + amount ≤ finalAmount | 50000/100000 | |
+| UT108 | RefundService | Hoàn toàn bộ hợp lệ | refundStatus=REFUNDED, reverseForRefund chạy | Refund thành công, reverse kích hoạt | Pass | Automated (JUnit 5) | Nguyễn Thành Phát | 30/07/2026 | REFUNDED + amount = finalAmount | 100000/100000 | |
 | UT109 | Shipper/Staff/Guest | Nhân viên hợp lệ | true | Trả về true | Pass | Automated (JUnit 5) | Phạm Gia Bảo | 31/07/2026 | isValidStaffIdentity("STAFF","ACTIVE") | STAFF/ACTIVE | |
 | UT110 | Shipper/Staff/Guest | Shipper đọc đơn đã giao | true (không cần check-in) | Trả về true | Pass | Automated (JUnit 5) | Phạm Gia Bảo | 31/07/2026 | canReadOwnedOrder("DELIVERED", false) | DELIVERED | |
 | UT111 | Shipper/Staff/Guest | Pickup đúng shipper | true | Trả về true | Pass | Automated (JUnit 5) | Phạm Gia Bảo | 31/07/2026 | canPickUp("ASSIGNED", 3, 3) | ASSIGNED/3 | |

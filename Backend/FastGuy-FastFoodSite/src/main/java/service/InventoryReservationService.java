@@ -51,11 +51,12 @@ public class InventoryReservationService {
         List<InventoryReservation> reservations = findByOrder(em, order.getOrderId());
         if (reservations.isEmpty()) return false;
         for (InventoryReservation reservation : reservations) {
-            if ("RESERVED".equals(reservation.getStatus())) {
+            String transactionType = cancellationTransactionType(reservation.getStatus());
+            if ("RELEASE".equals(transactionType)) {
                 transitionReservation(em, order, reservation, "RELEASED");
-            } else if (canTransition(reservation.getStatus(), "WASTED")) {
+            } else if ("WASTE".equals(transactionType)) {
                 reservation.setStatus("WASTED");
-                record(em, order, reservation.getVariant(), "WASTE", reservation.getQuantity());
+                record(em, order, reservation.getVariant(), transactionType, reservation.getQuantity());
             }
         }
         return true;

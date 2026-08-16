@@ -262,6 +262,12 @@ CREATE TABLE dbo.Orders (
     delivered_at datetime2(0) NULL,
     cancelled_at datetime2(0) NULL,
     failure_reason nvarchar(500) NULL,
+    delivery_attempt_count int NOT NULL CONSTRAINT DF_Orders_DeliveryAttemptCount DEFAULT 0,
+    delivery_attempt_limit int NOT NULL CONSTRAINT DF_Orders_DeliveryAttemptLimit DEFAULT 2,
+    delivery_failure_code varchar(30) NULL,
+    delivery_failed_at datetime2(0) NULL,
+    retry_scheduled_at datetime2(0) NULL,
+    returned_to_store_at datetime2(0) NULL,
     cancelled_by varchar(20) NULL,
     refund_status varchar(20) NULL,
     refund_amount decimal(18,2) NULL,
@@ -279,7 +285,9 @@ CREATE TABLE dbo.Orders (
     CONSTRAINT CK_Orders_PaymentMethod CHECK (payment_method IN ('COD', 'BANK_TRANSFER')),
     CONSTRAINT CK_Orders_PaymentStatus CHECK (payment_status IN ('UNPAID', 'PAID', 'FAILED', 'REFUNDED')),
     CONSTRAINT CK_Orders_GuestReturnProofHash CHECK (guest_return_proof_hash IS NULL OR (LEN(guest_return_proof_hash)=64 AND guest_return_proof_hash NOT LIKE '%[^0-9a-f]%')),
-    CONSTRAINT CK_Orders_Status CHECK (order_status IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERED', 'CANCELLED')),
+    CONSTRAINT CK_Orders_Status CHECK (order_status IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERY_FAILED', 'RETURNED_TO_STORE', 'DELIVERED', 'CANCELLED')),
+    CONSTRAINT CK_Orders_DeliveryAttempts CHECK (delivery_attempt_count >= 0 AND delivery_attempt_limit > 0 AND delivery_attempt_count <= delivery_attempt_limit),
+    CONSTRAINT CK_Orders_DeliveryFailureCode CHECK (delivery_failure_code IS NULL OR delivery_failure_code IN ('CUSTOMER_UNREACHABLE', 'INVALID_ADDRESS', 'CUSTOMER_RESCHEDULED', 'CUSTOMER_REJECTED', 'SHIPPER_INCIDENT', 'PRODUCT_INCIDENT')),
     CONSTRAINT CK_Orders_CancelledBy CHECK (cancelled_by IS NULL OR cancelled_by IN ('CUSTOMER', 'USER', 'STAFF', 'ADMIN', 'SYSTEM')),
     CONSTRAINT CK_Orders_RefundStatus CHECK (refund_status IS NULL OR refund_status IN ('PENDING', 'REFUNDED', 'REJECTED')),
     CONSTRAINT CK_Orders_FinalAmount CHECK (final_amount = total_amount + shipping_fee + service_fee - discount_amount),
@@ -363,6 +371,36 @@ CREATE TABLE dbo.WorkShift (
     CONSTRAINT CK_WorkShift_Status CHECK (status IN ('SCHEDULED', 'CHECKED_IN', 'CHECKED_OUT', 'ABSENT', 'CANCELLED')),
     CONSTRAINT CK_WorkShift_CheckTimes CHECK (check_out_at IS NULL OR (check_in_at IS NOT NULL AND check_out_at >= check_in_at))
 );
+
+CREATE TABLE dbo.CodSettlement (
+    settlement_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_CodSettlement PRIMARY KEY,
+    shipper_id int NOT NULL,
+    shift_id int NOT NULL,
+    received_by int NULL,
+    status varchar(20) NOT NULL CONSTRAINT DF_CodSettlement_Status DEFAULT 'SUBMITTED',
+    expected_amount decimal(18,2) NOT NULL,
+    submitted_amount decimal(18,2) NOT NULL,
+    verified_amount decimal(18,2) NULL,
+    reason nvarchar(500) NULL,
+    submitted_at datetime2(0) NOT NULL CONSTRAINT DF_CodSettlement_SubmittedAt DEFAULT SYSUTCDATETIME(),
+    verified_at datetime2(0) NULL,
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_CodSettlement_CreatedAt DEFAULT SYSUTCDATETIME(),
+    updated_at datetime2(0) NOT NULL CONSTRAINT DF_CodSettlement_UpdatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_CodSettlement_Shipper FOREIGN KEY (shipper_id) REFERENCES dbo.Users(user_id),
+    CONSTRAINT FK_CodSettlement_Shift FOREIGN KEY (shift_id) REFERENCES dbo.WorkShift(shift_id),
+    CONSTRAINT FK_CodSettlement_ReceivedBy FOREIGN KEY (received_by) REFERENCES dbo.Users(user_id),
+    CONSTRAINT UQ_CodSettlement_ShipperShift UNIQUE (shipper_id, shift_id),
+    CONSTRAINT CK_CodSettlement_Status CHECK (status IN ('SUBMITTED','SETTLED','SHORT','OVER')),
+    CONSTRAINT CK_CodSettlement_Amounts CHECK (expected_amount >= 0 AND submitted_amount >= 0 AND (verified_amount IS NULL OR verified_amount >= 0)),
+    CONSTRAINT CK_CodSettlement_Verification CHECK (
+        (status = 'SUBMITTED' AND received_by IS NULL AND verified_amount IS NULL AND verified_at IS NULL)
+        OR (status = 'SETTLED' AND received_by IS NOT NULL AND verified_amount = submitted_amount AND verified_at IS NOT NULL)
+        OR (status = 'SHORT' AND received_by IS NOT NULL AND verified_amount < submitted_amount AND NULLIF(LTRIM(RTRIM(reason)), N'') IS NOT NULL AND verified_at IS NOT NULL)
+        OR (status = 'OVER' AND received_by IS NOT NULL AND verified_amount > submitted_amount AND NULLIF(LTRIM(RTRIM(reason)), N'') IS NOT NULL AND verified_at IS NOT NULL)
+    )
+);
+CREATE INDEX IX_CodSettlement_StatusSubmittedAt ON dbo.CodSettlement(status, submitted_at DESC);
+CREATE INDEX IX_CodSettlement_ShipperSubmittedAt ON dbo.CodSettlement(shipper_id, submitted_at DESC);
 
 -- Tạo bảng CouponRedemption
 CREATE TABLE dbo.CouponRedemption (
@@ -460,15 +498,15 @@ CREATE TABLE dbo.OrderStatusHistory (
     to_status varchar(30) NOT NULL,
     note nvarchar(500) NULL,
     created_at datetime2(0) NOT NULL CONSTRAINT DF_OrderStatusHistory_Created DEFAULT GETDATE(),
-    CONSTRAINT CK_OrderStatusHistory_From CHECK (from_status IS NULL OR from_status IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERED', 'CANCELLED')),
-    CONSTRAINT CK_OrderStatusHistory_To CHECK (to_status IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERED', 'CANCELLED')),
+    CONSTRAINT CK_OrderStatusHistory_From CHECK (from_status IS NULL OR from_status IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERY_FAILED', 'RETURNED_TO_STORE', 'DELIVERED', 'CANCELLED')),
+    CONSTRAINT CK_OrderStatusHistory_To CHECK (to_status IN ('PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERY_FAILED', 'RETURNED_TO_STORE', 'DELIVERED', 'CANCELLED')),
     CONSTRAINT CK_OrderStatusHistory_Role CHECK (actor_role IS NULL OR actor_role IN ('ADMIN', 'STAFF', 'SHIPPER', 'USER', 'GUEST', 'SYSTEM', 'PAYOS'))
 );
 GO
 
 -- Dữ liệu mẫu nhỏ gọn
 SET IDENTITY_INSERT dbo.ShippingConfig ON;
-INSERT INTO dbo.ShippingConfig(config_id,config_key,config_value) VALUES (1,'ghn_from_district_id','1442'),(2,'ghn_from_ward_code','20107'),(3,'service_fee','0');
+INSERT INTO dbo.ShippingConfig(config_id,config_key,config_value) VALUES (1,'ghn_from_district_id','1442'),(2,'ghn_from_ward_code','20107'),(3,'service_fee','0'),(4,'low_stock_threshold','5');
 SET IDENTITY_INSERT dbo.ShippingConfig OFF;
 
 SET IDENTITY_INSERT dbo.Category ON;

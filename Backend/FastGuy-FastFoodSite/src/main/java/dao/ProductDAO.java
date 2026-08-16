@@ -241,6 +241,25 @@ public class ProductDAO {
         }
     }
 
+    public long[] countStockRiskSkus(int threshold) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            Object[] counts = em.createQuery(
+                    "SELECT SUM(CASE WHEN v.quantityAvailable <= 0 THEN 1 ELSE 0 END), SUM(CASE WHEN v.quantityAvailable > 0 AND v.quantityAvailable <= :threshold THEN 1 ELSE 0 END) FROM ProductVariant v",
+                    Object[].class)
+                    .setParameter("threshold", threshold)
+                    .getSingleResult();
+            return stockRiskCounts(counts);
+        } finally {
+            em.close();
+        }
+    }
+
+    static long[] stockRiskCounts(Object[] counts) {
+        return new long[]{counts[0] instanceof Number out ? out.longValue() : 0L,
+                counts[1] instanceof Number low ? low.longValue() : 0L};
+    }
+
     public void save(Product product) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

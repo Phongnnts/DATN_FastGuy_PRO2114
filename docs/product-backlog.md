@@ -87,7 +87,7 @@ Cấu trúc theo template: `Bản sao của Nhóm 4_Danh sách công việc tron
 | US081 | Khách hàng | Tôi muốn đổi điểm thưởng lấy ưu đãi | Để dùng điểm | 3.0 | Vừa | Redemption giữ điểm, idempotent, trừ số dư | Mới | Cần API |
 | US082 | Khách hàng | Tôi muốn xem đánh giá của người khác trên sản phẩm | Để quyết định mua | 3.0 | Vừa | Public rating/review summary trên product detail | Mới | Cần API |
 | US083 | Nhân viên | Tôi muốn thấy cảnh báo đơn quá hạn theo SLA | Để ưu tiên bếp | 3.0 | Vừa | Đơn vượt ngưỡng thời gian hiển thị cảnh báo | Mới | Cần SLA |
-| US084 | Shipper | Tôi muốn báo cáo giao thất bại | Để xử lý ngoại lệ | 3.0 | Vừa | Lý do thất bại, trả đơn về cửa hàng, giao lại | Mới | Cần workflow |
+| US084 | Shipper | Tôi muốn báo cáo giao thất bại | Để xử lý ngoại lệ | 3.0 | Vừa | Lý do thất bại, trả đơn về cửa hàng, giao lại | Đang làm | Backend 212 test + frontend 262 test và build/package pass; migration runtime + smoke thủ công chờ môi trường |
 | US085 | Shipper | Tôi muốn xem đối soát tiền COD | Để khớp ca | 3.0 | Vừa | Số tiền thu, chưa nộp, lịch sử nộp | Mới | Cần API |
 | US086 | Khách hàng | Tôi muốn chat/trả lời ticket hỗ trợ | Để giải quyết nhanh | 3.0 | Vừa | Thread phản hồi trong ticket | Mới | Cần schema |
 | US087 | Quản trị viên | Tôi muốn thông báo riêng từng người trong cùng vai trò | Để không ai thấy trạng thái đọc của người khác | 3.0 | Cao | Per-recipient read state | Mới | Cần schema |

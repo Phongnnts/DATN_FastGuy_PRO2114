@@ -2,6 +2,7 @@ package service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import entity.Orders;
 import jakarta.persistence.EntityManager;
@@ -91,7 +92,7 @@ public class RefundService {
                            BigDecimal amount, BigDecimal finalAmount, String note, String reference) {
         if (!"REFUNDED".equals(status) && !"REJECTED".equals(status)) return "Invalid refund status";
         if (isTerminal(currentRefundStatus)) return "Refund already " + currentRefundStatus;
-        if (!"PAID".equals(paymentStatus) || !"CANCELLED".equals(orderStatus) || !"PENDING".equals(currentRefundStatus)) {
+        if (!"PAID".equals(paymentStatus) || !Set.of("CANCELLED", "RETURNED_TO_STORE").contains(orderStatus) || !"PENDING".equals(currentRefundStatus)) {
             return "Order is not eligible for refund";
         }
         if (reverseForStatus(status)) {

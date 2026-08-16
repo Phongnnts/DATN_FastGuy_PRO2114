@@ -6,35 +6,22 @@ const props = defineProps({
   history: { type: Array, default: () => [] },
 });
 
-const statusOrder = [
-  ORDER_STATUS.PENDING,
-  ORDER_STATUS.CONFIRMED,
-  ORDER_STATUS.PREPARING,
-  ORDER_STATUS.READY,
-  ORDER_STATUS.ASSIGNED,
-  ORDER_STATUS.PICKED_UP,
-  ORDER_STATUS.DELIVERED,
-];
-
-function getStatusClass(entry) {
+function getStatusClass(entry, index) {
   if (entry.status === ORDER_STATUS.CANCELLED) return 'cancelled';
-  const statusIndex = statusOrder.indexOf(entry.status);
-  const latest = [...props.history].reverse().find((item) => item.status !== ORDER_STATUS.CANCELLED);
-  const currentMax = statusOrder.indexOf(latest?.status);
-  if (statusIndex < currentMax) return 'completed';
-  if (statusIndex === currentMax) return 'active';
-  return '';
+  if (entry.status === ORDER_STATUS.RETURNED_TO_STORE) return 'returned';
+  if (entry.status === ORDER_STATUS.DELIVERY_FAILED) return index === props.history.length - 1 ? 'active' : 'completed';
+  return index === props.history.length - 1 ? 'active' : 'completed';
 }
 </script>
 
 <template>
-  <ol class="route-timeline" aria-label="Tiến trình đơn hàng">
+  <ol class="route-timeline" aria-label="Tiến trình đơn hàng" aria-live="polite">
     <li
       v-for="(entry, index) in history"
       :key="`${entry.status}-${entry.time || index}`"
       class="route-step"
-      :class="getStatusClass(entry)"
-      :aria-current="getStatusClass(entry) === 'active' ? 'step' : undefined"
+      :class="getStatusClass(entry, index)"
+      :aria-current="getStatusClass(entry, index) === 'active' ? 'step' : undefined"
     >
       <div class="route-dot"><i class="bi bi-geo-alt-fill"></i></div>
       <div class="route-content">
@@ -96,6 +83,7 @@ function getStatusClass(entry) {
   color: #fff;
   box-shadow: 0 6px 16px rgba(255,107,53,0.28);
 }
+.route-step.returned .route-dot,
 .route-step.cancelled .route-dot {
   background: var(--red-active);
   border-color: transparent;

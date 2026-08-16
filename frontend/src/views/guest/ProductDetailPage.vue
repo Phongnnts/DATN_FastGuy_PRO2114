@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useProductStore } from '@/stores/product';
 import { useCartStore } from '@/stores/cart';
@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useFavoriteStore } from '@/stores/favorite';
 import { formatPrice } from '@/utils/format';
 import { useToast } from '@/stores/toast';
+import { storeApi } from '@/api';
+import { createStoreConfigController } from '@/utils/deliveryClaims';
 
 const toast = useToast();
 const route = useRoute();
@@ -22,6 +24,11 @@ const loading = ref(true);
 const selectedModifiers = ref([]);
 const loadError = ref('');
 const modifierErrors = ref({});
+const estimatedDeliveryMinutes = ref(null);
+const storeConfigController = createStoreConfigController({
+  requestConfig: () => storeApi.getConfig(),
+  applyEstimate: (value) => { estimatedDeliveryMinutes.value = value; },
+});
 
 const product = computed(() => productStore.currentProduct);
 const selectedStock = computed(() => selectedVariant.value?.quantityAvailable == null ? null : Number(selectedVariant.value.quantityAvailable));
@@ -41,6 +48,7 @@ async function loadProduct(id) {
   selectedModifiers.value = [];
   activeImageIndex.value = 0;
   quantity.value = 1;
+  storeConfigController.load();
   try {
     if (!productStore.fetched) await productStore.init();
     await productStore.fetchById(id);
@@ -57,6 +65,7 @@ async function loadProduct(id) {
 }
 
 watch(() => route.params.id, loadProduct, { immediate: true });
+onUnmounted(storeConfigController.stop);
 
 function selectVariant(variant) {
   const stock = variant.quantityAvailable == null ? null : Number(variant.quantityAvailable);
@@ -207,8 +216,14 @@ async function placeInCart(destination) {
           <button class="buy-now-btn" :disabled="!selectedAvailable" @click="placeInCart('/checkout')">Mua ngay <i class="bi bi-arrow-right"></i></button>
 
           <div class="benefit-grid">
-            <div><i class="bi bi-clock-history"></i><span><strong>Giao 30 phút</strong><small>Nhanh và nóng hổi</small></span></div>
-            <div><i class="bi bi-truck"></i><span><strong>Miễn phí ship</strong><small>Cho đơn từ 50k</small></span></div>
+            <div v-if="estimatedDeliveryMinutes">
+              <i class="bi bi-clock-history" aria-hidden="true"></i>
+              <span><strong>Dự kiến {{ estimatedDeliveryMinutes }} phút</strong><small>Thời gian thực tế xác nhận khi tính giao hàng</small></span>
+            </div>
+            <div>
+              <i class="bi bi-truck" aria-hidden="true"></i>
+              <span><strong>Phí giao hàng theo địa chỉ</strong><small>Hiển thị chính xác tại bước thanh toán</small></span>
+            </div>
           </div>
         </section>
       </div>

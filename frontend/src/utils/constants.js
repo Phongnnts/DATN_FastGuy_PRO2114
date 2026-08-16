@@ -14,6 +14,8 @@ export const ORDER_STATUS = {
   ASSIGNED: 'ASSIGNED',
   PICKED_UP: 'PICKED_UP',
   DELIVERED: 'DELIVERED',
+  DELIVERY_FAILED: 'DELIVERY_FAILED',
+  RETURNED_TO_STORE: 'RETURNED_TO_STORE',
   CANCELLED: 'CANCELLED',
 };
 
@@ -25,6 +27,8 @@ export const ORDER_STATUS_LABEL = {
   ASSIGNED: 'Đã gán shipper',
   PICKED_UP: 'Đang giao',
   DELIVERED: 'Đã giao',
+  DELIVERY_FAILED: 'Giao thất bại',
+  RETURNED_TO_STORE: 'Đã trả về cửa hàng',
   CANCELLED: 'Đã hủy',
 };
 
@@ -36,7 +40,18 @@ export const ORDER_STATUS_BADGE = {
   ASSIGNED: 'primary',
   PICKED_UP: 'info',
   DELIVERED: 'success',
+  DELIVERY_FAILED: 'danger',
+  RETURNED_TO_STORE: 'warning',
   CANCELLED: 'danger',
+};
+
+export const DELIVERY_FAILURE_REASON_LABEL = {
+  CUSTOMER_UNREACHABLE: 'Không liên hệ được khách hàng',
+  INVALID_ADDRESS: 'Địa chỉ không hợp lệ',
+  CUSTOMER_RESCHEDULED: 'Khách hẹn giao lại',
+  CUSTOMER_REJECTED: 'Khách từ chối nhận hàng',
+  SHIPPER_INCIDENT: 'Shipper gặp sự cố',
+  PRODUCT_INCIDENT: 'Sản phẩm gặp sự cố',
 };
 
 export const SHIFT_STATUS = {

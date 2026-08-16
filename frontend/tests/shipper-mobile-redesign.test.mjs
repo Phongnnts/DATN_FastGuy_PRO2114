@@ -43,9 +43,15 @@ test('shipper action sheet confirms mutations and locks background scroll', () =
   assert.match(sheet, /env\(safe-area-inset-bottom\)/);
 });
 
-test('shipper shifts and COD render mobile cards and actionable orders', () => {
+test('shipper shifts and COD render mobile cards and accessible settlement form', () => {
   assert.match(shifts, /class="shift-card/);
   assert.match(shifts, /@media\(min-width:600px\)/);
-  assert.match(cash, /router-link[^>]*shipper\/orders/);
-  assert.match(cash, /@media\(max-width:360px\)/);
+  assert.match(cash, /class="money-card/);
+  assert.match(cash, /class="history-card/);
+  assert.match(cash, /<main class="cash-page">/);
+  assert.match(cash, /<label for="submitted-amount">/);
+  assert.match(cash, /:aria-describedby="formError \? 'submitted-warning submitted-error' : 'submitted-warning'"/);
+  assert.match(cash, /role="status"/);
+  assert.match(cash, /min-height:\s*44px/);
+  assert.match(cash, /@media\(min-width:700px\)/);
 });

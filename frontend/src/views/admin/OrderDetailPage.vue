@@ -18,6 +18,8 @@ const showCancelModal = ref(false);
 const cancelReason = ref('');
 const showNoteModal = ref(false);
 const noteText = ref('');
+const overrideNote = ref('');
+const overrideError = ref('');
 
 const canCancel = computed(() => order.value && !['CANCELLED', 'DELIVERED'].includes(order.value.status));
 const canPrint = computed(() => true);
@@ -45,6 +47,20 @@ async function cancelOrder() {
     await load();
   } catch (e) { toast.error(e.message); }
   finally { saving.value = false; }
+}
+
+async function overrideDeliveryAttempt() {
+  if (!overrideNote.value.trim() || saving.value) return;
+  saving.value = true;
+  overrideError.value = '';
+  try {
+    await adminApi.overrideDeliveryAttempt(order.value.orderId, order.value.status, overrideNote.value.trim());
+    overrideNote.value = '';
+    await load();
+  } catch (e) {
+    overrideError.value = e.message || 'Không thể mở thêm lượt giao';
+    if (e.status === 409) await load();
+  } finally { saving.value = false; }
 }
 
 async function saveNote() {
@@ -102,6 +118,7 @@ onMounted(load);
           <div v-if="order.failureReason" class="info-row"><span>Lý do</span><strong style="color:var(--red-active)">{{ order.failureReason }}</strong></div>
           <div v-if="order.refundStatus" class="info-row"><span>Hoàn tiền</span><strong>{{ order.refundStatus }}{{ order.refundNote ? ` · ${order.refundNote}` : '' }}</strong></div>
         </template>
+        <template v-if="['DELIVERY_FAILED', 'RETURNED_TO_STORE'].includes(order.status)"><hr style="margin:12px 0;border:none;border-top:1px solid var(--border)"><div class="info-row"><span>Mã lỗi giao</span><strong>{{ order.deliveryFailureCode || 'Không có' }}</strong></div><div class="info-row"><span>Ghi chú thất bại</span><strong>{{ order.failureNote || 'Không có' }}</strong></div><div class="info-row"><span>Số lần giao</span><strong>{{ order.deliveryAttemptCount }} / {{ order.deliveryAttemptLimit }}</strong></div><div v-if="order.retryScheduledAt" class="info-row"><span>Lịch giao lại</span><strong>{{ formatDate(order.retryScheduledAt) }}</strong></div></template>
       </section>
       <section class="card">
         <h3>Thanh toán</h3>
@@ -120,6 +137,11 @@ onMounted(load);
         </template>
       </section>
     </div>
+
+    <section v-if="order.status === 'DELIVERY_FAILED'" class="card" style="margin-top:16px">
+      <h3>Mở thêm lượt giao</h3>
+      <form @submit.prevent="overrideDeliveryAttempt"><label class="form-label" for="override-note">Lý do quản trị *</label><textarea id="override-note" v-model="overrideNote" class="form-textarea" maxlength="500" required :aria-invalid="Boolean(overrideError)" aria-describedby="override-error"></textarea><p id="override-error" class="field-error" aria-live="polite">{{ overrideError }}</p><button class="btn btn-primary" type="submit" :disabled="saving || !overrideNote.trim()">Mở thêm lượt giao</button></form>
+    </section>
 
     <section class="card" style="margin-top:16px">
       <h3>Sản phẩm</h3>

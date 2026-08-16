@@ -63,6 +63,7 @@ class ShipperIdentityPolicyTest {
     void parsesOnlyExactMutationPaths() {
         assertEquals("pickup", ShipperServlet.parseMutationPath("/orders/12/pickup").action());
         assertEquals(12, ShipperServlet.parseMutationPath("/orders/12/deliver").orderId());
+        assertEquals("fail", ShipperServlet.parseMutationPath("/orders/12/fail").action());
         assertNull(ShipperServlet.parseMutationPath("/orders/12"));
         assertNull(ShipperServlet.parseMutationPath("/orders/12/pickup/extra"));
         assertNull(ShipperServlet.parseMutationPath("/orders/12/cancel"));

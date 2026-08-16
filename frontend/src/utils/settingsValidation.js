@@ -49,11 +49,21 @@ export function validateDelivery(minutes) {
   return errors;
 }
 
+export function validateInventory(threshold) {
+  const errors = {};
+  const value = Number(threshold);
+  if (threshold === '' || threshold === null || threshold === undefined || !Number.isInteger(value) || value < 1 || value > 1000) {
+    errors.low_stock_threshold = 'Ngưỡng sắp hết phải là số nguyên từ 1 đến 1000';
+  }
+  return errors;
+}
+
 export const SCOPE_KEYS = {
   store: ['store_name', 'store_phone', 'store_address', 'store_logo'],
   hours: ['business_open_time', 'business_close_time'],
   fees: ['service_fee', 'tax_rate', 'delivery_fee', 'min_order_amount'],
   delivery: ['estimated_delivery_minutes'],
+  inventory: ['low_stock_threshold'],
 };
 
 export function buildSettingsPayload(scopeKey, form = {}) {
@@ -79,6 +89,11 @@ export function buildSettingsPayload(scopeKey, form = {}) {
       };
     case 'delivery':
       return { payload: { estimated_delivery_minutes: Number(form.estimated_delivery_minutes) }, errors: validateDelivery(form.estimated_delivery_minutes) };
+    case 'inventory':
+      return {
+        payload: { low_stock_threshold: Number(form.low_stock_threshold) },
+        errors: validateInventory(form.low_stock_threshold),
+      };
     default:
       return { payload: {}, errors: {} };
   }

@@ -57,8 +57,14 @@ export const useStaffStore = defineStore('staff', () => {
        refundNote: o.refundNote || '',
        shipperId: o.shipperId || null,
        shipperName: o.shipperName || '',
-       assignedAt: o.assignedAt || null,
-       statusHistory: o.statusHistory || [
+        assignedAt: o.assignedAt || null,
+        deliveryFailureCode: o.deliveryFailureCode || '',
+        failureNote: o.failureNote || '',
+        deliveryFailedAt: o.deliveryFailedAt || null,
+        deliveryAttemptCount: Number(o.deliveryAttemptCount || 0),
+        deliveryAttemptLimit: Number(o.deliveryAttemptLimit || 0),
+        retryScheduledAt: o.retryScheduledAt || null,
+        statusHistory: o.statusHistory || [
         { status: o.status || o.orderStatus, time: o.createdAt, note: '' },
       ],
       allowedActions: Array.isArray(o.allowedActions) ? o.allowedActions : [],
@@ -87,8 +93,14 @@ export const useStaffStore = defineStore('staff', () => {
        paymentStatus: o.paymentStatus || 'UNPAID',
        shipperId: o.shipperId || null,
        shipperName: o.shipperName || '',
-       updatedAt: o.updatedAt || null,
-     };
+        updatedAt: o.updatedAt || null,
+        deliveryFailureCode: o.deliveryFailureCode || '',
+        failureNote: o.failureNote || '',
+        deliveryFailedAt: o.deliveryFailedAt || null,
+        deliveryAttemptCount: Number(o.deliveryAttemptCount || 0),
+        deliveryAttemptLimit: Number(o.deliveryAttemptLimit || 0),
+        retryScheduledAt: o.retryScheduledAt || null,
+      };
   }
 
   async function fetchDashboard() {
@@ -111,7 +123,8 @@ export const useStaffStore = defineStore('staff', () => {
       PENDING: staffApi.getOrders,
       CONFIRMED: staffApi.getConfirmedOrders,
       PREPARING: staffApi.getPreparingOrders,
-      READY: staffApi.getReadyOrders,
+       READY: staffApi.getReadyOrders,
+       DELIVERY_FAILED: staffApi.getDeliveryFailedOrders,
     };
     const data = await requests[tab]();
     return Array.isArray(data) ? data.map(mapOrderListItem) : [];

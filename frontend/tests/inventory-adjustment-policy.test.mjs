@@ -26,8 +26,9 @@ test('admin API exposes inventory adjustment and waste mutations', () => {
 
 test('inventory page offers adjustment and waste actions for managed stock only', () => {
   assert.match(inventory, /openAdjust\(row, \$event\)/);
-  assert.match(inventory, /openWaste\(row\)/);
-  assert.match(inventory, /v-if="row\.stock !== null"/);
+  assert.match(inventory, /openWaste\(row, \$event\)/);
+  assert.match(inventory, /v-if="inventoryRowCanMutate\(row, lowStockThreshold\)"/);
+  assert.match(inventory, /Lỗi dữ liệu tồn kho/);
   assert.match(inventory, /submitAdjust/);
   assert.match(inventory, /submitWaste/);
   assert.match(inventory, /adminApi\.adjustInventory\(row\.variantId/);
@@ -110,6 +111,9 @@ test('component wires tested helpers to DOM focus and live feedback', () => {
   assert.match(inventory, /event\.key === 'Escape'/);
   assert.match(inventory, /adjustmentTrigger = event\.currentTarget/);
   assert.match(inventory, /restoreTarget\?\.focus\(\)/);
+  assert.match(inventory, /ref="wasteModal"/);
+  assert.match(inventory, /@keydown="handleModalKey"/);
+  assert.match(inventory, /wasteModal\.value\.querySelector\('input'\)\.focus\(\)/);
   assert.match(inventory, /aria-live="polite"/);
   assert.match(inventory, /role="alert"/);
 });

@@ -73,4 +73,20 @@ public class StaffOrderService {
     public boolean updateStatus(int orderId, String status, int staffId) {
         return transitionService.transition(orderId, status, "STAFF", staffId, null, null, null);
     }
+
+    public List<Orders> getDeliveryFailureQueue() {
+        return ordersDAO.findDeliveryFailureQueue();
+    }
+
+    public OrderTransitionService.MutationResult retryDelivery(int orderId, int staffId, String expectedStatus, int shipperId, String retryMode, LocalDateTime scheduledAt, String note) {
+        return transitionService.retryDelivery(orderId, staffId, expectedStatus, shipperId, retryMode, scheduledAt, note);
+    }
+
+    public OrderTransitionService.MutationResult startScheduledRetry(int orderId, int staffId, String expectedStatus) {
+        return transitionService.startScheduledRetry(orderId, staffId, expectedStatus);
+    }
+
+    public OrderTransitionService.MutationResult returnToStore(int orderId, int staffId, String expectedStatus, String note) {
+        return transitionService.returnToStore(orderId, staffId, expectedStatus, note);
+    }
 }

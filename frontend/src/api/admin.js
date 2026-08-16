@@ -136,6 +136,9 @@ export default {
   addOrderNote(orderId, note) {
     return client.post(`/admin/orders/${orderId}/notes`, { note });
   },
+  overrideDeliveryAttempt(id, expectedStatus, note) {
+    return client.post(`/admin/orders/${id}/delivery-attempt-override`, { expectedStatus, note });
+  },
   getUserOrders(userId) {
     return client.get(`/admin/users/${userId}/orders`);
   },

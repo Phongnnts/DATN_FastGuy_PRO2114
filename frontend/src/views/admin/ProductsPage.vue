@@ -5,6 +5,8 @@ import { useAdminStore } from '@/stores/admin';
 import { useToast } from '@/stores/toast';
 import { formatPrice } from '@/utils/format';
 import { catalogCounts, filterProducts, paginateProducts, productTypes } from '@/utils/adminProductCatalog';
+import { productStockSummary } from '@/utils/stockPolicy';
+import { createStockPageLoader, productMatchesStockFilter } from '@/utils/adminStockOperations';
 
 const router = useRouter();
 const adminStore = useAdminStore();
@@ -19,6 +21,18 @@ const page = ref(1);
 const pageSize = 10;
 const loading = ref(true);
 const loadError = ref('');
+const dashboardError = ref('');
+const threshold = ref(null);
+const loader = createStockPageLoader({
+  get loading() { return loading.value; },
+  set loading(value) { loading.value = value; },
+  get error() { return loadError.value; },
+  set error(value) { loadError.value = value; },
+  get threshold() { return threshold.value; },
+  set threshold(value) { threshold.value = value; },
+  get dashboardError() { return dashboardError.value; },
+  set dashboardError(value) { dashboardError.value = value; },
+});
 const productToHide = ref(null);
 const hiding = ref(false);
 const hideDialog = ref(null);
@@ -27,15 +41,11 @@ let previousFocus = null;
 let previousBodyOverflow = '';
 
 async function loadCatalog() {
-  loading.value = true;
-  loadError.value = '';
-  try {
-    await Promise.all([adminStore.fetchProducts(), adminStore.fetchCategories()]);
-  } catch (error) {
-    loadError.value = error.message || 'Không thể tải danh sách sản phẩm';
-  } finally {
-    loading.value = false;
-  }
+  await loader.load({
+    required: [() => adminStore.fetchProducts(), () => adminStore.fetchCategories()],
+    dashboard: () => adminStore.fetchDashboard(),
+    errorMessage: 'Không thể tải danh sách sản phẩm',
+  });
 }
 
 onMounted(loadCatalog);
@@ -85,6 +95,7 @@ function handleDialogKeydown(event) {
 }
 
 onBeforeUnmount(() => {
+  loader.stop();
   document.body.style.overflow = previousBodyOverflow;
 });
 
@@ -107,10 +118,22 @@ function categoryName(product) {
   return product.categoryName || adminStore.allCategories.find((category) => category.id === product.categoryId)?.name || '-';
 }
 
+const lowStockThreshold = computed(() => threshold.value);
+
+function stockSummary(product) {
+  return productStockSummary(product, lowStockThreshold.value);
+}
+
 function stockOf(product) {
-  const variants = product.variants || [];
-  if (!variants.length || variants.some((variant) => variant.quantityAvailable == null)) return null;
-  return variants.reduce((sum, variant) => sum + (Number(variant.quantityAvailable) || 0), 0);
+  return stockSummary(product).total;
+}
+
+function stockStatusLabel(product) {
+  const status = stockSummary(product).status;
+  if (status === 'UNAVAILABLE') return 'Ngừng bán';
+  if (status === 'UNKNOWN') return 'Không xác định';
+  if (status === 'OUT') return 'Hết hàng';
+  return 'Còn hàng';
 }
 
 const counts = computed(() => catalogCounts(adminStore.allProducts));
@@ -122,10 +145,7 @@ const filtered = computed(() => {
     categoryId: categoryFilter.value,
     productType: productTypeFilter.value,
     status: statusFilter.value,
-  }).filter((product) => {
-    const stock = stockOf(product);
-    return !stockFilter.value || (stockFilter.value === 'unlimited' ? stock === null : stockFilter.value === 'out' ? product.inStock === false : stockFilter.value === 'low' ? stock !== null && stock > 0 && stock <= 10 : product.inStock !== false && (stock === null || stock > 10));
-  });
+  }).filter((product) => productMatchesStockFilter(product, stockFilter.value, lowStockThreshold.value));
   return products.sort((first, second) => {
     if (sortBy.value === 'price-asc') return first.basePrice - second.basePrice;
     if (sortBy.value === 'price-desc') return second.basePrice - first.basePrice;
@@ -163,6 +183,7 @@ function resetFilters() {
       <div><span class="eyebrow">FASTGUY CATALOG</span><h1>Quản lý sản phẩm</h1><p>Kiểm soát thực đơn, giá bán, biến thể và tồn kho trong một không gian.</p></div>
       <button class="add-product" type="button" @click="openAdd"><i class="bi bi-plus-lg"></i> Thêm sản phẩm</button>
     </header>
+    <div v-if="dashboardError" class="state state-warning" role="status">Đang dùng ngưỡng tồn kho đã lưu gần nhất ({{ lowStockThreshold }}). Không thể xác nhận dữ liệu dashboard mới: {{ dashboardError }}</div>
     <div class="stats-grid" aria-label="Thống kê sản phẩm">
       <article class="stat stat-total"><span class="stat-icon"><i class="bi bi-box-seam"></i></span><div><span>Tổng sản phẩm</span><strong>{{ counts.total }}</strong></div></article>
       <article class="stat stat-green"><span class="stat-icon"><i class="bi bi-check2-circle"></i></span><div><span>Đang bán</span><strong>{{ counts.available }}</strong></div></article>
@@ -176,7 +197,7 @@ function resetFilters() {
         <select v-model="categoryFilter" class="form-select" aria-label="Lọc danh mục"><option value="">Mọi danh mục</option><option v-for="category in adminStore.allCategories" :key="category.id" :value="String(category.id)">{{ category.name }}</option></select>
         <select v-model="productTypeFilter" class="form-select" aria-label="Lọc loại sản phẩm"><option value="">Mọi loại</option><option v-for="type in availableProductTypes" :key="type" :value="type">{{ type }}</option></select>
         <select v-model="statusFilter" class="form-select" aria-label="Lọc trạng thái"><option value="">Mọi trạng thái</option><option value="AVAILABLE">Đang bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
-        <select v-model="stockFilter" class="form-select" aria-label="Lọc tồn kho"><option value="">Mọi tồn kho</option><option value="in">Còn hàng trên 10</option><option value="low">Sắp hết (1–10)</option><option value="out">Hết hàng</option><option value="unlimited">Không giới hạn</option></select>
+        <select v-model="stockFilter" class="form-select" aria-label="Lọc tồn kho"><option value="">Mọi tồn kho</option><option value="in">Còn hàng trên {{ lowStockThreshold }}</option><option value="low">Có SKU sắp hết (1–{{ lowStockThreshold }})</option><option value="out">Có SKU hết hàng</option><option value="unlimited">Không giới hạn</option><option value="unknown">Không xác định</option></select>
         <select v-model="sortBy" class="form-select" aria-label="Sắp xếp"><option value="name-asc">Tên A–Z</option><option value="name-desc">Tên Z–A</option><option value="price-asc">Giá tăng dần</option><option value="price-desc">Giá giảm dần</option><option value="stock-asc">Tồn kho tăng dần</option><option value="stock-desc">Tồn kho giảm dần</option></select>
         <button class="reset-button" type="button" @click="resetFilters"><i class="bi bi-arrow-counterclockwise"></i> Đặt lại</button>
       </div>
@@ -193,8 +214,8 @@ function resetFilters() {
               <td>{{ categoryName(product) }}</td>
               <td>{{ formatPrice(product.basePrice) }}</td>
               <td><span v-if="product.variants?.length" class="badge badge-info">{{ product.variants.length }} biến thể</span><span v-else class="text-muted">0</span></td>
-              <td><strong>{{ stockOf(product) === null ? 'Không giới hạn' : stockOf(product) }}</strong></td>
-              <td><span :class="'badge badge-' + (product.status === 'AVAILABLE' ? 'success' : 'danger')">{{ product.status === 'AVAILABLE' ? 'Còn hàng' : 'Hết hàng' }}</span></td>
+              <td><strong>{{ stockSummary(product).unknownSkus > 0 ? 'Không xác định' : stockOf(product) === null ? 'Không giới hạn' : stockOf(product) }}</strong></td>
+              <td><span :class="'badge badge-' + (stockSummary(product).status === 'AVAILABLE' ? 'success' : stockSummary(product).status === 'UNKNOWN' ? 'secondary' : 'danger')">{{ stockStatusLabel(product) }}</span></td>
               <td><span v-if="product.galleryImages?.length" class="badge badge-info">{{ product.galleryImages.length }} ảnh</span><span v-else class="text-muted">0</span></td>
               <td><div class="row-actions"><button class="icon-action" type="button" aria-label="Sửa sản phẩm" @click="openEdit(product)"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" aria-label="Ẩn sản phẩm" @click="requestHide(product, $event)"><i class="bi bi-eye-slash"></i></button></div></td>
             </tr>
@@ -204,7 +225,7 @@ function resetFilters() {
       <div v-if="!loading && !loadError && filtered.length" class="mobile-catalog">
         <article v-for="product in paginated" :key="product.id" class="product-mobile-card">
           <img class="product-thumb" :src="product.image" :alt="product.name" loading="lazy" />
-          <div class="mobile-product-main"><strong>{{ product.name }}</strong><small>#{{ product.id }} · {{ product.productType }} · {{ categoryName(product) }}</small><span>{{ formatPrice(product.basePrice) }} · {{ product.inStock === false ? 'Hết hàng' : 'Còn hàng' }}</span></div>
+          <div class="mobile-product-main"><strong>{{ product.name }}</strong><small>#{{ product.id }} · {{ product.productType }} · {{ categoryName(product) }}</small><span>{{ formatPrice(product.basePrice) }} · {{ stockStatusLabel(product) }}</span></div>
           <div class="row-actions"><button class="icon-action" type="button" :aria-label="`Sửa ${product.name}`" @click="openEdit(product)"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" :aria-label="`Ẩn ${product.name}`" @click="requestHide(product, $event)"><i class="bi bi-eye-slash"></i></button></div>
         </article>
       </div>

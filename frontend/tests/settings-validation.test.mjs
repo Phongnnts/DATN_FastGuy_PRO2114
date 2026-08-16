@@ -5,6 +5,7 @@ import {
   validateHours,
   validateFees,
   validateDelivery,
+  validateInventory,
   buildSettingsPayload,
   SCOPE_KEYS,
 } from '../src/utils/settingsValidation.js';
@@ -77,6 +78,27 @@ test('validateDelivery rejects out-of-range, non-integer and empty values', () =
   assert.deepEqual(validateDelivery('abc'), { delivery: msg });
 });
 
+test('validateInventory accepts integer low-stock threshold from 1 through 1000', () => {
+  assert.deepEqual(validateInventory(1), {});
+  assert.deepEqual(validateInventory(5), {});
+  assert.deepEqual(validateInventory('1000'), {});
+});
+
+test('validateInventory rejects empty, fractional and out-of-range thresholds', () => {
+  const message = 'Ngưỡng sắp hết phải là số nguyên từ 1 đến 1000';
+  for (const value of ['', null, 0, 1001, 1.5, 'abc']) {
+    assert.deepEqual(validateInventory(value), { low_stock_threshold: message });
+  }
+});
+
+test('buildSettingsPayload sends only persisted inventory threshold', () => {
+  assert.deepEqual(buildSettingsPayload('inventory', { low_stock_threshold: '7', delivery_fee: 15000 }), {
+    payload: { low_stock_threshold: 7 },
+    errors: {},
+  });
+  assert.deepEqual(SCOPE_KEYS.inventory, ['low_stock_threshold']);
+});
+
 test('buildSettingsPayload store group trims values and validates name/logo', () => {
   const result = buildSettingsPayload('store', { store_name: '  FastGuy  ', store_phone: '0901234567', store_address: '  Địa chỉ  ', store_logo: '  https://example.com/l.png  ' });
   assert.deepEqual(result.errors, {});
@@ -107,7 +129,7 @@ test('buildSettingsPayload returns empty payload for read-only and unknown group
 });
 
 test('SCOPE_KEYS cover exactly the editable settings groups', () => {
-  assert.deepEqual(Object.keys(SCOPE_KEYS).sort(), ['delivery', 'fees', 'hours', 'store']);
+  assert.deepEqual(Object.keys(SCOPE_KEYS).sort(), ['delivery', 'fees', 'hours', 'inventory', 'store']);
   assert.deepEqual(SCOPE_KEYS.store, ['store_name', 'store_phone', 'store_address', 'store_logo']);
   assert.deepEqual(SCOPE_KEYS.hours, ['business_open_time', 'business_close_time']);
   assert.deepEqual(SCOPE_KEYS.fees, ['service_fee', 'tax_rate', 'delivery_fee', 'min_order_amount']);

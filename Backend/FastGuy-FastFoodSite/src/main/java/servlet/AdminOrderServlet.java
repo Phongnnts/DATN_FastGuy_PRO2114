@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import service.NotificationService;
 import service.OrderService;
 import service.OrderStatusHistoryService;
+import service.DeliveryFailurePolicy;
 import service.OrderTransitionService;
 import utils.ApiResponse;
 import utils.JsonUtil;
@@ -52,7 +53,13 @@ public class AdminOrderServlet extends HttpServlet {
             m.put("finalAmount", o.getFinalAmount());
             m.put("serviceFee", o.getServiceFee());
             m.put("cancelledBy", o.getCancelledBy());
-            m.put("failureReason", o.getFailureReason());
+            m.put("failureNote", o.getFailureReason());
+            m.put("deliveryFailureCode", o.getDeliveryFailureCode());
+            m.put("deliveryAttemptCount", o.getDeliveryAttemptCount());
+            m.put("deliveryAttemptLimit", o.getDeliveryAttemptLimit());
+            m.put("deliveryFailedAt", o.getDeliveryFailedAt() != null ? o.getDeliveryFailedAt().toString() : null);
+            m.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
+            m.put("returnedToStoreAt", o.getReturnedToStoreAt() != null ? o.getReturnedToStoreAt().toString() : null);
             m.put("refundStatus", o.getRefundStatus());
             m.put("refundAmount", o.getRefundAmount());
             m.put("refundedAt", o.getRefundedAt());
@@ -112,6 +119,24 @@ public class AdminOrderServlet extends HttpServlet {
         return JwtUtil.getUserId(header.substring(7));
     }
 
+    static Integer parseDeliveryOverridePath(String path) {
+        if (path == null || !path.matches("/\\d+/delivery-attempt-override")) return null;
+        try {
+            return Integer.valueOf(path.substring(1, path.indexOf('/', 1)));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static int statusFor(OrderTransitionService.MutationResult result) {
+        return switch (result) {
+            case SUCCESS -> 200;
+            case CONFLICT -> 409;
+            case UNPROCESSABLE -> 422;
+            case INVALID -> 400;
+        };
+    }
+
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
@@ -122,6 +147,33 @@ public class AdminOrderServlet extends HttpServlet {
 
         String path = req.getPathInfo();
         if (path == null) { resp.sendError(404); return; }
+        Integer overrideOrderId = parseDeliveryOverridePath(path);
+        if (overrideOrderId != null) {
+            Map<String, Object> body;
+            try {
+                body = JsonUtil.fromJson(req.getReader(), Map.class);
+            } catch (RuntimeException e) {
+                body = null;
+            }
+            Object rawExpectedStatus = body == null ? null : body.get("expectedStatus");
+            Object rawNote = body == null ? null : body.get("note");
+            String expectedStatus = rawExpectedStatus instanceof String value ? value.trim() : null;
+            String note = rawNote instanceof String value ? DeliveryFailurePolicy.normalizeNote(value) : null;
+            if (expectedStatus == null || expectedStatus.isEmpty() || note == null) {
+                ApiResponse.error(resp, "Invalid delivery attempt override payload", 400);
+                return;
+            }
+            if (ordersDAO.findById(overrideOrderId) == null) {
+                ApiResponse.error(resp, "Order not found", 404);
+                return;
+            }
+            OrderTransitionService.MutationResult result = transitionService.overrideDeliveryAttemptLimit(
+                    overrideOrderId, JwtUtil.getUserId(token), expectedStatus, note);
+            int status = statusFor(result);
+            if (status == 200) ApiResponse.ok(resp, null, "Delivery attempt limit overridden");
+            else ApiResponse.error(resp, status == 409 ? "Order changed" : "Cannot override delivery attempt limit", status);
+            return;
+        }
 
         String[] parts = path.split("/");
         if (parts.length < 3) { resp.sendError(404); return; }
@@ -214,7 +266,13 @@ public class AdminOrderServlet extends HttpServlet {
         data.put("paymentStatus", o.getPaymentStatus());
         data.put("deliveryNote", o.getDeliveryNote());
         data.put("cancelledBy", o.getCancelledBy());
-        data.put("failureReason", o.getFailureReason());
+        data.put("failureNote", o.getFailureReason());
+        data.put("deliveryFailureCode", o.getDeliveryFailureCode());
+        data.put("deliveryAttemptCount", o.getDeliveryAttemptCount());
+        data.put("deliveryAttemptLimit", o.getDeliveryAttemptLimit());
+        data.put("deliveryFailedAt", o.getDeliveryFailedAt() != null ? o.getDeliveryFailedAt().toString() : null);
+        data.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
+        data.put("returnedToStoreAt", o.getReturnedToStoreAt() != null ? o.getReturnedToStoreAt().toString() : null);
         data.put("refundStatus", o.getRefundStatus());
         data.put("refundAmount", o.getRefundAmount());
         data.put("refundNote", o.getRefundNote());

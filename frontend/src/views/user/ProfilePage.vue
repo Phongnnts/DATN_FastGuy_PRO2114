@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/stores/toast';
 import LoyaltyWallet from '@/components/common/LoyaltyWallet.vue';
+import { createProfileLoadController } from '@/utils/profileHydration';
 
 const auth = useAuthStore();
 const toast = useToast();
@@ -10,8 +11,23 @@ const form = ref({ fullName: '', email: '', phone: '' });
 const profileSnapshot = ref(null);
 const editMode = ref(false);
 const savingProfile = ref(false);
+const profileLoading = ref(true);
+const profileError = ref('');
 
-onMounted(syncProfile);
+const profileLoader = createProfileLoadController({
+  hydrate: () => auth.hydrateProfile(),
+  apply: syncProfile,
+  fail: (error) => { profileError.value = error.message || 'Không thể tải hồ sơ. Vui lòng thử lại.'; },
+  setLoading: (value) => { profileLoading.value = value; },
+  reset: () => { profileError.value = ''; },
+});
+
+onMounted(loadProfile);
+onUnmounted(profileLoader.stop);
+
+function loadProfile() {
+  return profileLoader.load();
+}
 
 function syncProfile() {
   form.value = { fullName: auth.user?.fullName || '', email: auth.user?.email || '', phone: auth.user?.phone || '' };
@@ -55,7 +71,14 @@ async function saveProfile() {
     <header class="page-heading">
       <div><span class="eyebrow">Tài khoản</span><h1>Hồ sơ của tôi</h1><p>Quản lý thông tin cá nhân và quyền lợi thành viên.</p></div>
     </header>
-    <section class="profile-grid" aria-label="Thông tin tài khoản">
+    <div v-if="profileLoading" class="profile-state" role="status">
+      <span class="spinner" aria-hidden="true"></span> Đang tải hồ sơ...
+    </div>
+    <div v-else-if="profileError" class="profile-state profile-error" role="alert">
+      <span>{{ profileError }}</span>
+      <button type="button" class="btn btn-primary" @click="loadProfile">Thử lại</button>
+    </div>
+    <section v-else class="profile-grid" aria-label="Thông tin tài khoản">
       <article class="panel identity-panel">
         <div class="section-heading"><div><span class="section-kicker">Hồ sơ</span><h2>Thông tin cá nhân</h2></div><button v-if="!editMode" type="button" class="btn btn-outline" @click="startProfileEdit"><i class="bi bi-pencil" aria-hidden="true"></i> Chỉnh sửa</button></div>
         <div class="profile-summary">
@@ -89,6 +112,9 @@ async function saveProfile() {
 .page-heading h1 { margin: 4px 0 6px; font-size: clamp(26px, 4vw, 36px); line-height: 1.2; }
 .page-heading p { margin: 0; color: var(--text-mid); }
 .eyebrow, .section-kicker { color: var(--primary-dark); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.profile-state { display: flex; align-items: center; justify-content: center; gap: var(--space-3); min-height: 180px; padding: var(--space-6); border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: var(--bg-card); }
+.profile-error { flex-direction: column; color: var(--red-active); text-align: center; }
+.profile-state .btn { min-height: var(--control-height); }
 .profile-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 20px; }
 .panel { padding: 24px; border: 1px solid var(--border-light); border-radius: 16px; background: #fff; box-shadow: 0 8px 28px rgba(24, 39, 75, .06); }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
@@ -111,6 +137,7 @@ async function saveProfile() {
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
 .spinner { display: inline-block; width: 15px; height: 15px; margin-right: 7px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .65s linear infinite; vertical-align: -2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 @media (max-width: 820px) { .profile-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .profile-page { padding: 24px 12px 40px; } .panel { padding: 18px; border-radius: 13px; } .section-heading { align-items: flex-start; } .detail-list div { grid-template-columns: 1fr; gap: 4px; } .profile-summary { align-items: flex-start; } }
 </style>

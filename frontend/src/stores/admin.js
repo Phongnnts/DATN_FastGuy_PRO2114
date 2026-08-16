@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { adminApi } from '@/api';
+import { createLatestCatalogFetcher } from '@/utils/adminStockOperations';
 
 export const useAdminStore = defineStore('admin', () => {
   const dashboard = ref(null);
@@ -66,17 +67,17 @@ export const useAdminStore = defineStore('admin', () => {
     return allUsers.value;
   }
 
-  async function fetchProducts() {
-    const data = await adminApi.getProducts();
-    allProducts.value = Array.isArray(data) ? data.map(mapProduct) : [];
-    return allProducts.value;
-  }
+  const fetchProducts = createLatestCatalogFetcher({
+    load: (...args) => adminApi.getProducts(...args),
+    map: (data) => Array.isArray(data) ? data.map(mapProduct) : [],
+    commit: (products) => { allProducts.value = products; },
+  });
 
-  async function fetchCategories() {
-    const data = await adminApi.getCategories();
-    allCategories.value = Array.isArray(data) ? data.map(mapCategory) : [];
-    return allCategories.value;
-  }
+  const fetchCategories = createLatestCatalogFetcher({
+    load: (...args) => adminApi.getCategories(...args),
+    map: (data) => Array.isArray(data) ? data.map(mapCategory) : [],
+    commit: (categories) => { allCategories.value = categories; },
+  });
 
   async function fetchOrders(params) {
     try {

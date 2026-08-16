@@ -28,6 +28,7 @@
         <class>entity.OrderStatusHistory</class>
         <class>entity.LoyaltyTransaction</class>
         <class>entity.WorkShift</class>
+        <class>entity.CodSettlement</class>
         <class>entity.PaymentAttempt</class>
         <class>entity.InventoryReservation</class>
         <class>entity.InventoryTransaction</class>

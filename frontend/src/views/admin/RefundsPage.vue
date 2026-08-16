@@ -1,10 +1,12 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '@/api';
 import { formatPrice, formatDate } from '@/utils/format';
 import { useToast } from '@/stores/toast';
 import { validateRefund } from '@/utils/refundPolicy';
+import { buildRefundPresentation, canMutateRefund, canViewRefundDetail, refundAuditDetail, submitPendingRefund } from '@/utils/refund-state';
+import { createRefundModalLifecycle, focusCycleTarget } from '@/utils/refund-modal-state';
 
 const REFUND_STATUS_KEYS = ['PENDING', 'REFUNDED', 'REJECTED'];
 
@@ -19,10 +21,14 @@ const searchTerm = ref('');
 const filterFromDate = ref('');
 const filterToDate = ref('');
 const refundOrder = ref(null);
+const refundDetailOrder = ref(null);
 const refundDialog = ref(null);
 const refundForm = ref({ refundAmount: 0, refundNote: '', refundReference: '', status: 'REFUNDED' });
 const refunding = ref(false);
-const previousFocus = ref(null);
+const refundStatusMessage = ref('');
+const refundErrorMessage = ref('');
+const page = ref(null);
+const refundTrigger = ref(null);
 
 const statusFilters = [
   { key: '', label: 'Tất cả' },
@@ -99,27 +105,74 @@ function resetFilters() {
   filterToDate.value = '';
   load();
 }
-onMounted(loadPreset);
+onMounted(() => {
+  modalLifecycle.attach();
+  loadPreset();
+});
+onBeforeUnmount(() => modalLifecycle.detach());
 
 watch(() => route.query.status, (raw) => {
   const key = statusFromQuery(raw);
   if (activeStatus.value !== key) activeStatus.value = key;
 });
 
-function openRefund(order) {
-  previousFocus.value = document.activeElement;
-  refundOrder.value = order;
-  refundForm.value = { refundAmount: Number(order.finalAmount || 0), refundNote: '', refundReference: '', status: 'REFUNDED' };
-  nextTick(() => refundDialog.value?.focus());
+const presentation = row => buildRefundPresentation(row);
+function focusable() {
+  return refundDialog.value ? [...refundDialog.value.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')] : [];
 }
-function dismissRefund() {
+const modalLifecycle = createRefundModalLifecycle({
+  document,
+  getDialog: () => refundDialog.value,
+  getFocusable: focusable,
+  onEscape: closeActiveDialog,
+  getFallback: () => page.value,
+});
+async function openRefundDetail(order, event) {
+  if (!canViewRefundDetail(order)) return;
+  refundTrigger.value = event?.currentTarget || document.activeElement;
+  refundDetailOrder.value = order;
+  await nextTick();
+  modalLifecycle.open(refundTrigger.value);
+}
+async function closeRefundDetail() {
+  refundDetailOrder.value = null;
+  await nextTick();
+  modalLifecycle.close();
+}
+function closeActiveDialog() {
+  if (refundDetailOrder.value) closeRefundDetail();
+  else closeRefund();
+}
+async function openRefund(order, event) {
+  const current = rows.value.find(row => row.orderId === order.orderId);
+  if (!canMutateRefund(order) || !canMutateRefund(current)) {
+    refundErrorMessage.value = 'Yêu cầu hoàn tiền đã được xử lý. Vui lòng tải lại dữ liệu mới nhất.';
+    return;
+  }
+  refundTrigger.value = event?.currentTarget || document.activeElement;
+  refundStatusMessage.value = '';
+  refundErrorMessage.value = '';
+  refundOrder.value = current;
+  refundForm.value = { refundAmount: Number(current.finalAmount || 0), refundNote: '', refundReference: '', status: 'REFUNDED' };
+  await nextTick();
+  modalLifecycle.open(refundTrigger.value);
+}
+async function dismissRefund() {
   refundOrder.value = null;
-  nextTick(() => previousFocus.value?.focus());
-  previousFocus.value = null;
+  await nextTick();
+  modalLifecycle.close();
 }
 function closeRefund() {
   if (refunding.value) return;
   dismissRefund();
+}
+function handleRefundKeydown(event) {
+  if (event.key !== 'Tab') return;
+  const target = focusCycleTarget({ controls: focusable(), active: document.activeElement, shiftKey: event.shiftKey });
+  if (target) {
+    event.preventDefault();
+    target.focus();
+  }
 }
 const formError = computed(() => validateRefund({
   status: refundForm.value.status,
@@ -130,23 +183,43 @@ const formError = computed(() => validateRefund({
 }));
 async function saveRefund() {
   if (refunding.value) return;
+  const current = rows.value.find(row => row.orderId === refundOrder.value?.orderId);
+  if (!canMutateRefund(refundOrder.value) || !canMutateRefund(current)) {
+    refundErrorMessage.value = 'Yêu cầu hoàn tiền đã được xử lý. Vui lòng tải lại dữ liệu mới nhất.';
+    refundStatusMessage.value = '';
+    await load();
+    return;
+  }
   if (formError.value) {
+    refundErrorMessage.value = formError.value;
+    refundStatusMessage.value = '';
     toast.error(formError.value);
     return;
   }
   refunding.value = true;
+  refundStatusMessage.value = 'Đang lưu kết quả hoàn tiền...';
+  refundErrorMessage.value = '';
   try {
-    await adminApi.updateRefund(refundOrder.value.orderId, {
+    const state = { selected: refundOrder.value, rows: rows.value, statusMessage: '', errorMessage: '' };
+    const saved = await submitPendingRefund(state, order => adminApi.updateRefund(order.orderId, {
       status: refundForm.value.status,
       refundAmount: refundForm.value.status === 'REFUNDED' ? Number(refundForm.value.refundAmount) : null,
       refundNote: refundForm.value.refundNote.trim(),
       refundReference: refundForm.value.status === 'REFUNDED' ? refundForm.value.refundReference.trim() : null,
-    });
+    }));
+    refundStatusMessage.value = state.statusMessage;
+    refundErrorMessage.value = state.errorMessage;
+    if (!saved) {
+      await load();
+      return;
+    }
     toast.success(refundForm.value.status === 'REFUNDED' ? 'Đã hoàn tiền thành công' : 'Đã từ chối hoàn tiền');
-    dismissRefund();
+    await dismissRefund();
     await load();
   } catch (e) {
-    toast.error(e?.response?.data?.message || e.message || 'Không thể xử lý hoàn tiền');
+    refundErrorMessage.value = e?.response?.data?.message || e.message || 'Không thể xử lý hoàn tiền';
+    refundStatusMessage.value = '';
+    toast.error(refundErrorMessage.value);
   } finally {
     refunding.value = false;
   }
@@ -154,9 +227,9 @@ async function saveRefund() {
 </script>
 
 <template>
-  <main class="refunds-page">
+  <main ref="page" class="refunds-page" tabindex="-1">
     <header class="page-heading">
-      <div><p class="eyebrow">Vận hành</p><h1>Quản lý hoàn tiền</h1><p>Xử lý yêu cầu hoàn tiền cho đơn đã hủy.</p></div>
+      <div><p class="eyebrow">Vận hành</p><h1>Quản lý hoàn tiền</h1><p>Xác nhận kết quả hoàn tiền đã thực hiện ngoài hệ thống và lưu audit.</p></div>
       <button class="btn btn-outline" :disabled="loading" @click="load"><i class="bi bi-arrow-clockwise"></i> Làm mới</button>
     </header>
 
@@ -199,29 +272,47 @@ async function saveRefund() {
               <td data-label="Giá trị"><strong>{{ formatPrice(row.finalAmount) }}</strong></td>
               <td data-label="Thanh toán">
                 <span class="payment-method">{{ row.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }}</span>
-                <small :class="['payment-state', String(row.paymentStatus).toLowerCase()]">{{ row.paymentStatus === 'PAID' ? 'Đã thanh toán' : row.paymentStatus === 'REFUNDED' ? 'Đã hoàn' : row.paymentStatus }}</small>
+                <small :class="['payment-state', String(row.refundStatus).toLowerCase()]">{{ presentation(row).paymentLabel }}</small>
               </td>
               <td data-label="Hoàn tiền">
-                <span v-if="row.refundStatus === 'REFUNDED'" class="refund-badge refund-done">Đã hoàn {{ formatPrice(row.refundAmount) }}</span>
-                <span v-else-if="row.refundStatus === 'REJECTED'" class="refund-badge refund-rejected">Đã từ chối</span>
-                <span v-else class="refund-badge refund-pending">Chờ hoàn</span>
+                <span v-if="row.refundStatus === 'REFUNDED'" class="refund-badge refund-done">{{ presentation(row).refundLabel }} {{ formatPrice(row.refundAmount) }}</span>
+                <span v-else-if="row.refundStatus === 'REJECTED'" class="refund-badge refund-rejected">{{ presentation(row).refundLabel }}</span>
+                <span v-else class="refund-badge refund-pending">{{ presentation(row).refundLabel }}</span>
+                <small v-if="presentation(row).pendingDetail" class="sub">{{ presentation(row).pendingDetail }}</small>
               </td>
               <td data-label="Ngày tạo">{{ formatDate(row.createdAt) }}</td>
-              <td data-label="Thao tác"><button v-if="row.refundStatus === 'PENDING'" class="refund-action" @click="openRefund(row)"><i class="bi bi-arrow-return-left"></i> Xử lý</button><span v-else class="muted">—</span></td>
+              <td data-label="Thao tác"><button v-if="canMutateRefund(row)" class="refund-action" @click="openRefund(row, $event)"><i class="bi bi-arrow-return-left"></i> Xử lý</button><button v-else-if="canViewRefundDetail(row)" class="detail-action" @click="openRefundDetail(row, $event)">Xem chi tiết</button><span v-else class="muted">—</span></td>
             </tr></tbody>
           </table>
         </div>
       </template>
     </section>
 
-    <div v-if="refundOrder" class="modal-overlay" @click.self="closeRefund" @keydown.esc="closeRefund">
-      <form ref="refundDialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="refund-title" tabindex="-1" @submit.prevent="saveRefund">
+    <p role="status" aria-live="polite" aria-atomic="true" class="refund-live-status">{{ refundStatusMessage }}</p>
+    <p v-if="refundErrorMessage" role="alert" class="refund-live-error">{{ refundErrorMessage }}</p>
+    <div v-if="refundDetailOrder" class="modal-overlay" @click.self="closeRefundDetail">
+      <section ref="refundDialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="refund-detail-title" tabindex="-1" @keydown="handleRefundKeydown">
+        <div class="modal-header"><div><small>CHI TIẾT HOÀN TIỀN</small><h3 id="refund-detail-title">{{ refundDetailOrder.orderCode }}</h3></div><button type="button" class="icon-button" aria-label="Đóng chi tiết hoàn tiền" @click="closeRefundDetail"><i class="bi bi-x-lg"></i></button></div>
+        <div class="modal-body">
+          <dl class="refund-audit detail-audit">
+            <div><dt>Người xử lý</dt><dd>{{ refundAuditDetail(refundDetailOrder).processor }}</dd></div>
+            <div><dt>Mã tham chiếu</dt><dd>{{ refundAuditDetail(refundDetailOrder).reference }}</dd></div>
+            <div><dt>Ghi chú</dt><dd>{{ refundAuditDetail(refundDetailOrder).note }}</dd></div>
+            <div><dt>Thời gian hoàn</dt><dd>{{ refundAuditDetail(refundDetailOrder).refundedAt ? formatDate(refundAuditDetail(refundDetailOrder).refundedAt) : '—' }}</dd></div>
+          </dl>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-primary" @click="closeRefundDetail">Đóng</button></div>
+      </section>
+    </div>
+    <div v-if="refundOrder" class="modal-overlay" @click.self="closeRefund">
+      <form ref="refundDialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="refund-title" tabindex="-1" @keydown="handleRefundKeydown" @submit.prevent="saveRefund">
         <div class="modal-header"><div><small>HOÀN TIỀN</small><h3 id="refund-title">{{ refundOrder.orderCode }}</h3></div><button type="button" class="icon-button" aria-label="Đóng" :disabled="refunding" @click="closeRefund"><i class="bi bi-x-lg"></i></button></div>
         <div class="modal-body">
           <div class="refund-order-info">
             <div><span>Khách hàng</span><strong>{{ refundOrder.customerName || 'Khách' }}</strong></div>
             <div><span>Giá trị đơn</span><strong>{{ formatPrice(refundOrder.finalAmount) }}</strong></div>
             <div><span>Thanh toán</span><strong>{{ refundOrder.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }} · {{ refundOrder.paymentStatus }}</strong></div>
+            <div><span>Trạng thái</span><strong>Chờ hoàn thủ công · Tiền chưa được xác nhận đã hoàn</strong></div>
           </div>
           <label class="form-group"><span class="form-label">Hành động</span><select v-model="refundForm.status" class="form-select"><option value="REFUNDED">Xác nhận hoàn thủ công</option><option value="REJECTED">Từ chối hoàn tiền</option></select></label>
           <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Số tiền hoàn toàn bộ</span><input class="form-input" type="number" :value="Number(refundOrder.finalAmount)" readonly /><small>Cố định bằng giá trị đơn: {{ formatPrice(refundOrder.finalAmount) }}</small></label>
@@ -259,7 +350,13 @@ async function saveRefund() {
 .order-link { color: var(--role-admin); font-weight: 700; }.order-link:hover, .order-link:focus { text-decoration: underline; }
 .sub { color: var(--text-light); display: block; font-size: 11px; }
 .payment-method { display: block; font-size: 13px; font-weight: 700; }.payment-state { color: #b45309; display: block; font-size: 11px; }.payment-state.paid { color: #047857; }.payment-state.failed { color: #b91c1c; }
-.refund-badge, .refund-action { border-radius: 99px; display: inline-flex; font-size: 11px; font-weight: 700; padding: 5px 9px; white-space: nowrap; }.refund-done { color: #047857; background: #d1fae5; }.refund-rejected { color: #b91c1c; background: #fee2e2; }.refund-pending { color: #92400e; background: #fef3c7; }.refund-action { background: #fef3c7; color: #92400e; border: 0; cursor: pointer; gap: 5px; }.refund-action:hover { background: #fde68a; }.muted { color: var(--text-light); }
+.refund-badge, .refund-action { border-radius: 99px; display: inline-flex; font-size: 11px; font-weight: 700; padding: 5px 9px; white-space: nowrap; }.refund-done { color: #047857; background: #d1fae5; }.refund-rejected { color: #b91c1c; background: #fee2e2; }.refund-pending { color: #92400e; background: #fef3c7; }.refund-action { background: #fef3c7; color: #92400e; border: 0; cursor: pointer; gap: 5px; }.refund-action:hover { background: #fde68a; }.detail-action { color: var(--role-admin); font-size: 12px; font-weight: 700; text-decoration: underline; }.muted { color: var(--text-light); }
+.refund-live-status, .refund-live-error { margin: 0; min-height: 20px; font-size: 12px; }.refund-live-status { color: var(--text-mid); }.refund-live-error { color: var(--red-active); }
+.refund-audit { display: grid; gap: 3px; margin: 6px 0 0; font-size: 11px; }
+.refund-audit div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px; }
+.refund-audit dt { color: var(--text-mid); }
+.refund-audit dd { margin: 0; overflow-wrap: anywhere; }
+.detail-audit { font-size: 13px; gap: 10px; }.detail-audit div { grid-template-columns: 120px minmax(0, 1fr); }
 .state { align-items: center; color: var(--text-mid); display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 280px; padding: 32px; text-align: center; }.state > i { color: var(--text-light); font-size: 36px; }.state.error > i { color: var(--red-active); }.spinner { animation: spin .8s linear infinite; border: 3px solid var(--border); border-radius: 50%; border-top-color: var(--role-admin); height: 30px; width: 30px; }@keyframes spin { to { transform: rotate(360deg); } }
 .modal { max-width: 520px; width: calc(100% - 32px); }.modal:focus { outline: none; }.modal-header small { color: var(--role-admin); font-size: 10px; font-weight: 800; letter-spacing: .1em; }.icon-button { border-radius: 8px; font-size: 18px; padding: 8px; }.icon-button:hover { background: var(--surface); }.icon-button:disabled { cursor: not-allowed; opacity: .5; }
 .refund-order-info { background: var(--surface); border-radius: var(--radius-sm); margin-bottom: 18px; padding: 8px 14px; }.refund-order-info div { display: flex; font-size: 13px; justify-content: space-between; padding: 9px 0; }.refund-order-info div + div { border-top: 1px solid var(--border); }.refund-order-info span { color: var(--text-mid); }.form-group small { color: var(--text-mid); display: block; font-size: 11px; margin-top: 5px; }

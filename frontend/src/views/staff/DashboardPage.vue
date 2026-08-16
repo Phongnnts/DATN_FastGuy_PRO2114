@@ -5,6 +5,7 @@ import { Chart, registerables } from 'chart.js';
 import { useStaffStore } from '@/stores/staff';
 import { formatPrice, formatTime } from '@/utils/format';
 import { waitingDuration } from '@/utils/staffKitchen';
+import { staffDashboardAttention } from '@/utils/staffDashboardAttention';
 
 Chart.register(...registerables);
 
@@ -22,7 +23,7 @@ const data = computed(() => staffStore.dashboard || {});
 const labels = { PENDING: 'Chờ xử lý', CONFIRMED: 'Đã xác nhận', PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper', PICKED_UP: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy' };
 const colors = { PENDING: '#f59e0b', CONFIRMED: '#3b82f6', PREPARING: '#8b5cf6', READY: '#10b981', ASSIGNED: '#2563eb', PICKED_UP: '#06b6d4', DELIVERED: '#22c55e', CANCELLED: '#ef4444' };
 const activeTotal = computed(() => ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP'].reduce((sum, status) => sum + Number(data.value.ordersByStatus?.[status] || 0), 0));
-const alertCount = computed(() => Number(data.value.overdueOrders || 0) + Number(data.value.awaitingShipperOrders || 0));
+const attention = computed(() => staffDashboardAttention(data.value));
 
 function goOrders(tab) {
   router.push({ path: '/staff/orders', query: tab ? { tab } : {} });
@@ -116,7 +117,19 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section v-if="alertCount" class="operations-alert" role="status"><i class="bi bi-exclamation-circle"></i><div><strong>{{ alertCount }} tín hiệu cần chú ý</strong><span>{{ data.overdueOrders || 0 }} đơn quá thời gian · {{ data.awaitingShipperOrders || 0 }} đơn chờ shipper</span></div><button class="btn btn-sm btn-outline" @click="goOrders('PENDING')">Kiểm tra</button></section>
+      <section v-if="attention.alertCount" class="operations-alert" role="status">
+        <i class="bi bi-exclamation-circle"></i>
+        <div>
+          <strong>{{ attention.alertCount }} tín hiệu cần chú ý</strong>
+          <span>
+            {{ attention.overdueOrders }} đơn quá thời gian ·
+            {{ attention.awaitingShipperOrders }} đơn chờ shipper ·
+            {{ attention.outOfStockSkuCount }} SKU hết hàng ·
+            {{ attention.lowStockSkuCount }} SKU sắp hết (ngưỡng ≤ {{ attention.lowStockThreshold }})
+          </span>
+        </div>
+        <button class="btn btn-sm btn-outline" @click="goOrders(attention.routeTab)">Kiểm tra hàng đợi</button>
+      </section>
 
       <div class="content-grid">
         <section class="priority-panel">

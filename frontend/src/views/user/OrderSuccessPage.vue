@@ -109,7 +109,7 @@ function printReceipt() {
           <div class="detail-section totals">
             <h2>Thanh toán</h2>
             <div><span>Tạm tính</span><span>{{ formatPrice(order.subtotal) }}</span></div>
-            <div><span>Phí giao hàng</span><span>{{ order.shippingFee > 0 ? formatPrice(order.shippingFee) : 'Miễn phí' }}</span></div>
+            <div><span>Phí giao hàng</span><span>{{ formatPrice(order.shippingFee) }}</span></div>
             <div v-if="order.discount > 0" class="discount"><span>Giảm giá</span><span>-{{ formatPrice(order.discount) }}</span></div>
             <div class="grand-total"><span>Tổng cộng</span><strong>{{ formatPrice(order.total) }}</strong></div>
           </div>

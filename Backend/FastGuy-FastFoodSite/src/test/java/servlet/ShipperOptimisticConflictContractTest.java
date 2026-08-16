@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import service.OrderTransitionService;
 class ShipperOptimisticConflictContractTest {
     @Test
     void expectedStatusValidationAcceptsOnlyCanonicalNonBlankStatus() {
@@ -27,6 +28,7 @@ class ShipperOptimisticConflictContractTest {
         assertTrue(servlet.contains("body.get(\"expectedStatus\")"));
         assertTrue(servlet.contains("MutationResult.CONFLICT"));
         assertTrue(servlet.contains("409"));
+        assertEquals(422, ShipperServlet.statusFor(OrderTransitionService.MutationResult.UNPROCESSABLE));
         assertTrue(service.contains("String expectedStatus"));
         assertTrue(service.contains("transitionService.transition"));
         assertEquals("Đơn hàng đã thay đổi trạng thái. Dữ liệu mới nhất đã được tải lại.", ShipperServlet.CONFLICT_MESSAGE);

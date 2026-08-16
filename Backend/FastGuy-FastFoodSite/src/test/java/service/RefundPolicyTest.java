@@ -7,10 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
 import entity.Orders;
+import entity.User;
+import servlet.AdminRefundServlet;
 
 class RefundPolicyTest {
 
@@ -62,6 +68,55 @@ class RefundPolicyTest {
         assertFalse(RefundService.matchesTerminalRequest(order, "REFUNDED", new BigDecimal("100000"), "changed", "BANK-123"));
         assertFalse(RefundService.matchesTerminalRequest(order, "REFUNDED", new BigDecimal("100000"), "manual", "OTHER"));
         assertFalse(RefundService.matchesTerminalRequest(order, "REJECTED", null, "manual", null));
+    }
+
+    @Test
+    void returnedToStoreIsEligibleForRefund() {
+        assertNull(RefundService.validate("REFUNDED", "PENDING", "PAID", "RETURNED_TO_STORE", new BigDecimal("100000"), new BigDecimal("100000"), null, "BANK-123"));
+    }
+
+    @Test
+    void refundListResolvesProcessorNamesWithoutChangingOrderSchema() throws Exception {
+        String servlet = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/java/servlet/AdminRefundServlet.java"));
+        String order = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/java/entity/Orders.java"));
+        assertTrue(servlet.contains("resolveProcessorNames(pending, userDAO::findByIds)"));
+        assertFalse(servlet.contains("userDAO.findById("));
+        assertTrue(servlet.contains("m.put(\"refundProcessedByName\""));
+        assertTrue(order.contains("private Integer refundProcessedBy"));
+        assertFalse(order.contains("refundProcessedByName"));
+    }
+
+    @Test
+    void refundProcessorResolverLoadsUniqueIdsOnceAndMapsMissingOrBlankNamesToNull() {
+        Orders first = new Orders();
+        first.setRefundProcessedBy(7);
+        Orders duplicate = new Orders();
+        duplicate.setRefundProcessedBy(7);
+        Orders blank = new Orders();
+        blank.setRefundProcessedBy(8);
+        Orders deleted = new Orders();
+        deleted.setRefundProcessedBy(9);
+        Orders unprocessed = new Orders();
+        AtomicInteger loads = new AtomicInteger();
+        User namedUser = new User();
+        namedUser.setUserId(7);
+        namedUser.setFullName("Admin A");
+        User blankUser = new User();
+        blankUser.setUserId(8);
+        blankUser.setFullName("   ");
+
+        Map<Integer, String> names = AdminRefundServlet.resolveProcessorNames(
+                List.of(first, duplicate, blank, deleted, unprocessed), ids -> {
+                    loads.incrementAndGet();
+                    assertEquals(Set.of(7, 8, 9), ids);
+                    return List.of(namedUser, blankUser);
+                });
+
+        assertEquals(1, loads.get());
+        assertEquals(Set.of(7, 8, 9), names.keySet());
+        assertEquals("Admin A", names.get(7));
+        assertNull(names.get(8));
+        assertNull(names.get(9));
     }
 
     @Test

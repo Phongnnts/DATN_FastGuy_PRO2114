@@ -32,6 +32,27 @@ class OrdersMappingTest {
     }
 
     @Test
+    void deliveryFailureRecoveryMetadataIsPersisted() throws Exception {
+        Map<String, String> columns = Map.of(
+                "deliveryAttemptCount", "delivery_attempt_count",
+                "deliveryAttemptLimit", "delivery_attempt_limit",
+                "deliveryFailureCode", "delivery_failure_code",
+                "deliveryFailedAt", "delivery_failed_at",
+                "retryScheduledAt", "retry_scheduled_at",
+                "returnedToStoreAt", "returned_to_store_at");
+
+        for (Map.Entry<String, String> entry : columns.entrySet()) {
+            Field field = Orders.class.getDeclaredField(entry.getKey());
+            assertFalse(field.isAnnotationPresent(Transient.class), entry.getKey());
+            assertEquals(entry.getValue(), field.getAnnotation(Column.class).name());
+        }
+
+        Orders order = new Orders();
+        assertEquals(0, order.getDeliveryAttemptCount());
+        assertEquals(2, order.getDeliveryAttemptLimit());
+    }
+
+    @Test
     void refundAuditMetadataIsPersisted() throws Exception {
         Map<String, String> columns = Map.of(
                 "refundProcessedBy", "refund_processed_by",

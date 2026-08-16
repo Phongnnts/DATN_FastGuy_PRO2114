@@ -1,5 +1,6 @@
 package servlet;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -10,12 +11,12 @@ import org.junit.jupiter.api.Test;
 class ShipperHistoryAndDashboardPolicyTest {
 
     @Test
-    void dashboardPutsTodayAndPendingCodCollected() throws IOException {
+    void dashboardPutsTodayCodCollectedWithoutFakePendingAlias() throws IOException {
         String service = Files.readString(Path.of("src/main/java/service/ShipperService.java"));
 
         assertTrue(service.contains("sumCodCollectedByShipperAndDateRange(shipperId, todayRange.start(), todayRange.end())"));
         assertTrue(service.contains("stats.put(\"todayCodCollected\", todayCodCollected);"));
-        assertTrue(service.contains("stats.put(\"pendingCodCollected\", todayCodCollected);"));
+        assertFalse(service.contains("stats.put(\"pendingCodCollected\", todayCodCollected);"));
     }
 
     @Test

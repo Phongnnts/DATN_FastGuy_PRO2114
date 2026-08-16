@@ -72,8 +72,8 @@ function proceedCheckout() {
           </section>
 
           <section class="cart-block route-note">
-            <i class="bi bi-geo-alt"></i>
-            <div><strong>Giao nhanh trong 30 phút</strong><p>Phí giao chính xác được tính sau khi bạn chọn địa chỉ nhận hàng.</p></div>
+            <i class="bi bi-geo-alt" aria-hidden="true"></i>
+            <div><strong>Thông tin giao hàng</strong><p>Thời gian và phí giao hàng được tính sau khi bạn chọn địa chỉ nhận hàng.</p></div>
           </section>
         </main>
 
