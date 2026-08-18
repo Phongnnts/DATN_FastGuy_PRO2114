@@ -54,7 +54,6 @@ export const useProductStore = defineStore('product', () => {
         ? c.name.toLowerCase().replace(/ \/ /g, '-').replace(/\s+/g, '-')
         : '',
       icon: c.icon || 'bi-grid',
-      image: ensureImage(c.image || c.imageUrl),
       productCount: c.productCount || 0,
       description: c.description || '',
     };

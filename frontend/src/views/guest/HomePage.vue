@@ -9,9 +9,10 @@ const productStore = useProductStore();
 const currentSlide = ref(0);
 const carouselPaused = ref(false);
 const reduceMotion = ref(false);
+const fallbackImage = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700"%3E%3Crect width="1200" height="700" fill="%23171313"/%3E%3C/svg%3E';
 const fallbackSlides = [
-  { title: 'Món ngon cho mọi cuộc vui', subtitle: 'Khám phá thực đơn đa dạng và chọn món bạn yêu thích.', cta: 'Xem thực đơn', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Burger/classic-burger.jpg' },
-  { title: 'Lựa chọn dễ dàng, đặt món nhanh chóng', subtitle: 'Burger, pizza, gà rán và thức uống trong một thực đơn.', cta: 'Khám phá món ngon', link: '/menu', image: 'https://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Pizza/pizza-margherita.jpg' },
+  { title: 'Món ngon cho mọi cuộc vui', subtitle: 'Khám phá thực đơn đa dạng và chọn món bạn yêu thích.', cta: 'Xem thực đơn', link: '/menu', image: fallbackImage },
+  { title: 'Lựa chọn dễ dàng, đặt món nhanh chóng', subtitle: 'Burger, pizza, gà rán và thức uống trong một thực đơn.', cta: 'Khám phá món ngon', link: '/menu', image: fallbackImage },
 ];
 const banners = ref(fallbackSlides);
 const activeSlide = computed(() => banners.value[currentSlide.value] || fallbackSlides[0]);

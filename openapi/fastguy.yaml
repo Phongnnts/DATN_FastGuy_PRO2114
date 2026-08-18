@@ -1,0 +1,55 @@
+openapi: 3.1.0
+info:
+  title: FastGuy API
+  version: 1.0.0
+  description: Contract-first coverage for FastGuy endpoints as they change.
+  license:
+    name: Proprietary
+servers:
+  - url: /api
+paths:
+  /categories:
+    get:
+      operationId: listCategories
+      summary: List active menu categories
+      security: []
+      responses:
+        '200':
+          description: Active categories ordered by configured sort order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+components:
+  schemas:
+    Category:
+      type: object
+      additionalProperties: false
+      required: [categoryId, name, description, sortOrder, productCount]
+      properties:
+        categoryId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        sortOrder:
+          type: integer
+        productCount:
+          type: integer
+          format: int64
+          minimum: 0
+    CategoryListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
