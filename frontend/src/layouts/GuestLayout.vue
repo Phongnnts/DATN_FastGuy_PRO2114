@@ -138,8 +138,8 @@ onUnmounted(() => {
 .footer-bottom { padding: 20px 0; border-top: 1px solid var(--border-light); text-align: center; color: var(--text-light); font-size: 13px; }
 .nav-backdrop { display: none; }
 @media (max-width: 768px) {
-  .nav-links { position: fixed; top: var(--header-height); right: 0; bottom: 0; z-index: var(--z-drawer); width: min(320px, 86vw); padding: 16px; flex-direction: column; align-items: stretch; background: var(--color-surface); box-shadow: var(--shadow-xl); transform: translateX(105%); transition: transform var(--transition-normal); }
-  .nav-links.open { transform: translateX(0); }
+  .nav-links { position: fixed; top: var(--header-height); right: 0; bottom: 0; z-index: var(--z-drawer); display: none; width: min(320px, 86vw); padding: 16px; flex-direction: column; align-items: stretch; background: var(--color-surface); box-shadow: var(--shadow-xl); }
+  .nav-links.open { display: flex; }
   .nav-link { padding: 0 16px; }
   .mobile-toggle { display: inline-flex; }
   .nav-backdrop { display: block; position: fixed; inset: var(--header-height) 0 0; z-index: var(--z-backdrop); width: 100%; background: rgba(0,0,0,.45); }

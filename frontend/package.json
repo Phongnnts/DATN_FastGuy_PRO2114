@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "test": "node --test",
+    "contract:lint": "redocly lint --config ../openapi/redocly.yaml ../openapi/fastguy.yaml",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,6 +19,8 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@redocly/cli": "^2.46.1",
     "@vitejs/plugin-vue": "^6.0.6",
     "vite": "^8.0.12"
   }
