@@ -70,6 +70,15 @@ defineExpose({ focusFirstError });
       <select id="product-status" :value="modelValue.status" :disabled="busy" @change="update('status', $event.target.value)"><option value="AVAILABLE">Đang bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
     </div>
     <div class="field">
+      <label for="product-spice-level">Mức độ cay</label>
+      <select id="product-spice-level" :value="modelValue.spiceLevel" :disabled="busy" :aria-invalid="Boolean(errors.spiceLevel)" :aria-describedby="errors.spiceLevel ? 'product-spice-level-error' : undefined" @change="update('spiceLevel', Number($event.target.value))"><option :value="0">Không cay</option><option :value="1">Cay nhẹ</option><option :value="2">Cay vừa</option><option :value="3">Rất cay</option></select>
+      <span v-if="errors.spiceLevel" id="product-spice-level-error" role="alert">{{ errors.spiceLevel }}</span>
+    </div>
+    <div class="field checkbox-field">
+      <input id="product-is-new" type="checkbox" :checked="modelValue.isNew" :disabled="busy" @change="update('isNew', $event.target.checked)" />
+      <label for="product-is-new">Món mới</label>
+    </div>
+    <div class="field">
       <label for="product-from">Bắt đầu bán</label>
       <input id="product-from" type="time" :value="modelValue.availableFrom" :disabled="busy" :aria-invalid="Boolean(errors.availableFrom)" :aria-describedby="errors.availableFrom ? 'product-from-error' : undefined" @input="update('availableFrom', $event.target.value)" />
       <span v-if="errors.availableFrom" id="product-from-error" role="alert">{{ errors.availableFrom }}</span>
@@ -84,5 +93,5 @@ defineExpose({ focusFirstError });
 </template>
 
 <style scoped>
-.editor-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.field{display:grid;gap:7px}.field label{font-size:12px;font-weight:700}.field input,.field select,.field textarea{min-height:44px;padding:10px 12px;border:1px solid #ddd;border-radius:10px;background:#fff}.field textarea{min-height:110px;resize:vertical}.field [role=alert]{color:#b91c1c;font-size:12px}.wide,.actions{grid-column:1/-1}.actions{display:flex;justify-content:flex-end}@media(max-width:700px){.editor-card{grid-template-columns:1fr}.wide,.actions{grid-column:auto}}
+.editor-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.field{display:grid;gap:7px}.field label{font-size:12px;font-weight:700}.field input,.field select,.field textarea{min-height:44px;padding:10px 12px;border:1px solid #ddd;border-radius:10px;background:#fff}.field textarea{min-height:110px;resize:vertical}.field [role=alert]{color:#b91c1c;font-size:12px}.checkbox-field{display:flex;align-items:center;gap:9px}.checkbox-field input{min-height:auto;width:18px;height:18px}.wide,.actions{grid-column:1/-1}.actions{display:flex;justify-content:flex-end}@media(max-width:700px){.editor-card{grid-template-columns:1fr}.wide,.actions{grid-column:auto}}
 </style>

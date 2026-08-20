@@ -18,6 +18,23 @@ class DeliveryFailureMutationContractTest {
     private static final Path SOURCE = Path.of("src/main/java/service/OrderTransitionService.java");
 
     @Test
+    void migrationDefersConstraintsThatReferenceNewColumnsToDynamicSql() throws Exception {
+        String migration = Files.readString(Path.of("../../database/migrations/041_delivery_failure_recovery.sql"));
+        assertTrue(migration.contains("EXEC sys.sp_executesql N'ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT CK_Orders_DeliveryAttempts"));
+        assertTrue(migration.contains("EXEC sys.sp_executesql N'ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT CK_Orders_DeliveryFailureCode"));
+        assertTrue(migration.contains("THROW 51512, 'Unexpected non-order statuses exist in OrderStatusHistory.'"));
+        assertTrue(migration.contains("DELETE FROM dbo.OrderStatusHistory WHERE actor_role = 'PAYOS' AND from_status = 'UNPAID' AND to_status = 'PAID'"));
+        String validator = Files.readString(Path.of("../../database/migrations/041_validate.sql"));
+        assertTrue(validator.contains("DECLARE @requiredFailureCodes TABLE(code varchar(30) PRIMARY KEY)"));
+        assertTrue(validator.contains("CHARINDEX(N''''+code+N'''',@reasonDefinition)=0"));
+        String codValidator = Files.readString(Path.of("../../database/migrations/046_cod_shift_settlement_validate.sql"));
+        for (String column : new String[] {"submitted_at", "verified_at", "created_at", "updated_at"}) {
+            assertTrue(codValidator.contains("(N'" + column + "', N'datetime2', 6, 19, 0,"), column);
+        }
+        assertTrue(codValidator.contains("CHARINDEX(required.token, UPPER(cc.definition)) = 0"));
+    }
+
+    @Test
     void exposesAtomicRecoveryMutationContracts() throws Exception {
         String source = Files.readString(SOURCE);
         assertTrue(source.contains("MutationResult reportDeliveryFailure(int orderId, int shipperId, String expectedStatus, String reasonCode, String note)"));

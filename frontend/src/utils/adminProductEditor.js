@@ -34,6 +34,8 @@ export function createProductDraft() {
     variants: [],
     modifierGroups: [],
     combo: null,
+    isNew: false,
+    spiceLevel: 0,
   };
 }
 
@@ -56,6 +58,8 @@ export function normalizeProductDetail(raw) {
     variants: Array.isArray(raw.variants) ? raw.variants.map((variant) => ({ ...variant })) : [],
     modifierGroups: Array.isArray(raw.modifierGroups) ? raw.modifierGroups.map((group) => ({ ...group })) : [],
     combo: raw.combo ?? null,
+    isNew: raw.isNew ?? false,
+    spiceLevel: raw.spiceLevel ?? 0,
   };
 }
 
@@ -89,11 +93,17 @@ export function validateGeneral(form = {}) {
   if (!String(form.name ?? '').trim()) errors.name = 'Nhập tên sản phẩm';
   if (!isValidProductId(form.categoryId)) errors.categoryId = 'Chọn danh mục hợp lệ';
   if (form.basePrice === '' || form.basePrice === null || form.basePrice === undefined || !Number.isFinite(Number(form.basePrice)) || Number(form.basePrice) < 0) errors.basePrice = 'Giá gốc không được âm';
+  const spiceLevel = Number(form.spiceLevel ?? 0);
+  if (!Number.isInteger(spiceLevel) || spiceLevel < 0 || spiceLevel > 3) errors.spiceLevel = 'Chọn mức độ cay hợp lệ';
   const hasFrom = Boolean(form.availableFrom);
   const hasTo = Boolean(form.availableTo);
   if (hasFrom !== hasTo) errors[hasFrom ? 'availableTo' : 'availableFrom'] = 'Nhập đầy đủ giờ bắt đầu và kết thúc';
   else if (hasFrom && form.availableFrom >= form.availableTo) errors.availableTo = 'Giờ kết thúc phải sau giờ bắt đầu';
   return errors;
+}
+
+export function buildProductPayload(draft = {}) {
+  return { name: String(draft.name ?? '').trim(), categoryId: draft.categoryId, basePrice: Number(draft.basePrice), imageUrl: draft.image, description: draft.description, status: draft.status, availableFrom: draft.availableFrom || null, availableTo: draft.availableTo || null, galleryImages: draft.galleryImages, isNew: Boolean(draft.isNew), spiceLevel: Number(draft.spiceLevel) };
 }
 
 export function validateVariant(variant = {}) {
@@ -182,6 +192,33 @@ export function validateComboItem(item = {}) {
   return errors;
 }
 
+export function validateComboHomepage(combo = {}) {
+  const order = Number(combo.homepageSortOrder);
+  return Number.isInteger(order) && order >= 0 ? {} : { homepageSortOrder: 'Thứ tự phải là số nguyên không âm' };
+}
+
+export function buildComboHomepagePayload(combo = {}) {
+  return {
+    isActive: Boolean(combo.isActive),
+    homepageOccasion: combo.homepageOccasion || null,
+    homepageSortOrder: Number(combo.homepageSortOrder),
+  };
+}
+
+export function normalizeProductScope(scope) {
+  if (Array.isArray(scope)) return scope;
+  return scope ? [scope] : ['general', 'media'];
+}
+
+export function comboSaveMethod(hasCombo) {
+  return hasCombo ? 'updateCombo' : 'createCombo';
+}
+
+export function comboItemLabel(choices, item) {
+  return choices.find(choice => choice.variantId === item.variantId)?.label || `Biến thể #${item.variantId}`;
+}
+
+
 export function withProductSlice(target, source, scope) {
   const next = { ...target };
   if (scope.includes('general')) {
@@ -192,6 +229,8 @@ export function withProductSlice(target, source, scope) {
     next.status = source.status;
     next.availableFrom = source.availableFrom;
     next.availableTo = source.availableTo;
+    next.isNew = source.isNew;
+    next.spiceLevel = source.spiceLevel;
   }
   if (scope.includes('media')) {
     next.image = source.image;

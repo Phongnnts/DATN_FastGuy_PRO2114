@@ -330,6 +330,12 @@ const routes = [
         meta: { requiresCheckedInShift: true, breadcrumb: [{ label: 'Bếp · Đơn hàng', to: '/staff/orders' }, { label: 'Chi tiết đơn hàng' }] },
       },
       {
+        path: 'profile',
+        name: 'StaffProfile',
+        component: () => import('@/views/user/ProfilePage.vue'),
+        meta: { breadcrumb: [{ label: 'Vận hành', to: '/staff' }, { label: 'Hồ sơ' }] },
+      },
+      {
         path: 'notifications',
         name: 'StaffNotifications',
         component: () => import('@/views/user/NotificationsPage.vue'),
@@ -382,6 +388,12 @@ const routes = [
         path: 'cash',
         name: 'ShipperCash',
         component: () => import('@/views/shipper/CashPage.vue'),
+      },
+      {
+        path: 'profile',
+        name: 'ShipperProfile',
+        component: () => import('@/views/user/ProfilePage.vue'),
+        meta: { breadcrumb: [{ label: 'Giao hàng', to: '/shipper' }, { label: 'Hồ sơ' }] },
       },
       {
         path: 'orders/history',
@@ -527,9 +539,9 @@ const pageTitles = {
   AccountOverview: 'Tổng quan tài khoản', Profile: 'Thông tin cá nhân', UserAddresses: 'Sổ địa chỉ', UserCoupons: 'Ví mã ưu đãi',
   UserOrders: 'Đơn hàng', UserOrderDetail: 'Chi tiết đơn hàng', UserFavorites: 'Món yêu thích', ChangePassword: 'Đổi mật khẩu',
   UserRewards: 'Ví điểm thưởng', UserNotifications: 'Thông báo', UserSupport: 'Hỗ trợ', StaffDashboard: 'Tổng quan nhân viên', StaffOrders: 'Quản lý đơn hàng',
-  StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffNotifications: 'Thông báo', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc',
+  StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffNotifications: 'Thông báo', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc', StaffProfile: 'Hồ sơ',
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
-  ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', ShipperCash: 'Đối soát COD', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
+  ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', ShipperCash: 'Đối soát COD', ShipperProfile: 'Hồ sơ', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
   AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
   AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền', AdminCodSettlements: 'Đối soát COD',
   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',

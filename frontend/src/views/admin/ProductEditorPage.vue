@@ -5,7 +5,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { adminApi } from '@/api';
 import { useAdminStore } from '@/stores/admin';
 import { useToast } from '@/stores/toast';
-import { cloneProductState, createProductDraft, isCurrentEditorRequest, isValidProductId, nextEnabledSectionIndex, normalizeProductDetail, validateGeneral, variantPayload, withProductSlice } from '@/utils/adminProductEditor';
+import { buildProductPayload, cloneProductState, createProductDraft, isCurrentEditorRequest, isValidProductId, nextEnabledSectionIndex, normalizeProductDetail, normalizeProductScope, validateGeneral, variantPayload, withProductSlice } from '@/utils/adminProductEditor';
 import ProductGeneralSection from '@/components/admin/product-editor/ProductGeneralSection.vue';
 import ProductMediaSection from '@/components/admin/product-editor/ProductMediaSection.vue';
 import ProductVariantsSection from '@/components/admin/product-editor/ProductVariantsSection.vue';
@@ -173,14 +173,14 @@ async function reloadAfterSave(mutationRequest, scope) {
     const detail = await adminApi.getProduct(productId.value);
     if (!mutationAccepted(request)) return;
     if (!detail) return;
-    applyCanonicalSlice(normalizeProductDetail(detail), scope || ['general', 'media']);
+    applyCanonicalSlice(normalizeProductDetail(detail), normalizeProductScope(scope));
   } catch (error) {
     if (mutationAccepted(request)) reloadMessage.value = error.message || 'Đã lưu nhưng không thể tải lại dữ liệu';
   }
 }
 
 function payloadFromDraft() {
-  return { name: draft.value.name.trim(), categoryId: draft.value.categoryId, basePrice: Number(draft.value.basePrice), imageUrl: draft.value.image, description: draft.value.description, status: draft.value.status, availableFrom: draft.value.availableFrom || null, availableTo: draft.value.availableTo || null, galleryImages: draft.value.galleryImages };
+  return buildProductPayload(draft.value);
 }
 
 async function saveProduct() {

@@ -111,10 +111,10 @@ export const useAuthStore = defineStore('auth', () => {
   async function updateProfile(data) {
     if (!user.value) throw new Error('Chưa đăng nhập');
     try {
-      await authApi.updateProfile(data);
+      const profile = await authApi.updateProfile(data);
       sessionGeneration += 1;
       profileHydration.invalidate();
-      Object.assign(user.value, data);
+      Object.assign(user.value, profile || data);
       persist();
       return user.value;
     } catch {

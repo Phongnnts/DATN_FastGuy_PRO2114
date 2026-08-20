@@ -1,10 +1,12 @@
 <script setup>
+import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { adminApi } from '@/api';
 import { useAdminStore } from '@/stores/admin';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/stores/toast';
 import { formatDate, formatPrice } from '@/utils/format';
+import { CLOUDINARY } from '@/utils/constants';
 
 const adminStore = useAdminStore();
 const authStore = useAuthStore();
@@ -18,6 +20,8 @@ const loadError = ref('');
 const showForm = ref(false);
 const editingId = ref(null);
 const saving = ref(false);
+const uploadingAvatar = ref(false);
+const avatarError = ref('');
 const actionId = ref(null);
 const form = ref(emptyForm());
 const showOrdersModal = ref(false);
@@ -48,7 +52,7 @@ const roleMeta = {
 };
 
 function emptyForm() {
-  return { fullName: '', email: '', phone: '', password: '', roleName: 'USER' };
+  return { fullName: '', email: '', phone: '', password: '', roleName: 'USER', avatarUrl: '' };
 }
 
 async function load() {
@@ -115,8 +119,34 @@ function openEdit(user) {
     phone: user.phone || '',
     password: '',
     roleName: user.roleName || 'USER',
+    avatarUrl: user.avatarUrl || '',
   };
   showForm.value = true;
+}
+
+async function uploadAvatar(event) {
+  const file = event.target.files?.[0];
+  if (!file || uploadingAvatar.value || saving.value) return;
+  uploadingAvatar.value = true;
+  avatarError.value = '';
+  try {
+    const data = new FormData();
+    data.append('file', file);
+    data.append('upload_preset', CLOUDINARY.uploadPreset);
+    const response = await axios.post(CLOUDINARY.uploadUrl, data);
+    if (typeof response.data?.secure_url !== 'string' || !response.data.secure_url) throw new Error('Cloudinary không trả về URL ảnh hợp lệ');
+    form.value.avatarUrl = response.data.secure_url;
+  } catch (error) {
+    avatarError.value = error.message || 'Không thể tải ảnh lên';
+  } finally {
+    uploadingAvatar.value = false;
+    event.target.value = '';
+  }
+}
+
+function removeAvatar() {
+  form.value.avatarUrl = '';
+  avatarError.value = '';
 }
 
 async function save() {
@@ -131,7 +161,7 @@ async function save() {
 
   saving.value = true;
   try {
-    const payload = { fullName, email, phone, roleName: form.value.roleName };
+    const payload = { fullName, email, phone, roleName: form.value.roleName, avatarUrl: form.value.avatarUrl || null };
     if (form.value.password) payload.password = form.value.password;
     if (editingId.value) await adminStore.updateUser(editingId.value, payload);
     else await adminStore.createUser(payload);
@@ -225,7 +255,7 @@ function initials(name) {
           <thead><tr><th>Người dùng</th><th>Liên hệ</th><th>Vai trò</th><th>Trạng thái</th><th>Điểm</th><th><span class="sr-only">Thao tác</span></th></tr></thead>
           <tbody>
             <tr v-for="user in paged" :key="user.userId" :class="{ muted: user.status === 'INACTIVE' }">
-              <td><div class="identity"><div class="avatar" :class="roleMeta[user.roleName]?.className">{{ initials(user.fullName) }}</div><div><strong>{{ user.fullName }}</strong><span>#{{ user.userId }}</span></div></div></td>
+              <td><div class="identity"><img v-if="user.avatarUrl" :src="user.avatarUrl" :alt="`Ảnh đại diện của ${user.fullName}`" class="avatar avatar-image" /><div v-else class="avatar" :class="roleMeta[user.roleName]?.className">{{ initials(user.fullName) }}</div><div><strong>{{ user.fullName }}</strong><span>#{{ user.userId }}</span></div></div></td>
               <td><div class="contact"><span><i class="bi bi-envelope"></i>{{ user.email }}</span><span><i class="bi bi-telephone"></i>{{ user.phone || 'Chưa cập nhật' }}</span></div></td>
               <td><span class="role-pill" :class="roleMeta[user.roleName]?.className"><i class="bi" :class="roleMeta[user.roleName]?.icon"></i>{{ roleMeta[user.roleName]?.label || user.roleName }}</span></td>
               <td><button class="status-pill" :class="user.status === 'INACTIVE' ? 'inactive' : 'active'" :disabled="actionId === user.userId || (isSelf(user) && user.status !== 'INACTIVE')" @click="toggleStatus(user)"><span></span>{{ user.status === 'INACTIVE' ? 'Vô hiệu hóa' : 'Hoạt động' }}</button></td>
@@ -244,6 +274,7 @@ function initials(name) {
         <div class="modal-accent"></div>
         <div class="modal-header"><div><span class="modal-icon"><i class="bi" :class="editingId ? 'bi-person-gear' : 'bi-person-plus'"></i></span><div><h2 id="user-modal-title" class="modal-title">{{ editingId ? 'Chỉnh sửa người dùng' : 'Thêm người dùng' }}</h2><p>{{ editingId ? 'Cập nhật thông tin và phân quyền.' : 'Tạo tài khoản mới trong hệ thống.' }}</p></div></div><button class="modal-close" aria-label="Đóng" @click="showForm = false"><i class="bi bi-x-lg"></i></button></div>
         <form class="modal-body" @submit.prevent="save">
+          <div class="avatar-field"><img v-if="form.avatarUrl" :src="form.avatarUrl" alt="Xem trước ảnh đại diện" class="avatar-preview" /><span v-else class="avatar-preview avatar-empty">{{ initials(form.fullName) }}</span><div><label class="btn btn-sm btn-outline avatar-upload" :class="{ disabled: uploadingAvatar || saving }"><input type="file" accept="image/*" :disabled="uploadingAvatar || saving" @change="uploadAvatar">{{ uploadingAvatar ? 'Đang tải ảnh...' : 'Chọn ảnh' }}</label><button v-if="form.avatarUrl" type="button" class="btn btn-sm btn-ghost remove-avatar" :disabled="uploadingAvatar || saving" @click="removeAvatar">Xóa ảnh</button></div><p v-if="avatarError" class="avatar-error" role="alert">{{ avatarError }}</p></div>
           <div class="form-grid"><div class="form-group full"><label class="form-label" for="user-name">Họ và tên *</label><input id="user-name" v-model="form.fullName" class="form-input" maxlength="100" autocomplete="name" required></div><div class="form-group"><label class="form-label" for="user-email">Email *</label><input id="user-email" v-model="form.email" class="form-input" type="email" maxlength="150" autocomplete="email" required></div><div class="form-group"><label class="form-label" for="user-phone">Số điện thoại</label><input id="user-phone" v-model="form.phone" class="form-input" maxlength="12" autocomplete="tel" placeholder="0912345678"></div><div class="form-group"><label class="form-label" for="user-role">Vai trò *</label><select id="user-role" v-model="form.roleName" class="form-select" :disabled="editingId === authStore.user?.id"><option value="USER">Khách hàng</option><option value="STAFF">Nhân viên</option><option value="SHIPPER">Shipper</option><option value="ADMIN">Quản trị viên</option></select></div><div class="form-group"><label class="form-label" for="user-password">{{ editingId ? 'Mật khẩu mới' : 'Mật khẩu *' }}</label><input id="user-password" v-model="form.password" class="form-input" type="password" minlength="6" maxlength="72" autocomplete="new-password" :required="!editingId" :placeholder="editingId ? 'Để trống nếu không đổi' : 'Tối thiểu 6 ký tự'"></div></div>
           <div class="modal-footer"><button type="button" class="btn btn-ghost" @click="showForm = false">Hủy</button><button type="submit" class="btn btn-primary" :disabled="saving"><span v-if="saving" class="spinner"></span>{{ saving ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo tài khoản' }}</button></div>
         </form>
@@ -289,6 +320,7 @@ function initials(name) {
 .users-table tbody tr.muted { opacity: .64; background: #fafafa; }
 .identity { display: flex; align-items: center; gap: 11px; }
 .identity .avatar { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 12px; font-size: 12px; font-weight: 800; }
+.identity .avatar-image { object-fit: cover; }
 .identity strong, .identity span { display: block; }
 .identity strong { color: var(--text-dark); font-size: 14px; }
 .identity span { margin-top: 3px; color: var(--text-light); font-size: 11px; }
@@ -336,6 +368,15 @@ function initials(name) {
 .modal-header p { margin: 3px 0 0; color: var(--text-mid); font-size: 12px; }
 .modal-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; color: var(--primary-dark); background: var(--primary-light); font-size: 19px; }
 .modal-icon.orders-icon { color: #2563eb; background: #dbeafe; }
+.avatar-field { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+.avatar-preview { width: 64px; height: 64px; flex: 0 0 64px; border-radius: 50%; object-fit: cover; }
+.avatar-empty { display: grid; place-items: center; color: #fff; background: var(--primary); font-weight: 800; }
+.avatar-field > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.avatar-upload { cursor: pointer; }
+.avatar-upload input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+.avatar-upload.disabled { opacity: .55; cursor: wait; }
+.remove-avatar, .avatar-error { color: var(--red-active); }
+.avatar-error { width: 100%; margin: 0; font-size: 12px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 .form-grid .full { grid-column: 1 / -1; }
 .modal-footer { margin: 8px -24px -24px; padding: 16px 24px; background: #fafafa; }

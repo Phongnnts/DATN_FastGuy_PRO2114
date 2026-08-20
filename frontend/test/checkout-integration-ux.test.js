@@ -3,6 +3,51 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const checkout = fs.readFileSync(new URL('../src/views/user/CheckoutPage.vue', import.meta.url), 'utf8');
+const cart = fs.readFileSync(new URL('../src/views/guest/CartPage.vue', import.meta.url), 'utf8');
+const paymentReturn = fs.readFileSync(new URL('../src/views/user/PaymentReturnPage.vue', import.meta.url), 'utf8');
+const success = fs.readFileSync(new URL('../src/views/user/OrderSuccessPage.vue', import.meta.url), 'utf8');
+const stepper = fs.readFileSync(new URL('../src/components/common/CheckoutStepper.vue', import.meta.url), 'utf8');
+
+test('customer order flow shares one accessible four-step visual system', () => {
+  assert.match(stepper, /const steps = \[/);
+  for (const label of ['Giỏ hàng', 'Thông tin giao', 'Thanh toán', 'Hoàn tất']) assert.match(stepper, new RegExp(label));
+  assert.match(stepper, /:aria-current="step\.number === props\.current \? 'step' : undefined"/);
+  assert.match(cart, /<CheckoutStepper :current="1"/);
+  assert.match(checkout, /<CheckoutStepper :current="currentStep === 3 \? 3 : 2"/);
+  assert.match(paymentReturn, /<CheckoutStepper :current="3"/);
+  assert.match(success, /<CheckoutStepper :current="4"/);
+});
+
+test('checkout merges delivery and voucher before moving directly to payment', () => {
+  assert.match(checkout, /<CheckoutStepper :current="currentStep === 3 \? 3 : 2"/);
+  assert.match(checkout, /class="checkout-coupon checkout-section coupon-section"/);
+  assert.match(checkout, /@click="currentStep = 3">Tiếp tục thanh toán/);
+  assert.match(checkout, /@click="currentStep = 1">Quay lại thông tin/);
+  assert.doesNotMatch(checkout, /currentStep\+\+|currentStep--/);
+});
+
+test('checkout keeps delivery content visible before payment and can restore saved addresses', () => {
+  assert.match(checkout, /v-show="currentStep <= 2"/);
+  assert.match(checkout, /function returnToSavedAddresses\(\)/);
+  assert.match(checkout, /v-if="useNewAddress && savedAddresses\.length"[^>]*@click="returnToSavedAddresses"/);
+  assert.match(checkout, /Chọn địa chỉ đã lưu/);
+});
+
+test('checkout presents delivery coupon and payment as professional ordered panels', () => {
+  assert.match(checkout, /class="checkout-shell"/);
+  assert.match(checkout, /class="checkout-main"/);
+  assert.match(checkout, /class="checkout-sidebar checkout-summary-panel"/);
+  assert.match(checkout, /class="[^"]*checkout-section delivery-section"/);
+  assert.match(checkout, /class="checkout-coupon checkout-section coupon-section"/);
+  assert.match(checkout, /class="[^"]*checkout-section payment-section"/);
+});
+
+test('payment return and order success expose branded completion surfaces', () => {
+  assert.match(paymentReturn, /class="payment-shell"/);
+  assert.match(paymentReturn, /class="[^"]*payment-status-card/);
+  assert.match(success, /class="success-shell"/);
+  assert.match(success, /class="success-header success-hero"/);
+});
 
 test('GHN failure remains unavailable and blocks checkout with retry copy', () => {
   assert.match(checkout, /shippingFee\.value = null;/);

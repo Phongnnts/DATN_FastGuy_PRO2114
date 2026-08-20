@@ -168,6 +168,9 @@ public class AuthService {
                 }
                 user.setEmail(email);
             }
+            if (data.containsKey("avatarUrl")) {
+                user.setAvatarUrl((String) data.get("avatarUrl"));
+            }
             em.getTransaction().commit();
             return user;
         } catch (RuntimeException e) {

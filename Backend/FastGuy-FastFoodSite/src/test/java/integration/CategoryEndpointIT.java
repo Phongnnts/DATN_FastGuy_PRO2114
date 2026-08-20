@@ -33,7 +33,7 @@ class CategoryEndpointIT {
         assertTrue(body.path("data").isArray());
         assertFalse(body.path("data").isEmpty());
         for (JsonNode category : body.path("data")) {
-            assertEquals(Set.of("categoryId", "name", "description", "sortOrder", "productCount"),
+            assertEquals(Set.of("categoryId", "name", "description", "imageUrl", "sortOrder", "productCount"),
                     category.properties().stream().map(java.util.Map.Entry::getKey).collect(java.util.stream.Collectors.toSet()));
             assertTrue(category.path("categoryId").isIntegralNumber());
             assertTrue(category.path("categoryId").asLong() > 0);

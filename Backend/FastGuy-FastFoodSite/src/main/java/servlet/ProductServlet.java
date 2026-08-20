@@ -74,7 +74,9 @@ public class ProductServlet extends HttpServlet {
         if ("/best-sellers".equals(path)) {
             try {
                 Integer limit = integer(req, "limit", 1, 20);
-                ApiResponse.ok(resp, toMaps(productDAO.search(null, null, null, null, "AVAILABLE", null, null, null, "best-selling", 0, limit == null ? 10 : limit)));
+                List<Map<String, Object>> products = toMaps(productDAO.search(null, null, null, null, "AVAILABLE", null, null, null, "best-selling", 0, limit == null ? 10 : limit));
+                setBestSeller(products, true);
+                ApiResponse.ok(resp, products);
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
             }
@@ -200,6 +202,10 @@ public class ProductServlet extends HttpServlet {
         return products.stream().map(p -> toMap(p, sold.getOrDefault(p.getProductId(), 0L), flags.getOrDefault(p.getProductId(), 0), defaults.get(p.getProductId()))).collect(Collectors.toList());
     }
 
+    static void setBestSeller(List<Map<String, Object>> products, boolean bestSeller) {
+        products.forEach(product -> product.put("bestSeller", bestSeller));
+    }
+
     private Map<String, Object> toMap(Product p) {
         return toMap(p, productDAO.soldCounts(List.of(p.getProductId())).getOrDefault(p.getProductId(), 0L), productDAO.featureFlags(List.of(p.getProductId())).getOrDefault(p.getProductId(), 0), productDAO.findDefaultVariantByProductId(p.getProductId()));
     }
@@ -235,6 +241,9 @@ public class ProductServlet extends HttpServlet {
         m.put("availableTo", p.getAvailableTo() != null ? p.getAvailableTo().toString() : null);
         m.put("isAvailableNow", isAvailableNow(p));
         m.put("inStock", "AVAILABLE".equals(p.getStatus()) && hasStock && isAvailableNow(p));
+        m.put("isNew", Boolean.TRUE.equals(p.getIsNew()));
+        m.put("spiceLevel", p.getSpiceLevel());
+        m.put("bestSeller", false);
         return m;
     }
 

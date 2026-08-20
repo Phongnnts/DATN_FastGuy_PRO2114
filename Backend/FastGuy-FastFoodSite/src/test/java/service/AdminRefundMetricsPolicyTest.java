@@ -28,6 +28,16 @@ class AdminRefundMetricsPolicyTest {
         }
 
         @Override
+        public Map<String, Double> financialBreakdown(LocalDateTime start, LocalDateTime end) {
+            return Map.of("itemRevenue", gross, "shippingRevenue", 0.0, "serviceFeeRevenue", 0.0, "discountTotal", 0.0, "grossRevenue", gross);
+        }
+
+        @Override
+        public long[] operationalCohortSummary(LocalDateTime start, LocalDateTime end) {
+            return new long[]{0L, 0L};
+        }
+
+        @Override
         public double sumRefundsInRange(LocalDateTime start, LocalDateTime end) {
             return refund;
         }
@@ -88,9 +98,17 @@ class AdminRefundMetricsPolicyTest {
         }
 
         @Override
-        public List<Map<String, Object>> paymentMethodStats(LocalDateTime start, LocalDateTime end) {
-            return new ArrayList<>();
-        }
+        public List<Map<String, Object>> paymentMethodStats(LocalDateTime start, LocalDateTime end) { return new ArrayList<>(); }
+        @Override
+        public List<Map<String, Object>> monthlyFinancialTrend(LocalDateTime start, LocalDateTime end) { return new ArrayList<>(); }
+        @Override
+        public List<Map<String, Object>> revenueByHour(LocalDateTime start, LocalDateTime end) { return new ArrayList<>(); }
+        @Override
+        public List<Map<String, Object>> performanceByWeekday(LocalDateTime start, LocalDateTime end) { return new ArrayList<>(); }
+        @Override
+        public List<Map<String, Object>> refundTrend(LocalDateTime start, LocalDateTime end) { return new ArrayList<>(); }
+        @Override
+        public List<Map<String, Object>> exceptionReasons(LocalDateTime start, LocalDateTime end) { return new ArrayList<>(); }
     }
 
     @Test

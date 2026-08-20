@@ -8,6 +8,11 @@ import jakarta.persistence.EntityManager;
 import utils.DatabaseUtil;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 
 public class ProductModifierDAO {
     public List<ProductModifierGroup> groups(int productId) { return query("SELECT g FROM ProductModifierGroup g WHERE g.product.productId = :id ORDER BY g.sortOrder, g.modifierGroupId", ProductModifierGroup.class, "id", productId); }
@@ -17,6 +22,40 @@ public class ProductModifierDAO {
     public ProductCombo combo(int productId) { List<ProductCombo> rows = query("SELECT c FROM ProductCombo c WHERE c.product.productId = :id", ProductCombo.class, "id", productId); return rows.isEmpty() ? null : rows.get(0); }
     public List<ProductComboItem> comboItems(int comboId) { return query("SELECT i FROM ProductComboItem i WHERE i.combo.comboId = :id ORDER BY i.sortOrder, i.comboItemId", ProductComboItem.class, "id", comboId); }
     public ProductComboItem comboItem(int id) { return find(ProductComboItem.class, id); }
+    public List<ProductCombo> homepageCombos() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT c FROM ProductCombo c JOIN FETCH c.product p JOIN FETCH p.category WHERE c.isActive = true AND c.homepageOccasion IS NOT NULL AND p.status = 'AVAILABLE' AND EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND v.status = 'AVAILABLE' AND (v.quantityAvailable IS NULL OR v.quantityAvailable > 0)) ORDER BY c.homepageSortOrder, c.comboId", ProductCombo.class).getResultList();
+        } finally { em.close(); }
+    }
+    public Map<Integer, List<ProductModifierGroup>> groupsByProductIds(List<Integer> productIds) {
+        Map<Integer, List<ProductModifierGroup>> result = new HashMap<>();
+        if (productIds.isEmpty()) return result;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.createQuery("SELECT g FROM ProductModifierGroup g WHERE g.product.productId IN :ids AND g.isActive = true ORDER BY g.product.productId, g.sortOrder, g.modifierGroupId", ProductModifierGroup.class)
+                    .setParameter("ids", productIds).getResultList().forEach(g -> result.computeIfAbsent(g.getProduct().getProductId(), ignored -> new ArrayList<>()).add(g));
+            return result;
+        } finally { em.close(); }
+    }
+    public Map<Integer, List<ProductModifierOption>> optionsByGroupIds(List<Integer> groupIds) {
+        Map<Integer, List<ProductModifierOption>> result = new HashMap<>();
+        if (groupIds.isEmpty()) return result;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.createQuery("SELECT o FROM ProductModifierOption o WHERE o.group.modifierGroupId IN :ids AND o.isActive = true ORDER BY o.group.modifierGroupId, o.sortOrder, o.modifierOptionId", ProductModifierOption.class)
+                    .setParameter("ids", groupIds).getResultList().forEach(o -> result.computeIfAbsent(o.getGroup().getModifierGroupId(), ignored -> new ArrayList<>()).add(o));
+            return result;
+        } finally { em.close(); }
+    }
+    public Set<Integer> activeComboProductIds(List<Integer> productIds) {
+        if (productIds.isEmpty()) return Set.of();
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return new HashSet<>(em.createQuery("SELECT c.product.productId FROM ProductCombo c WHERE c.isActive = true AND c.product.productId IN :ids", Integer.class)
+                    .setParameter("ids", productIds).getResultList());
+        } finally { em.close(); }
+    }
     public void save(Object entity) { transact(em -> { if (id(entity) == 0) em.persist(entity); else em.merge(entity); }); }
     public void deleteComboItem(int id) { delete(ProductComboItem.class, id); }
 

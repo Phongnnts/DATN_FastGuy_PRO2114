@@ -51,6 +51,12 @@ public class Product {
     @Column(name = "available_to")
     private LocalTime availableTo;
 
+    @Column(name = "is_new")
+    private Boolean isNew = false;
+
+    @Column(name = "spice_level")
+    private int spiceLevel;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -79,6 +85,10 @@ public class Product {
     public void setAvailableFrom(LocalTime availableFrom) { this.availableFrom = availableFrom; }
     public LocalTime getAvailableTo() { return availableTo; }
     public void setAvailableTo(LocalTime availableTo) { this.availableTo = availableTo; }
+    public Boolean getIsNew() { return isNew; }
+    public void setIsNew(Boolean isNew) { this.isNew = isNew; }
+    public int getSpiceLevel() { return spiceLevel; }
+    public void setSpiceLevel(int spiceLevel) { this.spiceLevel = spiceLevel; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

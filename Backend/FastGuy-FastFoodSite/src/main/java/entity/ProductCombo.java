@@ -24,10 +24,20 @@ public class ProductCombo {
     @Column(name = "is_active")
     private Boolean isActive;
 
+    @Column(name = "homepage_occasion")
+    private String homepageOccasion;
+
+    @Column(name = "homepage_sort_order")
+    private int homepageSortOrder;
+
     public int getComboId() { return comboId; }
     public void setComboId(int comboId) { this.comboId = comboId; }
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public String getHomepageOccasion() { return homepageOccasion; }
+    public void setHomepageOccasion(String homepageOccasion) { this.homepageOccasion = homepageOccasion; }
+    public int getHomepageSortOrder() { return homepageSortOrder; }
+    public void setHomepageSortOrder(int homepageSortOrder) { this.homepageSortOrder = homepageSortOrder; }
 }

@@ -47,6 +47,25 @@ public class ProductDAO {
         }
     }
 
+    public List<Product> findHomepageBestSellers(int limit) {
+        return search(null, null, null, null, "AVAILABLE", null, null, 1L, "best-selling", 0, limit);
+    }
+
+
+    public Map<Integer, List<ProductVariant>> variantsByProductIds(List<Integer> productIds) {
+        Map<Integer, List<ProductVariant>> result = new HashMap<>();
+        if (productIds.isEmpty()) return result;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.createQuery("SELECT v FROM ProductVariant v WHERE v.product.productId IN :ids ORDER BY v.product.productId, v.isDefault DESC, v.variantId", ProductVariant.class)
+                    .setParameter("ids", productIds).getResultList()
+                    .forEach(v -> result.computeIfAbsent(v.getProduct().getProductId(), ignored -> new java.util.ArrayList<>()).add(v));
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Product> search(String q, Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice,
                                 String availability, String productType, Boolean discounted, Long minSold,
                                 String sort, Integer page, Integer size) {
@@ -241,11 +260,20 @@ public class ProductDAO {
         }
     }
 
+    public long countAvailableProducts() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(p) FROM Product p WHERE p.status = 'AVAILABLE'", Long.class).getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
     public long[] countStockRiskSkus(int threshold) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             Object[] counts = em.createQuery(
-                    "SELECT SUM(CASE WHEN v.quantityAvailable <= 0 THEN 1 ELSE 0 END), SUM(CASE WHEN v.quantityAvailable > 0 AND v.quantityAvailable <= :threshold THEN 1 ELSE 0 END) FROM ProductVariant v",
+                    "SELECT SUM(CASE WHEN v.quantityAvailable <= 0 THEN 1 ELSE 0 END), SUM(CASE WHEN v.quantityAvailable > 0 AND v.quantityAvailable <= :threshold THEN 1 ELSE 0 END) FROM ProductVariant v WHERE v.status = 'AVAILABLE' AND v.product.status = 'AVAILABLE'",
                     Object[].class)
                     .setParameter("threshold", threshold)
                     .getSingleResult();

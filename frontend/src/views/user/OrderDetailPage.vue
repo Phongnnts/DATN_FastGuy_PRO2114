@@ -19,7 +19,7 @@ const order = ref(null)
 const loading = ref(true)
 const loadError = ref('')
 const orderReview = ref(null)
-const reviewForm = ref({ rating: 5, comment: '' })
+const reviewForm = ref({ rating: 5, comment: '', homepageConsent: false })
 const cancelForm = ref({ reason: '' })
 const submitting = ref(false)
 const cancelling = ref(false)
@@ -122,6 +122,7 @@ async function submitReview() {
       orderId: order.value.id,
       rating: Number(reviewForm.value.rating),
       comment: reviewForm.value.comment.trim() || null,
+      homepageConsent: reviewForm.value.homepageConsent,
     })
     await loadReview(order.value.id)
     showReviewForm.value = false
@@ -247,6 +248,7 @@ async function cancelOrder() {
         <div v-else-if="showReviewForm" class="review-form-block">
           <StarRating v-model="reviewForm.rating" :size="24" />
           <textarea v-model="reviewForm.comment" class="form-textarea" rows="3" maxlength="1000" placeholder="Chia sẻ cảm nhận về đơn hàng..."></textarea>
+          <label class="review-consent"><input v-model="reviewForm.homepageConsent" type="checkbox" /> <span>Cho phép FastGuy hiển thị bình luận, số sao, tên hiển thị và ảnh đại diện của tôi trên trang chủ công khai.</span></label>
           <div class="review-form-actions">
             <button class="btn btn-sm btn-ghost" @click="showReviewForm = false">Hủy</button>
             <button class="btn btn-sm btn-primary" :disabled="submitting" @click="submitReview">
@@ -325,6 +327,7 @@ async function cancelOrder() {
 .review-done { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .review-done-comment { font-size: 14px; color: var(--text-mid); margin: 0; }
 .review-form-block { display: flex; flex-direction: column; gap: 10px; }
+.review-consent { display:flex;align-items:flex-start;gap:9px;min-height:44px;color:var(--text-mid);font-size:13px;line-height:1.5;cursor:pointer; }.review-consent input { width:18px;height:18px;margin-top:1px;flex:none; }
 .review-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .detail-state { min-height: 320px; }.spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 640px) { .order-detail-page { padding: 16px 0; }.detail-header { gap: 12px; }.detail-item { align-items: flex-start; flex-wrap: wrap; }.detail-item-info { min-width: calc(100% - 76px); }.detail-item-total { margin-left: auto; }.review-form-actions, .detail-section .btn { width: 100%; }.review-form-actions .btn { flex: 1; } }

@@ -4,27 +4,49 @@ import test from 'node:test';
 
 const reportsPage = readFileSync(new URL('../src/views/admin/ReportsPage.vue', import.meta.url), 'utf8');
 
-test('KPI row exposes gross net and refund cards from backend report fields', () => {
-  assert.match(reportsPage, /Doanh thu kỳ/);
-  assert.match(reportsPage, /formatPrice\(data\.periodRevenue \|\| 0\)/);
-  assert.match(reportsPage, /Doanh thu ròng/);
-  assert.match(reportsPage, /netRevenue/);
-  assert.match(reportsPage, /data\.value\.netRevenue \?\?/);
+test('report exposes reconcilable financial breakdown and operational cohort', () => {
+  for (const label of ['Tiền món', 'Phí giao hàng', 'Phí dịch vụ', 'Giảm giá', 'Doanh thu gộp', 'Đã hoàn tiền', 'Dòng tiền ròng']) assert.match(reportsPage, new RegExp(label));
+  for (const field of ['itemRevenue', 'shippingRevenue', 'serviceFeeRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'netCashRevenue', 'operationalOrderCount', 'operationalCompletedCount']) assert.match(reportsPage, new RegExp(`data\\.${field}`));
+  assert.match(reportsPage, /data\.value\.completionRate/);
+  assert.match(reportsPage, /Number\(data\.value\.completionRate \|\| 0\)/);
+  assert.match(reportsPage, /Number\(product\.revenue \|\| 0\) \* 100 \/ data\.itemRevenue/);
+});
+
+test('report renders advanced operational analytics without fabricated datasets', () => {
+  for (const key of ['revenueByHour', 'performanceByWeekday', 'refundTrend', 'exceptionReasons']) assert.match(reportsPage, new RegExp(`data\\.value\\.${key}`));
+  for (const title of ['Doanh thu theo giờ', 'Hiệu suất theo thứ', 'Xu hướng hoàn tiền', 'Lý do ngoại lệ']) assert.match(reportsPage, new RegExp(title));
+  assert.match(reportsPage, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
+});
+
+test('core commerce charts use legible business-specific encodings', () => {
+  assert.match(reportsPage, /const monthly = data\.value\.monthlyFinancialTrend/);
+  assert.match(reportsPage, /label: 'Doanh thu gộp'[\s\S]*label: 'Hoàn tiền'[\s\S]*label: 'Dòng tiền ròng'/);
+  assert.match(reportsPage, /const top[\s\S]*indexAxis: 'y'/);
+  assert.match(reportsPage, /const category[\s\S]*indexAxis: 'y'/);
+  assert.match(reportsPage, /const payment[\s\S]*indexAxis: 'y'[\s\S]*max: 100/);
+  assert.match(reportsPage, /Tỷ trọng đơn thành công và doanh thu/);
+});
+
+test('KPI row exposes gross net cash and refund cards from backend report fields', () => {
+  assert.match(reportsPage, /Doanh thu gộp/);
+  assert.match(reportsPage, /formatPrice\(data\.grossRevenue \|\| 0\)/);
+  assert.match(reportsPage, /Dòng tiền ròng/);
+  assert.match(reportsPage, /data\.netCashRevenue/);
   assert.match(reportsPage, /Đã hoàn tiền/);
   assert.match(reportsPage, /formatPrice\(data\.refundTotal \|\| 0\)/);
   assert.match(reportsPage, /data\.refundCount/);
 });
 
-test('net revenue uses period-level backend value with gross minus refund fallback', () => {
-  assert.match(reportsPage, /Number\(data\.value\.netRevenue \?\? \(Number\(data\.value\.periodRevenue \|\| 0\) - Number\(data\.value\.refundTotal \|\| 0\)\)\)/);
+test('net cash revenue prefers backend value with compatibility fallback', () => {
+  assert.match(reportsPage, /Number\(data\.value\.netCashRevenue \?\? data\.value\.netRevenue \?\?/);
 });
 
-test('revenueByDay chart stays a single gross line and does not fabricate per-day net', () => {
+test('revenueByDay chart compares gross refund events and net cash', () => {
   const dayBranch = reportsPage.slice(reportsPage.indexOf('const day = data.value.revenueByDay'), reportsPage.indexOf('const month = data.value.revenueByMonth'));
-  assert.match(dayBranch, /label: 'Doanh thu'/);
-  assert.ok((dayBranch.match(/label: 'Doanh thu'/g) || []).length === 1);
-  assert.doesNotMatch(dayBranch, /refund|netRevenue/);
-  assert.doesNotMatch(reportsPage, /revenueByDay[\s\S]{0,120}netRevenue|netRevenue[\s\S]{0,120}revenueByDay/);
+  assert.match(dayBranch, /label: 'Doanh thu gộp'/);
+  assert.match(dayBranch, /label: 'Hoàn tiền'/);
+  assert.match(dayBranch, /label: 'Dòng tiền ròng'/);
+  assert.match(dayBranch, /data\.value\.refundTrend/);
 });
 
 test('export downloads CSV with UTF-8 BOM and semicolon delimiter', () => {
@@ -55,8 +77,8 @@ test('CSV includes summary rows period gross refund net orders then product rows
   assert.match(reportsPage, /'Kỳ báo cáo'/);
   assert.match(reportsPage, /'Doanh thu gộp'/);
   assert.match(reportsPage, /Đã hoàn tiền/);
-  assert.match(reportsPage, /'Doanh thu ròng'/);
-  assert.match(reportsPage, /'Đơn giao thành công'/);
+  assert.match(reportsPage, /'Dòng tiền ròng'/);
+  assert.match(reportsPage, /'Đơn hoàn tất cùng cohort'/);
   assert.match(reportsPage, /'Hạng', 'Sản phẩm', 'Số lượng bán', 'Doanh thu', 'Tỷ trọng'/);
   assert.match(reportsPage, /d\.topProducts \|\| \[\]\)\.map/);
 });

@@ -5,6 +5,7 @@ import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useOrderStore } from '@/stores/order';
 import { formatDate, formatPrice } from '@/utils/format';
+import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -57,8 +58,10 @@ function printReceipt() {
 
 <template>
   <div class="success-page">
+    <div class="success-shell">
+      <CheckoutStepper :current="4" />
     <section class="card success-card" aria-live="polite">
-      <header class="success-header">
+      <header class="success-header success-hero">
         <i class="bi bi-check-circle-fill success-icon" aria-hidden="true"></i>
         <div>
           <h1>{{ canLoadDetail || verifiedGuest ? 'Đặt hàng thành công!' : 'Tra cứu đơn hàng' }}</h1>
@@ -130,6 +133,7 @@ function printReceipt() {
         <router-link to="/menu" class="btn btn-outline">Tiếp tục mua sắm</router-link>
       </div>
     </section>
+    </div>
   </div>
 </template>
 
@@ -181,4 +185,8 @@ p { color: var(--text-mid); }
   .success-card { max-width: none; box-shadow: none; }
   .actions, .print-action, .guest-message { display: none; }
 }
+</style>
+
+<style scoped>
+.success-page{min-height:100vh;padding:24px 16px 72px;background:linear-gradient(180deg,#fff8f0,#faf8f6)}.success-shell{width:min(980px,100%);margin:0 auto}.success-card{max-width:none;padding:0 32px 32px;overflow:hidden;border:1px solid #ece4de;border-radius:22px;background:#fff;box-shadow:0 20px 55px rgba(40,27,20,.08)}.success-hero{margin:0 -32px;padding:34px 32px;color:#fff;background:linear-gradient(135deg,#1f1a17,#3a2b24)}.success-hero p{color:rgba(255,255,255,.72)}.success-hero .order-code{color:#f6c58c}.success-icon{color:#f4a261}.overview>div,.detail-section{border-color:#ece4de}.overview>div{border-radius:14px;background:#fffaf6}.detail-section{padding:20px;border:1px solid #ece4de;border-radius:16px;background:#fff}.detail-grid{gap:14px}.detail-grid .detail-section{margin-top:14px}.items .item:last-child{border-bottom:0}.actions .btn{min-height:44px;border-radius:999px}@media(max-width:640px){.success-page{padding:14px 10px 48px}.success-card{padding:0 16px 22px}.success-hero{margin:0 -16px;padding:28px 18px}.overview{margin-top:18px}.detail-section{margin-top:14px;padding:15px}}
 </style>

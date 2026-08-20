@@ -22,22 +22,18 @@ const loadError = ref('');
 const orderStatusLabels = {
   PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận',
   PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper',
-  PICKED_UP: 'Đang giao', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
+  PICKED_UP: 'Đang giao', DELIVERY_FAILED: 'Giao thất bại', RETURNED_TO_STORE: 'Đã hoàn kho', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
 };
 
 const statusColors = {
   PENDING: '#F59E0B', CONFIRMED: '#3B82F6', PREPARING: '#8B5CF6',
-  READY: '#10B981', ASSIGNED: '#3B82F6', PICKED_UP: '#06B6D4', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
+  READY: '#10B981', ASSIGNED: '#3B82F6', PICKED_UP: '#06B6D4', DELIVERY_FAILED: '#F97316', RETURNED_TO_STORE: '#64748B', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
 };
 
 const data = computed(() => adminStore.dashboard);
 const viewState = computed(() => dashboardViewState(data.value, loadState.value, loadError.value));
 const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
-const completionRate = computed(() => {
-  const statuses = data.value.ordersByStatus || {};
-  const total = Object.values(statuses).reduce((sum, value) => sum + Number(value || 0), 0);
-  return total ? Math.round((Number(statuses.DELIVERED || 0) / total) * 100) : 0;
-});
+const completionRate = computed(() => Math.round(Number(data.value.completionRate || 0)));
 
 function getCSSVar(name) {
   return getComputedStyle(document.documentElement)
@@ -216,8 +212,8 @@ onUnmounted(() => {
     <section class="primary-stats" aria-label="Chỉ số tổng quan">
       <article class="metric-card revenue"><div class="metric-top"><span>Tổng doanh thu</span><i class="bi bi-graph-up-arrow"></i></div><strong>{{ formatPrice(data.totalRevenue) }}</strong><small>Giá trị tích lũy toàn hệ thống</small></article>
       <article class="metric-card"><div class="metric-top"><span>Tổng đơn hàng</span><i class="bi bi-receipt"></i></div><strong>{{ data.totalOrders.toLocaleString() }}</strong><small>{{ data.ordersToday }} đơn phát sinh hôm nay</small></article>
-      <article class="metric-card"><div class="metric-top"><span>Khách hàng</span><i class="bi bi-people"></i></div><strong>{{ data.totalUsers.toLocaleString() }}</strong><small>Tài khoản trên hệ thống</small></article>
-      <article class="metric-card"><div class="metric-top"><span>Sản phẩm</span><i class="bi bi-box-seam"></i></div><strong>{{ data.totalProducts }}</strong><small>Món trong danh mục quản lý</small></article>
+      <article class="metric-card"><div class="metric-top"><span>Khách hàng</span><i class="bi bi-people"></i></div><strong>{{ data.customerCount.toLocaleString() }}</strong><small>Tài khoản khách hàng</small></article>
+      <article class="metric-card"><div class="metric-top"><span>Sản phẩm đang bán</span><i class="bi bi-box-seam"></i></div><strong>{{ data.activeProductCount }}</strong><small>Món AVAILABLE trong danh mục</small></article>
     </section>
 
     <section class="operation-strip">

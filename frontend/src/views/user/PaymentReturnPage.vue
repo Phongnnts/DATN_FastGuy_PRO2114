@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { orderApi } from '@/api';
+import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -77,7 +78,9 @@ function redirect() {
 
 <template>
   <div class="payment-return-page">
-    <div class="card payment-card" aria-live="polite" aria-atomic="true">
+    <div class="payment-shell">
+      <CheckoutStepper :current="3" />
+    <div class="card payment-card payment-status-card" :class="`status-${status}`" aria-live="polite" aria-atomic="true">
       <div v-if="status === 'loading'" class="payment-state">
         <i class="bi bi-arrow-repeat spin"></i>
         <h3>Đang xử lý...</h3>
@@ -111,6 +114,7 @@ function redirect() {
         <p>Vui lòng kiểm tra lại đơn hàng của bạn.</p>
         <router-link to="/home" class="btn btn-primary">Về trang chủ</router-link>
       </div>
+    </div>
     </div>
   </div>
 </template>
@@ -159,4 +163,8 @@ function redirect() {
   to { transform: rotate(360deg); }
 }
 .btn { margin-top: 16px; }
+</style>
+
+<style scoped>
+.payment-return-page{align-items:flex-start;min-height:100vh;padding:24px 16px 64px;background:linear-gradient(180deg,#fff8f0,#faf8f6)}.payment-shell{width:min(980px,100%)}.payment-status-card{position:relative;overflow:hidden;max-width:620px;margin:36px auto 0;padding:54px 32px;border:1px solid #ece4de;border-radius:22px;background:#fff;box-shadow:0 20px 55px rgba(40,27,20,.08)}.payment-status-card::before{position:absolute;top:0;right:0;left:0;height:5px;background:linear-gradient(90deg,#df683e,#f3b05f);content:""}.payment-state i{display:inline-grid;width:78px;height:78px;place-items:center;margin-bottom:20px;border-radius:50%;background:#fff5ef}.payment-state h3{font-size:26px}.payment-state .btn{min-height:44px;border-radius:999px}@media(max-width:640px){.payment-return-page{padding:14px 10px 48px}.payment-status-card{margin-top:18px;padding:40px 18px}.payment-state h3{font-size:22px}}
 </style>

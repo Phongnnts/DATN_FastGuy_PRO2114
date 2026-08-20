@@ -247,18 +247,7 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("userId", user.getUserId());
-        data.put("fullName", user.getFullName());
-        data.put("email", user.getEmail());
-        data.put("phone", user.getPhone());
-        data.put("avatarUrl", user.getAvatarUrl());
-        data.put("role", user.getRole());
-        data.put("status", user.getStatus());
-        data.put("loyaltyPoints", user.getLoyaltyPoints());
-        data.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
-
-        JsonUtil.write(resp, ApiResponse.ok(data));
+        JsonUtil.write(resp, ApiResponse.ok(toProfileMap(user)));
     }
 
     private void handleUpdateProfile(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -285,6 +274,14 @@ public class AuthServlet extends HttpServlet {
         body.put("fullName", fullName);
         body.put("phone", phone);
         body.put("email", email);
+        if (body.containsKey("avatarUrl")) {
+            try {
+                body.put("avatarUrl", UserAvatarPolicy.normalize(body.get("avatarUrl")));
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+                return;
+            }
+        }
 
         User user = authService.updateProfile(userId, body);
         if (user == null) {
@@ -292,14 +289,21 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
+        JsonUtil.write(resp, ApiResponse.ok(toProfileMap(user), "Cập nhật thành công"));
+    }
+
+    private Map<String, Object> toProfileMap(User user) {
         Map<String, Object> data = new HashMap<>();
         data.put("userId", user.getUserId());
         data.put("fullName", user.getFullName());
         data.put("email", user.getEmail());
         data.put("phone", user.getPhone());
         data.put("avatarUrl", user.getAvatarUrl());
-
-        JsonUtil.write(resp, ApiResponse.ok(data, "Cập nhật thành công"));
+        data.put("role", user.getRole());
+        data.put("status", user.getStatus());
+        data.put("loyaltyPoints", user.getLoyaltyPoints());
+        data.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+        return data;
     }
 
     private String validateAccount(String fullName, String phone, String email, String password, boolean requirePassword) {

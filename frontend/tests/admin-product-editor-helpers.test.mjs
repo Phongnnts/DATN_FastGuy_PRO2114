@@ -2,15 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { reactive } from 'vue';
 import {
+  buildComboHomepagePayload,
+  buildProductPayload,
+  comboSaveMethod,
+  comboItemLabel,
   cloneProductState,
+
   createProductDraft,
   createVariantDraft,
   isCurrentEditorRequest,
   isValidProductId,
   nextEnabledSectionIndex,
+  normalizeProductScope,
   normalizeProductDetail,
   sectionDirty,
   validateComboItem,
+  validateComboHomepage,
   validateGeneral,
   validateModifierGroup,
   validateModifierOption,
@@ -45,6 +52,8 @@ test('createProductDraft returns independent editor defaults', () => {
     variants: [],
     modifierGroups: [],
     combo: null,
+    isNew: false,
+    spiceLevel: 0,
   });
   first.galleryImages.push('image');
   assert.deepEqual(second.galleryImages, []);
@@ -75,6 +84,14 @@ test('normalizeProductDetail defaults nullable collections and preserves numeric
   assert.equal(result.variants[0].originalPrice, null);
   assert.equal(result.variants[0].quantityAvailable, null);
   assert.deepEqual(result.modifierGroups, []);
+  assert.equal(result.isNew, false);
+  assert.equal(result.spiceLevel, 0);
+});
+
+test('product update payload preserves exact homepage product controls', () => {
+  const payload = buildProductPayload({ name: ' Burger ', categoryId: 2, basePrice: '12000', image: '', description: '', status: 'AVAILABLE', availableFrom: '', availableTo: '', galleryImages: [], isNew: true, spiceLevel: 3 });
+  assert.equal(payload.isNew, true);
+  assert.equal(payload.spiceLevel, 3);
 });
 
 test('isValidProductId accepts positive integer IDs only', () => {
@@ -199,6 +216,35 @@ test('validateComboItem requires valid variant and positive quantity', () => {
   assert.deepEqual(validateComboItem({ variantId: null, quantity: 0 }), { variantId: 'Chọn biến thể hợp lệ', quantity: 'Số lượng phải lớn hơn 0' });
   assert.deepEqual(validateComboItem({ variantId: 7, quantity: 2 }), {});
 });
+
+test('normalizeProductScope always returns an array for canonical slice reloads', () => {
+  assert.deepEqual(normalizeProductScope('combo'), ['combo']);
+  assert.deepEqual(normalizeProductScope(['general', 'media']), ['general', 'media']);
+  assert.deepEqual(normalizeProductScope(null), ['general', 'media']);
+});
+
+test('combo homepage controls require a nonnegative integer order and build exact PUT body', () => {
+  assert.deepEqual(validateComboHomepage({ homepageSortOrder: -1 }), { homepageSortOrder: 'Thứ tự phải là số nguyên không âm' });
+  assert.deepEqual(validateComboHomepage({ homepageSortOrder: 1.5 }), { homepageSortOrder: 'Thứ tự phải là số nguyên không âm' });
+  assert.deepEqual(validateComboHomepage({ homepageSortOrder: 0 }), {});
+  assert.deepEqual(buildComboHomepagePayload({ isActive: true, homepageOccasion: '', homepageSortOrder: '2' }), {
+    isActive: true,
+    homepageOccasion: null,
+    homepageSortOrder: 2,
+  });
+});
+
+test('combo save method selects POST create only when canonical combo is absent', () => {
+  assert.equal(comboSaveMethod(false), 'createCombo');
+  assert.equal(comboSaveMethod(true), 'updateCombo');
+});
+
+test('combo item label resolves from computed choice values with a stable fallback', () => {
+  const choices = [{ variantId: 12, label: 'Burger - Lớn' }];
+  assert.equal(comboItemLabel(choices, { variantId: 12 }), 'Burger - Lớn');
+  assert.equal(comboItemLabel(choices, { variantId: 99 }), 'Biến thể #99');
+});
+
 
 test('withProductSlice copies only the affected slice and preserves other sections', () => {
   const current = { name: 'Giữ tên', categoryId: 1, variants: [{ variantId: 1, price: 5000 }], combo: null };

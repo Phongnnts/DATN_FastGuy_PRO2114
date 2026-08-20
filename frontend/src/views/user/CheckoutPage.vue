@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useOrderStore } from '@/stores/order';
@@ -220,6 +221,11 @@ function useManualEntry() {
   pendingWardCode = null;
 }
 
+function returnToSavedAddresses() {
+  useNewAddress.value = false;
+  selectedAddressId.value = null;
+}
+
 function selectedAddress() {
   return savedAddresses.value.find(a => a.addressId === selectedAddressId.value);
 }
@@ -414,18 +420,15 @@ async function placeOrder() {
   <div class="checkout-page">
     <div class="container">
       <div class="checkout-breadcrumb"><router-link to="/home">Trang chủ</router-link><i class="bi bi-chevron-right"></i><router-link to="/cart">Giỏ hàng</router-link><i class="bi bi-chevron-right"></i><strong>Thanh toán</strong></div>
-      <div class="checkout-stepper" aria-label="Các bước thanh toán">
-        <div class="step" :class="{ active: currentStep === 1, complete: currentStep > 1 }" :aria-current="currentStep === 1 ? 'step' : undefined"><span><i v-if="currentStep > 1" class="bi bi-check-lg"></i><template v-else>1</template></span><strong>Địa chỉ</strong></div><div class="step-line"></div>
-        <div class="step" :class="{ active: currentStep === 2, complete: currentStep > 2 }" :aria-current="currentStep === 2 ? 'step' : undefined"><span><i v-if="currentStep > 2" class="bi bi-check-lg"></i><template v-else>2</template></span><strong>Ưu đãi</strong></div><div class="step-line"></div>
-        <div class="step" :class="{ active: currentStep === 3 }" :aria-current="currentStep === 3 ? 'step' : undefined"><span>3</span><strong>Thanh toán</strong></div>
-      </div>
-    <div class="checkout-layout" v-if="cart.items.length > 0">
+      <CheckoutStepper :current="currentStep === 3 ? 3 : 2" />
+    <div v-if="cart.items.length > 0" class="checkout-shell">
+      <div class="checkout-layout">
         <div class="checkout-main">
           <div v-if="storeConfig" class="store-status" :class="{ closed: isStoreClosed }">
             <i :class="isStoreClosed ? 'bi bi-shop-window' : 'bi bi-check-circle-fill'"></i>
             <span>{{ isStoreClosed ? 'Cửa hàng hiện đã đóng cửa' : 'Cửa hàng đang mở cửa' }} · {{ storeConfig.openTime }} - {{ storeConfig.closeTime }}</span>
           </div>
-          <div v-show="currentStep === 1" class="card mb-3 checkout-block">
+          <div v-show="currentStep <= 2" class="card mb-3 checkout-block checkout-section delivery-section">
            <h3><i class="bi bi-geo-alt"></i> Thông tin nhận hàng</h3>
 
           <div v-if="!isGuest && savedAddresses.length > 0 && !useNewAddress" class="saved-addresses">
@@ -460,7 +463,8 @@ async function placeOrder() {
             </button>
           </div>
 
-          <div v-if="useNewAddress || savedAddresses.length === 0">
+          <div v-if="useNewAddress || savedAddresses.length === 0" class="manual-address-form">
+            <button v-if="useNewAddress && savedAddresses.length" type="button" class="saved-address-back" @click="returnToSavedAddresses"><i class="bi bi-arrow-left" aria-hidden="true"></i> Chọn địa chỉ đã lưu</button>
             <div class="form-group">
               <label class="form-label">Tên người nhận</label>
               <input v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" minlength="2" maxlength="100" required />
@@ -512,8 +516,8 @@ async function placeOrder() {
             <i class="bi bi-receipt"></i> Phí phục vụ: <strong>{{ formatPrice(serviceFee) }}</strong>
           </div>
         </div>
-         <div v-show="currentStep === 3" class="card mb-3 checkout-block">
-           <h3><i class="bi bi-credit-card"></i> Phương thức thanh toán</h3>
+<div v-show="currentStep === 3" class="card mb-3 checkout-block checkout-section payment-section">
+            <h3><i class="bi bi-credit-card"></i> Phương thức thanh toán</h3>
           <div class="payment-selector">
             <div
                v-for="key in availablePaymentMethods"
@@ -558,7 +562,7 @@ async function placeOrder() {
           ></textarea>
         </div>
       </div>
-       <div v-show="currentStep >= 2" class="checkout-sidebar">
+       <div class="checkout-sidebar checkout-summary-panel">
         <div class="card order-summary-card">
           <h3>Đơn hàng</h3>
           <div class="checkout-items">
@@ -584,7 +588,7 @@ async function placeOrder() {
               </div>
             </div>
           </div>
-          <div class="checkout-coupon">
+          <div class="checkout-coupon checkout-section coupon-section">
             <div class="coupon-header">
               <i class="bi bi-tag"></i>
               <span>Mã giảm giá</span>
@@ -695,9 +699,10 @@ async function placeOrder() {
         </div>
       </div>
       <div class="checkout-actions">
-        <button v-if="currentStep > 1" type="button" class="btn btn-outline" @click="currentStep--">Quay lại</button>
-        <button v-if="currentStep < 3" type="button" class="btn btn-primary" :disabled="currentStep === 1 && !canPlaceOrder()" @click="currentStep++">Tiếp tục</button>
+        <button v-if="currentStep === 3" type="button" class="btn btn-outline" @click="currentStep = 1">Quay lại thông tin</button>
+        <button v-if="currentStep === 1" type="button" class="btn btn-primary" :disabled="!canPlaceOrder()" @click="currentStep = 3">Tiếp tục thanh toán</button>
       </div>
+    </div>
     </div>
     <div v-else class="empty-state" style="padding: 60px 0">
       <i class="bi bi-cart3"></i>
@@ -1134,4 +1139,8 @@ async function placeOrder() {
 @media (max-width: 768px) { .checkout-stepper { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 14px 8px; }.checkout-stepper .step { white-space: normal; text-align: center; font-size: 10px; }.checkout-stepper .step-line { display: none; }.checkout-layout { grid-template-columns: 1fr; }.checkout-sidebar .card { position: static; }.checkout-page { padding-top: 16px; } }
 @media (max-width: 380px) { .coupon-input-group { flex-direction: column; }.coupon-btn { width: 100%; } }
 @media (max-width: 768px) { .checkout-actions { position: sticky; bottom: 0; z-index: 5; margin: 0 -12px -12px; padding: 12px; background: #fff; border-top: 1px solid var(--border); }.checkout-actions .btn { flex: 1; } }
+</style>
+
+<style scoped>
+.checkout-page{background:linear-gradient(180deg,#fff8f0 0%,#faf8f6 100%)}.checkout-shell{display:grid;gap:14px}.checkout-layout{grid-template-columns:minmax(0,1fr) 360px;gap:18px}.checkout-main{display:grid;align-content:start;gap:14px}.checkout-section,.order-summary-card{border:1px solid #ece4de!important;border-radius:18px!important;background:#fff;box-shadow:0 12px 34px rgba(40,27,20,.05)}.delivery-section,.payment-section{padding:22px!important}.delivery-section>h3,.payment-section>h3{margin-bottom:20px!important;font-size:17px!important}.delivery-section>h3 i,.payment-section>h3 i{display:grid;width:36px;height:36px;place-items:center;border-radius:11px;color:#fff!important;background:#df683e}.manual-address-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.manual-address-form .saved-address-back,.manual-address-form .delivery-area,.manual-address-form .preview-address{grid-column:1/-1}.saved-address-back{display:inline-flex;width:max-content;min-height:44px;align-items:center;gap:7px;padding:0 14px;border:1px solid #e1d8d2;border-radius:999px;color:#8f3f23;background:#fff;font-size:12px;font-weight:800}.saved-address-back:hover{border-color:#df683e;background:#fff7f2}.checkout-summary-panel{position:sticky;top:82px}.order-summary-card::before{height:4px!important;background:linear-gradient(90deg,#df683e,#f3b05f)!important}.coupon-section{margin-top:14px;background:#fffaf6}.coupon-header{padding-bottom:11px}.coupon-manual-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}.coupon-manual-row .btn{min-height:44px}.payment-selector{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.payment-option{min-height:92px;border:1px solid #e7ddd7!important;border-radius:14px!important;background:#fff}.payment-option.selected{border-color:#df683e!important;box-shadow:0 0 0 3px rgba(223,104,62,.11)}.checkout-actions{padding:4px 0}.checkout-actions .btn{min-width:128px;min-height:44px;border-radius:999px}.checkout-btn{width:100%;min-height:50px!important}.form-input,.form-select,.form-textarea{border-color:#e1d8d2;border-radius:11px}.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:#df683e;box-shadow:0 0 0 3px rgba(223,104,62,.11)}@media(max-width:768px){.checkout-layout{grid-template-columns:1fr}.checkout-summary-panel{position:static}.delivery-section,.payment-section{padding:17px!important}.manual-address-form{grid-template-columns:1fr}.manual-address-form .saved-address-back,.manual-address-form .delivery-area{grid-column:auto}.payment-selector{grid-template-columns:1fr}.checkout-actions{position:sticky;z-index:5;bottom:0;padding:10px 0;background:rgba(250,248,246,.94);backdrop-filter:blur(10px)}}
 </style>

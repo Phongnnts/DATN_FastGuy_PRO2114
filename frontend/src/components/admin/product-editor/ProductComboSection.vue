@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { adminApi } from '@/api';
 import { useAdminStore } from '@/stores/admin';
-import { cloneProductState, isValidProductId, sectionDirty, validateComboItem } from '@/utils/adminProductEditor';
+import { buildComboHomepagePayload, cloneProductState, comboItemLabel, comboSaveMethod, isValidProductId, sectionDirty, validateComboHomepage, validateComboItem } from '@/utils/adminProductEditor';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -23,8 +23,14 @@ let generation = 0;
 let stopped = false;
 
 const combo = computed(() => props.modelValue.combo);
+const comboForm = computed(() => ({ isActive: combo.value?.isActive ?? false, homepageOccasion: combo.value?.homepageOccasion ?? null, homepageSortOrder: combo.value?.homepageSortOrder ?? 0 }));
 const locked = computed(() => !isValidProductId(props.productId));
 const choices = computed(() => adminStore.allProducts.flatMap((product) => (product.variants || []).map((variant) => ({ ...variant, label: `${product.name} - ${variant.variantName}`, productName: product.name }))));
+
+function saveCombo(payload) {
+  const method = comboSaveMethod(Boolean(combo.value));
+  return adminApi[method](props.productId, payload);
+}
 
 watch(() => props.modelValue.combo, (value) => {
   emit('dirty-change', sectionDirty(snapshot.value, value ?? null));
@@ -80,15 +86,24 @@ async function mutate(action) {
 }
 
 async function toggleCombo() {
-  const nextActive = !(combo.value?.isActive ?? false);
-  await mutate(() => adminApi.saveCombo(props.productId, { isActive: nextActive }));
+  await mutate(() => saveCombo(buildComboHomepagePayload({ ...comboForm.value, isActive: !comboForm.value.isActive })));
+}
+
+function updateHomepage(field, value) {
+  emit('update:modelValue', { ...props.modelValue, combo: { ...(combo.value || { items: [] }), ...comboForm.value, [field]: value } });
+}
+
+async function saveHomepage() {
+  itemErrors.value = validateComboHomepage(comboForm.value);
+  if (Object.keys(itemErrors.value).length) return;
+  await mutate(() => saveCombo(buildComboHomepagePayload(comboForm.value)));
 }
 
 async function addItem() {
   itemErrors.value = validateComboItem(newItem.value);
   if (Object.keys(itemErrors.value).length) return;
   const ok = await mutate(async () => {
-    if (!combo.value) await adminApi.saveCombo(props.productId, { isActive: true });
+    if (!combo.value) await adminApi.createCombo(props.productId, buildComboHomepagePayload({ ...comboForm.value, isActive: true }));
     await adminApi.createComboItem(props.productId, { variantId: Number(newItem.value.variantId), quantity: Number(newItem.value.quantity) });
   });
   if (ok) newItem.value = { variantId: null, quantity: 1 };
@@ -99,7 +114,7 @@ async function removeItem(item) {
 }
 
 function itemLabel(item) {
-  return choices.find((choice) => choice.variantId === item.variantId)?.label || `Biến thể #${item.variantId}`;
+  return comboItemLabel(choices.value, item);
 }
 </script>
 
@@ -111,6 +126,14 @@ function itemLabel(item) {
     <template v-else-if="catalogState === 'error'"><p class="hint error" role="alert">{{ catalogError }}</p><button class="btn btn-outline" type="button" :disabled="busy || mutating" @click="loadChoices">Thử lại</button></template>
     <template v-else>
       <p v-if="message" class="message" role="alert">{{ message }}</p>
+      <form class="combo-block" @submit.prevent="saveHomepage">
+        <h3>Hiển thị trang chủ</h3>
+        <div class="inline-form">
+          <div class="field grow"><label for="combo-homepage-occasion">Dịp sử dụng</label><select id="combo-homepage-occasion" :value="comboForm.homepageOccasion ?? ''" :disabled="busy || mutating" @change="updateHomepage('homepageOccasion', $event.target.value || null)"><option value="">Không hiển thị theo dịp</option><option value="QUICK_BREAK">Ăn nhanh</option><option value="OFFICE_LUNCH">Bữa trưa văn phòng</option><option value="STUDENT">Sinh viên</option><option value="GROUP">Nhóm</option></select></div>
+          <div class="field"><label for="combo-homepage-order">Thứ tự</label><input id="combo-homepage-order" type="number" min="0" step="1" :value="comboForm.homepageSortOrder" :disabled="busy || mutating" :aria-invalid="Boolean(itemErrors.homepageSortOrder)" :aria-describedby="itemErrors.homepageSortOrder ? 'combo-homepage-order-error' : undefined" @input="updateHomepage('homepageSortOrder', $event.target.value)" /><span v-if="itemErrors.homepageSortOrder" id="combo-homepage-order-error" role="alert">{{ itemErrors.homepageSortOrder }}</span></div>
+          <button class="btn btn-outline" type="submit" :disabled="busy || mutating">Lưu hiển thị</button>
+        </div>
+      </form>
       <div class="combo-block">
         <h3>Thêm thành phần</h3>
         <div class="inline-form">
@@ -140,5 +163,5 @@ function itemLabel(item) {
 </template>
 
 <style scoped>
-.editor-card{display:grid;gap:16px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.heading{display:flex;align-items:center;justify-content:space-between}.heading h2{margin:0}.hint{color:var(--text-mid);font-size:13px}.hint.error{color:#b91c1c}.message{margin:0;color:#b91c1c;font-size:12px}.combo-block{display:grid;gap:12px;padding:16px;border:1px solid rgba(23,23,23,.08);border-radius:14px}.combo-block h3{margin:0;font-size:13px;color:var(--text-mid)}.inline-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.inline-form .grow{flex:1;min-width:200px}.field{display:grid;gap:6px}.field label{font-size:12px;font-weight:700}.field input,.field select{min-height:42px;padding:9px 11px;border:1px solid #ddd;border-radius:9px;background:#fff}.field [role=alert]{color:#b91c1c;font-size:12px}.item-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}.item-list li{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(23,23,23,.08);border-radius:10px}.item-label{flex:1;font-size:13px}.item-qty{font-weight:700}@media(max-width:600px){.heading{flex-direction:column;align-items:start;gap:10px}.inline-form{flex-direction:column;align-items:stretch}}
+.editor-card{display:grid;gap:16px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.heading{display:flex;align-items:center;justify-content:space-between}.heading h2{margin:0}.hint{color:var(--text-mid);font-size:13px}.hint.error{color:#b91c1c}.message{margin:0;color:#b91c1c;font-size:12px}.combo-block{display:grid;gap:12px;padding:16px;border:1px solid rgba(23,23,23,.08);border-radius:14px}.combo-block h3{margin:0;font-size:13px;color:var(--text-mid)}.inline-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.inline-form .grow{flex:1;min-width:200px}.field{display:grid;gap:6px}.field label{font-size:12px;font-weight:700}.field input,.field select{min-height:44px;padding:9px 11px;border:1px solid #ddd;border-radius:9px;background:#fff}.field [role=alert]{color:#b91c1c;font-size:12px}.item-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}.item-list li{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(23,23,23,.08);border-radius:10px}.item-label{flex:1;font-size:13px}.item-qty{font-weight:700}@media(max-width:600px){.heading{flex-direction:column;align-items:start;gap:10px}.inline-form{flex-direction:column;align-items:stretch}}
 </style>

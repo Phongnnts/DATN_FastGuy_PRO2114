@@ -4,20 +4,200 @@ import test from 'node:test';
 
 const contractUrl = new URL('../../openapi/fastguy.yaml', import.meta.url);
 
+function schemaSection(contract, name, nextName) {
+  return contract.slice(contract.indexOf(`    ${name}:`), contract.indexOf(`    ${nextName}:`));
+}
+
 test('OpenAPI contract covers the categories response consumed by Vue', async () => {
   const contract = await readFile(contractUrl, 'utf8');
 
   assert.match(contract, /^openapi: 3\.1\.0$/m);
   assert.match(contract, /^  \/categories:$/m);
   assert.match(contract, /^      operationId: listCategories$/m);
-  for (const field of ['categoryId', 'name', 'description', 'sortOrder', 'productCount']) {
+  for (const field of ['categoryId', 'name', 'description', 'imageUrl', 'sortOrder', 'productCount']) {
     assert.match(contract, new RegExp(`^        ${field}:$`, 'm'));
   }
   assert.doesNotMatch(contract, /\$ref:\s*['"]?https?:\/\//);
+});
+
+test('OpenAPI contracts shared profiles and admin user avatar CRUD', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+
+  assert.match(contract, /^  \/auth\/profile:$/m);
+  assert.match(contract, /^      operationId: getProfile$/m);
+  assert.match(contract, /^      operationId: updateProfile$/m);
+  assert.match(contract, /^  \/admin\/users:$/m);
+  assert.match(contract, /^      operationId: listAdminUsers$/m);
+  assert.match(contract, /^      operationId: createAdminUser$/m);
+  assert.match(contract, /^  \/admin\/users\/\{userId\}:$/m);
+  assert.match(contract, /^      operationId: getAdminUser$/m);
+  assert.match(contract, /^      operationId: updateAdminUser$/m);
+  assert.match(contract, /^      operationId: deleteAdminUser$/m);
+  for (const schema of ['UserProfile', 'UserProfileUpdateRequest', 'AdminUser', 'AdminUserCreateRequest', 'AdminUserUpdateRequest']) {
+    assert.match(contract, new RegExp(`^    ${schema}:$`, 'm'));
+  }
+  const avatarSchemas = [
+    ['UserProfile', 'UserProfileUpdateRequest'],
+    ['UserProfileUpdateRequest', 'UserProfileResponse'],
+    ['AdminUser', 'AdminUserCreateRequest'],
+    ['AdminUserCreateRequest', 'AdminUserUpdateRequest'],
+    ['AdminUserUpdateRequest', 'AdminUserResponse'],
+  ];
+  for (const [schemaName, nextSchema] of avatarSchemas) {
+    const section = schemaSection(contract, schemaName, nextSchema);
+    assert.match(section, /^        avatarUrl:$/m);
+    assert.match(section, /avatarUrl:\s+type: \[string, 'null'\]\s+format: uri/s);
+    assert.ok(section.includes("pattern: '^https://'"));
+  }
+});
+
+test('OpenAPI contracts operational dashboard and reconcilable financial reports', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+  assert.match(contract, /^  \/admin\/dashboard:$/m);
+  assert.match(contract, /^      operationId: getAdminDashboard$/m);
+  assert.match(contract, /^  \/admin\/reports\/full:$/m);
+  assert.match(contract, /^      operationId: getAdminFullReport$/m);
+  const dashboard = schemaSection(contract, 'AdminDashboardData', 'AdminDashboardResponse');
+  for (const field of ['customerCount', 'activeProductCount', 'ordersByStatus', 'operationalOrderCount', 'operationalCompletedCount', 'completionRate']) assert.match(dashboard, new RegExp(`^        ${field}:`, 'm'));
+  const report = schemaSection(contract, 'AdminFullReportData', 'AdminFullReportResponse');
+  for (const field of ['itemRevenue', 'shippingRevenue', 'serviceFeeRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'netCashRevenue', 'operationalOrderCount', 'operationalCompletedCount', 'completionRate', 'revenueByHour', 'performanceByWeekday', 'refundTrend', 'exceptionReasons', 'monthlyFinancialTrend']) assert.match(report, new RegExp(`^        ${field}:`, 'm'));
 });
 
 test('frontend categories client uses the contractized endpoint', async () => {
   const source = await readFile(new URL('../src/api/product.js', import.meta.url), 'utf8');
 
   assert.match(source, /getCategories\(\)\s*{\s*return client\.get\('\/categories'\);/s);
+});
+
+test('OpenAPI contract defines the public homepage envelope without private review fields', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+
+  assert.match(contract, /^  \/homepage:$/m);
+  assert.match(contract, /^      operationId: getHomepage$/m);
+  const homepagePath = contract.slice(contract.indexOf('  /homepage:'), contract.indexOf('  /admin/products/{productId}:'));
+  assert.match(homepagePath, /^        '500':\s+\$ref: '#\/components\/responses\/InternalServerError'$/m);
+  for (const schema of ['HomepageResponse', 'HomepageData', 'ProductSummary', 'OccasionCombo', 'FeaturedReview']) {
+    assert.match(contract, new RegExp(`^    ${schema}:$`, 'm'));
+  }
+  assert.match(contract, /bestSellers:\s+type: array\s+maxItems: 6/s);
+  assert.match(contract, /occasionCombos:\s+type: array\s+maxItems: 4/s);
+  assert.match(contract, /featuredReviews:\s+type: array\s+maxItems: 3/s);
+  for (const field of ['isNew', 'spiceLevel', 'bestSeller', 'defaultVariant', 'variants', 'modifierGroups']) {
+    assert.match(contract, new RegExp(`^        ${field}:$`, 'm'));
+  }
+  for (const occasion of ['QUICK_BREAK', 'OFFICE_LUNCH', 'STUDENT', 'GROUP']) {
+    assert.match(contract, new RegExp(`^          - ${occasion}$`, 'm'));
+  }
+  const productSummary = schemaSection(contract, 'ProductSummary', 'ProductVariantSummary');
+  assert.match(productSummary, /required: \[[^\]]*defaultVariant[^\]]*variants[^\]]*modifierGroups[^\]]*\]/);
+  for (const field of ['productId', 'name', 'price', 'imageUrl', 'categoryId', 'categoryName', 'inStock', 'isAvailableNow', 'isNew', 'spiceLevel', 'bestSeller']) {
+    assert.match(productSummary, new RegExp(`required: \\[[^\\]]*${field}[^\\]]*\\]`));
+  }
+  const featuredReview = schemaSection(contract, 'FeaturedReview', 'AdminProductUpdateRequest');
+  for (const field of ['reviewId', 'rating', 'comment', 'userName', 'avatarUrl', 'createdAt']) {
+    assert.match(featuredReview, new RegExp(`^        ${field}:$`, 'm'));
+  }
+  assert.match(featuredReview, /avatarUrl:\s+type: \[string, 'null'\]/s);
+  assert.match(featuredReview, /createdAt:\s+type: string\s+pattern: '\^\\d\{4\}-\\d\{2\}-\\d\{2\}T\\d\{2\}:\\d\{2\}:\\d\{2\}/s);
+  assert.doesNotMatch(featuredReview, /format: date-time/);
+  assert.doesNotMatch(featuredReview, /^        (orderId|userId|email|phone|contact):$/m);
+  assert.doesNotMatch(contract, /\$ref:\s*['"]?https?:\/\//);
+});
+
+test('OpenAPI contract extends existing admin product read and mutation paths', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+
+  assert.match(contract, /^  \/admin\/products\/\{productId\}:$/m);
+  assert.match(contract, /^      operationId: getAdminProduct$/m);
+  assert.match(contract, /^      operationId: updateAdminProduct$/m);
+  assert.match(contract, /^  \/admin\/products\/\{productId\}\/combo:$/m);
+  assert.match(contract, /^      operationId: getAdminProductCombo$/m);
+  assert.match(contract, /^      operationId: updateAdminProductCombo$/m);
+  const productPath = contract.slice(contract.indexOf('  /admin/products/{productId}:'), contract.indexOf('  /admin/products/{productId}/combo:'));
+  const comboPath = contract.slice(contract.indexOf('  /admin/products/{productId}/combo:'), contract.indexOf('  /admin/orders/{orderId}:'));
+  assert.match(productPath, /\$ref: '#\/components\/schemas\/AdminProductDetailResponse'/);
+  assert.match(comboPath, /\$ref: '#\/components\/schemas\/AdminComboDetailResponse'/);
+
+  assert.match(contract, /^  \/admin\/orders\/\{orderId\}\/featured-review:$/m);
+  assert.match(contract, /^      operationId: updateFeaturedReview$/m);
+  const featuredPath = contract.slice(contract.indexOf('  /admin/orders/{orderId}/featured-review:'), contract.indexOf('components:'));
+  assert.match(featuredPath, /^        '422':$/m);
+  assert.match(featuredPath, /description: Review is not eligible for homepage publication/);
+
+  const productRequest = schemaSection(contract, 'AdminProductUpdateRequest', 'AdminComboUpdateRequest');
+  const productFields = ['categoryId', 'name', 'description', 'basePrice', 'status', 'availableFrom', 'availableTo', 'imageUrl', 'galleryImages', 'isNew', 'spiceLevel'];
+  for (const field of productFields) assert.match(productRequest, new RegExp(`^        ${field}:$`, 'm'));
+  assert.doesNotMatch(productRequest, /^        bestSeller:$/m);
+  assert.equal([...productRequest.matchAll(/^        (\w+):$/gm)].map((match) => match[1]).sort().join(','), productFields.sort().join(','));
+
+  const comboRequest = schemaSection(contract, 'AdminComboUpdateRequest', 'ReviewCreateRequest');
+
+  assert.equal([...comboRequest.matchAll(/^        (\w+):$/gm)].map((match) => match[1]).sort().join(','), ['homepageOccasion', 'homepageSortOrder', 'isActive'].sort().join(','));
+  assert.match(comboRequest, /homepageOccasion:\s+type: \[string, 'null'\]\s+enum: \[QUICK_BREAK, OFFICE_LUNCH, STUDENT, GROUP, null\]/s);
+  assert.match(comboRequest, /homepageSortOrder:\s+type: integer\s+minimum: 0/s);
+
+  const productDetail = schemaSection(contract, 'AdminProductDetail', 'AdminProductDetailResponse');
+  for (const field of ['productId', 'name', 'categoryId', 'categoryName', 'basePrice', 'imageUrl', 'description', 'status', 'availableFrom', 'availableTo', 'isNew', 'spiceLevel', 'galleryImages', 'variants', 'modifierGroups', 'combo', 'discountPrice', 'rating', 'reviewCount', 'inStock', 'featured']) assert.match(productDetail, new RegExp(`^        ${field}:$`, 'm'));
+  const comboDetail = schemaSection(contract, 'AdminComboDetail', 'AdminComboDetailResponse');
+  for (const field of ['comboId', 'isActive', 'homepageOccasion', 'homepageSortOrder', 'items']) assert.match(comboDetail, new RegExp(`^        ${field}:$`, 'm'));
+  for (const field of ['comboItemId', 'productId', 'variantId', 'quantity']) assert.match(contract, new RegExp(`^        ${field}:$`, 'm'));
+});
+
+
+test('OpenAPI contracts the exact admin order-detail serializer and review fields', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+  assert.match(contract, /^  \/admin\/products:$/m);
+  assert.match(contract, /^      operationId: listAdminProducts$/m);
+  assert.match(contract, /^      operationId: createAdminProduct$/m);
+  const productsPath = contract.slice(contract.indexOf('  /admin/products:'), contract.indexOf('  /admin/products/{productId}:'));
+  assert.match(productsPath, /\$ref: '#\/components\/schemas\/AdminProductListResponse'/);
+  const comboPath = contract.slice(contract.indexOf('  /admin/products/{productId}/combo:'), contract.indexOf('  /admin/orders/{orderId}:'));
+  assert.match(comboPath, /^    post:$/m);
+  assert.match(comboPath, /^      operationId: createAdminProductCombo$/m);
+  assert.match(contract, /^  \/admin\/products\/\{productId\}\/combo\/items:$/m);
+  assert.match(contract, /^      operationId: createAdminProductComboItem$/m);
+  assert.match(contract, /^  \/admin\/products\/\{productId\}\/combo\/items\/\{itemId\}:$/m);
+  assert.match(contract, /^      operationId: deleteAdminProductComboItem$/m);
+  const comboItemRequest = schemaSection(contract, 'AdminComboItemCreateRequest', 'AdminProductCreateRequest');
+  assert.match(comboItemRequest, /required: \[variantId, quantity\]/);
+  assert.match(comboItemRequest, /variantId:\s+type: integer\s+minimum: 1/s);
+  assert.match(comboItemRequest, /quantity:\s+type: integer\s+minimum: 1/s);
+  assert.match(contract, /^    ItemId:$/m);
+  assert.match(contract, /^        - \$ref: '#\/components\/parameters\/ItemId'$/m);
+  assert.match(contract, /^  \/admin\/orders\/\{orderId\}:$/m);
+  assert.match(contract, /^      operationId: getAdminOrderDetail$/m);
+  const review = schemaSection(contract, 'AdminOrderReview', 'AdminOrderItem');
+  const detail = schemaSection(contract, 'AdminOrderDetail', 'AdminOrderDetailResponse');
+  const detailFields = ['orderId', 'orderCode', 'status', 'customerName', 'customerPhone', 'customerAddress', 'totalAmount', 'shippingFee', 'serviceFee', 'finalAmount', 'discountAmount', 'paymentMethod', 'paymentStatus', 'deliveryNote', 'cancelledBy', 'failureNote', 'failureReason', 'deliveryFailureCode', 'deliveryAttemptCount', 'deliveryAttemptLimit', 'deliveryFailedAt', 'retryScheduledAt', 'returnedToStoreAt', 'refundStatus', 'refundAmount', 'refundNote', 'refundedAt', 'createdAt', 'confirmedAt', 'cancelledAt', 'deliveredAt', 'staffName', 'shipperName', 'internalNote', 'review', 'payment', 'items', 'statusHistory'];
+  for (const field of detailFields) assert.match(detail, new RegExp(`^        ${field}:$`, 'm'));
+  assert.match(detail, /additionalProperties: false/);
+  assert.deepEqual(detail.match(/required: \[([^\]]+)\]/)[1].split(', '), detailFields);
+  for (const field of ['reviewId', 'rating', 'comment', 'createdAt', 'updatedAt', 'userName', 'avatarUrl', 'orderId', 'featured', 'homepageConsent', 'featureEligible', 'featureIneligibilityReason']) assert.match(review, new RegExp(`^        ${field}:$`, 'm'));
+  assert.match(review, /additionalProperties: false/);
+  assert.match(review, /comment:\s+type: \[string, 'null'\]/s);
+  assert.match(review, /createdAt:\s+type: \[string, 'null'\]\s+pattern: '\^\\d\{4\}-\\d\{2\}-\\d\{2\}T\\d\{2\}:\\d\{2\}:\\d\{2\}'/s);
+  assert.match(review, /updatedAt:\s+type: \[string, 'null'\]\s+pattern: '\^\\d\{4\}-\\d\{2\}-\\d\{2\}T\\d\{2\}:\\d\{2\}:\\d\{2\}'/s);
+  assert.match(review, /userName:\s+type: \[string, 'null'\]/s);
+  assert.match(review, /avatarUrl:\s+type: \[string, 'null'\]/s);
+  assert.match(review, /orderId:\s+type: \[integer, 'null'\]/s);
+  assert.match(review, /homepageConsent:\s+type: boolean/s);
+  assert.match(review, /featureEligible:\s+type: boolean/s);
+  assert.match(review, /featureIneligibilityReason:\s+type: \[string, 'null'\]\s+enum: \[MISSING_HOMEPAGE_CONSENT, MISSING_COMMENT, INACTIVE_USER, MISSING_USER_NAME, MISSING_CREATED_AT, null\]/s);
+});
+
+test('OpenAPI contracts review consent without exposing consent on the public homepage', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+  assert.match(contract, /^  \/reviews\/order\/\{orderId\}:$/m);
+  assert.match(contract, /^      operationId: getReviewByOrder$/m);
+  assert.match(contract, /\$ref: '#\/components\/schemas\/ReviewByOrderResponse'/);
+  const reviewByOrder = schemaSection(contract, 'ReviewByOrderData', 'ReviewByOrderResponse');
+  assert.match(reviewByOrder, /required: \[reviewed, review\]/);
+  assert.match(reviewByOrder, /review:\s+oneOf:\s+- \$ref: '#\/components\/schemas\/Review'\s+- type: 'null'/s);
+  assert.match(contract, /^  \/reviews:$/m);
+  assert.match(contract, /^      operationId: createReview$/m);
+  const request = schemaSection(contract, 'ReviewCreateRequest', 'Review');
+  const review = schemaSection(contract, 'Review', 'ReviewCreateResponse');
+  assert.match(request, /homepageConsent:\s+type: boolean\s+default: false/s);
+  assert.match(review, /homepageConsent:\s+type: boolean/s);
+  assert.doesNotMatch(schemaSection(contract, 'FeaturedReview', 'AdminVariantDetail'), /homepageConsent/);
 });

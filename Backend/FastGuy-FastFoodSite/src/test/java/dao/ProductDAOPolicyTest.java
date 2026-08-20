@@ -39,6 +39,13 @@ class ProductDAOPolicyTest {
         assertTrue(src.contains("public long[] countStockRiskSkus(int threshold)"));
         assertTrue(src.contains("SUM(CASE WHEN v.quantityAvailable <= 0 THEN 1 ELSE 0 END)"));
         assertTrue(src.contains("SUM(CASE WHEN v.quantityAvailable > 0 AND v.quantityAvailable <= :threshold THEN 1 ELSE 0 END)"));
-        assertEquals(1, src.split("FROM ProductVariant v\"", -1).length - 1);
+        assertTrue(src.contains("FROM ProductVariant v WHERE v.status = 'AVAILABLE' AND v.product.status = 'AVAILABLE'"));
+    }
+
+    @Test
+    void homepageBestSellersRequireAtLeastOneDeliveredPaidSale() throws IOException {
+        String src = Files.readString(Path.of("src/main/java/dao/ProductDAO.java"));
+        assertTrue(src.contains("findHomepageBestSellers(int limit)"));
+        assertTrue(src.contains("null, 1L, \"best-selling\", 0, limit"));
     }
 }

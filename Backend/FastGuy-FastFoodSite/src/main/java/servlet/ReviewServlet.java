@@ -60,14 +60,16 @@ public class ReviewServlet extends HttpServlet {
             Object rawOrderId = body.get("orderId");
             Object rawRating = body.get("rating");
             Object rawComment = body.get("comment");
+            Object rawHomepageConsent = body.get("homepageConsent");
             if (!(rawOrderId instanceof Number) || !(rawRating instanceof Number)
                     || ((Number) rawOrderId).doubleValue() != ((Number) rawOrderId).intValue()
                     || ((Number) rawRating).doubleValue() != ((Number) rawRating).intValue()
-                    || (rawComment != null && !(rawComment instanceof String))) {
+                    || (rawComment != null && !(rawComment instanceof String))
+                    || (rawHomepageConsent != null && !(rawHomepageConsent instanceof Boolean))) {
                 throw new IllegalArgumentException("Dữ liệu không hợp lệ");
             }
             ApiResponse.ok(resp, reviewService.create(userId, ((Number) rawOrderId).intValue(),
-                    ((Number) rawRating).intValue(), (String) rawComment), "Reviewed");
+                    ((Number) rawRating).intValue(), (String) rawComment, Boolean.TRUE.equals(rawHomepageConsent)), "Reviewed");
         } catch (IllegalStateException e) {
             ApiResponse.error(resp, e.getMessage(), 409);
         } catch (IllegalArgumentException e) {

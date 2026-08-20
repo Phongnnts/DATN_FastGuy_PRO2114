@@ -8,6 +8,58 @@ info:
 servers:
   - url: /api
 paths:
+  /admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      summary: Get operational and financial overview
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin dashboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/reports/full:
+    get:
+      operationId: getAdminFullReport
+      summary: Get operational cohort and financial event report
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 6m, 1y]
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Reconciled report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFullReportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /categories:
     get:
       operationId: listCategories
@@ -20,12 +72,957 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CategoryListResponse'
+  /homepage:
+    get:
+      operationId: getHomepage
+      summary: Get curated homepage content
+      security: []
+      responses:
+        '200':
+          description: Homepage products, occasion combos, and public featured reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomepageResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/profile:
+    get:
+      operationId: getProfile
+      summary: Get the authenticated profile for any role
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateProfile
+      summary: Update the authenticated profile including avatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      summary: List users for administration
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAdminUser
+      summary: Create a user including an optional avatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreateRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/users/{userId}:
+    get:
+      operationId: getAdminUser
+      summary: Get a user for administration
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAdminUser
+      summary: Update a user including replacing or removing the avatar
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserUpdateRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: deleteAdminUser
+      summary: Delete an unused user account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /reviews/order/{orderId}:
+    get:
+      operationId: getReviewByOrder
+      summary: Get the authenticated customer's review state for an order
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Customer review state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewByOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /reviews:
+    post:
+      operationId: createReview
+      summary: Submit an order review with optional explicit homepage consent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCreateRequest'
+      responses:
+        '200':
+          description: Review submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Order was already reviewed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/categories:
+    get:
+      operationId: listAdminCategories
+      summary: List categories for administration
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAdminCategory
+      summary: Create a menu category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/categories/{categoryId}:
+    put:
+      operationId: updateAdminCategory
+      summary: Update a menu category
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdateRequest'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: deleteAdminCategory
+      summary: Delete an unused menu category
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      responses:
+        '200':
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/products:
+    get:
+      operationId: listAdminProducts
+      summary: List admin product details
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAdminProduct
+      summary: Create an admin product
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProductCreateRequest'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/products/{productId}:
+    get:
+      operationId: getAdminProduct
+      summary: Get an admin product detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Admin product detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+
+      operationId: updateAdminProduct
+      summary: Update homepage product metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProductUpdateRequest'
+      responses:
+        '200':
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/products/{productId}/combo:
+    get:
+      operationId: getAdminProductCombo
+      summary: Get an admin product combo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Admin combo detail or null when no combo exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminComboDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+
+      operationId: createAdminProductCombo
+      summary: Create combo with homepage metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminComboUpdateRequest'
+      responses:
+        '200':
+          description: Combo created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAdminProductCombo
+      summary: Update combo homepage metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminComboUpdateRequest'
+      responses:
+        '200':
+          description: Combo updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/products/{productId}/combo/items:
+    post:
+      operationId: createAdminProductComboItem
+      summary: Add an item to an admin product combo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminComboItemCreateRequest'
+      responses:
+        '201':
+          description: Combo item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminComboMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/products/{productId}/combo/items/{itemId}:
+    delete:
+      operationId: deleteAdminProductComboItem
+      summary: Delete an item from an admin product combo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Combo item deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDeleteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/orders/{orderId}:
+    get:
+      operationId: getAdminOrderDetail
+      summary: Get private admin order detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Private admin order detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/orders/{orderId}/featured-review:
+    put:
+      operationId: updateFeaturedReview
+      summary: Toggle the order review's homepage visibility
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeaturedReviewUpdateRequest'
+      responses:
+        '200':
+          description: Featured review state updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeaturedReviewMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Review is not eligible for homepage publication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Administrator access required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+
+      description: Homepage data could not be loaded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    AdminDashboardData:
+      type: object
+      additionalProperties: true
+      required: [customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, pendingCodCount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount]
+      properties:
+        customerCount: { type: integer, minimum: 0 }
+        activeProductCount: { type: integer, minimum: 0 }
+        ordersByStatus:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        operationalOrderCount: { type: integer, minimum: 0 }
+        operationalCompletedCount: { type: integer, minimum: 0 }
+        completionRate: { type: number, minimum: 0, maximum: 100 }
+        totalRevenue: { type: number, minimum: 0 }
+        revenueToday: { type: number, minimum: 0 }
+        ordersToday: { type: integer, minimum: 0 }
+        pendingCodAmount: { type: number, minimum: 0 }
+        pendingCodCount: { type: integer, minimum: 0 }
+        lowStockThreshold: { type: integer, minimum: 1 }
+        outOfStockSkuCount: { type: integer, minimum: 0 }
+        lowStockSkuCount: { type: integer, minimum: 0 }
+    AdminDashboardResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/AdminDashboardData' }
+    AdminFullReportData:
+      type: object
+      additionalProperties: true
+      required: [itemRevenue, shippingRevenue, serviceFeeRevenue, discountTotal, grossRevenue, refundTotal, netCashRevenue, operationalOrderCount, operationalCompletedCount, completionRate, revenueByHour, performanceByWeekday, refundTrend, exceptionReasons, monthlyFinancialTrend]
+      properties:
+        itemRevenue: { type: number, minimum: 0 }
+        shippingRevenue: { type: number, minimum: 0 }
+        serviceFeeRevenue: { type: number, minimum: 0 }
+        discountTotal: { type: number, minimum: 0 }
+        grossRevenue: { type: number, minimum: 0 }
+        refundTotal: { type: number, minimum: 0 }
+        netCashRevenue: { type: number }
+        operationalOrderCount: { type: integer, minimum: 0 }
+        operationalCompletedCount: { type: integer, minimum: 0 }
+        completionRate: { type: number, minimum: 0, maximum: 100 }
+        monthlyFinancialTrend:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [year, month, grossRevenue, refundTotal, netCashRevenue]
+            properties:
+              year: { type: integer, minimum: 2000 }
+              month: { type: integer, minimum: 1, maximum: 12 }
+              grossRevenue: { type: number, minimum: 0 }
+              refundTotal: { type: number, minimum: 0 }
+              netCashRevenue: { type: number }
+        revenueByHour:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [hour, orders, revenue]
+            properties:
+              hour: { type: integer, minimum: 0, maximum: 23 }
+              orders: { type: integer, minimum: 0 }
+              revenue: { type: number, minimum: 0 }
+        performanceByWeekday:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [weekday, orders, completed, completionRate]
+            properties:
+              weekday: { type: integer, minimum: 1, maximum: 7 }
+              orders: { type: integer, minimum: 0 }
+              completed: { type: integer, minimum: 0 }
+              completionRate: { type: number, minimum: 0, maximum: 100 }
+        refundTrend:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [date, count, amount]
+            properties:
+              date: { type: string, format: date }
+              count: { type: integer, minimum: 0 }
+              amount: { type: number, minimum: 0 }
+        exceptionReasons:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [reason, count]
+            properties:
+              reason: { type: string }
+              count: { type: integer, minimum: 0 }
+    AdminFullReportResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/AdminFullReportData' }
+    UserProfile:
+      type: object
+      additionalProperties: false
+      required: [userId, fullName, email, phone, avatarUrl, role, status, loyaltyPoints, createdAt]
+      properties:
+        userId:
+          type: integer
+          minimum: 1
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+        role:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        loyaltyPoints:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: [string, 'null']
+    UserProfileUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [fullName, email, phone, avatarUrl]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: string
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+    UserProfileResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/UserProfile'
+        message:
+          type: string
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [userId, fullName, email, phone, avatarUrl, roleName, status, loyaltyPoints]
+      properties:
+        userId:
+          type: integer
+          minimum: 1
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+        roleName:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        loyaltyPoints:
+          type: integer
+          minimum: 0
+    AdminUserCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [fullName, email, password, roleName]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: [string, 'null']
+        password:
+          type: string
+          minLength: 6
+          maxLength: 72
+        roleName:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+    AdminUserUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: [string, 'null']
+        password:
+          type: string
+          minLength: 6
+          maxLength: 72
+        roleName:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+    AdminUserResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminUser'
+        message:
+          type: string
+    AdminUserListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
     Category:
       type: object
       additionalProperties: false
-      required: [categoryId, name, description, sortOrder, productCount]
+      required: [categoryId, name, description, imageUrl, sortOrder, productCount]
       properties:
         categoryId:
           type: integer
@@ -35,13 +1032,72 @@ components:
           minLength: 1
         description:
           type: string
+        imageUrl:
+          type: string
+          maxLength: 1000
         sortOrder:
           type: integer
         productCount:
           type: integer
           format: int64
           minimum: 0
+    CategoryCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        imageUrl:
+          type: string
+          maxLength: 1000
+          pattern: '^(|https://.+)$'
+    CategoryUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        imageUrl:
+          type: string
+          maxLength: 1000
+          pattern: '^(|https://.+)$'
+    CategoryResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/Category'
+        message:
+          type: string
+    SuccessResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: success
+        data: {}
+        message:
+          type: string
     CategoryListResponse:
+
       type: object
       additionalProperties: false
       required: [status, data]
@@ -53,3 +1109,865 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Category'
+    HomepageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/HomepageData'
+    HomepageData:
+      type: object
+      additionalProperties: false
+      required: [bestSellers, occasionCombos, featuredReviews]
+      properties:
+        bestSellers:
+          type: array
+          maxItems: 6
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        occasionCombos:
+          type: array
+          maxItems: 4
+          items:
+            $ref: '#/components/schemas/OccasionCombo'
+        featuredReviews:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/FeaturedReview'
+    ProductSummary:
+      type: object
+      additionalProperties: false
+      required: [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, isCombo, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, variants, modifierGroups]
+      properties:
+        productId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        basePrice:
+          type: number
+          minimum: 0
+        price:
+          type: number
+          minimum: 0
+        defaultVariant:
+          oneOf:
+            - $ref: '#/components/schemas/ProductVariantSummary'
+            - type: 'null'
+        imageUrl:
+          type: string
+        categoryId:
+          type: integer
+          minimum: 1
+        categoryName:
+          type: string
+          minLength: 1
+        originalPrice:
+          type: [number, 'null']
+          minimum: 0
+        discountPercent:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 100
+        soldCount:
+          type: integer
+          format: int64
+          minimum: 0
+        hasVariants:
+          type: boolean
+        hasModifiers:
+          type: boolean
+        isCombo:
+          type: boolean
+        productType:
+          type: string
+          enum: [SIMPLE, VARIANT, COMBO, CUSTOMIZABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        isAvailableNow:
+          type: boolean
+        inStock:
+          type: boolean
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+        bestSeller:
+          type: boolean
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVariantSummary'
+        modifierGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModifierGroupSummary'
+    ProductVariantSummary:
+      type: object
+      additionalProperties: false
+      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, isDefault, status]
+      properties:
+        variantId:
+          type: integer
+          minimum: 1
+        variantName:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        originalPrice:
+          type: [number, 'null']
+          minimum: 0
+        sku:
+          type: [string, 'null']
+        quantityAvailable:
+          type: [integer, 'null']
+          minimum: 0
+        isDefault:
+          type: boolean
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE, INACTIVE]
+    ModifierGroupSummary:
+      type: object
+      additionalProperties: false
+      required: [modifierGroupId, name, minSelections, maxSelections, isActive, options]
+      properties:
+        modifierGroupId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        minSelections:
+          type: integer
+          minimum: 0
+        maxSelections:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModifierOptionSummary'
+    ModifierOptionSummary:
+      type: object
+      additionalProperties: false
+      required: [modifierOptionId, name, price, isActive]
+      properties:
+        modifierOptionId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        isActive:
+          type: boolean
+    OccasionCombo:
+      type: object
+      additionalProperties: false
+      required: [occasion, label, product]
+      properties:
+        occasion:
+          type: string
+          enum:
+          - QUICK_BREAK
+          - OFFICE_LUNCH
+          - STUDENT
+          - GROUP
+        label:
+          type: string
+          minLength: 1
+        product:
+          $ref: '#/components/schemas/ProductSummary'
+    FeaturedReview:
+      type: object
+      additionalProperties: false
+      required: [reviewId, rating, comment, userName, avatarUrl, createdAt]
+      properties:
+        reviewId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        userName:
+          type: string
+        avatarUrl:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?$'
+    AdminVariantDetail:
+      type: object
+      additionalProperties: false
+      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, isDefault, status]
+      properties:
+        variantId:
+          type: integer
+          minimum: 1
+        variantName:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        originalPrice:
+          type: [number, 'null']
+          minimum: 0
+        sku:
+          type: [string, 'null']
+        quantityAvailable:
+          type: [integer, 'null']
+          minimum: 0
+        isDefault:
+          type: boolean
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+    AdminModifierOptionDetail:
+      type: object
+      additionalProperties: false
+      required: [modifierOptionId, name, price, isActive]
+      properties:
+        modifierOptionId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        isActive:
+          type: boolean
+    AdminModifierGroupDetail:
+      type: object
+      additionalProperties: false
+      required: [modifierGroupId, name, minSelections, maxSelections, isActive, options]
+      properties:
+        modifierGroupId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        minSelections:
+          type: integer
+          minimum: 0
+        maxSelections:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminModifierOptionDetail'
+    AdminComboItemDetail:
+      type: object
+      additionalProperties: false
+      required: [comboItemId, productId, variantId, quantity]
+      properties:
+        comboItemId:
+          type: integer
+          minimum: 1
+        productId:
+          type: integer
+          minimum: 1
+        variantId:
+          type: integer
+          minimum: 1
+        quantity:
+          type: integer
+          minimum: 1
+    AdminComboDetail:
+      type: object
+      additionalProperties: false
+      required: [comboId, isActive, homepageOccasion, homepageSortOrder, items]
+      properties:
+        comboId:
+          type: integer
+          minimum: 1
+        isActive:
+          type: boolean
+        homepageOccasion:
+          type: [string, 'null']
+          enum: [QUICK_BREAK, OFFICE_LUNCH, STUDENT, GROUP, null]
+        homepageSortOrder:
+          type: integer
+          minimum: 0
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminComboItemDetail'
+    AdminProductDetail:
+      type: object
+      additionalProperties: false
+      required: [productId, name, categoryId, categoryName, basePrice, imageUrl, description, status, availableFrom, availableTo, isNew, spiceLevel, galleryImages, variants, modifierGroups, combo, discountPrice, rating, reviewCount, inStock, featured]
+      properties:
+        productId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        categoryId:
+          type: integer
+          minimum: 1
+        categoryName:
+          type: string
+        basePrice:
+          type: number
+          minimum: 0
+        imageUrl:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+        galleryImages:
+          type: array
+          items:
+            type: string
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminVariantDetail'
+        modifierGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminModifierGroupDetail'
+        combo:
+          oneOf:
+            - $ref: '#/components/schemas/AdminComboDetail'
+            - type: 'null'
+        discountPrice:
+          type: 'null'
+        rating:
+          type: integer
+          const: 0
+        reviewCount:
+          type: integer
+          const: 0
+        inStock:
+          type: boolean
+        featured:
+          type: boolean
+    AdminProductDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminProductDetail'
+    AdminProductListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminProductDetail'
+    AdminComboDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/AdminComboDetail'
+            - type: 'null'
+    AdminComboItemCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [variantId, quantity]
+      properties:
+        variantId:
+          type: integer
+          minimum: 1
+        quantity:
+          type: integer
+          minimum: 1
+    AdminProductCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [categoryId, name, basePrice, isNew, spiceLevel]
+      properties:
+        categoryId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: [string, 'null']
+        basePrice:
+          type: number
+          minimum: 0
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        imageUrl:
+          type: [string, 'null']
+        galleryImages:
+          type: array
+          items:
+            type: string
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+    AdminProductUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        categoryId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: [string, 'null']
+        basePrice:
+          type: number
+          minimum: 0
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        imageUrl:
+          type: [string, 'null']
+        galleryImages:
+          type: array
+          items:
+            type: string
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+    AdminComboUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        isActive:
+          type: boolean
+        homepageOccasion:
+          type: [string, 'null']
+          enum: [QUICK_BREAK, OFFICE_LUNCH, STUDENT, GROUP, null]
+        homepageSortOrder:
+          type: integer
+          minimum: 0
+    ReviewCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [orderId, rating]
+      properties:
+        orderId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        homepageConsent:
+          type: boolean
+          default: false
+    Review:
+      type: object
+      additionalProperties: false
+      required: [reviewId, rating, comment, createdAt, updatedAt, userName, avatarUrl, orderId, featured, homepageConsent]
+      properties:
+        reviewId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        createdAt:
+          type: [string, 'null']
+        updatedAt:
+          type: [string, 'null']
+        userName:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+        orderId:
+          type: [integer, 'null']
+          minimum: 1
+        featured:
+          type: boolean
+        homepageConsent:
+          type: boolean
+    ReviewByOrderData:
+      type: object
+      additionalProperties: false
+      required: [reviewed, review]
+      properties:
+        reviewed:
+          type: boolean
+        review:
+          oneOf:
+            - $ref: '#/components/schemas/Review'
+            - type: 'null'
+    ReviewByOrderResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ReviewByOrderData'
+    ReviewCreateResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/Review'
+        message:
+          type: string
+          const: Reviewed
+    FeaturedReviewUpdateRequest:
+
+      type: object
+      additionalProperties: false
+      required: [featured]
+      properties:
+        featured:
+          type: boolean
+    AdminOrderReview:
+      type: object
+      additionalProperties: false
+      required: [reviewId, rating, comment, createdAt, updatedAt, userName, avatarUrl, orderId, featured, homepageConsent, featureEligible, featureIneligibilityReason]
+      properties:
+        reviewId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        createdAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        updatedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        userName:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+        orderId:
+          type: [integer, 'null']
+          minimum: 1
+        featured:
+          type: boolean
+        homepageConsent:
+          type: boolean
+        featureEligible:
+          type: boolean
+        featureIneligibilityReason:
+          type: [string, 'null']
+          enum: [MISSING_HOMEPAGE_CONSENT, MISSING_COMMENT, INACTIVE_USER, MISSING_USER_NAME, MISSING_CREATED_AT, null]
+    AdminOrderItem:
+      type: object
+      additionalProperties: false
+      required: [productName, variantName, quantity, unitPrice, totalPrice, imageUrl]
+      properties:
+        productName:
+          type: [string, 'null']
+        variantName:
+          type: string
+        quantity:
+          type: integer
+          minimum: 0
+        unitPrice:
+          type: [number, 'null']
+        totalPrice:
+          type: [number, 'null']
+        imageUrl:
+          type: string
+    AdminOrderPayment:
+      type: object
+      additionalProperties: false
+      required: [provider, providerReference, attemptStatus, attemptAmount, attemptUpdatedAt]
+      properties:
+        provider:
+          type: [string, 'null']
+        providerReference:
+          type: [string, 'null']
+        attemptStatus:
+          type: [string, 'null']
+        attemptAmount:
+          type: [number, 'null']
+        attemptUpdatedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+    AdminOrderStatusHistory:
+      type: object
+      additionalProperties: false
+      required: [historyId, orderId, actorUserId, actorRole, fromStatus, toStatus, status, note, time]
+      properties:
+        historyId:
+          type: integer
+          minimum: 0
+        orderId:
+          type: integer
+          minimum: 1
+        actorUserId:
+          type: [integer, 'null']
+        actorRole:
+          type: [string, 'null']
+        fromStatus:
+          type: [string, 'null']
+        toStatus:
+          type: [string, 'null']
+        status:
+          type: [string, 'null']
+        note:
+          type: string
+        time:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+    AdminOrderDetail:
+      type: object
+      additionalProperties: false
+      required: [orderId, orderCode, status, customerName, customerPhone, customerAddress, totalAmount, shippingFee, serviceFee, finalAmount, discountAmount, paymentMethod, paymentStatus, deliveryNote, cancelledBy, failureNote, failureReason, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundNote, refundedAt, createdAt, confirmedAt, cancelledAt, deliveredAt, staffName, shipperName, internalNote, review, payment, items, statusHistory]
+      properties:
+        orderId:
+          type: integer
+          minimum: 1
+        orderCode:
+          type: [string, 'null']
+        status:
+          type: [string, 'null']
+        customerName:
+          type: [string, 'null']
+        customerPhone:
+          type: [string, 'null']
+        customerAddress:
+          type: [string, 'null']
+        totalAmount:
+          type: [number, 'null']
+        shippingFee:
+          type: [number, 'null']
+        serviceFee:
+          type: [number, 'null']
+        finalAmount:
+          type: [number, 'null']
+        discountAmount:
+          type: number
+        paymentMethod:
+          type: [string, 'null']
+        paymentStatus:
+          type: [string, 'null']
+        deliveryNote:
+          type: [string, 'null']
+        cancelledBy:
+          type: [string, 'null']
+        failureNote:
+          type: [string, 'null']
+        failureReason:
+          type: [string, 'null']
+        deliveryFailureCode:
+          type: [string, 'null']
+        deliveryAttemptCount:
+          type: integer
+          minimum: 0
+        deliveryAttemptLimit:
+          type: integer
+          minimum: 0
+        deliveryFailedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        retryScheduledAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        returnedToStoreAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        refundStatus:
+          type: [string, 'null']
+        refundAmount:
+          type: [number, 'null']
+        refundNote:
+          type: [string, 'null']
+        refundedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        createdAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        confirmedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        cancelledAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        deliveredAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        staffName:
+          type: [string, 'null']
+        shipperName:
+          type: [string, 'null']
+        internalNote:
+          type: [string, 'null']
+        review:
+          oneOf:
+            - $ref: '#/components/schemas/AdminOrderReview'
+            - type: 'null'
+        payment:
+          oneOf:
+            - $ref: '#/components/schemas/AdminOrderPayment'
+            - type: 'null'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminOrderItem'
+        statusHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminOrderStatusHistory'
+    AdminOrderDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminOrderDetail'
+    AdminFeaturedReviewMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminOrderReview'
+        message:
+          type: string
+          const: Featured review updated
+    AdminComboMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminComboDetail'
+        message:
+          type: string
+          const: Created
+    AdminDeleteResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: 'null'
+        message:
+          type: string
+          const: Deleted
+    AdminMutationResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: success
+        data: {}
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          const: error
+        message:
+          type: string
+        data: {}

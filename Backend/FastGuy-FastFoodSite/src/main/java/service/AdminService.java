@@ -3,7 +3,9 @@ package service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import dao.CodSettlementDAO;
@@ -12,6 +14,9 @@ import dao.ProductDAO;
 import dao.UserDAO;
 
 public class AdminService {
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final List<String> ORDER_STATUSES = List.of("PENDING", "CONFIRMED", "PREPARING", "READY", "ASSIGNED", "PICKED_UP", "DELIVERY_FAILED", "RETURNED_TO_STORE", "DELIVERED", "CANCELLED");
+
     private UserDAO userDAO = new UserDAO();
     private OrdersDAO ordersDAO = new OrdersDAO();
     private ProductDAO productDAO = new ProductDAO();
@@ -23,41 +28,43 @@ public class AdminService {
     }
 
     public Map<String, Object> getDashboardWithPeriod(String period) {
-        long totalUsers = userDAO.count();
+        long customerCount = userDAO.countByRole("USER");
         long totalOrders = ordersDAO.count();
-        long totalProducts = productDAO.count();
+        long activeProductCount = productDAO.countAvailableProducts();
         double totalRevenue = ordersDAO.sumRevenue();
 
         Map<String, Object> ordersByStatus = new HashMap<>();
-        ordersByStatus.put("PENDING", ordersDAO.countByStatus("PENDING"));
-        ordersByStatus.put("CONFIRMED", ordersDAO.countByStatus("CONFIRMED"));
-        ordersByStatus.put("PREPARING", ordersDAO.countByStatus("PREPARING"));
-        ordersByStatus.put("READY", ordersDAO.countByStatus("READY"));
-        ordersByStatus.put("ASSIGNED", ordersDAO.countByStatus("ASSIGNED"));
-        ordersByStatus.put("PICKED_UP", ordersDAO.countByStatus("PICKED_UP"));
-        ordersByStatus.put("DELIVERED", ordersDAO.countByStatus("DELIVERED"));
-        ordersByStatus.put("CANCELLED", ordersDAO.countByStatus("CANCELLED"));
+        for (String status : ORDER_STATUSES) ordersByStatus.put(status, ordersDAO.countByStatus(status));
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        LocalDateTime operationalStart = today.atStartOfDay();
+        LocalDateTime operationalEnd = today.plusDays(1).atStartOfDay();
+        long[] operational = ordersDAO.operationalCohortSummary(operationalStart, operationalEnd);
 
         Map<String, Object> data = new HashMap<>();
-        data.put("totalUsers", totalUsers);
+        data.put("customerCount", customerCount);
+        data.put("totalUsers", customerCount);
         data.put("totalOrders", totalOrders);
-        data.put("totalProducts", totalProducts);
+        data.put("activeProductCount", activeProductCount);
+        data.put("totalProducts", activeProductCount);
+        data.put("operationalOrderCount", operational[0]);
+        data.put("operationalCompletedCount", operational[1]);
+        data.put("completionRate", operational[0] == 0 ? 0.0 : operational[1] * 100.0 / operational[0]);
         data.put("totalRevenue", totalRevenue);
         data.put("ordersByStatus", ordersByStatus);
         data.put("pendingOrders", ordersDAO.countByStatus("PENDING"));
         data.put("pendingCodAmount", codSettlementDAO.sumPendingAmount());
         data.put("pendingCodCount", codSettlementDAO.countPending());
-        data.put("ordersToday", ordersDAO.countToday());
-        data.put("revenueToday", ordersDAO.sumRevenueToday());
+        data.put("ordersToday", operational[0]);
+        data.put("revenueToday", ordersDAO.sumRevenueByDateRange(operationalStart, operationalEnd));
         data.put("revenueByMonth", ordersDAO.sumRevenueByMonth());
         data.put("topProducts", ordersDAO.findTopProducts(5));
 
         if (period != null) {
-            LocalDate now = LocalDate.now();
+            LocalDate now = LocalDate.now(BUSINESS_ZONE);
             LocalDateTime start, end = now.plusDays(1).atStartOfDay();
             switch (period) {
-                case "7d": start = now.minusDays(7).atStartOfDay(); break;
-                case "30d": start = now.minusDays(30).atStartOfDay(); break;
+                case "7d": start = now.minusDays(6).atStartOfDay(); break;
+                case "30d": start = now.minusDays(29).atStartOfDay(); break;
                 case "1y": start = now.minusYears(1).atStartOfDay(); break;
                 default: start = now.minusMonths(6).atStartOfDay();
             }
@@ -87,7 +94,7 @@ public class AdminService {
         boolean hasEnd = endDate != null && !endDate.isBlank();
         if (hasStart != hasEnd) throw new IllegalArgumentException("Vui lòng chọn đủ từ ngày và đến ngày");
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
         LocalDateTime start;
         LocalDateTime end = today.plusDays(1).atStartOfDay();
         if (hasStart) {
@@ -111,20 +118,35 @@ public class AdminService {
         Map<String, Object> data = new HashMap<>();
         data.put("revenueByMonth", ordersDAO.sumRevenueByCustomRange(start, end));
         data.put("revenueByDay", ordersDAO.revenueByDay(start, end));
-        double grossRevenue = ordersDAO.sumRevenueByDateRange(start, end);
+        Map<String, Double> financial = ordersDAO.financialBreakdown(start, end);
+        double grossRevenue = financial.get("grossRevenue");
         double refundTotal = ordersDAO.sumRefundsInRange(start, end);
+        data.put("itemRevenue", financial.get("itemRevenue"));
+        data.put("shippingRevenue", financial.get("shippingRevenue"));
+        data.put("serviceFeeRevenue", financial.get("serviceFeeRevenue"));
+        data.put("discountTotal", financial.get("discountTotal"));
         data.put("grossRevenue", grossRevenue);
         data.put("periodRevenue", grossRevenue);
         data.put("refundTotal", refundTotal);
         data.put("refundCount", ordersDAO.countRefundsInRange(start, end));
+        data.put("netCashRevenue", grossRevenue - refundTotal);
         data.put("netRevenue", grossRevenue - refundTotal);
         data.put("periodOrders", ordersDAO.countByStatusAndDateRange("DELIVERED", start, end));
-        data.put("totalOrdersInPeriod", ordersDAO.countAllByDateRange(start, end));
+        long[] operational = ordersDAO.operationalCohortSummary(start, end);
+        data.put("operationalOrderCount", operational[0]);
+        data.put("operationalCompletedCount", operational[1]);
+        data.put("completionRate", operational[0] == 0 ? 0.0 : operational[1] * 100.0 / operational[0]);
+        data.put("totalOrdersInPeriod", operational[0]);
         data.put("avgOrderValue", ordersDAO.avgOrderValue(start, end));
         data.put("topProducts", ordersDAO.findTopProductsByDateRange(start, end, 10));
         data.put("ordersByStatus", ordersDAO.ordersByStatusInPeriod(start, end));
         data.put("revenueByCategory", ordersDAO.revenueByCategory(start, end));
         data.put("paymentMethodStats", ordersDAO.paymentMethodStats(start, end));
+        data.put("monthlyFinancialTrend", ordersDAO.monthlyFinancialTrend(start, end));
+        data.put("revenueByHour", ordersDAO.revenueByHour(start, end));
+        data.put("performanceByWeekday", ordersDAO.performanceByWeekday(start, end));
+        data.put("refundTrend", ordersDAO.refundTrend(start, end));
+        data.put("exceptionReasons", ordersDAO.exceptionReasons(start, end));
         data.put("revenueToday", ordersDAO.sumRevenueToday());
         data.put("ordersToday", ordersDAO.countToday());
         return data;

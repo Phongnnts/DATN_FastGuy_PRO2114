@@ -16,6 +16,11 @@ USE FastGuyDB;
 GO
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET NUMERIC_ROUNDABORT OFF;
 SET XACT_ABORT ON;
 GO
 
@@ -23,6 +28,7 @@ CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
     name nvarchar(255) NOT NULL,
     description nvarchar(500) NULL,
+    image_url nvarchar(1000) NULL,
     sort_order int NOT NULL CONSTRAINT DF_Category_SortOrder DEFAULT 0,
     status varchar(20) NOT NULL CONSTRAINT DF_Category_Status DEFAULT 'ACTIVE',
     CONSTRAINT CK_Category_Status CHECK (status IN ('ACTIVE', 'INACTIVE'))
@@ -36,12 +42,15 @@ CREATE TABLE dbo.Product (
     base_price decimal(18,2) NOT NULL,
     image_url varchar(500) NULL,
     gallery_images nvarchar(max) NOT NULL CONSTRAINT DF_Product_Gallery DEFAULT N'[]',
+    is_new bit NOT NULL CONSTRAINT DF_Product_IsNew DEFAULT 0,
+    spice_level tinyint NOT NULL CONSTRAINT DF_Product_SpiceLevel DEFAULT 0,
     status varchar(20) NOT NULL CONSTRAINT DF_Product_Status DEFAULT 'AVAILABLE',
     available_from time(0) NULL,
     available_to time(0) NULL,
     created_at datetime2(0) NOT NULL CONSTRAINT DF_Product_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_Product_Updated DEFAULT GETDATE(),
     CONSTRAINT CK_Product_BasePrice CHECK (base_price >= 0),
+    CONSTRAINT CK_Product_SpiceLevel CHECK (spice_level BETWEEN 0 AND 3),
     CONSTRAINT CK_Product_Status CHECK (status IN ('AVAILABLE', 'UNAVAILABLE', 'INACTIVE'))
 );
 
@@ -92,6 +101,9 @@ CREATE TABLE dbo.ProductCombo (
     combo_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProductCombo PRIMARY KEY,
     product_id int NOT NULL CONSTRAINT FK_ProductCombo_Product REFERENCES dbo.Product(product_id),
     is_active bit NOT NULL CONSTRAINT DF_ProductCombo_Active DEFAULT 1,
+    homepage_occasion varchar(24) NULL,
+    homepage_sort_order int NOT NULL CONSTRAINT DF_ProductCombo_HomepageSortOrder DEFAULT 0,
+    CONSTRAINT CK_ProductCombo_HomepageOccasion CHECK (homepage_occasion IS NULL OR homepage_occasion IN ('QUICK_BREAK', 'OFFICE_LUNCH', 'STUDENT', 'GROUP')),
     CONSTRAINT UQ_ProductCombo_Product UNIQUE (product_id)
 );
 
@@ -421,10 +433,14 @@ CREATE TABLE dbo.Review (
     order_id int NOT NULL CONSTRAINT FK_Review_Order REFERENCES dbo.Orders(order_id),
     rating int NOT NULL,
     comment nvarchar(1000) NULL,
+    is_featured bit NOT NULL CONSTRAINT DF_Review_IsFeatured DEFAULT 0,
+    homepage_consent bit NOT NULL CONSTRAINT DF_Review_HomepageConsent DEFAULT 0,
+
     created_at datetime2(0) NOT NULL CONSTRAINT DF_Review_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_Review_Updated DEFAULT GETDATE(),
     CONSTRAINT UQ_Review_UserOrder UNIQUE (user_id, order_id),
-    CONSTRAINT CK_Review_Rating CHECK (rating BETWEEN 1 AND 5)
+    CONSTRAINT CK_Review_Rating CHECK (rating BETWEEN 1 AND 5),
+    CONSTRAINT CK_Review_FeaturedConsent CHECK (is_featured = 0 OR homepage_consent = 1)
 );
 
 CREATE TABLE dbo.SupportTicket (
@@ -498,6 +514,7 @@ CREATE INDEX IX_ProductModifierOption_Group ON dbo.ProductModifierOption(modifie
 CREATE INDEX IX_ProductComboItem_Combo ON dbo.ProductComboItem(combo_id);
 CREATE INDEX IX_ProductComboItem_Product ON dbo.ProductComboItem(product_id);
 CREATE INDEX IX_ProductComboItem_Variant ON dbo.ProductComboItem(variant_id);
+CREATE INDEX IX_ProductCombo_HomepageOccasion ON dbo.ProductCombo(homepage_occasion, homepage_sort_order) WHERE homepage_occasion IS NOT NULL AND is_active = 1;
 CREATE INDEX IX_PasswordResetToken_User ON dbo.PasswordResetToken(user_id);
 CREATE INDEX IX_Address_User ON dbo.Address(user_id);
 CREATE INDEX IX_CartItem_Cart ON dbo.CartItem(cart_id);
@@ -518,6 +535,7 @@ CREATE INDEX IX_OrderItem_Order ON dbo.OrderItem(order_id);
 CREATE INDEX IX_OrderItem_Product ON dbo.OrderItem(product_id);
 CREATE INDEX IX_OrderItem_Variant ON dbo.OrderItem(variant_id);
 CREATE INDEX IX_Review_Order ON dbo.Review(order_id);
+CREATE INDEX IX_Review_FeaturedCreatedAt ON dbo.Review(is_featured, created_at DESC) WHERE is_featured = 1;
 CREATE INDEX IX_SupportTicket_User_Created ON dbo.SupportTicket(user_id, created_at);
 CREATE INDEX IX_SupportTicket_Order ON dbo.SupportTicket(order_id);
 CREATE INDEX IX_SupportTicket_Staff_Status ON dbo.SupportTicket(staff_id, status);

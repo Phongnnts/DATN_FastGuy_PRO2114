@@ -91,7 +91,7 @@ export default {
   getCombo(productId) {
     return client.get(`/admin/products/${productId}/combo`);
   },
-  saveCombo(productId, data) {
+  createCombo(productId, data) {
     return client.post(`/admin/products/${productId}/combo`, data);
   },
   createComboItem(productId, data) {
@@ -135,6 +135,9 @@ export default {
   },
   addOrderNote(orderId, note) {
     return client.post(`/admin/orders/${orderId}/notes`, { note });
+  },
+  updateFeaturedReview(orderId, featured) {
+    return client.put(`/admin/orders/${orderId}/featured-review`, { featured });
   },
   overrideDeliveryAttempt(id, expectedStatus, note) {
     return client.post(`/admin/orders/${id}/delivery-attempt-override`, { expectedStatus, note });

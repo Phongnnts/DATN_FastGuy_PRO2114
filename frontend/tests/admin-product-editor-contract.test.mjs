@@ -225,8 +225,7 @@ test('editor saves existing API payload and replaces create route after success'
   assert.match(productEditorPage, /adminApi\.createProduct\(payloadFromDraft\(\)\)/);
   assert.match(productEditorPage, /adminApi\.updateProduct\(productId\.value, payload\)/);
   assert.match(productEditorPage, /router\.replace\(\{ name: 'AdminProductEdit', params: \{ id: createdId \} \}\)/);
-  assert.match(productEditorPage, /imageUrl: draft\.value\.image/);
-  assert.match(productEditorPage, /galleryImages: draft\.value\.galleryImages/);
+  assert.match(productEditorPage, /buildProductPayload\(draft\.value\)/);
 });
 
 test('editor wires variants modifiers and combo sections to canonical reload', () => {
@@ -340,7 +339,9 @@ test('combo section lazy loads choices and validates items with guards', () => {
   assert.match(productComboSection, /catalogState === 'error'/);
   assert.match(productComboSection, /@click="loadChoices"/);
   assert.match(productComboSection, /validateComboItem/);
-  assert.match(productComboSection, /adminApi\.saveCombo/);
+  assert.match(productComboSection, /comboSaveMethod/);
+  assert.match(productComboSection, /adminApi\.createCombo/);
+  assert.match(productComboSection, /adminApi\[method\]/);
   assert.match(productComboSection, /adminApi\.createComboItem/);
   assert.match(productComboSection, /adminApi\.deleteComboItem/);
   assert.match(productComboSection, /isValidProductId\(props\.productId\)/);

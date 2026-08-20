@@ -22,6 +22,7 @@ const navItems = [
   { path: '/shipper/history', name: 'Lịch sử', icon: 'bi-clock-history' },
   { path: '/shipper/shifts', name: 'Ca làm', icon: 'bi-calendar-week' },
   { path: '/shipper/cash', name: 'COD', icon: 'bi-cash-coin' },
+  { path: '/shipper/profile', name: 'Hồ sơ', icon: 'bi-person-circle' },
 ];
 
 function activeClass(path) {
@@ -89,7 +90,7 @@ function logout() {
           <p>Vui lòng xem lịch làm việc để check-in đúng giờ.</p>
         </div>
       </div>
-      <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'ShipperShifts' || $route.name === 'ShipperOrderHistory' || $route.name === 'ShipperCash'" aria-live="polite" role="region" />
+      <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'ShipperShifts' || $route.name === 'ShipperOrderHistory' || $route.name === 'ShipperCash' || $route.name === 'ShipperProfile'" aria-live="polite" role="region" />
     </main>
     <nav class="shipper-nav" aria-label="Điều hướng Shipper">
       <router-link

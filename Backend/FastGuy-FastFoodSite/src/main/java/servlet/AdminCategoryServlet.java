@@ -14,6 +14,7 @@ import utils.JwtUtil;
 import utils.PrivilegedAuth;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,8 @@ public class AdminCategoryServlet extends HttpServlet {
         result.put("categoryId", category.getCategoryId());
         result.put("name", category.getName());
         result.put("description", category.getDescription() != null ? category.getDescription() : "");
+        result.put("imageUrl", category.getImageUrl() != null ? category.getImageUrl() : "");
+        result.put("sortOrder", category.getSortOrder());
         result.put("productCount", productDAO.findByCategoryId(category.getCategoryId()).size());
         return result;
     }
@@ -122,6 +125,21 @@ public class AdminCategoryServlet extends HttpServlet {
             Object raw = body.get("description");
             if (raw != null && (!(raw instanceof String text) || text.length() > 500)) throw new IllegalArgumentException("Mô tả không hợp lệ");
             category.setDescription(raw == null ? "" : ((String) raw).trim());
+        }
+        if (body.containsKey("imageUrl")) {
+            Object raw = body.get("imageUrl");
+            if (raw != null && !(raw instanceof String)) throw new IllegalArgumentException("URL ảnh không hợp lệ");
+            String imageUrl = raw == null ? "" : ((String) raw).trim();
+            if (imageUrl.length() > 1000) throw new IllegalArgumentException("URL ảnh tối đa 1000 ký tự");
+            if (!imageUrl.isEmpty()) {
+                try {
+                    URI uri = URI.create(imageUrl);
+                    if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) throw new IllegalArgumentException("URL ảnh phải dùng HTTPS");
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("URL ảnh phải dùng HTTPS");
+                }
+            }
+            category.setImageUrl(imageUrl);
         }
     }
 }

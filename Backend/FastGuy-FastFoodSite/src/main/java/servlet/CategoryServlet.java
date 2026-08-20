@@ -31,6 +31,7 @@ public class CategoryServlet extends HttpServlet {
                     m.put("categoryId", c.getCategoryId());
                     m.put("name", c.getName());
                     m.put("description", c.getDescription() != null ? c.getDescription() : "");
+                    m.put("imageUrl", c.getImageUrl() != null ? c.getImageUrl() : "");
                     m.put("sortOrder", c.getSortOrder());
                     m.put("productCount", productCounts.getOrDefault(c.getCategoryId(), 0L));
                     return m;

@@ -50,6 +50,7 @@ const sidebarLinks = computed(() => [
   { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
   { label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' },
   { label: 'Thông báo', path: '/staff/notifications', icon: 'bi-bell' },
+  { label: 'Hồ sơ', path: '/staff/profile', icon: 'bi-person-circle' },
   { label: 'Hỗ trợ', path: '/staff/support', icon: 'bi-headset' },
 ]);
 
@@ -138,7 +139,7 @@ function logout() {
           </div>
         </div>
         <div class="staff-view">
-          <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'StaffShifts' || $route.name === 'StaffOrderHistory' || $route.name === 'StaffNotifications' || $route.name === 'StaffSupport'" aria-live="polite" role="region" />
+          <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'StaffShifts' || $route.name === 'StaffOrderHistory' || $route.name === 'StaffNotifications' || $route.name === 'StaffProfile' || $route.name === 'StaffSupport'" aria-live="polite" role="region" />
         </div>
       </div>
     </div>

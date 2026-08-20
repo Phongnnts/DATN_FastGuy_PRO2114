@@ -45,6 +45,8 @@ export const useAdminStore = defineStore('admin', () => {
         ? c.name.toLowerCase().replace(/ \/ /g, '-').replace(/\s+/g, '-')
         : '',
       description: c.description || '',
+      imageUrl: c.imageUrl || '',
+      sortOrder: Number(c.sortOrder) || 0,
       productCount: c.productCount || 0,
     };
   }
@@ -183,7 +185,7 @@ export const useAdminStore = defineStore('admin', () => {
     }
 
     async function saveCombo(productId, data) {
-      const result = await adminApi.saveCombo(productId, data);
+      const result = await adminApi.createCombo(productId, data);
       await fetchProducts();
       return result;
     }

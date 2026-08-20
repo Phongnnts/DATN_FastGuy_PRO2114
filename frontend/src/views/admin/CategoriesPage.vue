@@ -1,19 +1,23 @@
 <script setup>
+import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import { useAdminStore } from '@/stores/admin';
 import { useToast } from '@/stores/toast';
+import { CLOUDINARY } from '@/utils/constants';
 
 const toast = useToast();
 const adminStore = useAdminStore();
 const showForm = ref(false);
 const editingId = ref(null);
 const deletingId = ref(null);
-const form = ref({ name: '', description: '' });
+const form = ref({ name: '', description: '', imageUrl: '' });
 const search = ref('');
 const filter = ref('all');
 const sort = ref('name-asc');
 const loading = ref(true);
 const saving = ref(false);
+const uploading = ref(false);
+const uploadError = ref('');
 const error = ref('');
 
 const categories = computed(() => adminStore.allCategories || []);
@@ -47,15 +51,33 @@ async function load() {
 }
 
 function reset() { search.value = ''; filter.value = 'all'; sort.value = 'name-asc'; }
-function openAdd() { editingId.value = null; form.value = { name: '', description: '' }; showForm.value = true; }
-function openEdit(category) { editingId.value = category.id; form.value = { name: category.name, description: category.description || '' }; showForm.value = true; }
+function openAdd() { editingId.value = null; form.value = { name: '', description: '', imageUrl: '' }; showForm.value = true; }
+function openEdit(category) { editingId.value = category.id; form.value = { name: category.name, description: category.description || '', imageUrl: category.imageUrl || '' }; showForm.value = true; }
 function closeForm() { if (!saving.value) showForm.value = false; }
+
+async function uploadImage(event) {
+  const file = event.target.files?.[0];
+  if (!file || uploading.value || saving.value) return;
+  uploading.value = true;
+  uploadError.value = '';
+  try {
+    const data = new FormData();
+    data.append('file', file);
+    data.append('upload_preset', CLOUDINARY.uploadPreset);
+    const response = await axios.post(CLOUDINARY.uploadUrl, data);
+    if (typeof response.data?.secure_url !== 'string' || !response.data.secure_url) throw new Error('Cloudinary không trả về URL ảnh hợp lệ');
+    form.value.imageUrl = response.data.secure_url;
+  } catch (e) { uploadError.value = e.message || 'Không thể tải ảnh lên'; }
+  finally { uploading.value = false; event.target.value = ''; }
+}
 
 async function save() {
   if (!form.value.name.trim()) return toast.error('Nhập tên danh mục');
   saving.value = true;
   try {
-    const data = { name: form.value.name.trim(), description: form.value.description.trim() };
+    const imageUrl = form.value.imageUrl.trim();
+    if (imageUrl && !/^https:\/\//i.test(imageUrl)) return toast.error('URL ảnh phải dùng HTTPS');
+    const data = { name: form.value.name.trim(), description: form.value.description.trim(), imageUrl };
     if (editingId.value) await adminStore.updateCategory(editingId.value, data);
     else await adminStore.createCategory(data);
     toast.success(editingId.value ? 'Đã cập nhật danh mục' : 'Đã thêm danh mục');
@@ -101,12 +123,12 @@ async function remove(category) {
       <div v-if="loading" class="state" role="status"><span class="spinner"></span><h3>Đang tải danh mục</h3><p>Vui lòng chờ trong giây lát.</p></div>
       <div v-else-if="error" class="state error-state" role="alert"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><h3>Không thể tải dữ liệu</h3><p>{{ error }}</p><button class="btn btn-outline" type="button" @click="load">Thử lại</button></div>
       <div v-else-if="visibleCategories.length" class="table-wrapper">
-        <table class="category-table"><thead><tr><th scope="col">Danh mục</th><th scope="col">Mô tả</th><th scope="col">Sản phẩm</th><th scope="col"><span class="sr-only">Thao tác</span></th></tr></thead><tbody><tr v-for="category in visibleCategories" :key="category.id"><td><div class="category-name"><span class="category-avatar">{{ category.name.charAt(0).toUpperCase() }}</span><div><strong>{{ category.name }}</strong><small>#{{ category.id }}</small></div></div></td><td class="description">{{ category.description || 'Chưa có mô tả' }}</td><td><span :class="['status-badge', Number(category.productCount) ? 'is-used' : 'is-empty']">{{ category.productCount || 0 }} sản phẩm</span></td><td><div class="actions"><button class="icon-button" type="button" :aria-label="`Sửa ${category.name}`" :disabled="deletingId === category.id" @click="openEdit(category)"><i class="bi bi-pencil" aria-hidden="true"></i></button><button class="icon-button danger" type="button" :aria-label="`Xóa ${category.name}`" :disabled="deletingId !== null" @click="remove(category)"><span v-if="deletingId === category.id" class="button-spinner"></span><i v-else class="bi bi-trash3" aria-hidden="true"></i></button></div></td></tr></tbody></table>
+        <table class="category-table"><thead><tr><th scope="col">Danh mục</th><th scope="col">Mô tả</th><th scope="col">Sản phẩm</th><th scope="col"><span class="sr-only">Thao tác</span></th></tr></thead><tbody><tr v-for="category in visibleCategories" :key="category.id"><td><div class="category-name"><span class="category-avatar"><img v-if="category.imageUrl" :src="category.imageUrl" alt="" loading="lazy"><template v-else>{{ category.name.charAt(0).toUpperCase() }}</template></span><div><strong>{{ category.name }}</strong><small>#{{ category.id }}</small></div></div></td><td class="description">{{ category.description || 'Chưa có mô tả' }}</td><td><span :class="['status-badge', Number(category.productCount) ? 'is-used' : 'is-empty']">{{ category.productCount || 0 }} sản phẩm</span></td><td><div class="actions"><button class="icon-button" type="button" :aria-label="`Sửa ${category.name}`" :disabled="deletingId === category.id" @click="openEdit(category)"><i class="bi bi-pencil" aria-hidden="true"></i></button><button class="icon-button danger" type="button" :aria-label="`Xóa ${category.name}`" :disabled="deletingId !== null" @click="remove(category)"><span v-if="deletingId === category.id" class="button-spinner"></span><i v-else class="bi bi-trash3" aria-hidden="true"></i></button></div></td></tr></tbody></table>
       </div>
       <div v-else class="state empty-state"><i class="bi bi-tags" aria-hidden="true"></i><h3>{{ categories.length ? 'Không tìm thấy danh mục' : 'Chưa có danh mục' }}</h3><p>{{ categories.length ? 'Thử thay đổi từ khóa hoặc bộ lọc.' : 'Tạo danh mục đầu tiên để phân loại sản phẩm.' }}</p><button v-if="categories.length" class="btn btn-outline" type="button" @click="reset">Xóa bộ lọc</button><button v-else class="btn btn-primary" type="button" @click="openAdd">Thêm danh mục</button></div>
     </section>
 
-    <div v-if="showForm" class="modal-overlay" @click.self="closeForm" @keydown.esc="closeForm"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="category-modal-title"><div class="modal-header"><div><span class="eyebrow">{{ editingId ? 'Chỉnh sửa' : 'Tạo mới' }}</span><h2 id="category-modal-title" class="modal-title">{{ editingId ? 'Sửa danh mục' : 'Thêm danh mục' }}</h2></div><button class="modal-close" type="button" aria-label="Đóng" :disabled="saving" @click="closeForm"><i class="bi bi-x-lg" aria-hidden="true"></i></button></div><form class="modal-body" @submit.prevent="save"><div class="form-group"><label class="form-label" for="category-name">Tên danh mục <span aria-hidden="true">*</span></label><input id="category-name" v-model="form.name" class="form-input" maxlength="100" required autofocus placeholder="Ví dụ: Cà phê"><small>Tối đa 100 ký tự</small></div><div class="form-group"><label class="form-label" for="category-description">Mô tả</label><textarea id="category-description" v-model="form.description" class="form-textarea" rows="4" maxlength="500" placeholder="Mô tả ngắn về danh mục"></textarea><small>{{ form.description.length }}/500 ký tự</small></div><div class="modal-footer"><button type="button" class="btn btn-ghost" :disabled="saving" @click="closeForm">Hủy</button><button type="submit" class="btn btn-primary" :disabled="saving"><span v-if="saving" class="button-spinner"></span>{{ saving ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo danh mục' }}</button></div></form></div></div>
+    <div v-if="showForm" class="modal-overlay" @click.self="closeForm" @keydown.esc="closeForm"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="category-modal-title"><div class="modal-header"><div><span class="eyebrow">{{ editingId ? 'Chỉnh sửa' : 'Tạo mới' }}</span><h2 id="category-modal-title" class="modal-title">{{ editingId ? 'Sửa danh mục' : 'Thêm danh mục' }}</h2></div><button class="modal-close" type="button" aria-label="Đóng" :disabled="saving" @click="closeForm"><i class="bi bi-x-lg" aria-hidden="true"></i></button></div><form class="modal-body" @submit.prevent="save"><div class="form-group"><label class="form-label" for="category-name">Tên danh mục <span aria-hidden="true">*</span></label><input id="category-name" v-model="form.name" class="form-input" maxlength="100" required autofocus placeholder="Ví dụ: Cà phê"><small>Tối đa 100 ký tự</small></div><div class="form-group"><label class="form-label" for="category-description">Mô tả</label><textarea id="category-description" v-model="form.description" class="form-textarea" rows="4" maxlength="500" placeholder="Mô tả ngắn về danh mục"></textarea><small>{{ form.description.length }}/500 ký tự</small></div><div class="form-group"><label class="form-label" for="category-image-file">Ảnh danh mục</label><input id="category-image-file" type="file" accept="image/*" :disabled="saving || uploading" @change="uploadImage"><span v-if="uploading" role="status">Đang tải ảnh...</span><span v-if="uploadError" class="upload-error" role="alert">{{ uploadError }}</span><input v-model="form.imageUrl" class="form-input" type="url" maxlength="1000" placeholder="Hoặc dán URL HTTPS" inputmode="url"><small>Dùng ảnh vuông, nền trong suốt hoặc nền sáng.</small><img v-if="form.imageUrl" class="image-preview" :src="form.imageUrl" alt="Xem trước ảnh danh mục"><button v-if="form.imageUrl" class="btn btn-outline" type="button" :disabled="saving || uploading" @click="form.imageUrl = ''">Xóa ảnh</button></div><div class="modal-footer"><button type="button" class="btn btn-ghost" :disabled="saving" @click="closeForm">Hủy</button><button type="submit" class="btn btn-primary" :disabled="saving"><span v-if="saving" class="button-spinner"></span>{{ saving ? 'Đang lưu...' : editingId ? 'Lưu thay đổi' : 'Tạo danh mục' }}</button></div></form></div></div>
   </main>
 </template>
 
@@ -130,11 +152,11 @@ async function remove(category) {
 .search-box input:focus, .control:focus, .icon-button:focus-visible, .reset-button:focus-visible { border-color: #e85d2a; box-shadow: 0 0 0 3px rgba(232, 93, 42, .13); }
 .reset-button { height: 42px; padding: 0 12px; border: 0; border-radius: 10px; color: #526077; background: #f3f5f8; font-weight: 700; cursor: pointer; }.reset-button:disabled { opacity: .45; cursor: not-allowed; }
 .table-wrapper { overflow-x: auto; }.category-table { width: 100%; border-collapse: collapse; }.category-table th { padding: 12px 24px; color: #7a8598; background: #fafbfc; font-size: 11px; letter-spacing: .6px; text-align: left; text-transform: uppercase; }.category-table td { padding: 15px 24px; border-top: 1px solid #edf0f4; vertical-align: middle; }.category-table tbody tr { transition: background .15s; }.category-table tbody tr:hover { background: #fcfaf8; }
-.category-name { display: flex; align-items: center; gap: 12px; min-width: 180px; }.category-avatar { display: grid; flex: 0 0 38px; height: 38px; place-items: center; border-radius: 11px; color: #d95328; background: #fff0eb; font-weight: 800; }.category-name strong, .category-name small { display: block; }.category-name small { margin-top: 3px; color: #97a0af; font-size: 11px; }.description { max-width: 420px; color: #657086; }
+.category-name { display: flex; align-items: center; gap: 12px; min-width: 180px; }.category-avatar { display: grid; flex: 0 0 38px; height: 38px; place-items: center; border-radius: 11px; color: #d95328; background: #fff0eb; font-weight: 800; }.category-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }.category-name strong, .category-name small { display: block; }.category-name small { margin-top: 3px; color: #97a0af; font-size: 11px; }.description { max-width: 420px; color: #657086; }
 .status-badge { display: inline-flex; padding: 5px 9px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; }.status-badge.is-used { color: #137153; background: #eaf8f3; }.status-badge.is-empty { color: #8a6470; background: #f5f0f2; }
 .actions { display: flex; justify-content: flex-end; gap: 6px; }.icon-button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #e0e4ea; border-radius: 9px; color: #59667c; background: #fff; cursor: pointer; }.icon-button:hover { color: #3157c8; border-color: #bdc9eb; background: #f4f7ff; }.icon-button.danger:hover { color: #c63e3e; border-color: #f0bcbc; background: #fff4f4; }.icon-button:disabled { opacity: .5; cursor: not-allowed; }
 .state { display: flex; min-height: 300px; padding: 40px 20px; align-items: center; justify-content: center; flex-direction: column; text-align: center; }.state > i { margin-bottom: 12px; color: #a5adba; font-size: 38px; }.state h3 { margin: 0 0 6px; font-size: 17px; }.state p { max-width: 420px; margin: 0 0 18px; color: #788398; }.error-state > i { color: #d54b45; }
-.spinner, .button-spinner { display: inline-block; border: 2px solid #dfe3e9; border-top-color: #e85d2a; border-radius: 50%; animation: spin .7s linear infinite; }.spinner { width: 34px; height: 34px; margin-bottom: 16px; }.button-spinner { width: 15px; height: 15px; margin-right: 7px; vertical-align: -2px; }.modal { border-radius: 18px; }.modal-header { align-items: flex-start; padding: 22px 24px; }.modal-title { margin-top: 3px; }.modal-body { padding: 22px 24px 0; }.form-group small { display: block; margin-top: 6px; color: #8993a4; font-size: 11px; }.form-textarea { resize: vertical; }.modal-footer { margin: 24px -24px 0; padding: 16px 24px; background: #fafbfc; }
+.spinner, .button-spinner { display: inline-block; border: 2px solid #dfe3e9; border-top-color: #e85d2a; border-radius: 50%; animation: spin .7s linear infinite; }.spinner { width: 34px; height: 34px; margin-bottom: 16px; }.button-spinner { width: 15px; height: 15px; margin-right: 7px; vertical-align: -2px; }.modal { border-radius: 18px; }.modal-header { align-items: flex-start; padding: 22px 24px; }.modal-title { margin-top: 3px; }.modal-body { padding: 22px 24px 0; }.form-group small { display: block; margin-top: 6px; color: #8993a4; font-size: 11px; }.form-textarea { resize: vertical; }.upload-error { color: #b91c1c; font-size: 12px; }.image-preview { display: block; width: 120px; height: 90px; margin-top: 10px; border: 1px solid #e5e9f0; border-radius: 12px; object-fit: contain; background: #fff8f2; }.modal-footer { margin: 24px -24px 0; padding: 16px 24px; background: #fafbfc; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1050px) { .stats-grid { grid-template-columns: repeat(2, 1fr); }.toolbar { grid-template-columns: 1fr 1fr; }.search-box { grid-column: 1 / -1; } }
 @media (max-width: 640px) { .page-header { align-items: stretch; flex-direction: column; }.add-button { width: 100%; }.stats-grid { gap: 10px; }.stat-card { min-height: 96px; padding: 14px; }.stat-icon { flex-basis: 40px; height: 40px; }.stat-card strong { font-size: 22px; }.toolbar { grid-template-columns: 1fr; padding: 0 16px 16px; }.search-box { grid-column: auto; }.control { min-width: 0; }.card-heading { padding: 18px 16px 14px; }.category-table th, .category-table td { padding: 12px 16px; }.description { min-width: 220px; }.modal-overlay { padding: 12px; } }

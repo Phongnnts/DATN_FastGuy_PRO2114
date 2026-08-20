@@ -6,6 +6,7 @@ import { formatPrice } from '@/utils/format';
 import CartItem from '@/components/common/CartItem.vue';
 import { useToast } from '@/stores/toast';
 import { useAuthStore } from '@/stores/auth';
+import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
 
 const toast = useToast();
 const router = useRouter();
@@ -46,15 +47,7 @@ function proceedCheckout() {
     <div class="container">
       <div class="cart-breadcrumb"><router-link to="/home">Trang chủ</router-link><i class="bi bi-chevron-right"></i><strong>Giỏ hàng</strong></div>
 
-      <ol class="checkout-stepper" aria-label="Tiến trình đặt hàng">
-        <li class="step active" aria-current="step"><span><i class="bi bi-check-lg"></i></span><strong>Giỏ hàng</strong></li>
-        <li class="step-line"></li>
-        <li class="step"><span>2</span><strong>Thông tin giao</strong></li>
-        <li class="step-line" aria-hidden="true"></li>
-        <li class="step"><span>3</span><strong>Thanh toán</strong></li>
-        <li class="step-line" aria-hidden="true"></li>
-        <li class="step"><span>4</span><strong>Hoàn tất</strong></li>
-      </ol>
+      <CheckoutStepper :current="1" />
 
       <div v-if="!cart.isLoaded" class="skeleton-cart"><div v-for="number in 3" :key="number" class="skeleton-cart-item"></div></div>
 
@@ -101,4 +94,8 @@ function proceedCheckout() {
 .order-summary { position: sticky; top: 82px; }.order-summary h2 { font-size: 17px; margin: 0 0 14px; }.summary-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; color: var(--text-mid); font-size: 13px; }.summary-row strong { color: var(--text-dark); }.summary-divider { border-top: 1px dashed var(--border); margin: 8px 0; }.summary-row.total { align-items: baseline; color: var(--text-dark); font-weight: 700; }.summary-row.total strong { color: var(--primary-dark); font-size: 24px; letter-spacing: -.03em; }.order-button { width: 100%; min-height: 48px; border-radius: var(--radius-full); margin: 16px 0 10px; background: linear-gradient(135deg, var(--primary-dark), var(--route-orange)); color: #fff; font-size: 14px; font-weight: 800; box-shadow: 0 12px 22px rgba(212,97,58,.22); }.order-button:disabled { opacity: .45; cursor: not-allowed; }.terms { text-align: center; color: var(--text-mid); font-size: 11px; }.terms i { color: var(--primary-dark); }.stock-warning { color: var(--red-active); font-size: 12px; font-weight: 600; }.points-card { display: flex; gap: 8px; align-items: start; margin-top: 16px; padding: 12px; border-radius: var(--radius-sm); background: #fff1df; color: #7c3b20; font-size: 12px; }.points-card i { color: var(--primary-dark); }
 .skeleton-cart { display: grid; gap: 12px; }.skeleton-cart-item { height: 110px; border-radius: var(--radius); background: linear-gradient(90deg, #f3eee9 25%, #fff 50%, #f3eee9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }.cart-empty { background: #fff; border-radius: var(--radius-lg); }@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
 @media (max-width: 768px) { .cart-layout { grid-template-columns: 1fr; }.order-summary { position: static; }.cart-columns { display: none; }.checkout-stepper { grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 14px 8px; }.step { white-space: normal; text-align: center; font-size: 10px; }.step-line { display: none; } }
+</style>
+
+<style scoped>
+.cart-page{background:linear-gradient(180deg,#fff8f0 0%,#faf8f6 100%)}.cart-block,.order-summary{border-color:#ece4de;border-radius:18px;box-shadow:0 12px 34px rgba(40,27,20,.05)}.order-summary::before{display:block;height:4px;margin:-18px -18px 17px;border-radius:18px 18px 0 0;background:linear-gradient(90deg,#df683e,#f3b05f);content:""}.block-title{font-size:15px}.coupon-preview{background:#fffaf6}.route-note{border:1px solid #f3dfc2;border-radius:16px}.summary-row.total strong{font-size:26px}.order-button{min-height:50px}.cart-main{min-width:0}@media(max-width:768px){.cart-page{padding-top:14px}.cart-layout{gap:14px}.cart-block,.order-summary{padding:15px}}
 </style>

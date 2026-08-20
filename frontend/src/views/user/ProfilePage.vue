@@ -1,16 +1,20 @@
 <script setup>
+import axios from 'axios';
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useToast } from '@/stores/toast';
 import LoyaltyWallet from '@/components/common/LoyaltyWallet.vue';
 import { createProfileLoadController } from '@/utils/profileHydration';
+import { CLOUDINARY } from '@/utils/constants';
 
 const auth = useAuthStore();
 const toast = useToast();
-const form = ref({ fullName: '', email: '', phone: '' });
+const form = ref({ fullName: '', email: '', phone: '', avatarUrl: '' });
 const profileSnapshot = ref(null);
 const editMode = ref(false);
 const savingProfile = ref(false);
+const uploadingAvatar = ref(false);
+const avatarError = ref('');
 const profileLoading = ref(true);
 const profileError = ref('');
 
@@ -30,7 +34,7 @@ function loadProfile() {
 }
 
 function syncProfile() {
-  form.value = { fullName: auth.user?.fullName || '', email: auth.user?.email || '', phone: auth.user?.phone || '' };
+  form.value = { fullName: auth.user?.fullName || '', email: auth.user?.email || '', phone: auth.user?.phone || '', avatarUrl: auth.user?.avatarUrl || '' };
 }
 
 function startProfileEdit() {
@@ -43,6 +47,31 @@ function cancelProfileEdit() {
   editMode.value = false;
 }
 
+async function uploadAvatar(event) {
+  const file = event.target.files?.[0];
+  if (!file || uploadingAvatar.value || savingProfile.value) return;
+  uploadingAvatar.value = true;
+  avatarError.value = '';
+  try {
+    const data = new FormData();
+    data.append('file', file);
+    data.append('upload_preset', CLOUDINARY.uploadPreset);
+    const response = await axios.post(CLOUDINARY.uploadUrl, data);
+    if (typeof response.data?.secure_url !== 'string' || !response.data.secure_url) throw new Error('Cloudinary không trả về URL ảnh hợp lệ');
+    form.value.avatarUrl = response.data.secure_url;
+  } catch (error) {
+    avatarError.value = error.message || 'Không thể tải ảnh lên';
+  } finally {
+    uploadingAvatar.value = false;
+    event.target.value = '';
+  }
+}
+
+function removeAvatar() {
+  form.value.avatarUrl = '';
+  avatarError.value = '';
+}
+
 async function saveProfile() {
   const phonePattern = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
   const name = form.value.fullName?.trim();
@@ -53,7 +82,7 @@ async function saveProfile() {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast.error('Email không hợp lệ.');
   savingProfile.value = true;
   try {
-    await auth.updateProfile({ fullName: name, email, phone });
+    await auth.updateProfile({ fullName: name, email, phone, avatarUrl: form.value.avatarUrl || null });
     syncProfile();
     profileSnapshot.value = null;
     editMode.value = false;
@@ -78,7 +107,7 @@ async function saveProfile() {
       <span>{{ profileError }}</span>
       <button type="button" class="btn btn-primary" @click="loadProfile">Thử lại</button>
     </div>
-    <section v-else class="profile-grid" aria-label="Thông tin tài khoản">
+    <section v-else class="profile-grid" :class="{ single: !auth.isUser }" aria-label="Thông tin tài khoản">
       <article class="panel identity-panel">
         <div class="section-heading"><div><span class="section-kicker">Hồ sơ</span><h2>Thông tin cá nhân</h2></div><button v-if="!editMode" type="button" class="btn btn-outline" @click="startProfileEdit"><i class="bi bi-pencil" aria-hidden="true"></i> Chỉnh sửa</button></div>
         <div class="profile-summary">
@@ -87,6 +116,12 @@ async function saveProfile() {
           <div><strong>{{ auth.user?.fullName }}</strong><span>Thành viên FastGuy</span></div>
         </div>
         <form v-if="editMode" class="profile-form" @submit.prevent="saveProfile">
+          <div class="avatar-editor">
+            <img v-if="form.avatarUrl" :src="form.avatarUrl" alt="Xem trước ảnh đại diện" class="profile-avatar" />
+            <span v-else class="profile-avatar avatar-placeholder" aria-hidden="true">{{ (form.fullName || 'F').trim().charAt(0).toUpperCase() }}</span>
+            <div><label class="btn btn-outline avatar-upload" :class="{ disabled: uploadingAvatar || savingProfile }"><input type="file" accept="image/*" :disabled="uploadingAvatar || savingProfile" @change="uploadAvatar" />{{ uploadingAvatar ? 'Đang tải ảnh...' : 'Chọn ảnh' }}</label><button v-if="form.avatarUrl" type="button" class="btn btn-ghost remove-avatar" :disabled="uploadingAvatar || savingProfile" @click="removeAvatar">Xóa ảnh</button></div>
+            <p v-if="avatarError" class="avatar-error" role="alert">{{ avatarError }}</p>
+          </div>
           <div class="field"><label for="profile-name">Họ và tên</label><input id="profile-name" v-model="form.fullName" class="form-input" autocomplete="name" maxlength="100" required /></div>
           <div class="field"><label for="profile-email">Email</label><input id="profile-email" v-model="form.email" type="email" class="form-input" autocomplete="email" required /></div>
           <div class="field"><label for="profile-phone">Số điện thoại</label><input id="profile-phone" v-model="form.phone" type="tel" class="form-input" autocomplete="tel" required /></div>
@@ -98,7 +133,7 @@ async function saveProfile() {
           <div><dt>Số điện thoại</dt><dd>{{ form.phone || 'Chưa cập nhật' }}</dd></div>
         </dl>
       </article>
-      <article class="panel loyalty-panel">
+      <article v-if="auth.isUser" class="panel loyalty-panel">
         <LoyaltyWallet compact />
         <router-link class="btn btn-outline wallet-link" to="/account/rewards">Xem ví điểm</router-link>
       </article>
@@ -116,6 +151,7 @@ async function saveProfile() {
 .profile-error { flex-direction: column; color: var(--red-active); text-align: center; }
 .profile-state .btn { min-height: var(--control-height); }
 .profile-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 20px; }
+.profile-grid.single { grid-template-columns: minmax(0, 760px); }
 .panel { padding: 24px; border: 1px solid var(--border-light); border-radius: 16px; background: #fff; box-shadow: 0 8px 28px rgba(24, 39, 75, .06); }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
 .section-heading h2 { margin: 3px 0 0; font-size: 20px; }
@@ -131,6 +167,13 @@ async function saveProfile() {
 .detail-list dt { color: var(--text-mid); font-size: 13px; }
 .detail-list dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .profile-form { display: flex; flex-direction: column; gap: 16px; }
+.avatar-editor { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px; border: 1px solid var(--border-light); border-radius: 12px; background: var(--color-surface-muted); }
+.avatar-editor > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.avatar-upload { cursor: pointer; }
+.avatar-upload input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+.avatar-upload.disabled { opacity: .55; cursor: wait; }
+.remove-avatar { color: var(--red-active); }
+.avatar-error { width: 100%; margin: 0; color: var(--red-active); font-size: 12px; }
 .field { min-width: 0; }
 .field label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 700; }
 .form-input { width: 100%; min-height: 44px; box-sizing: border-box; }

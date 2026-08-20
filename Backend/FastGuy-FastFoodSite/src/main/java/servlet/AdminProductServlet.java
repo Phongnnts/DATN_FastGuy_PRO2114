@@ -31,7 +31,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.net.URI;
 
 import service.InventoryAdjustmentService;
 
@@ -43,7 +45,7 @@ public class AdminProductServlet extends HttpServlet {
     private CategoryDAO categoryDAO = new CategoryDAO();
     private InventoryAdjustmentService inventoryAdjustmentService = new InventoryAdjustmentService();
 
-    private boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             ApiResponse.error(resp, "Missing token", 401);
@@ -102,6 +104,8 @@ public class AdminProductServlet extends HttpServlet {
         m.put("status", p.getStatus());
         m.put("availableFrom", p.getAvailableFrom() != null ? p.getAvailableFrom().toString() : null);
         m.put("availableTo", p.getAvailableTo() != null ? p.getAvailableTo().toString() : null);
+        m.put("isNew", Boolean.TRUE.equals(p.getIsNew()));
+        m.put("spiceLevel", p.getSpiceLevel());
         m.put("galleryImages", parseGalleryImages(p));
         m.put("variants", productDAO.findVariantsByProductId(p.getProductId()).stream()
                 .map(this::toVariantMap).collect(Collectors.toList()));
@@ -125,6 +129,7 @@ public class AdminProductServlet extends HttpServlet {
     private Map<String, Object> comboMap(ProductCombo combo) {
         if (combo == null) return null;
         Map<String, Object> m = new HashMap<>(); m.put("comboId", combo.getComboId()); m.put("isActive", Boolean.TRUE.equals(combo.getIsActive()));
+        m.put("homepageOccasion", combo.getHomepageOccasion()); m.put("homepageSortOrder", combo.getHomepageSortOrder());
         m.put("items", modifierDAO.comboItems(combo.getComboId()).stream().map(item -> Map.of("comboItemId", item.getComboItemId(), "productId", item.getProduct().getProductId(), "variantId", item.getVariant().getVariantId(), "quantity", item.getQuantity())).collect(Collectors.toList()));
         return m;
     }
@@ -246,7 +251,9 @@ public class AdminProductServlet extends HttpServlet {
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
 
         if (segs.length == 0) {
-            Integer categoryId = ((Number) body.get("categoryId")).intValue();
+            try { validateProductCreate(body); }
+            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); return; }
+            Integer categoryId = readInteger(body, "categoryId", 0, 1, Integer.MAX_VALUE);
             Category category = categoryDAO.findById(categoryId);
             if (category == null) { ApiResponse.error(resp, "Category not found", 400); return; }
 
@@ -259,6 +266,7 @@ public class AdminProductServlet extends HttpServlet {
                 p.setStatus(readStatus(body, "status", "AVAILABLE"));
                 p.setAvailableFrom(readTime(body, "availableFrom", null));
                 p.setAvailableTo(readTime(body, "availableTo", null));
+                applyProductHomepageMetadata(p, body);
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
                 return;
@@ -299,7 +307,12 @@ public class AdminProductServlet extends HttpServlet {
         if (segs.length == 2 && "combo".equals(segs[1])) {
             Integer productId = parseId(segs[0]); Product product = productId == null ? null : productDAO.findById(productId);
             if (product == null) { ApiResponse.error(resp, "Product not found", 404); return; }
-            ProductCombo combo = modifierDAO.combo(productId); if (combo == null) { combo = new ProductCombo(); combo.setProduct(product); } combo.setIsActive(!body.containsKey("isActive") || Boolean.TRUE.equals(body.get("isActive"))); modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Saved"); return;
+            try { validateComboCreate(body); }
+            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); return; }
+            ProductCombo combo = modifierDAO.combo(productId);
+            if (combo == null) { combo = new ProductCombo(); combo.setProduct(product); }
+            applyComboHomepageMetadata(combo, body);
+            modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Saved"); return;
         }
 
         if (segs.length == 3 && "combo".equals(segs[1]) && "items".equals(segs[2])) {
@@ -355,14 +368,128 @@ public class AdminProductServlet extends HttpServlet {
         return (Boolean) body.get("isActive");
     }
 
+    static Boolean readBoolean(Map<String, Object> body, String key, Boolean fallback) {
+        if (!body.containsKey(key)) return fallback;
+        if (!(body.get(key) instanceof Boolean)) throw new IllegalArgumentException(key + " must be a boolean");
+        return (Boolean) body.get(key);
+    }
+
+    static int readInteger(Map<String, Object> body, String key, int fallback, int min, int max) {
+        if (!body.containsKey(key)) return fallback;
+        if (!(body.get(key) instanceof Number)) throw new IllegalArgumentException(key + " must be an integer");
+        try {
+            int value = new BigDecimal(body.get(key).toString()).intValueExact();
+            if (value < min || value > max) throw new IllegalArgumentException(key + " must be between " + min + " and " + max);
+            return value;
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException(key + " must be an integer");
+        }
+    }
+
+    static String readHomepageOccasion(Map<String, Object> body, String fallback) {
+        if (!body.containsKey("homepageOccasion")) return fallback;
+        Object value = body.get("homepageOccasion");
+        if (value == null) return null;
+        if (!(value instanceof String occasion) || !List.of("QUICK_BREAK", "OFFICE_LUNCH", "STUDENT", "GROUP").contains(occasion)) {
+            throw new IllegalArgumentException("homepageOccasion is invalid");
+        }
+        return occasion;
+    }
+
+    private static final Set<String> PRODUCT_UPDATE_FIELDS = Set.of("categoryId", "name", "description", "basePrice", "status",
+            "availableFrom", "availableTo", "imageUrl", "galleryImages", "isNew", "spiceLevel");
+    private static final Set<String> COMBO_UPDATE_FIELDS = Set.of("isActive", "homepageOccasion", "homepageSortOrder");
+
+    static void validateProductUpdate(Map<String, Object> body) {
+        validateFields(body, PRODUCT_UPDATE_FIELDS);
+        if (body.containsKey("categoryId")) readInteger(body, "categoryId", 0, 1, Integer.MAX_VALUE);
+        if (body.containsKey("name") && (!(body.get("name") instanceof String name) || name.isBlank())) throw new IllegalArgumentException("name must be a nonblank string");
+        if (body.containsKey("description") && body.get("description") != null && !(body.get("description") instanceof String)) throw new IllegalArgumentException("description must be a string or null");
+        if (body.containsKey("basePrice")) readMoneyValue(body, "basePrice");
+        if (body.containsKey("status") && (!(body.get("status") instanceof String status) || !List.of("AVAILABLE", "UNAVAILABLE").contains(status))) throw new IllegalArgumentException("status is invalid");
+        validateTimeValue(body, "availableFrom"); validateTimeValue(body, "availableTo");
+        validateUrlValue(body, "imageUrl", true);
+        if (body.containsKey("galleryImages")) {
+            if (!(body.get("galleryImages") instanceof List<?> images)) throw new IllegalArgumentException("galleryImages must be an array");
+            for (Object image : images) validateUrl(image, false, "galleryImages must contain valid URL strings");
+        }
+        if (body.containsKey("isNew")) readBoolean(body, "isNew", false);
+        if (body.containsKey("spiceLevel")) readInteger(body, "spiceLevel", 0, 0, 3);
+    }
+
+    static void validateProductCreate(Map<String, Object> body) {
+        validateProductUpdate(body);
+        for (String field : List.of("categoryId", "name", "basePrice", "isNew", "spiceLevel")) {
+            if (!body.containsKey(field)) throw new IllegalArgumentException(field + " is required");
+        }
+    }
+
+    static void applyProductHomepageMetadata(Product product, Map<String, Object> body) {
+        product.setIsNew(readBoolean(body, "isNew", false));
+        product.setSpiceLevel(readInteger(body, "spiceLevel", 0, 0, 3));
+    }
+
+    static void validateComboUpdate(Map<String, Object> body) {
+        validateFields(body, COMBO_UPDATE_FIELDS);
+        if (body.containsKey("isActive")) readBoolean(body, "isActive", false);
+        readHomepageOccasion(body, null);
+        if (body.containsKey("homepageSortOrder")) readInteger(body, "homepageSortOrder", 0, 0, Integer.MAX_VALUE);
+    }
+
+    static void validateComboCreate(Map<String, Object> body) {
+        validateComboUpdate(body);
+    }
+
+    static void applyComboHomepageMetadata(ProductCombo combo, Map<String, Object> body) {
+        combo.setIsActive(readBoolean(body, "isActive", true));
+        combo.setHomepageOccasion(readHomepageOccasion(body, null));
+        combo.setHomepageSortOrder(readInteger(body, "homepageSortOrder", 0, 0, Integer.MAX_VALUE));
+    }
+
+    private static void validateFields(Map<String, Object> body, Set<String> allowed) {
+        if (body == null || body.isEmpty()) throw new IllegalArgumentException("Request body must contain at least one field");
+        if (!allowed.containsAll(body.keySet())) throw new IllegalArgumentException("Request body contains unknown fields");
+    }
+
+    private static void readMoneyValue(Map<String, Object> body, String key) {
+        if (!(body.get(key) instanceof Number)) throw new IllegalArgumentException(key + " must be a number");
+        try { if (new BigDecimal(body.get(key).toString()).signum() < 0) throw new IllegalArgumentException(key + " must be >= 0"); }
+        catch (NumberFormatException e) { throw new IllegalArgumentException(key + " must be a number"); }
+    }
+
+    private static void validateTimeValue(Map<String, Object> body, String key) {
+        if (!body.containsKey(key) || body.get(key) == null) return;
+        if (!(body.get(key) instanceof String value)) throw new IllegalArgumentException(key + " must be a time string or null");
+        try { LocalTime.parse(value); } catch (RuntimeException e) { throw new IllegalArgumentException(key + " is invalid"); }
+    }
+
+    private static void validateUrlValue(Map<String, Object> body, String key, boolean nullable) {
+        if (!body.containsKey(key)) return;
+        if (body.get(key) == null && nullable) return;
+        validateUrl(body.get(key), true, key + " must be a valid URL string or null");
+    }
+
+    private static void validateUrl(Object raw, boolean allowBlank, String message) {
+        if (!(raw instanceof String value) || (!allowBlank && value.isBlank())) throw new IllegalArgumentException(message);
+        if (value.isBlank()) return;
+        try { new URI(value); } catch (Exception e) { throw new IllegalArgumentException(message); }
+    }
+
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         if (!checkAdmin(req, resp)) return;
 
         String[] segs = splitPath(req.getPathInfo());
-        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+        Map<String, Object> body;
+        try { body = JsonUtil.fromJson(req.getReader(), Map.class); }
+        catch (RuntimeException e) { ApiResponse.error(resp, "Invalid data", 400); return; }
         if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+
+        try {
+            if (segs.length == 1) validateProductUpdate(body);
+            if (segs.length == 2 && "combo".equals(segs[1])) validateComboUpdate(body);
+        } catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); return; }
 
         if (segs.length == 2 && "modifier-groups".equals(segs[1])) {
             Integer groupId = parseId(segs[0]);
@@ -398,7 +525,12 @@ public class AdminProductServlet extends HttpServlet {
         if (segs.length == 2 && "combo".equals(segs[1])) {
             Integer productId = parseId(segs[0]); ProductCombo combo = productId == null ? null : modifierDAO.combo(productId);
             if (combo == null) { ApiResponse.error(resp, "Combo not found", 404); return; }
-            try { combo.setIsActive(readActive(body, combo.getIsActive())); modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Updated"); }
+            try {
+                combo.setIsActive(readActive(body, combo.getIsActive()));
+                combo.setHomepageOccasion(readHomepageOccasion(body, combo.getHomepageOccasion()));
+                combo.setHomepageSortOrder(readInteger(body, "homepageSortOrder", combo.getHomepageSortOrder(), 0, Integer.MAX_VALUE));
+                modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Updated");
+            }
             catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
             return;
         }
@@ -410,16 +542,19 @@ public class AdminProductServlet extends HttpServlet {
             if (p == null) { ApiResponse.error(resp, "Not found", 404); return; }
 
             if (body.containsKey("categoryId")) {
-                Category c = categoryDAO.findById(((Number) body.get("categoryId")).intValue());
-                if (c != null) p.setCategory(c);
+                Category c = categoryDAO.findById(readInteger(body, "categoryId", 0, 1, Integer.MAX_VALUE));
+                if (c == null) { ApiResponse.error(resp, "Category not found", 404); return; }
+                p.setCategory(c);
             }
-            if (body.containsKey("name")) p.setName((String) body.get("name"));
+            if (body.containsKey("name")) p.setName(((String) body.get("name")).trim());
             if (body.containsKey("description")) p.setDescription((String) body.get("description"));
             try {
                 if (body.containsKey("basePrice")) p.setBasePrice(readMoney(body, "basePrice", p.getBasePrice()));
                 if (body.containsKey("status")) p.setStatus(readStatus(body, "status", p.getStatus()));
                 if (body.containsKey("availableFrom")) p.setAvailableFrom(readTime(body, "availableFrom", p.getAvailableFrom()));
                 if (body.containsKey("availableTo")) p.setAvailableTo(readTime(body, "availableTo", p.getAvailableTo()));
+                p.setIsNew(readBoolean(body, "isNew", p.getIsNew()));
+                p.setSpiceLevel(readInteger(body, "spiceLevel", p.getSpiceLevel(), 0, 3));
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
                 return;

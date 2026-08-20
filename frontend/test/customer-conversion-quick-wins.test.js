@@ -9,17 +9,47 @@ const login = read('../src/views/guest/LoginPage.vue');
 const tracking = read('../src/views/guest/TrackOrderPage.vue');
 const orderDetail = read('../src/views/user/OrderDetailPage.vue');
 const orderSuccess = read('../src/views/user/OrderSuccessPage.vue');
+const adminOrderDetail = read('../src/views/admin/OrderDetailPage.vue');
+const privacy = read('../src/views/guest/PrivacyPage.vue');
 const router = read('../src/router/index.js');
 const guestLayout = read('../src/layouts/GuestLayout.vue');
 const productDetail = read('../src/views/guest/ProductDetailPage.vue');
 const cartPage = read('../src/views/guest/CartPage.vue');
 const cartMigration = read('../src/utils/cartMigration.js');
+const menuPage = read('../src/views/guest/MenuPage.vue');
+const promotionsPage = read('../src/views/guest/PromotionsPage.vue');
 const customerSources = [
   router,
   guestLayout,
   ...fs.readdirSync(new URL('../src/views/guest/', import.meta.url)).filter(name => name.endsWith('.vue')).map(name => read(`../src/views/guest/${name}`)),
   ...fs.readdirSync(new URL('../src/views/user/', import.meta.url)).filter(name => name.endsWith('.vue')).map(name => read(`../src/views/user/${name}`)),
 ];
+
+test('profiles and admin users support Cloudinary avatar upload and removal', () => {
+  const profile = read('../src/views/user/ProfilePage.vue');
+  const users = read('../src/views/admin/UsersPage.vue');
+  for (const source of [profile, users]) {
+    assert.match(source, /import axios from 'axios'/);
+    assert.match(source, /import \{ CLOUDINARY \} from '@\/utils\/constants'/);
+    assert.match(source, /data\.append\('upload_preset', CLOUDINARY\.uploadPreset\)/);
+    assert.match(source, /axios\.post\(CLOUDINARY\.uploadUrl, data\)/);
+    assert.match(source, /secure_url/);
+    assert.match(source, /avatarUrl/);
+  }
+  assert.match(profile, /await auth\.updateProfile\(\{ fullName: name, email, phone, avatarUrl: form\.value\.avatarUrl \|\| null \}\)/);
+  assert.match(profile, /Xóa ảnh/);
+  assert.match(profile, /v-if="auth\.isUser" class="panel loyalty-panel"/);
+  assert.match(users, /const payload = \{ fullName, email, phone, roleName: form\.value\.roleName, avatarUrl: form\.value\.avatarUrl \|\| null \}/);
+  assert.match(users, /user\.avatarUrl/);
+  assert.match(users, /Xóa ảnh/);
+});
+
+test('staff and shipper expose shared profile routes outside shift guards', () => {
+  assert.match(router, /path: 'profile',\s*name: 'StaffProfile',\s*component: \(\) => import\('@\/views\/user\/ProfilePage\.vue'\)/s);
+  assert.match(router, /path: 'profile',\s*name: 'ShipperProfile',\s*component: \(\) => import\('@\/views\/user\/ProfilePage\.vue'\)/s);
+  assert.match(read('../src/layouts/StaffLayout.vue'), /\{ label: 'Hồ sơ', path: '\/staff\/profile', icon: 'bi-person-circle' \}/);
+  assert.match(read('../src/layouts/ShipperLayout.vue'), /\{ path: '\/shipper\/profile', name: 'Hồ sơ', icon: 'bi-person-circle' \}/);
+});
 
 test('profile hydrates authoritative API data and persists normalized user', () => {
   assert.match(authStore, /async function hydrateProfile\(\)/);
@@ -67,6 +97,55 @@ test('reorder delegates planning and execution before announcing accessible resu
   assert.match(orderDetail, /await reorderController\.run\(order\.value\.items\)/);
   assert.match(orderDetail, /role="status" aria-live="polite" aria-atomic="true"/);
   assert.match(orderDetail, /:key="`\$\{modifier\.groupId\}:\$\{modifier\.modifierOptionId\}`"/);
+});
+
+test('review publication requires explicit unchecked consent and admin honors it', () => {
+  assert.match(orderDetail, /reviewForm = ref\(\{ rating: 5, comment: '', homepageConsent: false \}\)/);
+  assert.match(orderDetail, /homepageConsent: reviewForm\.value\.homepageConsent/);
+  assert.match(orderDetail, /v-model="reviewForm\.homepageConsent"[^>]*type="checkbox"/);
+  assert.match(orderDetail, /bình luận, số sao, tên hiển thị và ảnh đại diện/);
+  assert.match(adminOrderDetail, /:disabled="saving \|\| reviewSaving \|\| \(!order\.review\.featured && !order\.review\.featureEligible\)"/);
+  assert.match(adminOrderDetail, /featureIneligibilityReason/);
+  assert.match(privacy, /chỉ được hiển thị công khai khi bạn đồng ý rõ ràng và quản trị viên chọn đăng/);
+  assert.doesNotMatch(privacy, /hỗ trợ[^<]*rút lại sự đồng ý/i);
+});
+
+test('menu keeps essential filters in a compact customer-facing layout', () => {
+  assert.match(menuPage, /class="compact-toolbar"/);
+  assert.match(menuPage, /class="desktop-filter-toggle"/);
+  assert.match(menuPage, /class="menu-sidebar advanced-filters filter-dropdown"/);
+  assert.match(menuPage, /Khoảng giá<\/legend>/);
+  assert.match(menuPage, /Tình trạng<\/legend>/);
+  assert.match(menuPage, /Đang giảm giá/);
+  assert.match(menuPage, /Bán chạy/);
+  assert.doesNotMatch(menuPage, /productType/);
+  assert.doesNotMatch(menuPage, /legend>Loại món<\/legend>/);
+  assert.match(menuPage, /\.category-chips\{[^}]*max-height:46px/);
+  assert.match(menuPage, /class="[^"]*filter-dropdown[^"]*"/);
+  assert.match(menuPage, /class="result-summary"/);
+  assert.match(menuPage, /class="result-count"/);
+  assert.match(menuPage, /class="result-context"/);
+  assert.match(menuPage, /class="result-actions"/);
+  assert.match(menuPage, /class="filter-group"/);
+  assert.match(menuPage, /\.filter-dropdown\{[^}]*position:absolute/);
+});
+
+test('promotions use compact commercial voucher tickets and short claim actions', () => {
+  assert.match(promotionsPage, /const activeFilter = ref\('ALL'\)/);
+  assert.match(promotionsPage, /const filteredCoupons = computed/);
+  assert.match(promotionsPage, /class="promo-filters"/);
+  assert.match(promotionsPage, /class="ticket-notch notch-top"/);
+  assert.match(promotionsPage, /class="ticket-notch notch-bottom"/);
+  assert.match(promotionsPage, /class="coupon-copy"/);
+  assert.match(promotionsPage, /class="coupon-meta"/);
+  assert.match(promotionsPage, />Nhận mã\s*<i/);
+  assert.doesNotMatch(promotionsPage, /Đăng nhập để nhận/);
+  assert.match(promotionsPage, /\.promo-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
+  assert.match(promotionsPage, /border-left:\s*1px dashed/);
+  assert.match(promotionsPage, /:class="`value-\$\{coupon\.type\.toLowerCase\(\)\}`"/);
+  assert.match(promotionsPage, /\.value-fixed\{[^}]*font-size:clamp\(19px,1\.8vw,24px\)/);
+  assert.match(promotionsPage, /\.value-free_shipping\{[^}]*font-size:clamp\(18px,1\.65vw,22px\)/);
+  assert.match(promotionsPage, /\.discount-block strong\{[^}]*max-width:100%[^}]*overflow-wrap:anywhere/);
 });
 
 test('customer surfaces do not hardcode unsupported delivery claims', () => {

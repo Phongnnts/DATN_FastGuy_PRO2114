@@ -35,6 +35,13 @@ public class Review {
     @Column(name = "comment")
     private String comment;
 
+    @Column(name = "is_featured")
+    private Boolean featured = false;
+
+    @Column(name = "homepage_consent", nullable = false)
+    private Boolean homepageConsent = false;
+
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -59,6 +66,11 @@ public class Review {
     public void setRating(int rating) { this.rating = rating; }
     public String getComment() { return comment; }
     public void setComment(String comment) { this.comment = comment; }
+    public Boolean getFeatured() { return featured; }
+    public void setFeatured(Boolean featured) { this.featured = featured; }
+    public Boolean getHomepageConsent() { return homepageConsent; }
+    public void setHomepageConsent(Boolean homepageConsent) { this.homepageConsent = homepageConsent; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

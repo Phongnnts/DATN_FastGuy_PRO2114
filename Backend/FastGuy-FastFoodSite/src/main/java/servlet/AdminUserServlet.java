@@ -57,6 +57,7 @@ public class AdminUserServlet extends HttpServlet {
         Map<String, Object> result = new HashMap<>();
         result.put("userId", user.getUserId()); result.put("fullName", user.getFullName() == null ? "" : user.getFullName());
         result.put("email", user.getEmail() == null ? "" : user.getEmail()); result.put("phone", user.getPhone() == null ? "" : user.getPhone());
+        result.put("avatarUrl", user.getAvatarUrl());
         result.put("roleName", user.getRole() != null ? user.getRole() : ""); result.put("status", user.getStatus()); result.put("loyaltyPoints", user.getLoyaltyPoints());
         return result;
     }
@@ -187,6 +188,7 @@ public class AdminUserServlet extends HttpServlet {
         if (creating || body.containsKey("fullName")) { Object raw = body.get("fullName"); if (!(raw instanceof String value) || value.trim().length() < 2 || value.trim().length() > 100) throw new IllegalArgumentException("Họ tên phải từ 2 đến 100 ký tự"); user.setFullName(value.trim()); }
         if (creating || body.containsKey("email")) { Object raw = body.get("email"); if (!(raw instanceof String value) || !value.trim().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) throw new IllegalArgumentException("Email không hợp lệ"); user.setEmail(value.trim().toLowerCase()); }
         if (body.containsKey("phone")) { Object raw = body.get("phone"); if (raw != null && !(raw instanceof String)) throw new IllegalArgumentException("Số điện thoại không hợp lệ"); user.setPhone(raw == null ? null : ((String) raw).trim()); }
+        if (body.containsKey("avatarUrl")) { Object raw = body.get("avatarUrl"); user.setAvatarUrl(UserAvatarPolicy.normalize(raw)); }
         if (creating || body.containsKey("roleName")) { Object raw = body.getOrDefault("roleName", "USER"); if (!(raw instanceof String name) || !ROLES.contains(name)) throw new IllegalArgumentException("Vai trò không hợp lệ"); user.setRole(name); }
         if (creating || body.containsKey("password")) { Object raw = body.get("password"); if (!(raw instanceof String password) || password.length() < 6 || password.length() > 72) throw new IllegalArgumentException("Mật khẩu phải từ 6 đến 72 ký tự"); user.setPasswordHash(PasswordUtil.hash(password)); }
     }

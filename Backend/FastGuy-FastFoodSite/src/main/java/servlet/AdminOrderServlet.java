@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import service.NotificationService;
 import service.OrderService;
 import service.OrderStatusHistoryService;
+import service.ReviewService;
 import service.DeliveryFailurePolicy;
 import service.OrderTransitionService;
 import utils.ApiResponse;
@@ -39,9 +40,21 @@ public class AdminOrderServlet extends HttpServlet {
     private OrderService orderService = new OrderService();
     private OrderTransitionService transitionService = new OrderTransitionService();
     private NotificationService notificationService = new NotificationService();
+    private ReviewService reviewService = new ReviewService();
+
+    protected boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        String authHeader = req.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return false; }
+        String token = authHeader.substring(7);
+        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return false; }
+        return true;
+    }
 
     public List<Map<String, Object>> getOrdersData() {
-        return ordersDAO.findAll().stream().map(o -> {
+        return ordersDAO.findAll().stream().map(this::toListItem).collect(Collectors.toList());
+    }
+
+    private Map<String, Object> toListItem(Orders o) {
             Map<String, Object> m = new HashMap<>();
             m.put("orderId", o.getOrderId());
             m.put("orderCode", o.getOrderCode());
@@ -66,19 +79,12 @@ public class AdminOrderServlet extends HttpServlet {
             m.put("refundNote", o.getRefundNote());
             m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
             return m;
-        }).collect(Collectors.toList());
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        String authHeader = req.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            ApiResponse.error(resp, "Missing token", 401);
-            return;
-        }
-        String token = authHeader.substring(7);
-        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        if (!checkAdmin(req, resp)) return;
 
         String path = req.getPathInfo();
         if (path == null || path.equals("/")) {
@@ -91,12 +97,9 @@ public class AdminOrderServlet extends HttpServlet {
                     ApiResponse.error(resp, "fromDate must not be after toDate", 400);
                     return;
                 }
-                List<Map<String, Object>> allData = getOrdersData().stream().filter(m -> {
-                    String created = (String) m.get("createdAt");
-                    if (created == null) return false;
-                    LocalDate date = LocalDateTime.parse(created.replace("Z", "")).toLocalDate();
-                    return (from == null || !date.isBefore(from)) && (to == null || !date.isAfter(to));
-                }).sorted(Comparator.comparing(m -> (String) m.get("createdAt"), Comparator.nullsLast(Comparator.reverseOrder()))).collect(Collectors.toList());
+                LocalDateTime start = from == null ? null : from.atStartOfDay();
+                LocalDateTime end = to == null ? null : to.plusDays(1).atStartOfDay();
+                List<Map<String, Object>> allData = ordersDAO.findAllByCreatedAtRange(start, end).stream().map(this::toListItem).collect(Collectors.toList());
                 ApiResponse.ok(resp, allData);
             } catch (DateTimeParseException e) {
                 ApiResponse.error(resp, "Invalid date format, expected yyyy-MM-dd", 400);
@@ -140,10 +143,8 @@ public class AdminOrderServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        String authHeader = req.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return; }
-        String token = authHeader.substring(7);
-        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        if (!checkAdmin(req, resp)) return;
+        String token = req.getHeader("Authorization").substring(7);
 
         String path = req.getPathInfo();
         if (path == null) { resp.sendError(404); return; }
@@ -176,7 +177,7 @@ public class AdminOrderServlet extends HttpServlet {
         }
 
         String[] parts = path.split("/");
-        if (parts.length < 3) { resp.sendError(404); return; }
+        if (parts.length != 3) { resp.sendError(404); return; }
 
         try {
             int orderId = Integer.parseInt(parts[1]);
@@ -205,21 +206,18 @@ public class AdminOrderServlet extends HttpServlet {
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
-        String authHeader = req.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return; }
-        String token = authHeader.substring(7);
-        if (!"ADMIN".equals(JwtUtil.getRole(token)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) { ApiResponse.error(resp, "Forbidden", 403); return; }
+        if (!checkAdmin(req, resp)) return;
 
         String path = req.getPathInfo();
         if (path == null) { resp.sendError(404); return; }
 
         String[] parts = path.split("/");
-        if (parts.length < 3) { resp.sendError(404); return; }
+        if (parts.length != 3) { resp.sendError(404); return; }
 
         try {
             int orderId = Integer.parseInt(parts[1]);
             String action = parts[2];
-            int adminId = getAdminId(req);
+            int adminId = "featured-review".equals(action) ? 0 : getAdminId(req);
 
             if ("cancel".equals(action)) {
                 Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
@@ -239,13 +237,30 @@ public class AdminOrderServlet extends HttpServlet {
                 boolean ok = transitionService.transition(orderId, status, "ADMIN", adminId, body != null ? (String) body.get("note") : null);
                 if (!ok) { ApiResponse.error(resp, "Invalid status transition", 400); return; }
                 ApiResponse.ok(resp, null, "Status updated");
+            } else if ("featured-review".equals(action)) {
+                Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
+                updateFeaturedReview(orderId, body, resp);
             } else {
                 resp.sendError(404);
             }
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid order ID", 400);
+        } catch (IllegalStateException e) {
+            ApiResponse.error(resp, e.getMessage(), 422);
         } catch (Exception e) {
             ApiResponse.error(resp, e.getMessage(), 400);
+        }
+    }
+
+    protected void updateFeaturedReview(int orderId, Map<String, Object> body, HttpServletResponse resp) throws IOException {
+        if (body == null || body.size() != 1 || !(body.get("featured") instanceof Boolean featured)) {
+            ApiResponse.error(resp, "featured must be a boolean", 400);
+            return;
+        }
+        try {
+            ApiResponse.ok(resp, reviewService.setFeaturedByOrderId(orderId, featured), "Featured review updated");
+        } catch (IllegalArgumentException e) {
+            ApiResponse.error(resp, "Review not found", 404);
         }
     }
 
@@ -267,6 +282,7 @@ public class AdminOrderServlet extends HttpServlet {
         data.put("deliveryNote", o.getDeliveryNote());
         data.put("cancelledBy", o.getCancelledBy());
         data.put("failureNote", o.getFailureReason());
+        data.put("failureReason", o.getFailureReason());
         data.put("deliveryFailureCode", o.getDeliveryFailureCode());
         data.put("deliveryAttemptCount", o.getDeliveryAttemptCount());
         data.put("deliveryAttemptLimit", o.getDeliveryAttemptLimit());
@@ -284,6 +300,7 @@ public class AdminOrderServlet extends HttpServlet {
         data.put("staffName", o.getStaff() != null ? o.getStaff().getFullName() : null);
         data.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         data.put("internalNote", o.getInternalNote());
+        data.put("review", reviewService.getAdminByOrderId(o.getOrderId()));
 
         PaymentAttempt attempt = paymentAttemptDAO.findByOrderId(o.getOrderId());
         if (attempt != null) {

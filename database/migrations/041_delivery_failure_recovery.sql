@@ -22,6 +22,14 @@ BEGIN TRY
     IF COL_LENGTH('dbo.Orders', 'retry_scheduled_at') IS NULL ALTER TABLE dbo.Orders ADD retry_scheduled_at datetime2(0) NULL;
     IF COL_LENGTH('dbo.Orders', 'returned_to_store_at') IS NULL ALTER TABLE dbo.Orders ADD returned_to_store_at datetime2(0) NULL;
 
+    IF EXISTS (
+        SELECT 1 FROM dbo.OrderStatusHistory
+        WHERE (from_status IS NOT NULL AND from_status NOT IN ('PENDING','CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP','DELIVERY_FAILED','RETURNED_TO_STORE','DELIVERED','CANCELLED')
+            OR to_status NOT IN ('PENDING','CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP','DELIVERY_FAILED','RETURNED_TO_STORE','DELIVERED','CANCELLED'))
+          AND NOT (actor_role = 'PAYOS' AND from_status = 'UNPAID' AND to_status = 'PAID')
+    ) THROW 51512, 'Unexpected non-order statuses exist in OrderStatusHistory.', 1;
+    DELETE FROM dbo.OrderStatusHistory WHERE actor_role = 'PAYOS' AND from_status = 'UNPAID' AND to_status = 'PAID';
+
     IF OBJECT_ID(N'dbo.CK_Orders_Status', N'C') IS NOT NULL ALTER TABLE dbo.Orders DROP CONSTRAINT CK_Orders_Status;
     ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT CK_Orders_Status CHECK (order_status IN ('PENDING','CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP','DELIVERY_FAILED','RETURNED_TO_STORE','DELIVERED','CANCELLED'));
 
@@ -31,9 +39,9 @@ BEGIN TRY
     ALTER TABLE dbo.OrderStatusHistory WITH CHECK ADD CONSTRAINT CK_OrderStatusHistory_To CHECK (to_status IN ('PENDING','CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP','DELIVERY_FAILED','RETURNED_TO_STORE','DELIVERED','CANCELLED'));
 
     IF OBJECT_ID(N'dbo.CK_Orders_DeliveryAttempts', N'C') IS NOT NULL ALTER TABLE dbo.Orders DROP CONSTRAINT CK_Orders_DeliveryAttempts;
-    ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT CK_Orders_DeliveryAttempts CHECK (delivery_attempt_count >= 0 AND delivery_attempt_limit > 0 AND delivery_attempt_count <= delivery_attempt_limit);
+    EXEC sys.sp_executesql N'ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT CK_Orders_DeliveryAttempts CHECK (delivery_attempt_count >= 0 AND delivery_attempt_limit > 0 AND delivery_attempt_count <= delivery_attempt_limit);';
     IF OBJECT_ID(N'dbo.CK_Orders_DeliveryFailureCode', N'C') IS NOT NULL ALTER TABLE dbo.Orders DROP CONSTRAINT CK_Orders_DeliveryFailureCode;
-    ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT CK_Orders_DeliveryFailureCode CHECK (delivery_failure_code IS NULL OR delivery_failure_code IN ('CUSTOMER_UNREACHABLE','INVALID_ADDRESS','CUSTOMER_RESCHEDULED','CUSTOMER_REJECTED','SHIPPER_INCIDENT','PRODUCT_INCIDENT'));
+    EXEC sys.sp_executesql N'ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT CK_Orders_DeliveryFailureCode CHECK (delivery_failure_code IS NULL OR delivery_failure_code IN (''CUSTOMER_UNREACHABLE'',''INVALID_ADDRESS'',''CUSTOMER_RESCHEDULED'',''CUSTOMER_REJECTED'',''SHIPPER_INCIDENT'',''PRODUCT_INCIDENT''));';
 
     INSERT dbo.SchemaMigrationHistory(migration_id, details) VALUES ('041_delivery_failure_recovery', N'Delivery attempt metadata, failure codes, and recovery statuses added');
     COMMIT TRANSACTION;

@@ -88,6 +88,17 @@ public class UserDAO {
         }
     }
 
+    public long countByRole(String role) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(u) FROM User u WHERE u.role = :role", Long.class)
+                    .setParameter("role", role)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
     public long countActiveAdmins() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
