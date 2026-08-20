@@ -145,9 +145,14 @@ public class OrderTransitionService {
                     || order.getShipper().getUserId() != actorUserId || !requireCheckedInShipper(em, actorUserId))) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if ("ASSIGNED".equals(toStatus)) {
                 User shipper = assignedShipperId == null ? null : em.find(User.class, assignedShipperId);
-                Long activeShifts = shipper == null ? 0L : em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :shipperId AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", Long.class)
-                        .setParameter("shipperId", assignedShipperId).getSingleResult();
-                if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || activeShifts == 0 || order.getShipper() != null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+                if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || order.getShipper() != null) {
+                    em.getTransaction().rollback();
+                    return MutationResult.INVALID;
+                }
+                if (currentActiveShift(em, shipper, "SHIPPER") == null) {
+                    em.getTransaction().rollback();
+                    return MutationResult.UNPROCESSABLE;
+                }
                 order.setShipper(shipper);
                 order.setAssignedAt(LocalDateTime.now());
             }

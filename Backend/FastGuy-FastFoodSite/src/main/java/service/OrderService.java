@@ -305,10 +305,21 @@ public class OrderService {
         if (staffId != null && result.orderUserId() != null) {
             notificationService.notifyUser(result.orderUserId(), "Đơn hàng đã hủy", "Đơn " + result.orderCode() + " đã bị hủy", "ORDER_CANCELLED", "/account/orders/" + orderId);
         } else {
-            notificationService.notifyRole("STAFF", "Khách hủy đơn", "Đơn " + result.orderCode() + " đã bị khách hủy", "ORDER_CANCELLED", "/staff/orders/" + orderId);
-            notificationService.notifyRole("ADMIN", "Khách hủy đơn", "Đơn " + result.orderCode() + " đã bị khách hủy", "ORDER_CANCELLED", "/admin/orders");
+            String title = cancellationTitle(actorRole);
+            String message = "SYSTEM".equals(actorRole)
+                    ? "Đơn " + result.orderCode() + " đã tự động hủy"
+                    : "Đơn " + result.orderCode() + " đã bị khách hủy";
+            if ("SYSTEM".equals(actorRole) && result.orderUserId() != null) {
+                notificationService.notifyUser(result.orderUserId(), title, message, "ORDER_CANCELLED", "/account/orders/" + orderId);
+            }
+            notificationService.notifyRole("STAFF", title, message, "ORDER_CANCELLED", "/staff/orders/" + orderId);
+            notificationService.notifyRole("ADMIN", title, message, "ORDER_CANCELLED", "/admin/orders");
         }
         return true;
+    }
+
+    static String cancellationTitle(String actorRole) {
+        return "SYSTEM".equals(actorRole) ? "Đơn hàng tự động hủy" : "Khách hủy đơn";
     }
 
     private String staffRole(int staffId) {

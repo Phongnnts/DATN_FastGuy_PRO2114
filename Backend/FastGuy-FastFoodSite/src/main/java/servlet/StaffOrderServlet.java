@@ -211,13 +211,14 @@ public class StaffOrderServlet extends HttpServlet {
             String path = req.getPathInfo();
 
             if ("/shippers".equals(path)) {
-                List<entity.User> shippers = staffOrderService.getAvailableShippers();
-                List<Map<String, Object>> result = shippers.stream().map(u -> {
+                List<entity.WorkShift> shifts = staffOrderService.getAvailableShipperShifts();
+                List<Map<String, Object>> result = shifts.stream().map(shift -> {
+                    entity.User user = shift.getUser();
                     Map<String, Object> m = new HashMap<>();
-                    m.put("id", u.getUserId());
-                    m.put("fullName", u.getFullName());
-                    m.put("phone", u.getPhone());
-                    m.put("activeOrderCount", staffOrderService.countActiveOrders(u.getUserId()));
+                    m.put("id", user.getUserId());
+                    m.put("fullName", user.getFullName());
+                    m.put("phone", user.getPhone());
+                    m.put("activeOrderCount", staffOrderService.countActiveOrders(user.getUserId(), shift.getCheckInAt()));
                     return m;
                 }).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
@@ -334,6 +335,15 @@ public class StaffOrderServlet extends HttpServlet {
 
     private record HistoryFilter(int page, int size, String status, LocalDateTime from, LocalDateTime to, String search) {}
 
+    public static int statusForAssignment(OrderTransitionService.MutationResult result) {
+        return switch (result) {
+            case SUCCESS -> 200;
+            case CONFLICT -> 409;
+            case UNPROCESSABLE -> 422;
+            case INVALID -> 400;
+        };
+    }
+
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
@@ -416,12 +426,17 @@ public class StaffOrderServlet extends HttpServlet {
                 return;
             }
             OrderTransitionService.MutationResult result = staffOrderService.assignShipper(orderId, shipperId, staffId, expectedStatus);
-            if (result == OrderTransitionService.MutationResult.CONFLICT) {
-                ApiResponse.error(resp, CONFLICT_MESSAGE, 409);
+            int status = statusForAssignment(result);
+            if (status == 409) {
+                ApiResponse.error(resp, CONFLICT_MESSAGE, status);
                 return;
             }
-            if (result != OrderTransitionService.MutationResult.SUCCESS) {
-                ApiResponse.error(resp, "Cannot assign shipper", 400);
+            if (status == 422) {
+                ApiResponse.error(resp, "Shipper is no longer in an active checked-in shift", status);
+                return;
+            }
+            if (status != 200) {
+                ApiResponse.error(resp, "Cannot assign shipper", status);
                 return;
             }
             ApiResponse.ok(resp, null, "Shipper assigned");

@@ -80,7 +80,7 @@ async function assign(order) {
     delete selections.value[order.id];
     if (error.status === 409) selections.value = { ...selections.value };
     else selections.value = validDispatchSelections(selections.value, shippers.value.filter((shipper) => String(shipper.id) !== String(shipperId)));
-    toast.error(error.message || 'Không thể gán shipper');
+    toast.error(error.status === 422 ? 'Shipper không còn trong ca hoạt động' : error.message || 'Không thể gán shipper');
   } finally {
     if (acceptsDispatchRequest({ requestGeneration, latestGeneration: generation, stopped })) {
       assigningId.value = null;

@@ -31,6 +31,8 @@ test('dispatch keeps independent lanes safe while polling workload', () => {
   assert.match(dispatch, /setInterval\([^]*30000\)/);
   assert.match(dispatch, /clearInterval\(pollTimer\)/);
   assert.match(dispatch, /validDispatchSelections/);
+  assert.match(dispatch, /error\.status === 422/);
+  assert.match(dispatch, /Shipper không còn trong ca hoạt động/);
   assert.match(dispatch, /acceptsDispatchRequest/);
   assert.match(dispatch, /stopped = true/);
   assert.match(dispatch, /<caption/);

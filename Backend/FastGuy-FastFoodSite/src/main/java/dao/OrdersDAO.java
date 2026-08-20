@@ -356,13 +356,15 @@ public class OrdersDAO {
         }
     }
 
-    public long countActiveByShipper(int shipperId) {
+    public long countActiveByShipper(int shipperId, LocalDateTime shiftStart) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             return em.createQuery(
-                    "SELECT COUNT(o) FROM Orders o WHERE o.shipper.userId = :shipperId AND o.orderStatus IN ('ASSIGNED','PICKED_UP')",
+                    "SELECT COUNT(o) FROM Orders o WHERE o.shipper.userId = :shipperId " +
+                            "AND o.orderStatus IN ('ASSIGNED','PICKED_UP') AND o.assignedAt >= :shiftStart",
                     Long.class)
                     .setParameter("shipperId", shipperId)
+                    .setParameter("shiftStart", shiftStart)
                     .getSingleResult();
         } finally {
             em.close();

@@ -119,11 +119,14 @@ async function assignShipper() {
     await load({ silent: true });
   } catch (error) {
     if (acceptsRequest(requestGeneration)) {
-      toast.error(error.message || 'Không thể gán shipper');
+      toast.error(error.status === 422 ? 'Shipper không còn trong ca hoạt động' : error.message || 'Không thể gán shipper');
       if (error.status === 409) {
         saving.value = false;
         closeAssignmentDialog();
         await load({ silent: true });
+      } else if (error.status === 422) {
+        selectedShipperId.value = null;
+        await loadShippers();
       }
     }
   } finally {

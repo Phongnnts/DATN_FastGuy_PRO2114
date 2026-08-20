@@ -35,30 +35,47 @@ public class OrderScheduler {
 
     private static void cancelUnpaidOrders() {
         try {
-            LocalDateTime cutoff = LocalDateTime.now().minusMinutes(15);
-            EntityManager em = DatabaseUtil.getEntityManager();
-            List<Orders> staleOrders;
-            try {
-                staleOrders = em.createQuery(
-                        "SELECT o FROM Orders o WHERE o.paymentMethod = 'BANK_TRANSFER' AND o.paymentStatus = 'UNPAID' " +
-                                "AND o.orderStatus = 'PENDING' " +
-                                "AND o.createdAt < :cutoff",
-                        Orders.class)
-                        .setParameter("cutoff", cutoff)
-                        .getResultList();
-            } finally {
-                em.close();
-            }
-
-            for (Orders order : staleOrders) {
-                try {
-                    orderService.cancelOrder(order.getOrderId(), null, null, "Hết thời gian thanh toán (15 phút)", false, "UNPAID");
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
+            LocalDateTime now = LocalDateTime.now();
+            cancelOrders(findStaleOrders("BANK_TRANSFER", now.minusMinutes(15)), "Hết thời gian thanh toán (15 phút)");
+            cancelOrders(findStaleOrders("COD", now.minusHours(3)).stream()
+                    .filter(order -> isStaleCodPending(order, now))
+                    .toList(), "Quá 3 giờ chưa được xác nhận");
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static List<Orders> findStaleOrders(String paymentMethod, LocalDateTime cutoff) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                            "SELECT o FROM Orders o WHERE o.paymentMethod = :paymentMethod AND o.paymentStatus = 'UNPAID' " +
+                                    "AND o.orderStatus = 'PENDING' AND o.createdAt < :cutoff",
+                            Orders.class)
+                    .setParameter("paymentMethod", paymentMethod)
+                    .setParameter("cutoff", cutoff)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    private static void cancelOrders(List<Orders> orders, String reason) {
+        for (Orders order : orders) {
+            try {
+                orderService.cancelOrder(order.getOrderId(), null, null, reason, true, "UNPAID");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    static boolean isStaleCodPending(Orders order, LocalDateTime now) {
+        return order != null
+                && "PENDING".equals(order.getOrderStatus())
+                && "COD".equals(order.getPaymentMethod())
+                && "UNPAID".equals(order.getPaymentStatus())
+                && order.getCreatedAt() != null
+                && order.getCreatedAt().isBefore(now.minusHours(3));
     }
 }

@@ -26,6 +26,8 @@ test('conflicts retain HTTP status and refetch canonical staff data', async () =
 
   assert.match(client, /normalizeApiError\(err\)/);
   assert.match(detail, /error\.status === 409/);
+  assert.match(detail, /error\.status === 422/);
+  assert.match(detail, /Shipper không còn trong ca hoạt động/);
   assert.match(dispatch, /error\.status === 409/);
   assert.match(detail, /await load\(\{ silent: true \}\)/);
   assert.match(dispatch, /await Promise\.allSettled\(\[loadOrders\(\), loadShippers\(\)\]\)/);

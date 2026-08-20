@@ -60,7 +60,65 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /staff/orders/shippers:
+    get:
+      operationId: listAvailableShippers
+      summary: List active shippers currently checked into an active shift
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Available shippers with workload from their current shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableShipperListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /staff/orders/{orderId}/assign-shipper:
+    put:
+      operationId: assignOrderShipper
+      summary: Assign a ready order to a shipper in an active checked-in shift
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignShipperRequest'
+      responses:
+        '200':
+          description: Shipper assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignShipperResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          description: Selected shipper is no longer in an active checked-in shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /categories:
+
     get:
       operationId: listCategories
       summary: List active menu categories
@@ -746,6 +804,39 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    AvailableShipper:
+      type: object
+      additionalProperties: false
+      required: [id, fullName, phone, activeOrderCount]
+      properties:
+        id: { type: integer, minimum: 1 }
+        fullName: { type: string }
+        phone: { type: [string, 'null'] }
+        activeOrderCount: { type: integer, minimum: 0 }
+    AvailableShipperListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AvailableShipper' }
+    AssignShipperRequest:
+      type: object
+      additionalProperties: false
+      required: [shipperId, expectedStatus]
+      properties:
+        shipperId: { type: integer, minimum: 1 }
+        expectedStatus: { type: string, const: READY }
+    AssignShipperResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status: { type: string, const: success }
+        data: { type: 'null' }
+        message: { type: string, const: Shipper assigned }
     AdminDashboardData:
       type: object
       additionalProperties: true

@@ -5,6 +5,7 @@ import dao.OrdersDAO;
 import dao.UserDAO;
 import entity.Orders;
 import entity.User;
+import entity.WorkShift;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
@@ -41,17 +42,25 @@ public class StaffOrderService {
         return ordersDAO.findById(orderId);
     }
 
-    public List<User> getAvailableShippers() {
+    public List<WorkShift> getAvailableShipperShifts() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            return em.createQuery("SELECT DISTINCT ws.user FROM WorkShift ws WHERE ws.user.role = 'SHIPPER' AND ws.user.status = 'ACTIVE' AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL", User.class).getResultList();
+            LocalDateTime now = WorkShiftService.businessNow();
+            return em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.role = 'SHIPPER' AND ws.user.status = 'ACTIVE' " +
+                            "AND ws.shiftDate = :today AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL " +
+                            "AND ws.checkOutAt IS NULL ORDER BY ws.checkInAt DESC, ws.shiftId DESC", WorkShift.class)
+                    .setParameter("today", now.toLocalDate())
+                    .getResultList().stream()
+                    .filter(shift -> WorkShiftService.isValidCheckedInShift(shift, now))
+                    .collect(java.util.stream.Collectors.toMap(shift -> shift.getUser().getUserId(), shift -> shift, (first, ignored) -> first, java.util.LinkedHashMap::new))
+                    .values().stream().toList();
         } finally {
             em.close();
         }
     }
 
-    public long countActiveOrders(int shipperId) {
-        return ordersDAO.countActiveByShipper(shipperId);
+    public long countActiveOrders(int shipperId, LocalDateTime shiftStart) {
+        return ordersDAO.countActiveByShipper(shipperId, shiftStart);
     }
 
     public OrderTransitionService.MutationResult assignShipper(int orderId, int shipperId, int staffId, String expectedStatus) {

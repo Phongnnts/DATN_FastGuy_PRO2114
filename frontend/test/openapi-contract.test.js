@@ -8,6 +8,18 @@ function schemaSection(contract, name, nextName) {
   return contract.slice(contract.indexOf(`    ${name}:`), contract.indexOf(`    ${nextName}:`));
 }
 
+test('OpenAPI contracts current-shift shipper listing and assignment', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+  assert.match(contract, /^  \/staff\/orders\/shippers:$/m);
+  assert.match(contract, /^      operationId: listAvailableShippers$/m);
+  assert.match(contract, /^  \/staff\/orders\/\{orderId\}\/assign-shipper:$/m);
+  assert.match(contract, /^      operationId: assignOrderShipper$/m);
+  for (const schema of ['AvailableShipper', 'AvailableShipperListResponse', 'AssignShipperRequest', 'AssignShipperResponse']) {
+    assert.match(contract, new RegExp(`^    ${schema}:$`, 'm'));
+  }
+  assert.match(contract, /^        '422':$/m);
+});
+
 test('OpenAPI contract covers the categories response consumed by Vue', async () => {
   const contract = await readFile(contractUrl, 'utf8');
 
