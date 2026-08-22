@@ -5,10 +5,11 @@ import { useProductStore } from '@/stores/product';
 import { useCartStore } from '@/stores/cart';
 import { useAuthStore } from '@/stores/auth';
 import { useFavoriteStore } from '@/stores/favorite';
-import { formatPrice } from '@/utils/format';
+import { formatDate, formatPrice } from '@/utils/format';
 import { useToast } from '@/stores/toast';
-import { storeApi } from '@/api';
+import { reviewApi, storeApi } from '@/api';
 import { createStoreConfigController } from '@/utils/deliveryClaims';
+import { createReviewPageController } from '@/utils/reviewPage';
 
 const toast = useToast();
 const route = useRoute();
@@ -25,6 +26,12 @@ const selectedModifiers = ref([]);
 const loadError = ref('');
 const modifierErrors = ref({});
 const estimatedDeliveryMinutes = ref(null);
+const reviewPage = ref(1);
+const reviewSize = 10;
+const reviewLoading = ref(false);
+const reviewInitialError = ref('');
+const reviewRefreshError = ref('');
+const reviewData = ref(null);
 const storeConfigController = createStoreConfigController({
   requestConfig: () => storeApi.getConfig(),
   applyEstimate: (value) => { estimatedDeliveryMinutes.value = value; },
@@ -40,6 +47,30 @@ const galleryImages = computed(() => {
   return [product.value.image, ...(product.value.galleryImages || [])].filter(Boolean);
 });
 const oldPrice = computed(() => product.value?.discountPrice ? product.value.price : null);
+const reviewAverage = computed(() => Number(reviewData.value?.averageRating ?? product.value?.averageRating ?? 0));
+const reviewCount = computed(() => Number(reviewData.value?.reviewCount ?? product.value?.reviewCount ?? 0));
+const reviewController = createReviewPageController({
+  requestPage: (productId, params) => reviewApi.getByProduct(productId, params),
+  applyState: (state) => {
+    reviewPage.value = state.page;
+    reviewLoading.value = state.loading;
+    reviewInitialError.value = state.initialError;
+    reviewRefreshError.value = state.refreshError;
+    reviewData.value = state.data;
+  },
+});
+
+function loadReviews(productId, options) {
+  return reviewController.load(productId, options);
+}
+
+function changeReviewPage(page) {
+  reviewController.goToPage(page, route.params.id);
+}
+
+function retryReviews() {
+  reviewController.retry();
+}
 
 async function loadProduct(id) {
   loading.value = true;
@@ -48,6 +79,7 @@ async function loadProduct(id) {
   selectedModifiers.value = [];
   activeImageIndex.value = 0;
   quantity.value = 1;
+  loadReviews(id, { reset: true });
   storeConfigController.load();
   try {
     if (!productStore.fetched) await productStore.init();
@@ -65,7 +97,10 @@ async function loadProduct(id) {
 }
 
 watch(() => route.params.id, loadProduct, { immediate: true });
-onUnmounted(storeConfigController.stop);
+onUnmounted(() => {
+  reviewController.stop();
+  storeConfigController.stop();
+});
 
 function selectVariant(variant) {
   const stock = variant.quantityAvailable == null ? null : Number(variant.quantityAvailable);
@@ -169,7 +204,7 @@ async function placeInCart(destination) {
           </div>
 
           <div v-if="product.variants?.length" class="selection-group">
-            <div class="selection-title"><span>Phân loại</span><small>Chọn một</small></div>
+            <div class="selection-title"><span>Kích cỡ</span><small>Chọn một</small></div>
             <div class="variant-grid">
               <button
                 v-for="variant in product.variants"
@@ -195,11 +230,6 @@ async function placeInCart(destination) {
             </div>
             <small :id="`modifier-help-${group.modifierGroupId}`" :class="{ 'modifier-error': modifierErrors[group.modifierGroupId] }">{{ modifierErrors[group.modifierGroupId] || `${group.minSelections ? 'Bắt buộc. ' : ''}Tối đa ${group.maxSelections} lựa chọn` }}</small>
           </div>
-          <div v-if="product.combo" class="selection-group">
-            <div class="selection-title"><span>Combo gồm</span><small>Cố định</small></div>
-            <div v-for="item in product.combo.items" :key="item.comboItemId" class="addon-row"><span>{{ item.productName }} - {{ item.variantName }}</span><strong>x{{ item.quantity }}</strong></div>
-          </div>
-
           <div class="availability" :class="{ unavailable: !selectedAvailable }">
             <i :class="selectedAvailable ? 'bi bi-check-circle-fill' : 'bi bi-x-circle-fill'"></i>
             {{ selectedAvailable ? selectedStock == null ? 'Còn hàng, sẵn sàng giao nóng' : `Còn ${selectedStock} phần` : product.isAvailableNow === false ? `Ngoài giờ bán${product.availableFrom || product.availableTo ? ` (${product.availableFrom || '00:00'} - ${product.availableTo || '24:00'})` : ''}` : 'Sản phẩm hiện đã hết hàng' }}
@@ -227,6 +257,57 @@ async function placeInCart(destination) {
           </div>
         </section>
       </div>
+
+      <section class="product-reviews" aria-labelledby="reviews-title">
+        <div class="review-heading">
+          <div>
+            <p class="review-eyebrow">Khách hàng nói gì</p>
+            <h2 id="reviews-title">Đánh giá sản phẩm</h2>
+          </div>
+          <p class="review-rating" :aria-label="reviewCount ? `Đánh giá trung bình ${reviewAverage.toFixed(1)} trên 5 từ ${reviewCount} lượt` : 'Chưa có đánh giá'">
+            <span aria-hidden="true">★</span><strong>{{ reviewAverage.toFixed(1) }}</strong><small>/5 · {{ reviewCount }} lượt</small>
+          </p>
+        </div>
+
+        <div v-if="reviewLoading && !reviewData" class="review-state" role="status" aria-live="polite"><i class="bi bi-arrow-repeat spin" aria-hidden="true"></i> Đang tải đánh giá...</div>
+        <div v-else-if="reviewInitialError && !reviewData" class="review-state review-error" role="alert">
+          <span>{{ reviewInitialError }}</span>
+          <button type="button" class="btn btn-primary" @click="retryReviews">Thử lại</button>
+        </div>
+        <div v-else-if="reviewData">
+          <div v-if="reviewRefreshError" class="review-error-banner" role="status" aria-live="polite">
+            <span>{{ reviewRefreshError }}</span>
+            <button type="button" @click="retryReviews">Thử lại</button>
+          </div>
+          <div v-if="reviewLoading" class="review-loading-banner" role="status" aria-live="polite"><i class="bi bi-arrow-repeat spin" aria-hidden="true"></i> Đang cập nhật đánh giá...</div>
+          <div v-if="reviewData.total === 0" class="review-state"><i class="bi bi-chat-square-text" aria-hidden="true"></i><strong>Chưa có đánh giá</strong><span>Hãy là người đầu tiên chia sẻ trải nghiệm.</span></div>
+          <div v-else class="review-content">
+          <div class="rating-distribution" aria-label="Phân phối đánh giá">
+            <div v-for="rating in [5, 4, 3, 2, 1]" :key="rating" class="distribution-row">
+              <span>{{ rating }} sao</span>
+              <div class="distribution-track" role="progressbar" :aria-label="`${rating} sao: ${reviewData.ratingDistribution[rating]} lượt`" :aria-valuenow="reviewData.ratingDistribution[rating]" aria-valuemin="0" :aria-valuemax="reviewData.reviewCount">
+                <span :style="{ width: `${reviewData.reviewCount ? reviewData.ratingDistribution[rating] * 100 / reviewData.reviewCount : 0}%` }"></span>
+              </div>
+              <strong>{{ reviewData.ratingDistribution[rating] }}</strong>
+            </div>
+          </div>
+
+          <div class="review-list">
+            <article v-for="review in reviewData.items" :key="review.reviewId" class="review-item">
+              <header><strong>{{ review.userName }}</strong><time :datetime="review.createdAt">{{ formatDate(review.createdAt) }}</time></header>
+              <p class="review-stars" :aria-label="`${review.rating} trên 5 sao`"><span aria-hidden="true">{{ '★'.repeat(review.rating) }}{{ '☆'.repeat(5 - review.rating) }}</span></p>
+              <p v-if="review.comment" class="review-comment">{{ review.comment }}</p>
+            </article>
+          </div>
+
+          <nav class="review-pagination" aria-label="Phân trang đánh giá">
+            <button type="button" :disabled="reviewPage === 1" @click="changeReviewPage(reviewPage - 1)"><i class="bi bi-chevron-left" aria-hidden="true"></i> Trang trước</button>
+            <span>Trang {{ reviewPage }} / {{ Math.max(1, Math.ceil(reviewData.total / reviewSize)) }}</span>
+            <button type="button" :disabled="reviewPage * reviewSize >= reviewData.total" @click="changeReviewPage(reviewPage + 1)">Trang sau <i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+          </nav>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -243,7 +324,7 @@ async function placeInCart(destination) {
 .product-breadcrumb i { color: var(--text-light); font-size: 10px; }
 .product-breadcrumb strong { color: var(--primary-dark); }
 .product-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(400px, 0.95fr); gap: clamp(28px, 5vw, 56px); align-items: start; }
-.product-gallery { position: sticky; top: 82px; }
+.product-gallery { position: sticky; top: 82px; min-width: 0; }
 .main-image-wrap { position: relative; border-radius: var(--radius-xl); overflow: hidden; aspect-ratio: 1.12; background: var(--surface); box-shadow: var(--shadow-md); }
 .main-image { width: 100%; height: 100%; object-fit: cover; transition: transform var(--transition-slow); }
 .main-image-wrap:hover .main-image { transform: scale(1.05); }
@@ -253,7 +334,7 @@ async function placeInCart(destination) {
 .gallery-thumb { flex: 0 0 82px; height: 72px; border: 2px solid transparent; border-radius: var(--radius-sm); overflow: hidden; background: #fff; padding: 0; }
 .gallery-thumb.active { border-color: var(--primary-dark); }
 .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.product-purchase-panel { background: rgba(255,255,255,.82); border: 1px solid rgba(232,115,74,.14); border-radius: var(--radius-xl); padding: clamp(22px, 3vw, 32px); box-shadow: var(--shadow-sm); }
+.product-purchase-panel { min-width: 0; background: rgba(255,255,255,.82); border: 1px solid rgba(232,115,74,.14); border-radius: var(--radius-xl); padding: clamp(22px, 3vw, 32px); box-shadow: var(--shadow-sm); }
 .detail-topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .hot-label { padding: 5px 12px; font-size: 12px; }
 .favorite-detail-btn { color: var(--text-mid); font-size: 13px; font-weight: 600; }
@@ -278,6 +359,10 @@ async function placeInCart(destination) {
 .purchase-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; }.quantity-control { display: flex; align-items: center; gap: 6px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-full); background: #fff; }.quantity-control button { width: 34px; height: 34px; border-radius: 50%; color: var(--primary-dark); }.quantity-control button:hover { background: var(--primary-light); }.quantity-control button:disabled { opacity: .35; }.quantity-control span { min-width: 30px; text-align: center; font-weight: 800; }
 .add-cart-btn, .buy-now-btn { min-height: 46px; border-radius: var(--radius-full); font-size: 14px; font-weight: 800; transition: all var(--transition-fast); }.add-cart-btn { background: linear-gradient(135deg, var(--primary-dark), var(--route-orange)); color: #fff; box-shadow: 0 12px 24px rgba(212,97,58,.22); }.add-cart-btn:hover { transform: translateY(-1px); }.add-cart-btn:disabled, .buy-now-btn:disabled { opacity: .45; cursor: not-allowed; }.buy-now-btn { width: 100%; margin-top: 12px; color: var(--primary-dark); border: 2px solid var(--primary-dark); background: transparent; }.buy-now-btn:hover { background: var(--primary-light); }
 .benefit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 24px; }.benefit-grid > div { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: var(--radius); background: var(--primary-light); }.benefit-grid i { color: var(--primary-dark); font-size: 20px; }.benefit-grid strong, .benefit-grid small { display: block; }.benefit-grid strong { font-size: 12px; }.benefit-grid small { color: var(--text-mid); font-size: 11px; }
-@media (max-width: 900px) { .product-detail-layout { grid-template-columns: 1fr; }.product-gallery { position: static; }.main-image-wrap { aspect-ratio: 1.3; } }
-@media (max-width: 480px) { .product-page { padding-top: 18px; }.purchase-row { grid-template-columns: 1fr; }.quantity-control { justify-content: center; }.benefit-grid { grid-template-columns: 1fr; }.product-purchase-panel { border-radius: var(--radius-lg); }.product-purchase-panel h1 { font-size: 32px; } }
+.product-reviews { margin-top: 48px; padding: clamp(22px, 4vw, 36px); border: 1px solid rgba(232,115,74,.14); border-radius: var(--radius-xl); background: #fff; box-shadow: var(--shadow-sm); }
+.review-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }.review-eyebrow { margin: 0 0 4px; color: var(--primary-dark); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }.review-heading h2 { margin: 0; font-size: clamp(24px, 3vw, 34px); }.review-rating { display: flex; align-items: baseline; gap: 6px; margin: 0; white-space: nowrap; }.review-rating > span, .review-stars { color: #f59e0b; }.review-rating strong { font-size: 28px; }.review-rating small { color: var(--text-mid); }
+.review-state { min-height: 150px; display: flex; align-items: center; justify-content: center; gap: 9px; flex-direction: column; color: var(--text-mid); text-align: center; }.review-error .btn { margin-top: 8px; min-height: 44px; }.review-error-banner, .review-loading-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 10px 14px; border-radius: var(--radius); background: #fff7ed; color: #9a3412; }.review-error-banner button { min-height: 44px; padding: 6px 14px; border: 1px solid currentColor; border-radius: var(--radius-full); font-weight: 700; }.review-error-banner button:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }.review-loading-banner { justify-content: flex-start; color: var(--text-mid); background: var(--primary-light); }.review-content { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(0, 1.5fr); gap: clamp(24px, 5vw, 54px); }.rating-distribution { display: grid; align-content: start; gap: 12px; }.distribution-row { display: grid; grid-template-columns: 48px minmax(80px, 1fr) 28px; align-items: center; gap: 9px; font-size: 13px; }.distribution-row strong { text-align: end; }.distribution-track { height: 9px; overflow: hidden; border-radius: var(--radius-full); background: var(--border-light); }.distribution-track > span { display: block; height: 100%; border-radius: inherit; background: #f59e0b; }
+.review-list { display: grid; gap: 12px; min-width: 0; }.review-item { padding: 16px 0; border-bottom: 1px solid var(--border-light); }.review-item:first-child { padding-top: 0; }.review-item header { display: flex; justify-content: space-between; gap: 12px; }.review-item time { color: var(--text-mid); font-size: 12px; }.review-stars { margin: 6px 0; letter-spacing: .08em; }.review-comment { margin: 0; color: var(--text-mid); line-height: 1.6; overflow-wrap: anywhere; }.review-pagination { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 10px; }.review-pagination button { min-height: 44px; padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius-full); color: var(--primary-dark); font-weight: 700; }.review-pagination button:hover:not(:disabled) { background: var(--primary-light); }.review-pagination button:disabled { opacity: .4; cursor: not-allowed; }.review-pagination button:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 900px) { .product-detail-layout { grid-template-columns: 1fr; }.product-gallery { position: static; }.main-image-wrap { aspect-ratio: 1.3; }.review-content { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .product-page { padding-top: 18px; }.purchase-row { grid-template-columns: 1fr; }.quantity-control { justify-content: center; }.benefit-grid { grid-template-columns: 1fr; }.product-purchase-panel { border-radius: var(--radius-lg); }.product-purchase-panel h1 { font-size: 32px; }.review-summary, .review-heading { align-items: flex-start; flex-direction: column; }.product-reviews { margin-top: 28px; padding: 20px 16px; border-radius: var(--radius-lg); }.review-pagination { flex-wrap: wrap; gap: 8px; }.review-pagination span { order: -1; flex-basis: 100%; text-align: center; }.review-pagination button { flex: 1; min-width: 120px; } }
 </style>

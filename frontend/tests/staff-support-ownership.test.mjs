@@ -2,17 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const page = readFileSync(new URL('../src/views/staff/SupportPage.vue', import.meta.url), 'utf8');
+const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+const router = read('../src/router/index.js');
+const staffLayout = read('../src/layouts/StaffLayout.vue');
+const page = read('../src/views/staff/SupportPage.vue');
 
-test('support page displays assignee fields', () => {
+test('staff support implementation stays dormant', () => {
   assert.match(page, /Người phụ trách/);
-  assert.match(page, /ticket\.staffName/);
-  assert.match(page, /editing\.staffName/);
-});
-
-test('support page prevents editing tickets assigned to another staff', () => {
-  assert.match(page, /currentUserId/);
   assert.match(page, /canProcess/);
-  assert.match(page, /:disabled="!canProcess\(ticket\)"/);
-  assert.match(page, /v-if="canProcess\(editing\) && editing\.resolvedAt == null"/);
+  assert.doesNotMatch(router, /StaffSupport|views\/staff\/SupportPage/);
+  assert.doesNotMatch(staffLayout, /\/staff\/support|StaffSupport/);
 });

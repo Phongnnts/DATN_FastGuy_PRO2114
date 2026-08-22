@@ -161,7 +161,7 @@ onBeforeUnmount(() => {
 
     <section class="panel">
       <div class="filter-area">
-        <label><span class="form-label">Mã biến thể</span><input v-model="variantId" class="form-input" type="text" inputmode="numeric" placeholder="Ví dụ: 12" @keydown.enter="applyFilters" /></label>
+        <label><span class="form-label">Mã kích cỡ</span><input v-model="variantId" class="form-input" type="text" inputmode="numeric" placeholder="Ví dụ: 12" @keydown.enter="applyFilters" /></label>
         <label><span class="form-label">Mã sản phẩm</span><input v-model="productId" class="form-input" type="text" inputmode="numeric" placeholder="Ví dụ: 5" @keydown.enter="applyFilters" /></label>
         <label><span class="form-label">Loại giao dịch</span>
           <select v-model="transactionType" class="form-select">
@@ -187,13 +187,13 @@ onBeforeUnmount(() => {
       <template v-else>
         <div class="table-wrapper">
           <table class="table">
-            <thead><tr><th scope="col">Thời gian</th><th scope="col">Loại</th><th scope="col">Số lượng</th><th scope="col">Biến thể</th><th scope="col">Sản phẩm</th><th scope="col">Đơn hàng</th><th scope="col">Biến động</th><th scope="col">Chi tiết</th></tr></thead>
+            <thead><tr><th scope="col">Thời gian</th><th scope="col">Loại</th><th scope="col">Số lượng</th><th scope="col">Kích cỡ</th><th scope="col">Sản phẩm</th><th scope="col">Đơn hàng</th><th scope="col">Biến động</th><th scope="col">Chi tiết</th></tr></thead>
             <tbody>
               <tr v-for="row in rows" :key="row.transactionId">
                 <td data-label="Thời gian"><time :datetime="row.createdAt">{{ row.createdAt }}</time></td>
                 <td data-label="Loại"><span class="badge" :class="typeClass(row.type)">{{ TYPE_LABELS[row.type] || row.type }}</span></td>
                 <td data-label="Số lượng">{{ row.quantity }}</td>
-                <td data-label="Biến thể"><strong>{{ row.variantName || '—' }}</strong><small v-if="row.variantId" class="sub">ID: {{ row.variantId }}</small></td>
+                <td data-label="Kích cỡ"><strong>{{ row.variantName || '—' }}</strong><small v-if="row.variantId" class="sub">ID: {{ row.variantId }}</small></td>
                 <td data-label="Sản phẩm"><strong>{{ row.productName || '—' }}</strong><small v-if="row.productId" class="sub">ID: {{ row.productId }}</small></td>
                 <td data-label="Đơn hàng"><router-link v-if="row.orderId" class="order-link" :to="`/admin/orders/${row.orderId}`">{{ row.orderCode || row.orderId }}</router-link><span v-else class="muted">—</span></td>
                 <td data-label="Biến động"><span v-if="row.quantityBefore !== null && row.quantityAfter !== null">{{ row.quantityBefore }} → {{ row.quantityAfter }}</span><span v-else class="muted">—</span></td>

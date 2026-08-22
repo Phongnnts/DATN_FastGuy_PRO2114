@@ -210,11 +210,6 @@ onUnmounted(() => {
           <h3 class="panel-title"><i class="bi bi-cash-stack"></i> Phí & Thuế</h3>
           <div class="settings-grid">
             <div class="form-group">
-              <label class="form-label" for="settings-service-fee">Phí dịch vụ (VNĐ)</label>
-              <input id="settings-service-fee" v-model.number="form.service_fee" class="form-input" type="number" min="0">
-              <p v-if="fieldError('fees', 'service_fee')" class="field-error" role="alert">{{ fieldError('fees', 'service_fee') }}</p>
-            </div>
-            <div class="form-group">
               <label class="form-label" for="settings-tax-rate">Thuế (%)</label>
               <input id="settings-tax-rate" v-model.number="form.tax_rate" class="form-input" type="number" min="0" max="100" step="0.1">
               <p v-if="fieldError('fees', 'tax_rate')" class="field-error" role="alert">{{ fieldError('fees', 'tax_rate') }}</p>

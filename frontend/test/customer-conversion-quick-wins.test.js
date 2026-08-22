@@ -99,15 +99,12 @@ test('reorder delegates planning and execution before announcing accessible resu
   assert.match(orderDetail, /:key="`\$\{modifier\.groupId\}:\$\{modifier\.modifierOptionId\}`"/);
 });
 
-test('review publication requires explicit unchecked consent and admin honors it', () => {
-  assert.match(orderDetail, /reviewForm = ref\(\{ rating: 5, comment: '', homepageConsent: false \}\)/);
-  assert.match(orderDetail, /homepageConsent: reviewForm\.value\.homepageConsent/);
-  assert.match(orderDetail, /v-model="reviewForm\.homepageConsent"[^>]*type="checkbox"/);
-  assert.match(orderDetail, /bình luận, số sao, tên hiển thị và ảnh đại diện/);
-  assert.match(adminOrderDetail, /:disabled="saving \|\| reviewSaving \|\| \(!order\.review\.featured && !order\.review\.featureEligible\)"/);
-  assert.match(adminOrderDetail, /featureIneligibilityReason/);
-  assert.match(privacy, /chỉ được hiển thị công khai khi bạn đồng ý rõ ràng và quản trị viên chọn đăng/);
-  assert.doesNotMatch(privacy, /hỗ trợ[^<]*rút lại sự đồng ý/i);
+test('product reviews stay private from homepage publication controls', () => {
+  assert.match(orderDetail, /reviewApi|StarRating|createOrderReviewController/);
+  assert.doesNotMatch(orderDetail, /homepageConsent|review-consent/);
+  assert.doesNotMatch(adminOrderDetail, /updateFeaturedReview|order\.review|reviewSaving|featureIneligibilityReason/);
+  assert.doesNotMatch(privacy, /chỉ được hiển thị công khai khi bạn đồng ý rõ ràng và quản trị viên chọn đăng/);
+  assert.doesNotMatch(privacy, /đánh giá|hỗ trợ khách hàng|đơn vị hỗ trợ|gửi yêu cầu qua tài khoản/i);
 });
 
 test('menu keeps essential filters in a compact customer-facing layout', () => {

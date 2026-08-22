@@ -12,6 +12,7 @@ IF OBJECT_ID(N'dbo.SchemaMigrationHistory', N'U') IS NULL THROW 51603, 'SchemaMi
 IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '040_production_hardening') THROW 51604, 'Run migration 040_production_hardening first.', 1;
 IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '042_login_bruteforce_lock') THROW 51605, 'Run migration 042_login_bruteforce_lock first.', 1;
 IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '043_inventory_adjustment_audit') THROW 51606, 'Run migration 043_inventory_adjustment_audit first.', 1;
+IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '050_product_scoped_reviews') THROW 51614, 'Run migration 050_product_scoped_reviews first.', 1;
 IF COL_LENGTH(N'dbo.Users', N'failed_login_attempts') IS NULL OR COL_LENGTH(N'dbo.Users', N'locked_until') IS NULL THROW 51607, 'Latest Users schema is missing.', 1;
 IF COL_LENGTH(N'dbo.InventoryTransaction', N'created_by') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'reason_code') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'note') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'quantity_before') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'quantity_after') IS NULL THROW 51608, 'Latest InventoryTransaction schema is missing.', 1;
 BEGIN TRY
@@ -207,9 +208,9 @@ BEGIN TRY
     SELECT o.user_id,o.order_id,'EARN',CASE WHEN CONVERT(int,o.final_amount/1000)>0 THEN CONVERT(int,o.final_amount/1000) ELSE 1 END,o.delivered_at
     FROM dbo.Orders o WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND o.order_status='DELIVERED' AND o.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.LoyaltyTransaction l WHERE l.order_id=o.order_id AND l.transaction_type='EARN');
 
-    INSERT dbo.Review(user_id,order_id,rating,comment,created_at,updated_at)
-    SELECT o.user_id,o.order_id,4+(o.order_id%2),CASE o.order_id%3 WHEN 0 THEN N'Món ngon, đóng gói đẹp.' WHEN 1 THEN N'Giao nhanh và phục vụ thân thiện.' ELSE N'Trải nghiệm tốt, sẽ đặt lại.' END,DATEADD(hour,4,o.delivered_at),DATEADD(hour,4,o.delivered_at)
-    FROM dbo.Orders o WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND o.order_status='DELIVERED' AND o.user_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.Review r WHERE r.user_id=o.user_id AND r.order_id=o.order_id);
+    INSERT dbo.Review(user_id,order_id,product_id,rating,comment,created_at,updated_at)
+    SELECT DISTINCT o.user_id,o.order_id,oi.product_id,4+(o.order_id%2),CASE o.order_id%3 WHEN 0 THEN N'Món ngon, đóng gói đẹp.' WHEN 1 THEN N'Giao nhanh và phục vụ thân thiện.' ELSE N'Trải nghiệm tốt, sẽ đặt lại.' END,DATEADD(hour,4,o.delivered_at),DATEADD(hour,4,o.delivered_at)
+    FROM dbo.Orders o JOIN dbo.OrderItem oi ON oi.order_id=o.order_id WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND o.order_status='DELIVERED' AND o.user_id IS NOT NULL AND oi.product_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.Review r WHERE r.user_id=o.user_id AND r.order_id=o.order_id AND r.product_id=oi.product_id);
 
     INSERT dbo.SupportTicket(user_id,order_id,subject,category,description,status,staff_id,resolution,created_at,updated_at,resolved_at)
     SELECT o.user_id,o.order_id,CONCAT(N'FG-DEMO Hỗ trợ ',o.order_code),CASE n.n%5 WHEN 0 THEN 'MISSING_ITEM' WHEN 1 THEN 'COLD_FOOD' WHEN 2 THEN 'WRONG_ITEM' WHEN 3 THEN 'LATE_DELIVERY' ELSE 'OTHER' END,N'Yêu cầu hỗ trợ mẫu phục vụ màn hình vận hành.',CASE n.n%3 WHEN 0 THEN 'OPEN' WHEN 1 THEN 'PROCESSING' ELSE 'RESOLVED' END,st.user_id,CASE WHEN n.n%3=2 THEN N'Đã liên hệ và xử lý thỏa đáng.' END,DATEADD(hour,3,o.created_at),@Now,CASE WHEN n.n%3=2 THEN DATEADD(hour,5,o.created_at) END

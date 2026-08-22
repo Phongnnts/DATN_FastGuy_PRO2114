@@ -59,7 +59,6 @@ test('staff nested routes expose breadcrumbs and modern responsive surfaces', ()
     ['StaffDispatch', 'Điều phối giao hàng'],
     ['StaffOrderHistory', 'Lịch sử đơn'],
     ['StaffOrderDetail', 'Chi tiết đơn hàng'],
-    ['StaffSupport', 'Hỗ trợ'],
     ['StaffShifts', 'Ca làm'],
   ]) {
     assert.match(router, new RegExp(`name: '${name}'[\\s\\S]{0,320}breadcrumb:[\\s\\S]{0,180}${label}`));

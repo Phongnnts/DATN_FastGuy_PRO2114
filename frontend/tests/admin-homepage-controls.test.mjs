@@ -34,14 +34,7 @@ test('combo editor creates null combo and updates existing combo', () => {
   assert.match(combo, /adminApi\[method\]\(props\.productId, payload\)/);
 });
 
-test('admin review feature uses exact API route and renders only canonical review data', () => {
+test('admin review feature stays dormant outside reachable order UI', () => {
   assert.match(api, /updateFeaturedReview\(orderId, featured\)[\s\S]*client\.put\(`\/admin\/orders\/\$\{orderId\}\/featured-review`, \{ featured \}\)/);
-  assert.match(order, /v-if="order\.review"/);
-  assert.match(order, /order\.review\.rating/);
-  assert.match(order, /order\.review\.comment/);
-  assert.match(order, /order\.review\.userName/);
-  assert.match(order, /order\.review\.createdAt/);
-  assert.match(order, /Hiển thị đánh giá này trên trang chủ/);
-  assert.match(order, /adminApi\.updateFeaturedReview/);
-  assert.match(order, /\.review-toggle\{[^}]*min-height:44px/);
+  assert.doesNotMatch(order, /updateFeaturedReview|order\.review|review-card/);
 });

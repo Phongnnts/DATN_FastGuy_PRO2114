@@ -454,6 +454,7 @@ CREATE TABLE dbo.Review (
     review_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Review PRIMARY KEY,
     user_id int NOT NULL CONSTRAINT FK_Review_User REFERENCES dbo.Users(user_id),
     order_id int NOT NULL CONSTRAINT FK_Review_Order REFERENCES dbo.Orders(order_id),
+    product_id int NOT NULL CONSTRAINT FK_Review_Product REFERENCES dbo.Product(product_id),
     rating int NOT NULL,
     comment nvarchar(1000) NULL,
     is_featured bit NOT NULL CONSTRAINT DF_Review_IsFeatured DEFAULT 0,
@@ -461,7 +462,7 @@ CREATE TABLE dbo.Review (
 
     created_at datetime2(0) NOT NULL CONSTRAINT DF_Review_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_Review_Updated DEFAULT GETDATE(),
-    CONSTRAINT UQ_Review_UserOrder UNIQUE (user_id, order_id),
+    CONSTRAINT UQ_Review_UserOrderProduct UNIQUE (user_id, order_id, product_id),
     CONSTRAINT CK_Review_Rating CHECK (rating BETWEEN 1 AND 5),
     CONSTRAINT CK_Review_FeaturedConsent CHECK (is_featured = 0 OR homepage_consent = 1)
 );
@@ -524,6 +525,8 @@ CREATE TABLE dbo.OrderStatusHistory (
 GO
 
 CREATE INDEX IX_ProductCombo_HomepageOccasion ON dbo.ProductCombo(homepage_occasion, homepage_sort_order) WHERE homepage_occasion IS NOT NULL AND is_active = 1;
+CREATE INDEX IX_Review_Order ON dbo.Review(order_id);
+CREATE INDEX IX_Review_ProductCreatedAt ON dbo.Review(product_id, created_at DESC, review_id DESC);
 CREATE INDEX IX_Review_FeaturedCreatedAt ON dbo.Review(is_featured, created_at DESC) WHERE is_featured = 1;
 GO
 
@@ -611,7 +614,7 @@ SET IDENTITY_INSERT dbo.LoyaltyTransaction ON;
 INSERT INTO dbo.LoyaltyTransaction(loyalty_transaction_id,user_id,order_id,transaction_type,points,created_at) VALUES (1,4,7,'EARN',55,'2026-01-01 09:30');
 SET IDENTITY_INSERT dbo.LoyaltyTransaction OFF;
 SET IDENTITY_INSERT dbo.Review ON;
-INSERT INTO dbo.Review(review_id,user_id,order_id,rating,comment,created_at,updated_at) VALUES (1,4,7,5,N'Món ngon, giao nhanh.','2026-01-01 10:00','2026-01-01 10:00');
+INSERT INTO dbo.Review(review_id,user_id,order_id,product_id,rating,comment,created_at,updated_at) VALUES (1,4,7,1,5,N'Món ngon, giao nhanh.','2026-01-01 10:00','2026-01-01 10:00');
 SET IDENTITY_INSERT dbo.Review OFF;
 SET IDENTITY_INSERT dbo.SupportTicket ON;
 INSERT INTO dbo.SupportTicket(ticket_id,user_id,order_id,subject,category,description,status,staff_id,resolution,created_at,updated_at,resolved_at) VALUES (1,4,7,N'Hỗ trợ đơn hàng','OTHER',N'Cần xuất hóa đơn.','RESOLVED',2,N'Đã gửi hóa đơn.','2026-01-01 10:00','2026-01-01 10:30','2026-01-01 10:30');

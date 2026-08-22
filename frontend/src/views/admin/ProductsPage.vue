@@ -137,7 +137,7 @@ function stockStatusLabel(product) {
 }
 
 const counts = computed(() => catalogCounts(adminStore.allProducts));
-const availableProductTypes = computed(() => productTypes(adminStore.allProducts));
+const availableProductTypes = computed(() => productTypes(adminStore.allProducts).filter((type) => type !== 'COMBO'));
 
 const filtered = computed(() => {
   const products = filterProducts(adminStore.allProducts, {
@@ -180,7 +180,7 @@ function resetFilters() {
   <main class="products-page">
     <div class="catalog-content" :inert="productToHide ? '' : undefined">
     <header class="products-hero">
-      <div><span class="eyebrow">FASTGUY CATALOG</span><h1>Quản lý sản phẩm</h1><p>Kiểm soát thực đơn, giá bán, biến thể và tồn kho trong một không gian.</p></div>
+      <div><span class="eyebrow">FASTGUY CATALOG</span><h1>Quản lý sản phẩm</h1><p>Kiểm soát thực đơn, giá bán, kích cỡ và tồn kho trong một không gian.</p></div>
       <button class="add-product" type="button" @click="openAdd"><i class="bi bi-plus-lg"></i> Thêm sản phẩm</button>
     </header>
     <div v-if="dashboardError" class="state state-warning" role="status">Đang dùng ngưỡng tồn kho đã lưu gần nhất ({{ lowStockThreshold }}). Không thể xác nhận dữ liệu dashboard mới: {{ dashboardError }}</div>
@@ -193,7 +193,7 @@ function resetFilters() {
     <section class="catalog-card">
       <div class="catalog-heading"><div><span>Danh mục vận hành</span><h2>Danh sách sản phẩm</h2></div><p>{{ filtered.length }} / {{ counts.total }} sản phẩm</p></div>
       <div class="toolbar">
-        <div class="search-box"><i class="bi bi-search"></i><input v-model="searchTerm" class="form-input" placeholder="Tìm tên, danh mục, SKU, biến thể..." aria-label="Tìm sản phẩm" /></div>
+        <div class="search-box"><i class="bi bi-search"></i><input v-model="searchTerm" class="form-input" placeholder="Tìm tên, danh mục, SKU, kích cỡ..." aria-label="Tìm sản phẩm" /></div>
         <select v-model="categoryFilter" class="form-select" aria-label="Lọc danh mục"><option value="">Mọi danh mục</option><option v-for="category in adminStore.allCategories" :key="category.id" :value="String(category.id)">{{ category.name }}</option></select>
         <select v-model="productTypeFilter" class="form-select" aria-label="Lọc loại sản phẩm"><option value="">Mọi loại</option><option v-for="type in availableProductTypes" :key="type" :value="type">{{ type }}</option></select>
         <select v-model="statusFilter" class="form-select" aria-label="Lọc trạng thái"><option value="">Mọi trạng thái</option><option value="AVAILABLE">Đang bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
@@ -206,14 +206,14 @@ function resetFilters() {
       <div v-else-if="!filtered.length" class="state"><i class="bi bi-box-seam"></i><strong>Không tìm thấy sản phẩm</strong><span>Thử thay đổi bộ lọc hoặc thêm sản phẩm mới.</span><button class="btn btn-outline" type="button" @click="resetFilters">Xóa bộ lọc</button></div>
       <div v-else class="table-wrapper desktop-catalog">
         <table class="table">
-          <thead><tr><th></th><th>Tên</th><th>Danh mục</th><th>Giá gốc</th><th>Biến thể</th><th>Tồn kho</th><th>Trạng thái</th><th>Ảnh</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Tên</th><th>Danh mục</th><th>Giá gốc</th><th>Kích cỡ</th><th>Tồn kho</th><th>Trạng thái</th><th>Ảnh</th><th></th></tr></thead>
           <tbody>
             <tr v-for="product in paginated" :key="product.id">
               <td><img class="product-thumb" :src="product.image" :alt="product.name" loading="lazy" /></td>
               <td><div class="product-name"><strong>{{ product.name }}</strong><small>#{{ product.id }}</small></div></td>
               <td>{{ categoryName(product) }}</td>
               <td>{{ formatPrice(product.basePrice) }}</td>
-              <td><span v-if="product.variants?.length" class="badge badge-info">{{ product.variants.length }} biến thể</span><span v-else class="text-muted">0</span></td>
+              <td><span v-if="product.variants?.length" class="badge badge-info">{{ product.variants.length }} kích cỡ</span><span v-else class="text-muted">0</span></td>
               <td><strong>{{ stockSummary(product).unknownSkus > 0 ? 'Không xác định' : stockOf(product) === null ? 'Không giới hạn' : stockOf(product) }}</strong></td>
               <td><span :class="'badge badge-' + (stockSummary(product).status === 'AVAILABLE' ? 'success' : stockSummary(product).status === 'UNKNOWN' ? 'secondary' : 'danger')">{{ stockStatusLabel(product) }}</span></td>
               <td><span v-if="product.galleryImages?.length" class="badge badge-info">{{ product.galleryImages.length }} ảnh</span><span v-else class="text-muted">0</span></td>
@@ -225,7 +225,7 @@ function resetFilters() {
       <div v-if="!loading && !loadError && filtered.length" class="mobile-catalog">
         <article v-for="product in paginated" :key="product.id" class="product-mobile-card">
           <img class="product-thumb" :src="product.image" :alt="product.name" loading="lazy" />
-          <div class="mobile-product-main"><strong>{{ product.name }}</strong><small>#{{ product.id }} · {{ product.productType }} · {{ categoryName(product) }}</small><span>{{ formatPrice(product.basePrice) }} · {{ stockStatusLabel(product) }}</span></div>
+          <div class="mobile-product-main"><strong>{{ product.name }}</strong><small>#{{ product.id }} · {{ categoryName(product) }}</small><span>{{ formatPrice(product.basePrice) }} · {{ stockStatusLabel(product) }}</span></div>
           <div class="row-actions"><button class="icon-action" type="button" :aria-label="`Sửa ${product.name}`" @click="openEdit(product)"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" :aria-label="`Ẩn ${product.name}`" @click="requestHide(product, $event)"><i class="bi bi-eye-slash"></i></button></div>
         </article>
       </div>

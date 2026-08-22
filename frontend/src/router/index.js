@@ -30,7 +30,7 @@ const routes = [
         meta: {
           guest: true,
           robots: 'index,follow',
-          description: 'FastGuy — đặt đồ ăn nhanh trực tuyến với thực đơn đa dạng, combo tiết kiệm và nhiều ưu đãi hấp dẫn mỗi ngày.',
+          description: 'FastGuy — đặt đồ ăn nhanh trực tuyến với thực đơn đa dạng, kích cỡ, topping và nhiều ưu đãi hấp dẫn mỗi ngày.',
           canonical: '/home',
         },
       },
@@ -41,7 +41,7 @@ const routes = [
         meta: {
           guest: true,
           robots: 'index,follow',
-          description: 'Thực đơn FastGuy — burger, pizza, gà rán, mì ý, đồ uống và combo tiết kiệm. Đặt online, giao nhanh tận nơi.',
+          description: 'Thực đơn FastGuy — burger, pizza, gà rán, mì ý, đồ uống, kích cỡ, topping và ưu đãi hấp dẫn. Đặt online, giao nhanh tận nơi.',
           canonical: '/menu',
         },
       },
@@ -276,17 +276,6 @@ const routes = [
           ],
         },
       },
-      {
-        path: 'support',
-        name: 'UserSupport',
-        component: () => import('@/views/user/SupportPage.vue'),
-        meta: {
-          breadcrumb: [
-            { label: 'Tài khoản', to: '/account/overview' },
-            { label: 'Hỗ trợ' },
-          ],
-        },
-      },
     ],
   },
   // ─── Staff ─────────────────────────────────
@@ -340,12 +329,6 @@ const routes = [
         name: 'StaffNotifications',
         component: () => import('@/views/user/NotificationsPage.vue'),
         meta: { breadcrumb: [{ label: 'Vận hành', to: '/staff' }, { label: 'Thông báo' }] },
-      },
-      {
-        path: 'support',
-        name: 'StaffSupport',
-        component: () => import('@/views/staff/SupportPage.vue'),
-        meta: { breadcrumb: [{ label: 'Vận hành', to: '/staff' }, { label: 'Hỗ trợ' }] },
       },
       {
         path: 'shifts',
@@ -538,8 +521,8 @@ const pageTitles = {
   PaymentReturn: 'Kết quả thanh toán', OrderSuccess: 'Đặt hàng thành công', Promotions: 'Khuyến mãi', Checkout: 'Thanh toán', Help: 'Trung tâm trợ giúp', Terms: 'Điều khoản sử dụng', Privacy: 'Chính sách bảo mật',
   AccountOverview: 'Tổng quan tài khoản', Profile: 'Thông tin cá nhân', UserAddresses: 'Sổ địa chỉ', UserCoupons: 'Ví mã ưu đãi',
   UserOrders: 'Đơn hàng', UserOrderDetail: 'Chi tiết đơn hàng', UserFavorites: 'Món yêu thích', ChangePassword: 'Đổi mật khẩu',
-  UserRewards: 'Ví điểm thưởng', UserNotifications: 'Thông báo', UserSupport: 'Hỗ trợ', StaffDashboard: 'Tổng quan nhân viên', StaffOrders: 'Quản lý đơn hàng',
-  StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffNotifications: 'Thông báo', StaffSupport: 'Hỗ trợ', StaffShifts: 'Ca làm việc', StaffProfile: 'Hồ sơ',
+  UserRewards: 'Ví điểm thưởng', UserNotifications: 'Thông báo', StaffDashboard: 'Tổng quan nhân viên', StaffOrders: 'Quản lý đơn hàng',
+  StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffNotifications: 'Thông báo', StaffShifts: 'Ca làm việc', StaffProfile: 'Hồ sơ',
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
   ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', ShipperCash: 'Đối soát COD', ShipperProfile: 'Hồ sơ', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
   AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
