@@ -12,10 +12,12 @@ const auth = useAuthStore();
 const favoriteStore = useFavoriteStore();
 const router = useRouter();
 const pending = ref(false);
+const added = ref(false);
 const favoritePending = ref(false);
 const message = ref('');
 const imageFailed = ref(false);
 let messageTimer;
+let addedTimer;
 const discountPrice = computed(() => {
   const price = Number(props.product.price);
   const discount = Number(props.product.discountPrice);
@@ -38,14 +40,14 @@ const soldCount = computed(() => Math.max(0, Math.floor(Number(props.product.sol
 const formatPrice = (value) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value) || 0);
 const canAdd = () => canDirectAddProduct(props.product);
 function notify(value) { message.value = value; clearTimeout(messageTimer); messageTimer = setTimeout(() => { message.value = ''; }, 2500); }
-onBeforeUnmount(() => clearTimeout(messageTimer));
+onBeforeUnmount(() => { clearTimeout(messageTimer); clearTimeout(addedTimer); });
 async function addToCart() {
   const variantId = props.product.defaultVariant?.variantId;
   if (!variantId || !canAdd() || pending.value) return;
   const stock = props.product.defaultVariant?.quantityAvailable;
   if (stock !== null && stock !== undefined && Number(stock) <= 0) return notify('Món đã hết hàng');
   pending.value = true;
-  try { await cart.addItem(props.product.productId, variantId); notify('Đã thêm vào giỏ hàng'); } catch (error) { notify(error.message || 'Không thể thêm vào giỏ'); } finally { pending.value = false; }
+  try { await cart.addItem(props.product.productId, variantId); added.value = true; clearTimeout(addedTimer); addedTimer = setTimeout(() => { added.value = false; }, 900); notify('Đã thêm vào giỏ hàng'); } catch (error) { notify(error.message || 'Không thể thêm vào giỏ'); } finally { pending.value = false; }
 }
 async function toggleFavorite() {
   if (favoritePending.value) return;
@@ -60,7 +62,7 @@ async function toggleFavorite() {
     <router-link :to="`/product/${product.productId}`" class="product-main" :aria-label="`Xem chi tiết ${product.name}`">
       <div class="product-image">
         <img v-if="product.image && !imageFailed" :src="product.image" :alt="product.name" loading="lazy" decoding="async" @error="imageFailed = true">
-        <div v-else class="image-fallback" role="img" :aria-label="`Chưa có ảnh ${product.name}`"><i class="fa-solid fa-image" aria-hidden="true"></i></div>
+        <div v-else class="image-fallback" role="img" :aria-label="`Chưa có ảnh ${product.name}`"><strong>FastGuy</strong><span>Ảnh món đang được cập nhật</span></div>
         <div class="product-tags">
           <span v-if="product.bestSeller" class="best-badge"><i class="fa-solid fa-fire" aria-hidden="true"></i>Bán chạy</span>
           <span v-if="product.isNew" class="new-badge">Mới</span>
@@ -78,7 +80,7 @@ async function toggleFavorite() {
     <button class="fav-btn" :class="{ active: favoriteStore.isFavorite(product.productId) }" :disabled="favoritePending" :aria-pressed="favoriteStore.isFavorite(product.productId)" :aria-busy="favoritePending" :aria-label="favoriteStore.isFavorite(product.productId) ? `Bỏ yêu thích ${product.name}` : `Yêu thích ${product.name}`" @click="toggleFavorite"><i :class="favoriteStore.isFavorite(product.productId) ? 'fa-solid fa-heart' : 'fa-regular fa-heart'" aria-hidden="true"></i></button>
     <div class="product-footer">
       <div class="product-price"><span class="price-now">{{ formatPrice(currentPrice) }}</span><span v-if="crossedPrice" class="price-old">{{ formatPrice(crossedPrice) }}</span></div>
-      <button v-if="canAdd()" class="add-btn" :disabled="pending" :aria-label="pending ? `Đang thêm ${product.name}` : `Thêm ${product.name} vào giỏ`" @click="addToCart"><span v-if="pending" class="mini-spinner"></span><i v-else class="fa-solid fa-plus" aria-hidden="true"></i></button>
+      <button v-if="canAdd()" class="add-btn" :class="{ added }" :disabled="pending" :aria-label="pending ? `Đang thêm ${product.name}` : added ? `Đã thêm ${product.name}` : `Thêm ${product.name} vào giỏ`" @click="addToCart"><span v-if="pending" class="mini-spinner"></span><i v-else :class="added ? 'fa-solid fa-check' : 'fa-solid fa-plus'" aria-hidden="true"></i></button>
       <router-link v-else-if="product.cardDataComplete === false || (product.inStock && product.isAvailableNow !== false)" class="option-btn" :to="`/product/${product.productId}`" :aria-label="`Chọn món ${product.name}`"><span>Chọn món</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></router-link>
     </div>
     <div v-if="message" class="toast" role="status" aria-live="polite">{{ message }}</div>
@@ -93,7 +95,7 @@ async function toggleFavorite() {
 .product-image{position:relative;overflow:hidden;height:200px;flex:0 0 200px;background:var(--surface)}
 .product-image img{width:100%;height:100%;object-fit:cover;outline:1px solid rgba(0,0,0,.08);outline-offset:-1px;transition:transform .35s var(--ease-out)}
 .product-card:hover .product-image img{transform:scale(1.04)}
-.image-fallback{display:grid;width:100%;height:100%;place-items:center;color:var(--text-light);background:linear-gradient(135deg,#faf6f2,#f0e8e1);font-size:34px}
+.image-fallback{display:flex;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:5px;color:var(--text-light);background:linear-gradient(135deg,#faf6f2,#f0e8e1)}.image-fallback strong{color:var(--primary);font-size:18px;letter-spacing:-.03em}.image-fallback span{font-size:10px}
 .product-tags{position:absolute;top:10px;left:10px;display:flex;max-width:calc(100% - 64px);flex-wrap:wrap;gap:5px}
 .product-tags>span{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;color:#fff;background:var(--primary);font-size:10px;font-weight:800;box-shadow:0 4px 12px rgba(55,35,23,.14)}
 .hot-badge,.best-badge,.new-badge{background:var(--primary)}
@@ -114,7 +116,7 @@ async function toggleFavorite() {
 .fav-btn:active{transform:scale(.98)}
 .fav-btn:disabled{cursor:wait;opacity:.7}
 .add-btn{display:grid;width:44px;height:44px;min-width:44px;min-height:44px;place-items:center;border:0;border-radius:50%;color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary-dark));box-shadow:0 8px 18px rgba(212,97,58,.24)}
-.add-btn:disabled{cursor:wait;opacity:.7}
+.add-btn:disabled{cursor:wait;opacity:.7}.add-btn.added{background:#15803d;box-shadow:0 8px 18px rgba(21,128,61,.24)}
 .option-btn{grid-auto-flow:column;gap:7px;min-width:44px;padding:0 12px;border-color:transparent;border-radius:999px;color:#fff;background:#f26a2e;font-size:12px;font-weight:700;white-space:nowrap}
 .option-btn i{transition:transform 180ms ease-out}
 .option-btn:hover{border-color:#f5a06f;background:#dc4f19;box-shadow:0 0 0 3px rgba(242,106,46,.14),0 8px 18px rgba(220,79,25,.18);transform:translateY(-1px)}

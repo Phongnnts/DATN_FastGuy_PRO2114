@@ -41,7 +41,7 @@ test('ProductCard presents the confirmed hierarchy and action copy', () => {
   assert.match(productCardSource, /class="fa-solid fa-star" aria-hidden="true"><\/i>\{\{ ratingText \}\}/);
   assert.match(productCardSource, /\$\{averageRating\.value\.toFixed\(1\)\} · \$\{reviewCount\.value\} đánh giá/);
   assert.match(productCardSource, /class="product-sold"><i class="fa-solid fa-fire" aria-hidden="true"><\/i>\{\{ soldCount \}\} đã bán/);
-  assert.match(productCardSource, /v-else class="fa-solid fa-plus" aria-hidden="true"/);
+  assert.match(productCardSource, /:class="added \? 'fa-solid fa-check' : 'fa-solid fa-plus'" aria-hidden="true"/);
   assert.match(productCardSource, /<span>Chọn món<\/span><i class="fa-solid fa-chevron-right" aria-hidden="true"/);
   assert.match(productCardSource, /\.product-image\{[^}]*height:200px/);
   assert.match(productCardSource, /\.product-name\{[^}]*min-height:43\.2px/);

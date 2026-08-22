@@ -134,6 +134,12 @@ test('menu keeps essential filters in a compact customer-facing layout', () => {
   assert.match(menuPage, /Xem \{\{ store\.catalogMeta\.totalItems \}\} món/);
   assert.match(menuPage, /max-height:85vh/);
   assert.match(menuPage, /min-height:44px/);
+  assert.match(menuPage, /menuSearchSuggestions\(store\.allProducts, q\.value\)/);
+  assert.match(menuPage, /role="combobox"/);
+  assert.match(menuPage, /role="listbox"/);
+  assert.match(menuPage, /@keydown="onSearchKeydown"/);
+  assert.match(menuPage, /aria-activedescendant/);
+  assert.doesNotMatch(menuPage, /productApi|\/api\/products/);
 });
 
 test('promotions use compact commercial voucher tickets and short claim actions', () => {

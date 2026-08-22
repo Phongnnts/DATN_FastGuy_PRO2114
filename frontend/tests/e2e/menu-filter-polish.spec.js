@@ -7,6 +7,16 @@ test('menu filter polish keeps desktop realtime and mobile draft apply behavior'
 
   await page.goto('/menu');
   await expect(page.getByRole('heading', { name: 'Kết quả món ăn' })).toBeVisible();
+  const search = page.getByRole('combobox', { name: 'Tìm món' });
+  await search.fill('gà');
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await search.press('ArrowDown');
+  await expect(search).toHaveAttribute('aria-activedescendant', /menu-suggestion-/);
+  const target = await search.getAttribute('aria-activedescendant');
+  const productId = target.match(/\d+$/)[0];
+  await search.press('Enter');
+  await expect(page).toHaveURL(new RegExp(`/product/${productId}$`));
+  await page.goto('/menu');
   await expect(page.locator('.category-chips')).toHaveCSS('white-space', testInfo.project.name === 'mobile-chrome' ? 'nowrap' : 'normal');
 
   if (testInfo.project.name === 'mobile-chrome') {

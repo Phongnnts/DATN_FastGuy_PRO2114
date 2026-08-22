@@ -206,6 +206,12 @@ test('product card renders premium content, exact Font Awesome icons, actions, a
   assert.match(source, /v-if="canAdd\(\)" class="add-btn"/);
   assert.match(source, /v-else-if="product\.cardDataComplete === false \|\| \(product\.inStock && product\.isAvailableNow !== false\)" class="option-btn"/);
   assert.match(source, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.match(source, /const added = ref\(false\)/);
+  assert.match(source, /addedTimer = setTimeout\(\(\) => \{ added\.value = false; \}, 900\)/);
+  assert.match(source, /fa-solid fa-check/);
+  assert.match(source, /FastGuy/);
+  assert.match(source, /Ảnh món đang được cập nhật/);
+  assert.match(source, /await cart\.addItem\(props\.product\.productId, variantId\)/);
   assert.doesNotMatch(source, /class="rating-badge"/);
   assert.doesNotMatch(source, emojiPattern);
 });
