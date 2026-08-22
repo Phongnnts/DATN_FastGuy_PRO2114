@@ -30,7 +30,7 @@ const routes = [
         meta: {
           guest: true,
           robots: 'index,follow',
-          description: 'FastGuy — đặt đồ ăn nhanh trực tuyến với thực đơn đa dạng, kích cỡ, topping và nhiều ưu đãi hấp dẫn mỗi ngày.',
+          description: 'FastGuy — đặt món ăn nhanh trực tuyến, chọn kích cỡ và topping theo sở thích, cùng nhiều ưu đãi hấp dẫn mỗi ngày.',
           canonical: '/home',
         },
       },
@@ -41,7 +41,7 @@ const routes = [
         meta: {
           guest: true,
           robots: 'index,follow',
-          description: 'Thực đơn FastGuy — burger, pizza, gà rán, mì ý, đồ uống, kích cỡ, topping và ưu đãi hấp dẫn. Đặt online, giao nhanh tận nơi.',
+          description: 'Thực đơn FastGuy — chọn món, kích cỡ và topping theo sở thích. Đặt online, giao nhanh tận nơi.',
           canonical: '/menu',
         },
       },

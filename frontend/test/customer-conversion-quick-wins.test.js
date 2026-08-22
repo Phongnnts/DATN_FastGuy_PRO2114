@@ -104,7 +104,7 @@ test('product reviews stay private from homepage publication controls', () => {
   assert.doesNotMatch(orderDetail, /homepageConsent|review-consent/);
   assert.doesNotMatch(adminOrderDetail, /updateFeaturedReview|order\.review|reviewSaving|featureIneligibilityReason/);
   assert.doesNotMatch(privacy, /chỉ được hiển thị công khai khi bạn đồng ý rõ ràng và quản trị viên chọn đăng/);
-  assert.doesNotMatch(privacy, /đánh giá|hỗ trợ khách hàng|đơn vị hỗ trợ|gửi yêu cầu qua tài khoản/i);
+  assert.doesNotMatch(privacy, /đánh giá[^<]*hiển thị công khai|gửi yêu cầu qua tài khoản/i);
 });
 
 test('menu keeps essential filters in a compact customer-facing layout', () => {

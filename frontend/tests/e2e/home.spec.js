@@ -48,6 +48,33 @@ test('customer home renders homepage API content accessibly without hidden UI sc
   });
 });
 
+test('public product detail and cart surfaces stay stable without overflow', async ({ page }) => {
+  const pageErrors = [];
+  const consoleErrors = [];
+  const productResponses = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(`${message.text()} ${message.location().url}`.trim()); });
+  page.on('response', response => {
+    if (/\/api\/products\/\d+$/.test(new URL(response.url()).pathname)) productResponses.push(response);
+  });
+
+  await page.goto('/menu');
+  const productLink = page.locator('a.product-main[href^="/product/"]').first();
+  await expect(productLink).toBeVisible();
+  await productLink.click();
+  await expect(page).toHaveURL(/\/product\/\d+$/);
+  await expect(page.locator('.product-purchase-panel h1')).toBeVisible();
+  await expect.poll(() => productResponses.some(response => response.ok())).toBeTruthy();
+  await page.goto('/cart');
+  await expect(page.getByRole('heading', { name: 'Giỏ hàng trống' }).or(page.getByRole('heading', { name: 'Đơn hàng' }))).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+  await page.locator('html').evaluate(element => {
+    if (element.scrollWidth > element.clientWidth + 1) throw new Error('Product Detail hoặc giỏ hàng tràn ngang');
+  });
+});
+
 test('customer home keeps proof reasons and hides removed scope when homepage API fails', async ({ page }) => {
   await page.route('**/api/homepage', route => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ status: 'error', message: 'Homepage data could not be loaded' }) }));
   await page.goto('/home');

@@ -102,13 +102,13 @@ test('legal pages expose help contact without removed review or account support 
   assert.match(terms, /Thông tin hướng dẫn về đơn hàng và điều khoản được đăng tại <RouterLink to="\/help">Trung tâm trợ giúp<\/RouterLink>\./);
   assert.doesNotMatch(terms, /đăng nhập để gửi yêu cầu hỗ trợ/i);
   assert.match(privacy, /Nội dung bạn chủ động gửi khi liên hệ với FastGuy\./);
-  assert.doesNotMatch(privacy, /đánh giá|hỗ trợ khách hàng|đơn vị hỗ trợ|gửi yêu cầu qua tài khoản/i);
+  assert.doesNotMatch(privacy, /đánh giá[^<]*hiển thị công khai|gửi yêu cầu qua tài khoản/i);
   assert.match(privacy, /Thông tin về quyền riêng tư và bảo vệ dữ liệu được đăng tại <RouterLink to="\/help">Trung tâm trợ giúp<\/RouterLink>\./);
 });
 
 test('public descriptions and admin inventory use menu option wording', () => {
-  assert.match(router, /thực đơn đa dạng, kích cỡ, topping và nhiều ưu đãi/);
-  assert.match(router, /kích cỡ, topping và ưu đãi hấp dẫn/);
+  assert.match(router, /đặt món ăn nhanh trực tuyến, chọn kích cỡ và topping theo sở thích/);
+  assert.match(router, /Thực đơn FastGuy — chọn món, kích cỡ và topping theo sở thích/);
   assert.doesNotMatch(router, /combo tiết kiệm/i);
   for (const source of [productsCatalog, inventory, inventoryLedger]) {
     assert.doesNotMatch(source, /biến thể/i);

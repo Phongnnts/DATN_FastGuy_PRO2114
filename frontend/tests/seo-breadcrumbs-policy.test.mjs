@@ -6,6 +6,11 @@ import { resolveCanonical, isIndexable } from '../src/router/seo.js';
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const router = read('../src/router/index.js');
 const breadcrumbs = read('../src/components/common/AppBreadcrumbs.vue');
+const terms = read('../src/views/guest/TermsPage.vue');
+const privacy = read('../src/views/guest/PrivacyPage.vue');
+const products = read('../src/views/admin/ProductsPage.vue');
+const inventory = read('../src/views/admin/InventoryPage.vue');
+const ledger = read('../src/views/admin/InventoryLedgerPage.vue');
 
 test('resolveCanonical keeps literal paths and substitutes params', () => {
   assert.equal(resolveCanonical('/menu', {}), '/menu');
@@ -67,4 +72,19 @@ test('AppBreadcrumbs renders meta.breadcrumb with aria contract and no title fal
   assert.match(breadcrumbs, /aria-label="Breadcrumb"/);
   assert.match(breadcrumbs, /aria-current="page"/);
   assert.doesNotMatch(breadcrumbs, /meta\.title/);
+});
+
+test('public policy and SEO copy does not promise unavailable support, review, or combo features', () => {
+  assert.doesNotMatch(terms, /gửi yêu cầu hỗ trợ/);
+  assert.doesNotMatch(privacy, /Đánh giá chỉ được hiển thị công khai|gửi yêu cầu qua tài khoản/);
+  assert.doesNotMatch(router, /description:.*combo/i);
+  assert.match(router, /description:.*món.*kích cỡ.*topping/i);
+});
+
+test('admin catalog and inventory surfaces label variants as sizes', () => {
+  for (const page of [products, inventory, ledger]) {
+    assert.doesNotMatch(page, />Biến thể</);
+    assert.doesNotMatch(page, /data-label="Biến thể"/);
+    assert.match(page, /Kích cỡ/);
+  }
 });
