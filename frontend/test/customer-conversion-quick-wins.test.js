@@ -125,6 +125,15 @@ test('menu keeps essential filters in a compact customer-facing layout', () => {
   assert.match(menuPage, /class="result-actions"/);
   assert.match(menuPage, /class="filter-group"/);
   assert.match(menuPage, /\.filter-dropdown\{[^}]*position:absolute/);
+  assert.match(menuPage, /fa-solid fa-sliders/);
+  assert.match(menuPage, /class="active-filters"/);
+  assert.match(menuPage, /class="toolbar-sort">Sắp xếp:/);
+  assert.match(menuPage, /label: 'Tên A–Z'/);
+  assert.match(menuPage, /class="pagination-summary"/);
+  assert.match(menuPage, /class="sheet-footer"/);
+  assert.match(menuPage, /Xem \{\{ store\.catalogMeta\.totalItems \}\} món/);
+  assert.match(menuPage, /max-height:85vh/);
+  assert.match(menuPage, /min-height:44px/);
 });
 
 test('promotions use compact commercial voucher tickets and short claim actions', () => {
