@@ -17,12 +17,15 @@ function mapVariant(variant) {
   };
 }
 
-export function mapProduct(product) {
+export function mapProduct(product, complete = true) {
   const variants = Array.isArray(product.variants) ? product.variants.map(mapVariant) : [];
   const defaultVariant = product.defaultVariant ? mapVariant(product.defaultVariant) : null;
   const averageRating = Number(product.averageRating);
   const reviewCount = Number(product.reviewCount);
+  const discountPercent = Number(product.discountPercent);
+  const originalPrice = parsePrice(product.originalPrice);
   return {
+    cardDataComplete: complete !== false,
     productId: product.productId,
     name: product.name,
     categoryId: product.categoryId,
@@ -37,9 +40,12 @@ export function mapProduct(product) {
     rating: product.rating || 0,
     averageRating: Number.isFinite(averageRating) ? Math.min(5, Math.max(0, averageRating)) : 0,
     reviewCount: Number.isFinite(reviewCount) ? Math.max(0, Math.floor(reviewCount)) : 0,
-    soldCount: Number(product.soldCount ?? product.totalSold) || 0,
+    soldCount: Math.max(0, Math.floor(Number(product.soldCount ?? product.totalSold) || 0)),
     bestSeller: Boolean(product.bestSeller ?? product.isBestSeller),
-    productType: product.productType || (product.combo ? 'COMBO' : 'SIMPLE'),
+    isNew: Boolean(product.isNew),
+    discountPercent: Number.isFinite(discountPercent) && discountPercent > 0 ? Math.min(100, Math.round(discountPercent)) : null,
+    originalPrice: Number(originalPrice) > 0 ? Number(originalPrice) : null,
+    productType: product.productType || (product.combo ? 'COMBO' : null),
     availableFrom: product.availableFrom || '',
     availableTo: product.availableTo || '',
     isAvailable: product.isAvailable !== false,

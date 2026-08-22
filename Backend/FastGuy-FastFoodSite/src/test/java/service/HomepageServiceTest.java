@@ -27,7 +27,7 @@ class HomepageServiceTest {
     private static final Set<String> PRODUCT_KEYS = Set.of("productId", "name", "description", "basePrice", "price",
             "defaultVariant", "imageUrl", "categoryId", "categoryName", "originalPrice", "discountPercent",
             "soldCount", "hasVariants", "hasModifiers", "isCombo", "productType", "availableFrom", "availableTo",
-            "isAvailableNow", "inStock", "isNew", "spiceLevel", "bestSeller", "variants", "modifierGroups");
+            "isAvailableNow", "inStock", "isNew", "spiceLevel", "bestSeller", "averageRating", "reviewCount", "variants", "modifierGroups");
 
     @Test
     void homepageMapsExactDirectAddContractAndPolicies() {
@@ -46,10 +46,12 @@ class HomepageServiceTest {
         ReviewDAO.FeaturedReview review = new ReviewDAO.FeaturedReview(7, 5, "Ngon", "An", null,
                 LocalDateTime.of(2026, 8, 18, 10, 0));
 
+        FakeReviewDAO reviewDAO = new FakeReviewDAO(List.of(review),
+                Map.of(10, new ReviewDAO.ProductReviewSummary(10, 4.54, 8)));
         HomepageService service = new HomepageService(
                 new FakeProductDAO(List.of(product), Map.of(10, List.of(variant)), Map.of(10, 12L)),
                 new FakeModifierDAO(List.of(first, duplicate), Map.of(10, List.of(group)), Map.of(200, List.of(option))),
-                new FakeReviewDAO(List.of(review)));
+                reviewDAO);
 
         Map<String, Object> data = service.getHomepage();
         List<Map<String, Object>> bestSellers = castList(data.get("bestSellers"));
@@ -59,6 +61,10 @@ class HomepageServiceTest {
         assertEquals(true, summary.get("inStock"));
         assertEquals(true, summary.get("hasModifiers"));
         assertEquals("COMBO", summary.get("productType"));
+        assertEquals(new BigDecimal("4.5"), summary.get("averageRating"));
+        assertEquals(8L, summary.get("reviewCount"));
+        assertEquals(1, reviewDAO.summaryCalls);
+        assertEquals(List.of(10), reviewDAO.summaryIds);
         assertEquals(1, castList(summary.get("variants")).size());
         assertEquals(1, castList(summary.get("modifierGroups")).size());
 
@@ -170,7 +176,12 @@ class HomepageServiceTest {
 
     private static class FakeReviewDAO extends ReviewDAO {
         private final List<FeaturedReview> reviews;
-        FakeReviewDAO(List<FeaturedReview> reviews) { this.reviews = reviews; }
+        private final Map<Integer, ProductReviewSummary> summaries;
+        private int summaryCalls;
+        private List<Integer> summaryIds;
+        FakeReviewDAO(List<FeaturedReview> reviews) { this(reviews, Map.of()); }
+        FakeReviewDAO(List<FeaturedReview> reviews, Map<Integer, ProductReviewSummary> summaries) { this.reviews = reviews; this.summaries = summaries; }
+        @Override public Map<Integer, ProductReviewSummary> summariesByProductIds(List<Integer> ids) { summaryCalls += 1; summaryIds = ids; return summaries; }
         @Override public List<FeaturedReview> findFeatured(int limit) { assertEquals(3, limit); return reviews; }
     }
 }

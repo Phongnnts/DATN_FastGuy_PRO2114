@@ -51,14 +51,15 @@ public class HomepageService {
         List<Integer> groupIds = groups.values().stream().flatMap(List::stream).map(ProductModifierGroup::getModifierGroupId).toList();
         Map<Integer, List<ProductModifierOption>> options = modifierDAO.optionsByGroupIds(groupIds);
         Set<Integer> comboProductIds = modifierDAO.activeComboProductIds(ids);
+        Map<Integer, ReviewDAO.ProductReviewSummary> reviewSummaries = reviewDAO.summariesByProductIds(ids);
 
         List<Map<String, Object>> bestSellerMaps = bestSellers.stream()
-                .map(p -> productMap(p, true, sold, variants, groups, options, comboProductIds)).toList();
+                .map(p -> productMap(p, true, sold, variants, groups, options, comboProductIds, reviewSummaries)).toList();
         List<Map<String, Object>> occasionMaps = combos.stream().map(combo -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("occasion", combo.getHomepageOccasion());
             item.put("label", occasionLabel(combo.getHomepageOccasion()));
-            item.put("product", productMap(combo.getProduct(), false, sold, variants, groups, options, comboProductIds));
+            item.put("product", productMap(combo.getProduct(), false, sold, variants, groups, options, comboProductIds, reviewSummaries));
             return item;
         }).toList();
         List<Map<String, Object>> reviews = reviewDAO.findFeatured(3).stream().map(this::reviewMap).toList();
@@ -72,7 +73,8 @@ public class HomepageService {
 
     private Map<String, Object> productMap(Product product, boolean bestSeller, Map<Integer, Long> sold,
             Map<Integer, List<ProductVariant>> variantsByProduct, Map<Integer, List<ProductModifierGroup>> groupsByProduct,
-            Map<Integer, List<ProductModifierOption>> optionsByGroup, Set<Integer> comboProductIds) {
+            Map<Integer, List<ProductModifierOption>> optionsByGroup, Set<Integer> comboProductIds,
+            Map<Integer, ReviewDAO.ProductReviewSummary> reviewSummaries) {
         int id = product.getProductId();
         List<ProductVariant> variants = variantsByProduct.getOrDefault(id, List.of());
         ProductVariant defaultVariant = variants.stream().filter(this::selectable).filter(v -> Boolean.TRUE.equals(v.getIsDefault())).findFirst()
@@ -103,7 +105,11 @@ public class HomepageService {
         map.put("isAvailableNow", isAvailableNow(product));
         map.put("inStock", "AVAILABLE".equals(product.getStatus()) && inStock && isAvailableNow(product));
         map.put("isNew", Boolean.TRUE.equals(product.getIsNew())); map.put("spiceLevel", product.getSpiceLevel());
-        map.put("bestSeller", bestSeller); map.put("variants", variants.stream().map(this::variantMap).toList());
+        map.put("bestSeller", bestSeller);
+        ReviewDAO.ProductReviewSummary reviewSummary = reviewSummaries.get(id);
+        map.put("averageRating", BigDecimal.valueOf(reviewSummary == null || reviewSummary.averageRating() == null ? 0 : reviewSummary.averageRating()).setScale(1, RoundingMode.HALF_UP));
+        map.put("reviewCount", reviewSummary == null ? 0L : reviewSummary.reviewCount());
+        map.put("variants", variants.stream().map(this::variantMap).toList());
         map.put("modifierGroups", groups.stream().map(g -> groupMap(g, optionsByGroup)).toList());
         return map;
     }

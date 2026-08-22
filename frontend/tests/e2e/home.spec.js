@@ -31,6 +31,15 @@ test('customer home renders homepage API content accessibly without hidden UI sc
   const storyImage = page.getByRole('img', { name: 'Người trẻ dùng bữa khi làm việc trên laptop' });
   await expect(storyImage).toBeVisible();
   await expect.poll(() => storyImage.evaluate(image => image.complete && image.naturalWidth > 0)).toBeTruthy();
+  const productCards = page.locator('.featured .product-card');
+  await expect(productCards.first()).toBeVisible();
+  await expect(productCards.first().locator('.product-name')).not.toBeEmpty();
+  await expect(productCards.first().locator('.product-rating')).toBeVisible();
+  await expect(productCards.first().locator('.product-sold')).toContainText('đã bán');
+  await expect(productCards.first().locator('.price-now')).not.toBeEmpty();
+  await expect(productCards.first().getByText('Bán chạy', { exact: true })).toBeVisible();
+  const expectedColumns = testInfo.project.name === 'mobile-chrome' ? 2 : 4;
+  await expect.poll(() => page.locator('.featured .grid').evaluate(grid => getComputedStyle(grid).gridTemplateColumns.split(' ').length)).toBe(expectedColumns);
   const productImages = page.locator('.featured img');
   if (await productImages.count()) await expect.poll(() => productImages.first().evaluate(image => image.complete && image.naturalWidth > 0)).toBeTruthy();
   if (testInfo.project.name === 'mobile-chrome') {

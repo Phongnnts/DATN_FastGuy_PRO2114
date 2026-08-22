@@ -73,16 +73,17 @@ test('COD refund and shifts remain visible', () => {
 
 test('combo UI is absent from homepage product detail and admin editor', () => {
   assert.doesNotMatch(home, /HomepageOccasions|occasionCombos/);
-  assert.doesNotMatch(productDetail, /product\.combo|Combo gồm/);
+  assert.doesNotMatch(productDetail, /product\.combo|candidate\.isCombo|Combo gồm/);
+  assert.doesNotMatch(productDetail, /review\.(avatar|orderId|homepageConsent|featured)/);
   assert.doesNotMatch(productEditor, /ProductComboSection|id: 'combo'|activeSection === 'combo'/);
 });
 
-test('product cards hide combo presentation while preserving other badges and actions', () => {
+test('product cards hide combo presentation while preserving truthful badges and actions', () => {
   assert.doesNotMatch(productCard, /product\.isCombo|combo-badge|>Combo</);
   assert.match(productCard, /product\.bestSeller/);
   assert.match(productCard, /product\.isNew/);
-  assert.match(productCard, /product\.spiceLevel/);
-  assert.match(productCard, /hasOptions/);
+  assert.match(productCard, /product\.discountPercent/);
+  assert.doesNotMatch(productCard, /product\.spiceLevel|spice-badge|hasOptions/);
   assert.match(productCard, /addToCart|toggleFavorite/);
 });
 

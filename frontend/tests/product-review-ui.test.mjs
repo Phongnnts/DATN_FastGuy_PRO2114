@@ -5,6 +5,8 @@ import { createReviewPageController, normalizeReviewPage } from '../src/utils/re
 import { mapProduct } from '../src/utils/productMapper.js';
 
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
+const indexHtml = () => read('../index.html');
+const emojiPattern = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 const page = (overrides = {}) => ({
   items: [{ reviewId: 1, productId: 7, rating: 5, comment: 'Ngon', userName: 'An', createdAt: '2026-08-22T10:00:00' }],
   total: 1,
@@ -140,19 +142,72 @@ test('product mapper preserves finite rating summaries and clamps invalid values
   assert.deepEqual([invalid.averageRating, invalid.reviewCount], [5, 0]);
 });
 
-test('product card renders responsive image-corner rating badge with review count accessibility', async () => {
+test('product mapper preserves real card merchandising fields and zero sold count', () => {
+  const mapped = mapProduct({
+    averageRating: 4.54,
+    reviewCount: 18,
+    soldCount: 0,
+    bestSeller: true,
+    isNew: true,
+    discountPercent: 20,
+    originalPrice: 75000,
+    price: 60000,
+  });
+  assert.deepEqual({
+    averageRating: mapped.averageRating,
+    reviewCount: mapped.reviewCount,
+    soldCount: mapped.soldCount,
+    bestSeller: mapped.bestSeller,
+    isNew: mapped.isNew,
+    discountPercent: mapped.discountPercent,
+    originalPrice: mapped.originalPrice,
+  }, {
+    averageRating: 4.54,
+    reviewCount: 18,
+    soldCount: 0,
+    bestSeller: true,
+    isNew: true,
+    discountPercent: 20,
+    originalPrice: 75000,
+  });
+});
+
+test('premium product UI loads approved Font Awesome Free and keeps Bootstrap Icons available', async () => {
+  const [html, card, detail] = await Promise.all([
+    indexHtml(),
+    read('../src/components/common/ProductCard.vue'),
+    read('../src/views/guest/ProductDetailPage.vue'),
+  ]);
+  assert.match(html, /href="https:\/\/cdn\.jsdelivr\.net\/npm\/@fortawesome\/fontawesome-free@6\.7\.2\/css\/all\.min\.css"/);
+  assert.match(html, /integrity="sha256-dABdfBfUoC8vJUBOwGVdm8L9qlMWaHTIfXt\+7GnZCIo=" crossorigin="anonymous"/);
+  assert.match(html, /href="https:\/\/cdn\.jsdelivr\.net\/npm\/bootstrap-icons@1\.11\.3\/font\/bootstrap-icons\.min\.css"/);
+  assert.doesNotMatch(card, emojiPattern);
+  assert.doesNotMatch(detail, emojiPattern);
+  assert.doesNotMatch(card, /class="bi bi-/);
+  assert.doesNotMatch(detail, /class="bi bi-/);
+  for (const token of ['fa-solid fa-star', 'fa-solid fa-fire', 'fa-regular fa-heart', 'fa-solid fa-heart', 'fa-solid fa-plus']) assert.match(card, new RegExp(token));
+  for (const token of ['fa-solid fa-bolt', 'fa-regular fa-heart', 'fa-solid fa-heart', 'fa-solid fa-circle-check', 'fa-solid fa-circle-xmark', 'fa-solid fa-cart-shopping', 'fa-solid fa-truck-fast', 'fa-solid fa-star']) assert.match(detail, new RegExp(token));
+});
+
+test('product card renders premium content, exact Font Awesome icons, actions, and motion policy', async () => {
   const source = await read('../src/components/common/ProductCard.vue');
-  const image = source.slice(source.indexOf('<div class="product-image">'), source.indexOf('<div class="product-info">'));
-  assert.match(image, /class="rating-badge"/);
-  assert.match(source, /`★ \$\{averageRating\.value\.toFixed\(1\)\}\/5`/);
-  assert.match(source, /'Chưa có đánh giá'/);
-  assert.match(source, /`Đánh giá \$\{averageRating\.value\.toFixed\(1\)\} trên 5 từ \$\{reviewCount\.value\} lượt`/);
-  assert.match(source, /'Chưa có đánh giá, 0 lượt'/);
-  assert.match(source, /\.rating-badge\{position:absolute;right:8px;bottom:8px/);
-  assert.match(source, /@media\(max-width:560px\)[\s\S]*\.rating-badge\{[^}]*max-width:/);
-  assert.match(source, /class="stock-badge"/);
-  assert.match(source, /class="fav-btn"/);
-  assert.match(source, /class="add-btn"/);
+  assert.match(source, /class="product-rating" :aria-label="ratingLabel"/);
+  assert.match(source, /fa-solid fa-star/);
+  assert.match(source, /\{\{ ratingText \}\}/);
+  assert.match(source, /class="product-sold"/);
+  assert.match(source, /fa-solid fa-fire/);
+  assert.match(source, /\{\{ soldCount \}\} đã bán/);
+  assert.match(source, /class="product-desc"/);
+  assert.match(source, /-webkit-line-clamp:2/);
+  assert.match(source, /class="best-badge"/);
+  assert.match(source, /class="new-badge">Mới/);
+  assert.match(source, /class="hot-badge">-\{\{/);
+  assert.match(source, /\.add-btn\{[^}]*width:44px[^}]*height:44px[^}]*border-radius:50%/);
+  assert.match(source, /v-if="canAdd\(\)" class="add-btn"/);
+  assert.match(source, /v-else-if="product\.cardDataComplete === false \|\| \(product\.inStock && product\.isAvailableNow !== false\)" class="option-btn"/);
+  assert.match(source, /@media\(prefers-reduced-motion:reduce\)/);
+  assert.doesNotMatch(source, /class="rating-badge"/);
+  assert.doesNotMatch(source, emojiPattern);
 });
 
 test('product detail supplements controller behavior with initial and nonblocking error states', async () => {
@@ -170,6 +225,43 @@ test('product detail supplements controller behavior with initial and nonblockin
   assert.match(source, /Chưa có đánh giá/);
   assert.match(source, /reviewPage === 1/);
   assert.match(source, /reviewPage \* reviewSize >= reviewData\.total/);
+});
+
+test('product detail presents premium product facts options actions and delivery without changing data flow', async () => {
+  const source = await read('../src/views/guest/ProductDetailPage.vue');
+  assert.match(source, /class="product-meta"/);
+  assert.match(source, /class="detail-rating"/);
+  assert.match(source, /@click\.prevent="scrollToReviews"/);
+  assert.match(source, /reviewsTitle\.value\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(source, /reviewAverage\.toFixed\(1\)/);
+  assert.match(source, /reviewCount/);
+  assert.match(source, />Kích cỡ</);
+  assert.match(source, /class="variant-option"/);
+  assert.match(source, /:aria-pressed="selectedVariant\?\.variantId === variant\.variantId"/);
+  assert.match(source, /class="purchase-actions"/);
+  assert.match(source, /fa-solid fa-cart-shopping/);
+  assert.match(source, /placeInCart\('\/cart'\)/);
+  assert.match(source, /placeInCart\('\/checkout'\)/);
+  assert.match(source, /class="delivery-grid"/);
+  assert.match(source, /Dự kiến \{\{ estimatedDeliveryMinutes \}\} phút/);
+  assert.match(source, /Phí giao hàng theo địa chỉ/);
+  assert.match(source, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test('product detail keeps review state semantics and derives related cards from hydrated catalog only', async () => {
+  const source = await read('../src/views/guest/ProductDetailPage.vue');
+  assert.match(source, /import ProductCard from '@\/components\/common\/ProductCard\.vue'/);
+  assert.match(source, /const relatedProducts = computed/);
+  assert.match(source, /candidate\.productId !== product\.value\?\.productId/);
+  assert.match(source, /candidate\.categoryId === product\.value\?\.categoryId/);
+  assert.match(source, /\.slice\(0, 4\)/);
+  assert.match(source, /class="related-products"/);
+  assert.match(source, /<ProductCard v-for="related in relatedProducts"/);
+  assert.match(source, /reviewInitialError && !reviewData/);
+  assert.match(source, /class="review-error-banner" role="status" aria-live="polite"/);
+  assert.match(source, /v-for="rating in \[5, 4, 3, 2, 1\]"/);
+  assert.match(source, /role="progressbar"/);
+  assert.match(source, /class="review-pagination" aria-label="Phân trang đánh giá"/);
 });
 
 test('product detail renders only public review fields, five-to-one progress semantics, and accessible controls', async () => {

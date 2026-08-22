@@ -52,13 +52,14 @@ test('homepage keeps non-review reasons without support or live-location claims'
   assert.doesNotMatch(page, /HomepageProof|featuredReviews|Hỗ trợ khi cần|kênh hỗ trợ|đang ở đâu|bất cứ lúc nào/);
 });
 
-test('product card maps visible homepage badges and mobile controls remain touch sized', async () => {
+test('product card maps truthful badges and controls remain touch sized', async () => {
   const source = await read('../src/components/common/ProductCard.vue');
+  assert.match(source, /product\.bestSeller/);
   assert.match(source, /product\.isNew/);
-  assert.match(source, /product\.spiceLevel/);
-  assert.match(source, /\.new-badge\{background:/);
-  assert.match(source, /\.spice-badge\{background:/);
-  assert.match(source, /\.fav-btn,.product-card:not\(\.list-mode\) \.add-btn\{width:44px;height:44px;min-height:44px\}/);
+  assert.match(source, /product\.discountPercent/);
+  assert.doesNotMatch(source, /product\.spiceLevel|spice-badge/);
+  assert.match(source, /\.fav-btn\{[^}]*width:44px;height:44px/);
+  assert.match(source, /\.add-btn\{[^}]*width:44px;height:44px/);
   assert.match(source, /\.option-btn\{[^}]*min-height:44px/);
 });
 
@@ -104,7 +105,7 @@ test('homepage categories use visual cards with responsive grid and mobile rail'
   assert.match(source, /\.category-card:hover \.category-icon/);
 });
 
-test('homepage product presentation uses explicit action labels without changing catalog cards', async () => {
+test('homepage product presentation reuses the approved card action policy', async () => {
   const [card, featured, occasions] = await Promise.all([
     read('../src/components/common/ProductCard.vue'),
     read('../src/components/guest/FeaturedProducts.vue'),
@@ -112,7 +113,7 @@ test('homepage product presentation uses explicit action labels without changing
   ]);
   assert.match(card, /homepage: \{ type: Boolean, default: false \}/);
   assert.match(card, /'homepage-card': homepage/);
-  assert.match(card, />Thêm</);
+  assert.match(card, /v-if="canAdd\(\)" class="add-btn"/);
   assert.match(card, />Chọn món</);
   assert.match(featured, /<ProductCard :product="product" homepage/);
   assert.match(occasions, /<ProductCard :product="item\.product" homepage/);

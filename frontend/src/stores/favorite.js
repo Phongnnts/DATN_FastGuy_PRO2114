@@ -1,12 +1,16 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { favoriteApi } from '@/api';
+import { favoriteApi, productApi } from '@/api';
+import { createFavoriteLoadController } from '@/utils/favoriteHydration';
 
 export const useFavoriteStore = defineStore('favorite', () => {
   const items = ref([]);
   const ids = ref(new Set());
   const loading = ref(false);
   const error = ref('');
+  const warning = ref('');
+  let generation = 0;
+  const toggleSequences = new Map();
 
   const count = computed(() => ids.value.size);
 
@@ -15,28 +19,36 @@ export const useFavoriteStore = defineStore('favorite', () => {
     ids.value = new Set(items.value.map((item) => item.productId));
   }
 
+  const loader = createFavoriteLoadController({
+    getFavorites: favoriteApi.getAll,
+    getCatalog: () => productApi.getAll(),
+    apply: sync,
+    fail: (e) => { error.value = e.message || 'Không thể tải món yêu thích.'; },
+    warn: () => { warning.value = 'Một số thông tin món ăn chưa được cập nhật. Bạn vẫn có thể xem danh sách yêu thích.'; },
+    setLoading: (value) => { loading.value = value; },
+  });
+
   async function fetchFavorites() {
-    loading.value = true;
     error.value = '';
-    try {
-      const data = await favoriteApi.getAll();
-      sync(Array.isArray(data) ? data : []);
-    } catch (e) {
-      error.value = e.message || 'Không thể tải món yêu thích.';
-    } finally {
-      loading.value = false;
-    }
+    warning.value = '';
+    await loader.load();
   }
 
   async function check(productId) {
+    const requestGeneration = generation;
     const data = await favoriteApi.check(productId);
+    if (requestGeneration !== generation) return undefined;
     if (data.favorite) ids.value = new Set([...ids.value, Number(productId)]);
     return data.favorite;
   }
 
   async function toggle(product) {
     const productId = Number(product.productId || product);
+    const requestGeneration = generation;
+    const sequence = (toggleSequences.get(productId) || 0) + 1;
+    toggleSequences.set(productId, sequence);
     const data = await favoriteApi.toggle(productId);
+    if (requestGeneration !== generation || toggleSequences.get(productId) !== sequence) return undefined;
     const next = new Set(ids.value);
     if (data.favorite) {
       next.add(productId);
@@ -56,9 +68,14 @@ export const useFavoriteStore = defineStore('favorite', () => {
   }
 
   function clear() {
+    generation += 1;
+    toggleSequences.clear();
+    loader.invalidate();
     items.value = [];
     ids.value = new Set();
+    error.value = '';
+    warning.value = '';
   }
 
-  return { items, ids, loading, error, count, fetchFavorites, check, toggle, isFavorite, clear };
+  return { items, ids, loading, error, warning, count, fetchFavorites, check, toggle, isFavorite, clear };
 });

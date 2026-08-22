@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { ROLES } from '@/utils/constants';
 import { authApi } from '@/api';
 import { useCartStore } from '@/stores/cart';
+import { useFavoriteStore } from '@/stores/favorite';
 import { clearStoredSession, isTokenValid, parseStoredUser } from '@/utils/session';
 import { createProfileHydrationController } from '@/utils/profileHydration';
 
@@ -16,6 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
   let sessionGeneration = 0;
 
   function clearReactiveSession() {
+    useFavoriteStore().clear();
     sessionGeneration += 1;
     profileHydration.invalidate();
     token.value = null;
@@ -48,7 +50,9 @@ export const useAuthStore = defineStore('auth', () => {
   });
 
   async function login(email, password) {
+    useFavoriteStore().clear();
     const data = await authApi.login({ login: email, password });
+    useFavoriteStore().clear();
     sessionGeneration += 1;
     profileHydration.invalidate();
     token.value = data.token;
@@ -65,12 +69,14 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function register(data) {
+    useFavoriteStore().clear();
     const result = await authApi.register({
       fullName: data.fullName,
       phone: data.phone,
       email: data.email,
       password: data.password,
     });
+    useFavoriteStore().clear();
     sessionGeneration += 1;
     profileHydration.invalidate();
     token.value = result.token;
@@ -89,17 +95,13 @@ export const useAuthStore = defineStore('auth', () => {
   function logout() {
     const cart = useCartStore();
     cart.clear();
-    sessionGeneration += 1;
-    profileHydration.invalidate();
-    token.value = null;
-    user.value = null;
+    clearReactiveSession();
     persist();
   }
 
   function validateSession() {
     if (isTokenValid(token.value) && user.value) return true;
-    token.value = null;
-    user.value = null;
+    clearReactiveSession();
     persist();
     return false;
   }

@@ -145,6 +145,20 @@ test('promotions use compact commercial voucher tickets and short claim actions'
   assert.match(promotionsPage, /\.discount-block strong\{[^}]*max-width:100%[^}]*overflow-wrap:anywhere/);
 });
 
+test('product detail favorites, option groups, and narrow related cards expose premium states', () => {
+  assert.match(productDetail, /const favoritePending = ref\(false\)/);
+  assert.match(productDetail, /if \(favoritePending\.value\) return/);
+  assert.match(productDetail, /:disabled="favoritePending"/);
+  assert.match(productDetail, /:aria-pressed="favoriteStore\.isFavorite\(product\.productId\)"/);
+  assert.match(productDetail, /:aria-busy="favoritePending"/);
+  assert.match(productDetail, /<fieldset v-if="product\.variants\?\.length" class="selection-group">/);
+  assert.match(productDetail, /<legend class="selection-title">/);
+  assert.match(productDetail, /:aria-invalid="Boolean\(modifierErrors\[group\.modifierGroupId\]\)"/);
+  assert.match(productDetail, /:aria-describedby="`modifier-help-\$\{group\.modifierGroupId\}`"/);
+  assert.match(productDetail, /@media \(max-width: 360px\)[^{]*\{[^}]*\.related-products\{grid-template-columns:1fr\}/);
+  assert.doesNotMatch(productDetail, /\bbi-/);
+});
+
 test('customer surfaces do not hardcode unsupported delivery claims', () => {
   for (const source of customerSources) {
     assert.doesNotMatch(source, /giao[^\n<]{0,40}30 phút/i);

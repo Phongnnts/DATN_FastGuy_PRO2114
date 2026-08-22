@@ -18,6 +18,11 @@ onMounted(() => favoriteStore.fetchFavorites());
       <router-link to="/menu" class="btn btn-primary">Khám phá thêm</router-link>
     </div>
 
+    <div v-if="favoriteStore.warning && !favoriteStore.error" class="warning-banner" role="status" aria-live="polite">
+      <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+      <span>{{ favoriteStore.warning }}</span>
+    </div>
+
     <div v-if="favoriteStore.loading" class="empty-state">
       <i class="bi bi-arrow-repeat spin"></i>
       <h3>Đang tải món yêu thích...</h3>
@@ -37,7 +42,7 @@ onMounted(() => favoriteStore.fetchFavorites());
       <router-link to="/menu" class="btn btn-primary">Xem thực đơn</router-link>
     </div>
 
-    <div v-else class="grid-4">
+    <div v-else class="favorites-grid">
       <ProductCard v-for="product in favoriteStore.items" :key="product.productId" :product="product" />
     </div>
   </div>
@@ -51,10 +56,17 @@ onMounted(() => favoriteStore.fetchFavorites());
   font-size: 24px;
   font-weight: 900;
 }
+.warning-banner{display:flex;align-items:center;gap:10px;margin-bottom:var(--space-5);padding:12px 16px;border:1px solid #f2c879;border-radius:12px;color:#6f4b00;background:#fff8e8}
+.favorites-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-5)}
+.favorites-grid>*{min-width:0}
 .spin {
   animation: spin 1s linear infinite;
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+@media(max-width:1100px){.favorites-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:800px){.favorites-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.favorites-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
+@media(prefers-reduced-motion:reduce){.spin{animation:none}}
 </style>
