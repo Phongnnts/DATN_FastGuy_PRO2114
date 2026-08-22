@@ -20,6 +20,8 @@ function mapVariant(variant) {
 export function mapProduct(product) {
   const variants = Array.isArray(product.variants) ? product.variants.map(mapVariant) : [];
   const defaultVariant = product.defaultVariant ? mapVariant(product.defaultVariant) : null;
+  const averageRating = Number(product.averageRating);
+  const reviewCount = Number(product.reviewCount);
   return {
     productId: product.productId,
     name: product.name,
@@ -33,7 +35,8 @@ export function mapProduct(product) {
     image: ensureImage(product.imageUrl),
     description: product.description || '',
     rating: product.rating || 0,
-    reviewCount: product.reviewCount || 0,
+    averageRating: Number.isFinite(averageRating) ? Math.min(5, Math.max(0, averageRating)) : 0,
+    reviewCount: Number.isFinite(reviewCount) ? Math.max(0, Math.floor(reviewCount)) : 0,
     soldCount: Number(product.soldCount ?? product.totalSold) || 0,
     bestSeller: Boolean(product.bestSeller ?? product.isBestSeller),
     productType: product.productType || (product.combo ? 'COMBO' : 'SIMPLE'),

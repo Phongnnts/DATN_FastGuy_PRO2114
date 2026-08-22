@@ -512,9 +512,6 @@ async function placeOrder() {
               <i class="bi bi-clock"></i> Dự kiến: {{ expectedDelivery }}
             </span>
           </div>
-          <div v-if="storeConfig" class="fee-result" style="margin-top:8px">
-            <i class="bi bi-receipt"></i> Phí phục vụ: <strong>{{ formatPrice(serviceFee) }}</strong>
-          </div>
         </div>
 <div v-show="currentStep === 3" class="card mb-3 checkout-block checkout-section payment-section">
             <h3><i class="bi bi-credit-card"></i> Phương thức thanh toán</h3>
@@ -673,9 +670,6 @@ async function placeOrder() {
               <span>Phí giao hàng</span>
               <span v-if="feeLoading">Đang tính...</span>
               <span v-else>{{ shippingFee !== null ? formatPrice(shippingFee) : '—' }}</span>
-            </div>
-            <div class="summary-row" v-if="storeConfig">
-              <span>Phí phục vụ</span><span>{{ formatPrice(serviceFee) }}</span>
             </div>
             <div class="summary-row" v-if="couponDiscount > 0">
               <span>Giảm giá</span><span style="color: var(--success)">-{{ formatPrice(couponDiscount) }}</span>

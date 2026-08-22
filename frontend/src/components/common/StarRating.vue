@@ -5,6 +5,7 @@ const props = defineProps({
   modelValue: { type: Number, default: 0 },
   readonly: { type: Boolean, default: false },
   size: { type: Number, default: 18 },
+  label: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue'])
 const buttons = ref([])
@@ -24,7 +25,7 @@ async function handleKey(event) {
 </script>
 
 <template>
-  <div class="star-rating" :class="{ readonly }" :role="readonly ? 'img' : 'radiogroup'" :aria-label="readonly ? `${modelValue} trên 5 sao` : 'Chọn số sao đánh giá'" @keydown="handleKey">
+  <div class="star-rating" :class="{ readonly }" :role="readonly ? 'img' : 'radiogroup'" :aria-label="label || (readonly ? `${modelValue} trên 5 sao` : 'Chọn số sao đánh giá')" @keydown="handleKey">
     <template v-if="readonly"><i v-for="value in 5" :key="value" class="bi" :class="value <= Math.floor(modelValue) ? 'bi-star-fill active' : value === Math.ceil(modelValue) && modelValue % 1 >= .5 ? 'bi-star-half active' : 'bi-star'" :style="{ fontSize: size + 'px' }" aria-hidden="true"></i></template>
     <button v-for="value in readonly ? [] : 5" v-else :key="value" ref="buttons" type="button" role="radio" :aria-label="`${value} sao`" :aria-checked="modelValue === value" :tabindex="modelValue === value || (!modelValue && value === 1) ? 0 : -1" @click="setRating(value)"><i class="bi" :class="value <= modelValue ? 'bi-star-fill active' : 'bi-star'" :style="{ fontSize: size + 'px' }" aria-hidden="true"></i></button>
   </div>

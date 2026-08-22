@@ -5,8 +5,9 @@ import test from 'node:test';
 const reportsPage = readFileSync(new URL('../src/views/admin/ReportsPage.vue', import.meta.url), 'utf8');
 
 test('report exposes reconcilable financial breakdown and operational cohort', () => {
-  for (const label of ['Tiền món', 'Phí giao hàng', 'Phí dịch vụ', 'Giảm giá', 'Doanh thu gộp', 'Đã hoàn tiền', 'Dòng tiền ròng']) assert.match(reportsPage, new RegExp(label));
-  for (const field of ['itemRevenue', 'shippingRevenue', 'serviceFeeRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'netCashRevenue', 'operationalOrderCount', 'operationalCompletedCount']) assert.match(reportsPage, new RegExp(`data\\.${field}`));
+  for (const label of ['Tiền món', 'Phí giao hàng', 'Giảm giá', 'Doanh thu gộp', 'Đã hoàn tiền', 'Dòng tiền ròng']) assert.match(reportsPage, new RegExp(label));
+  assert.doesNotMatch(reportsPage, /Phí dịch vụ|serviceFeeRevenue/);
+  for (const field of ['itemRevenue', 'shippingRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'netCashRevenue', 'operationalOrderCount', 'operationalCompletedCount']) assert.match(reportsPage, new RegExp(`data\\.${field}`));
   assert.match(reportsPage, /data\.value\.completionRate/);
   assert.match(reportsPage, /Number\(data\.value\.completionRate \|\| 0\)/);
   assert.match(reportsPage, /Number\(product\.revenue \|\| 0\) \* 100 \/ data\.itemRevenue/);

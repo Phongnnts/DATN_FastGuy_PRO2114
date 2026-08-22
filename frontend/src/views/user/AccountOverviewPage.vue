@@ -26,7 +26,6 @@ onMounted(() => orders.fetchOrders());
       <router-link to="/account/orders" class="shortcut"><i class="bi bi-receipt"></i><span><strong>{{ activeOrders.length }}</strong> đơn đang hoạt động</span></router-link>
       <router-link to="/account/addresses" class="shortcut"><i class="bi bi-geo-alt"></i><span><strong>Địa chỉ</strong> giao hàng</span></router-link>
       <router-link to="/account/coupons" class="shortcut"><i class="bi bi-ticket-perforated"></i><span><strong>Ví mã</strong> ưu đãi</span></router-link>
-      <router-link to="/account/support" class="shortcut"><i class="bi bi-headset"></i><span><strong>Hỗ trợ</strong> đơn hàng</span></router-link>
     </section>
 
     <div class="overview-grid">

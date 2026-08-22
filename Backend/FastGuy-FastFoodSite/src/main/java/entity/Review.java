@@ -29,6 +29,10 @@ public class Review {
     @JoinColumn(name = "order_id")
     private Orders order;
 
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
     @Column(name = "rating")
     private int rating;
 
@@ -62,6 +66,8 @@ public class Review {
     public void setUser(User user) { this.user = user; }
     public Orders getOrder() { return order; }
     public void setOrder(Orders order) { this.order = order; }
+    public Product getProduct() { return product; }
+    public void setProduct(Product product) { this.product = product; }
     public int getRating() { return rating; }
     public void setRating(int rating) { this.rating = rating; }
     public String getComment() { return comment; }

@@ -37,6 +37,12 @@ test('paginateProducts clamps pages and returns stable bounds', () => {
   assert.deepEqual(paginateProducts([], 1, 10), { page: 1, pageCount: 1, start: 0, end: 0, items: [] });
 });
 
+test('admin catalog hides COMBO type while preserving regular product rows', () => {
+  assert.match(productsPage, /productTypes\(adminStore\.allProducts\)\.filter\(\(type\) => type !== 'COMBO'\)/);
+  assert.doesNotMatch(productsPage, /\{\{ product\.productType \}\}/);
+  assert.match(productsPage, /#\{\{ product\.id \}\} · \{\{ categoryName\(product\) \}\}/);
+});
+
 test('products and inventory consume one shared low-stock policy', () => {
   assert.match(productsPage, /productStockSummary/);
   assert.match(productsPage, /lowStockThreshold/);

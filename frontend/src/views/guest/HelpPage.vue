@@ -5,12 +5,12 @@ import PublicContentLayout from '@/components/common/PublicContentLayout.vue';
 const query = ref('');
 const sections = [
   { title: 'Đặt món và tài khoản', items: [
-    { question: 'Tôi có cần tài khoản để đặt món không?', answer: 'Không. Bạn có thể đặt món với số điện thoại và địa chỉ nhận hàng. Đăng nhập giúp lưu thông tin, xem lịch sử đơn và gửi yêu cầu hỗ trợ thuận tiện hơn.' },
+    { question: 'Tôi có cần tài khoản để đặt món không?', answer: 'Không. Bạn có thể đặt món với số điện thoại và địa chỉ nhận hàng. Đăng nhập giúp lưu thông tin và xem lịch sử đơn thuận tiện hơn.' },
     { question: 'Làm sao thay đổi thông tin tài khoản?', answer: 'Sau khi đăng nhập, mở trang Hồ sơ để cập nhật họ tên, số điện thoại và địa chỉ. Một số thay đổi có thể cần xác minh để bảo vệ tài khoản.' },
   ]},
   { title: 'Giao hàng', items: [
     { question: 'FastGuy giao hàng trong bao lâu?', answer: 'Thời gian dự kiến hiển thị khi xác nhận đơn và có thể thay đổi theo khoảng cách, thời tiết hoặc lượng đơn. Bạn có thể theo dõi trạng thái bằng mã đơn hàng.' },
-    { question: 'Tôi chưa nhận được món nhưng đơn báo đã giao?', answer: 'Hãy kiểm tra với người nhận, bảo vệ hoặc khu vực giao hàng. Nếu vẫn chưa thấy đơn, đăng nhập và gửi yêu cầu hỗ trợ kèm mã đơn để FastGuy kiểm tra.' },
+    { question: 'Tôi chưa nhận được món nhưng đơn báo đã giao?', answer: 'Hãy kiểm tra với người nhận, bảo vệ hoặc khu vực giao hàng. Nếu vẫn chưa thấy đơn, liên hệ FastGuy qua điện thoại hoặc email kèm mã đơn để kiểm tra.' },
   ]},
   { title: 'Thanh toán', items: [
     { question: 'Tôi có thể thanh toán bằng cách nào?', answer: 'Phương thức khả dụng được hiển thị tại bước thanh toán, gồm thanh toán khi nhận hàng hoặc cổng thanh toán trực tuyến tùy từng thời điểm.' },
@@ -43,7 +43,7 @@ const filteredSections = computed(() => sections.map(section => ({ ...section, i
         </details>
       </section>
     </div>
-    <p v-else class="empty" role="status">Không tìm thấy câu trả lời phù hợp. Hãy thử từ khóa khác hoặc liên hệ hỗ trợ.</p>
+    <p v-else class="empty" role="status">Không tìm thấy câu trả lời phù hợp. Hãy thử từ khóa khác.</p>
 
     <section class="guidance" aria-label="Hướng dẫn nhanh">
       <article><h2>Giao hàng</h2><p>Giữ điện thoại hoạt động, kiểm tra địa chỉ và ghi chú điểm nhận rõ ràng. Dùng mã đơn cùng 4 số cuối điện thoại để xem tiến trình.</p></article>
@@ -52,8 +52,8 @@ const filteredSections = computed(() => sections.map(section => ({ ...section, i
     </section>
 
     <section class="support-cta" aria-labelledby="support-heading">
-      <div><h2 id="support-heading">Vẫn cần trợ giúp?</h2><p>Tra cứu đơn ngay hoặc đăng nhập để gửi và theo dõi yêu cầu hỗ trợ.</p></div>
-      <div class="actions"><RouterLink to="/track-order">Theo dõi đơn</RouterLink><RouterLink class="secondary" to="/login">Đăng nhập tài khoản</RouterLink></div>
+      <div><h2 id="support-heading">Theo dõi đơn hàng</h2><p>Tra cứu tiến trình giao hàng bằng mã đơn và số điện thoại.</p></div>
+      <div class="actions"><RouterLink to="/track-order">Theo dõi đơn</RouterLink></div>
     </section>
   </PublicContentLayout>
 </template>

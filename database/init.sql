@@ -431,6 +431,7 @@ CREATE TABLE dbo.Review (
     review_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Review PRIMARY KEY,
     user_id int NOT NULL CONSTRAINT FK_Review_User REFERENCES dbo.Users(user_id),
     order_id int NOT NULL CONSTRAINT FK_Review_Order REFERENCES dbo.Orders(order_id),
+    product_id int NOT NULL CONSTRAINT FK_Review_Product REFERENCES dbo.Product(product_id),
     rating int NOT NULL,
     comment nvarchar(1000) NULL,
     is_featured bit NOT NULL CONSTRAINT DF_Review_IsFeatured DEFAULT 0,
@@ -438,7 +439,7 @@ CREATE TABLE dbo.Review (
 
     created_at datetime2(0) NOT NULL CONSTRAINT DF_Review_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_Review_Updated DEFAULT GETDATE(),
-    CONSTRAINT UQ_Review_UserOrder UNIQUE (user_id, order_id),
+    CONSTRAINT UQ_Review_UserOrderProduct UNIQUE (user_id, order_id, product_id),
     CONSTRAINT CK_Review_Rating CHECK (rating BETWEEN 1 AND 5),
     CONSTRAINT CK_Review_FeaturedConsent CHECK (is_featured = 0 OR homepage_consent = 1)
 );
@@ -535,6 +536,7 @@ CREATE INDEX IX_OrderItem_Order ON dbo.OrderItem(order_id);
 CREATE INDEX IX_OrderItem_Product ON dbo.OrderItem(product_id);
 CREATE INDEX IX_OrderItem_Variant ON dbo.OrderItem(variant_id);
 CREATE INDEX IX_Review_Order ON dbo.Review(order_id);
+CREATE INDEX IX_Review_ProductCreatedAt ON dbo.Review(product_id, created_at DESC, review_id DESC);
 CREATE INDEX IX_Review_FeaturedCreatedAt ON dbo.Review(is_featured, created_at DESC) WHERE is_featured = 1;
 CREATE INDEX IX_SupportTicket_User_Created ON dbo.SupportTicket(user_id, created_at);
 CREATE INDEX IX_SupportTicket_Order ON dbo.SupportTicket(order_id);
@@ -743,8 +745,8 @@ INSERT dbo.LoyaltyTransaction (loyalty_transaction_id, user_id, order_id, transa
 SET IDENTITY_INSERT dbo.LoyaltyTransaction OFF;
 
 SET IDENTITY_INSERT dbo.Review ON;
-INSERT dbo.Review (review_id, user_id, order_id, rating, comment, created_at, updated_at) VALUES
-    (1, 4, 7, 5, N'Giao nhanh, mon an con nong.', DATEADD(hour, -20, GETDATE()), DATEADD(hour, -20, GETDATE()));
+INSERT dbo.Review (review_id, user_id, order_id, product_id, rating, comment, created_at, updated_at) VALUES
+    (1, 4, 7, 1, 5, N'Giao nhanh, mon an con nong.', DATEADD(hour, -20, GETDATE()), DATEADD(hour, -20, GETDATE()));
 SET IDENTITY_INSERT dbo.Review OFF;
 
 SET IDENTITY_INSERT dbo.SupportTicket ON;

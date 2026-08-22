@@ -179,7 +179,7 @@ async function saveRow(row) {
       emit('reload');
     }
   } catch (error) {
-    if (currentRequest(request)) errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể lưu biến thể' } };
+    if (currentRequest(request)) errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể lưu kích cỡ' } };
   } finally {
     if (currentRequest(request)) mutating.value = false;
   }
@@ -205,7 +205,7 @@ async function deleteRow(row) {
       emit('reload');
     }
   } catch (error) {
-    if (currentRequest(request)) errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể xóa biến thể' } };
+    if (currentRequest(request)) errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể xóa kích cỡ' } };
   } finally {
     if (currentRequest(request)) mutating.value = false;
   }
@@ -230,26 +230,26 @@ function retryPending() {
 
 <template>
   <section class="editor-card" aria-labelledby="variants-title">
-    <div class="heading"><h2 id="variants-title">Biến thể</h2><button class="btn btn-outline" type="button" :disabled="busy || mutating" @click="addRow">+ Thêm biến thể</button></div>
-    <p v-if="isCreate" class="hint">Biến thể sẽ được tạo cùng sản phẩm khi lưu.</p>
-    <p v-else-if="locked" class="hint">Tạo sản phẩm trước khi thêm biến thể.</p>
+    <div class="heading"><h2 id="variants-title">Kích cỡ</h2><button class="btn btn-outline" type="button" :disabled="busy || mutating" @click="addRow">+ Thêm kích cỡ</button></div>
+    <p v-if="isCreate" class="hint">Kích cỡ sẽ được tạo cùng sản phẩm khi lưu.</p>
+    <p v-else-if="locked" class="hint">Tạo sản phẩm trước khi thêm kích cỡ.</p>
     <aside v-if="pendingRows.length" class="pending-banner" role="alert">
-      <strong>{{ pendingRows.length }} biến thể chưa lưu được</strong>
+      <strong>{{ pendingRows.length }} kích cỡ chưa lưu được</strong>
       <p class="hint">Chỉnh sửa lại dữ liệu rồi bấm Thử lại.</p>
       <div v-for="pending in pendingRows" :key="pending._uid" class="pending-row">
-        <input :value="pending.variantName" :disabled="busy || mutating" aria-label="Tên biến thể chưa lưu" @input="updatePending(pending, 'variantName', $event.target.value)" placeholder="Tên biến thể" />
-        <input :value="pending.price" type="number" min="0" :disabled="busy || mutating" aria-label="Giá biến thể chưa lưu" @input="updatePending(pending, 'price', $event.target.value === '' ? '' : Number($event.target.value))" />
-        <input :value="pending.quantityAvailable ?? ''" type="number" min="0" :disabled="busy || mutating" aria-label="Tồn kho biến thể chưa lưu" @input="updatePending(pending, 'quantityAvailable', $event.target.value === '' ? null : Number($event.target.value))" placeholder="Trống = không giới hạn" />
-        <select :value="pending.status" :disabled="busy || mutating" aria-label="Trạng thái biến thể chưa lưu" @change="updatePending(pending, 'status', $event.target.value)"><option value="AVAILABLE">Còn bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
+        <input :value="pending.variantName" :disabled="busy || mutating" aria-label="Tên kích cỡ chưa lưu" @input="updatePending(pending, 'variantName', $event.target.value)" placeholder="Tên kích cỡ" />
+        <input :value="pending.price" type="number" min="0" :disabled="busy || mutating" aria-label="Giá kích cỡ chưa lưu" @input="updatePending(pending, 'price', $event.target.value === '' ? '' : Number($event.target.value))" />
+        <input :value="pending.quantityAvailable ?? ''" type="number" min="0" :disabled="busy || mutating" aria-label="Tồn kho kích cỡ chưa lưu" @input="updatePending(pending, 'quantityAvailable', $event.target.value === '' ? null : Number($event.target.value))" placeholder="Trống = không giới hạn" />
+        <select :value="pending.status" :disabled="busy || mutating" aria-label="Trạng thái kích cỡ chưa lưu" @change="updatePending(pending, 'status', $event.target.value)"><option value="AVAILABLE">Còn bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
         <label class="checkbox-field"><input type="checkbox" :checked="pending.isDefault" :disabled="busy || mutating" @change="updatePending(pending, 'isDefault', $event.target.checked)" /> Mặc định</label>
-        <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Bỏ biến thể chưa lưu ${pending.variantName || 'chưa đặt tên'}`" @click="removePending(pending)">Bỏ</button>
+        <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Bỏ kích cỡ chưa lưu ${pending.variantName || 'chưa đặt tên'}`" @click="removePending(pending)">Bỏ</button>
       </div>
       <button class="btn btn-sm btn-primary" type="button" :disabled="busy || mutating" @click="retryPending">{{ mutating ? 'Đang lưu...' : 'Thử lại' }}</button>
     </aside>
-    <p v-if="!rows.length && !pendingRows.length" class="hint">Chưa có biến thể nào. Thêm ít nhất một biến thể nếu sản phẩm có nhiều phân loại.</p>
+    <p v-if="!rows.length && !pendingRows.length" class="hint">Chưa có kích cỡ nào. Thêm ít nhất một kích cỡ nếu sản phẩm có nhiều cỡ.</p>
     <div v-for="(row, index) in rows" :key="row._uid" class="variant-row">
       <div class="field">
-        <label :for="`variant-name-${index}`">Tên biến thể</label>
+        <label :for="`variant-name-${index}`">Tên kích cỡ</label>
         <input :id="`variant-name-${index}`" :value="row.variantName" :disabled="busy || mutating" :aria-invalid="Boolean(errors[index]?.variantName)" :aria-describedby="errors[index]?.variantName ? `variant-name-error-${index}` : undefined" @input="updateRow(row, 'variantName', $event.target.value)" placeholder="Vd: Size L" />
         <span v-if="errors[index]?.variantName" :id="`variant-name-error-${index}`" role="alert">{{ errors[index].variantName }}</span>
       </div>
@@ -274,7 +274,7 @@ function retryPending() {
         <span v-if="errors[index]?.quantityAvailable" :id="`variant-qty-error-${index}`" role="alert">{{ errors[index].quantityAvailable }}</span>
       </div>
       <div v-if="confirmDisableUid === row._uid" class="stock-confirm" role="alert">
-        <span>Tắt quản lý tồn kho sẽ chuyển biến thể sang không giới hạn.</span>
+        <span>Tắt quản lý tồn kho sẽ chuyển kích cỡ sang không giới hạn.</span>
         <button class="btn btn-sm btn-primary" type="button" @click="confirmDisable(row)">Xác nhận</button>
         <button class="btn btn-sm btn-outline" type="button" @click="cancelDisable">Hủy</button>
       </div>
@@ -301,11 +301,11 @@ function retryPending() {
       </div>
       <div class="row-actions">
         <button v-if="!isCreate" class="btn btn-sm btn-primary" type="button" :disabled="busy || mutating" @click="saveRow(row)">{{ row.variantId ? 'Lưu' : 'Tạo' }}</button>
-        <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Xóa biến thể ${row.variantName || index + 1}`" @click="deleteRow(row)">Xóa</button>
+        <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Xóa kích cỡ ${row.variantName || index + 1}`" @click="deleteRow(row)">Xóa</button>
       </div>
       <p v-if="errors[index]?._server" class="server-error" role="alert">{{ errors[index]._server }}</p>
     </div>
-    <div v-if="isCreate" class="actions"><button class="btn btn-primary" type="button" :disabled="busy || mutating" @click="saveAll">{{ busy ? 'Đang lưu...' : 'Lưu biến thể' }}</button></div>
+    <div v-if="isCreate" class="actions"><button class="btn btn-primary" type="button" :disabled="busy || mutating" @click="saveAll">{{ busy ? 'Đang lưu...' : 'Lưu kích cỡ' }}</button></div>
   </section>
 </template>
 

@@ -125,11 +125,11 @@ test('detail shows back link routed by terminal status', () => {
   assert.match(detail, /DELIVERED', 'CANCELLED'/);
 });
 
-test('detail payment rows expose service fee and discount while total stays final', () => {
-  assert.match(detail, /Phí dịch vụ/);
+test('detail hides service fee while discount and backend final total remain', () => {
+  assert.doesNotMatch(detail, /Phí dịch vụ|order\.serviceFee/);
   assert.match(detail, /Giảm giá/);
-  assert.match(detail, /serviceFee/);
   assert.match(detail, /discount/);
+  assert.match(detail, /formatPrice\(order\.total\)/);
 });
 
 test('detail actions run through ConfirmDialog and show waiting time refreshed every 30s', () => {

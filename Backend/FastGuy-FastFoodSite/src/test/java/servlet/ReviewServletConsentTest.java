@@ -12,6 +12,9 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import dao.OrdersDAO;
+import entity.Orders;
+import entity.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.ReviewService;
@@ -25,11 +28,12 @@ class ReviewServletConsentTest {
         Field field = ReviewServlet.class.getDeclaredField("reviewService");
         field.setAccessible(true);
         field.set(servlet, service);
+        setOwnedOrder(servlet);
 
-        assertEquals(200, post(servlet, "{\"orderId\":7,\"rating\":5,\"comment\":\"Ngon\"}"));
+        assertEquals(200, post(servlet, "{\"orderId\":7,\"productId\":11,\"rating\":5,\"comment\":\"Ngon\"}"));
         assertEquals(false, service.homepageConsent);
-        assertEquals(200, post(servlet, "{\"orderId\":7,\"rating\":5,\"homepageConsent\":true}"));
-        assertEquals(true, service.homepageConsent);
+        assertEquals(200, post(servlet, "{\"orderId\":7,\"productId\":11,\"rating\":5,\"homepageConsent\":true}"));
+        assertEquals(false, service.homepageConsent);
     }
 
     @Test
@@ -39,9 +43,21 @@ class ReviewServletConsentTest {
         Field field = ReviewServlet.class.getDeclaredField("reviewService");
         field.setAccessible(true);
         field.set(servlet, service);
+        setOwnedOrder(servlet);
 
-        assertEquals(400, post(servlet, "{\"orderId\":7,\"rating\":5,\"homepageConsent\":\"true\"}"));
+        assertEquals(400, post(servlet, "{\"orderId\":7,\"productId\":11,\"rating\":5,\"homepageConsent\":\"true\"}"));
         assertEquals(0, service.calls);
+    }
+
+    private static void setOwnedOrder(ReviewServlet servlet) throws Exception {
+        User user = new User();
+        user.setUserId(3);
+        Orders order = new Orders();
+        order.setOrderId(7);
+        order.setUser(user);
+        Field field = ReviewServlet.class.getDeclaredField("ordersDAO");
+        field.setAccessible(true);
+        field.set(servlet, new OrdersDAO() { @Override public Orders findById(int id) { return order; } });
     }
 
     private int post(ReviewServlet servlet, String body) throws Exception {
@@ -72,7 +88,8 @@ class ReviewServletConsentTest {
     private static class RecordingReviewService extends ReviewService {
         private int calls;
         private boolean homepageConsent;
-        @Override public Map<String, Object> create(int userId, int orderId, int rating, String comment, boolean homepageConsent) {
+        @Override public Map<String, Object> create(int userId, int orderId, int productId, int rating, String comment,
+                boolean homepageConsent) {
             calls++;
             this.homepageConsent = homepageConsent;
             return Map.of("reviewId", 1);

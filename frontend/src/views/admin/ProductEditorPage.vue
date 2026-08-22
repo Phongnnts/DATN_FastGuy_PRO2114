@@ -10,7 +10,6 @@ import ProductGeneralSection from '@/components/admin/product-editor/ProductGene
 import ProductMediaSection from '@/components/admin/product-editor/ProductMediaSection.vue';
 import ProductVariantsSection from '@/components/admin/product-editor/ProductVariantsSection.vue';
 import ProductModifiersSection from '@/components/admin/product-editor/ProductModifiersSection.vue';
-import ProductComboSection from '@/components/admin/product-editor/ProductComboSection.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -42,11 +41,10 @@ const editorRouteKey = computed(() => `${String(route.name)}:${String(route.para
 const sections = computed(() => [
   { id: 'general', label: 'Thông tin chung' },
   { id: 'media', label: 'Hình ảnh' },
-  { id: 'variants', label: 'Biến thể' },
-  { id: 'modifiers', label: 'Tùy chọn' },
-  { id: 'combo', label: 'Combo' },
-].map((section) => ({ ...section, disabled: isCreateMode.value && ['modifiers', 'combo'].includes(section.id) })));
-const dirtySections = ref({ general: false, media: false, variants: false, modifiers: false, combo: false });
+  { id: 'variants', label: 'Kích cỡ' },
+  { id: 'modifiers', label: 'Topping' },
+].map((section) => ({ ...section, disabled: isCreateMode.value && section.id === 'modifiers' })));
+const dirtySections = ref({ general: false, media: false, variants: false, modifiers: false });
 const confirmDialogOpen = ref(false);
 let pendingNavigation = null;
 let suppressLeaveGuard = false;
@@ -92,7 +90,7 @@ function acceptBaseline(scope) {
   if (!scope) {
     baseline.value = cloneProductState(draft.value);
     baselineVersion.value += 1;
-    dirtySections.value = { general: false, media: false, variants: false, modifiers: false, combo: false };
+    dirtySections.value = { general: false, media: false, variants: false, modifiers: false };
     return;
   }
   baseline.value = withProductSlice(baseline.value, draft.value, scope);
@@ -230,7 +228,7 @@ function reloadFromSection(scope) {
 
 async function handlePartialCreate({ productId: createdId, failed }) {
   pendingVariants.value = failed.map((variant) => ({ ...variant }));
-  partialCreateMessage.value = `Đã tạo sản phẩm nhưng ${failed.length} biến thể chưa lưu được`;
+  partialCreateMessage.value = `Đã tạo sản phẩm nhưng ${failed.length} kích cỡ chưa lưu được`;
   suppressLeaveGuard = true;
   try {
     await router.replace({ name: 'AdminProductEdit', params: { id: createdId } });
@@ -256,7 +254,7 @@ async function createProductWithVariants(request) {
       if (created) variant.variantId = created.variantId ?? created.id;
     } catch (error) {
       if (!mutationAccepted(request)) return null;
-      failed.push({ ...variant, message: error.message || 'Không thể tạo biến thể' });
+      failed.push({ ...variant, message: error.message || 'Không thể tạo kích cỡ' });
     }
   }
   if (!mutationAccepted(request)) return null;
@@ -304,13 +302,13 @@ async function retryPendingVariants() {
         await adminApi.createVariant(productId.value, variantPayload(variant));
       } catch (error) {
         if (!mutationAccepted(request)) return;
-        remaining.push({ ...variant, message: error.message || 'Không thể tạo biến thể' });
+        remaining.push({ ...variant, message: error.message || 'Không thể tạo kích cỡ' });
       }
     }
     if (!mutationAccepted(request)) return;
     if (remaining.length) {
       pendingVariants.value = remaining;
-      partialCreateMessage.value = `${remaining.length} biến thể chưa lưu được`;
+      partialCreateMessage.value = `${remaining.length} kích cỡ chưa lưu được`;
     } else {
       pendingVariants.value = [];
       partialCreateMessage.value = '';
@@ -319,7 +317,7 @@ async function retryPendingVariants() {
     }
   } catch (error) {
     if (!mutationAccepted(request)) return;
-    toast.error(error.message || 'Không thể tạo biến thể');
+    toast.error(error.message || 'Không thể tạo kích cỡ');
   } finally {
     if (mutationAccepted(request)) saving.value = false;
   }
@@ -360,7 +358,7 @@ onBeforeUnmount(() => {
 <template>
   <main class="editor-page" :inert="confirmDialogOpen ? '' : undefined">
     <nav class="breadcrumbs" aria-label="Đường dẫn"><RouterLink :to="{ name: 'AdminProducts' }">Sản phẩm</RouterLink><span aria-hidden="true">/</span><span aria-current="page">{{ isCreateMode ? 'Thêm mới' : 'Chỉnh sửa' }}</span></nav>
-    <header class="editor-header"><div><span class="eyebrow">PRODUCT EDITOR</span><h1>{{ isCreateMode ? 'Thêm sản phẩm' : draft.name || 'Chỉnh sửa sản phẩm' }}</h1><p>{{ isCreateMode ? 'Tạo thông tin cơ bản trước khi cấu hình tùy chọn và combo.' : `Mã sản phẩm #${productId}` }}</p></div><RouterLink class="btn btn-outline" :to="{ name: 'AdminProducts' }">Quay lại danh sách</RouterLink></header>
+    <header class="editor-header"><div><span class="eyebrow">PRODUCT EDITOR</span><h1>{{ isCreateMode ? 'Thêm sản phẩm' : draft.name || 'Chỉnh sửa sản phẩm' }}</h1><p>{{ isCreateMode ? 'Tạo thông tin cơ bản trước khi cấu hình topping.' : `Mã sản phẩm #${productId}` }}</p></div><RouterLink class="btn btn-outline" :to="{ name: 'AdminProducts' }">Quay lại danh sách</RouterLink></header>
     <aside v-if="reloadMessage" class="reload-banner" role="alert">{{ reloadMessage }} <button class="btn btn-sm btn-outline" type="button" @click="loadProduct">Đồng bộ lại</button></aside>
     <aside v-if="partialCreateMessage" class="reload-banner" role="alert">{{ partialCreateMessage }}</aside>
     <section v-if="loadState === 'loading' || loading || categoryState === 'loading'" class="state" role="status">Đang tải sản phẩm...</section>
@@ -377,7 +375,6 @@ onBeforeUnmount(() => {
         <ProductMediaSection v-else-if="activeSection === 'media'" v-model="draft" :busy="saving" :baseline-version="baselineVersion" @save="saveProduct" @dirty-change="setSectionDirty('media', $event)" />
         <ProductVariantsSection v-else-if="activeSection === 'variants'" v-model="draft" :busy="saving" :baseline-version="baselineVersion" :product-id="productId" :mode="isCreateMode ? 'create' : 'edit'" :pending="pendingVariants" @save="saveVariantsSection" @retry-pending="retryPendingVariants" @reload="reloadFromSection('variants')" @dirty-change="setSectionDirty('variants', $event)" @update:pending="pendingVariants = $event" />
         <ProductModifiersSection v-else-if="activeSection === 'modifiers'" v-model="draft" :busy="saving" :baseline-version="baselineVersion" :product-id="productId" @reload="reloadFromSection('modifiers')" @dirty-change="setSectionDirty('modifiers', $event)" />
-        <ProductComboSection v-else-if="activeSection === 'combo'" v-model="draft" :busy="saving" :baseline-version="baselineVersion" :product-id="productId" @reload="reloadFromSection('combo')" @dirty-change="setSectionDirty('combo', $event)" />
         <div v-else class="placeholder"><h2>{{ sections.find((section) => section.id === activeSection)?.label }}</h2><p>Phần này được hoàn thiện ở task tiếp theo.</p></div>
       </section>
     </template>

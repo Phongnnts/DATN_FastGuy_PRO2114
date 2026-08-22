@@ -109,8 +109,8 @@ test('editor exposes accessible section tabs and create locks', () => {
   assert.match(productEditorPage, /id: 'media'/);
   assert.match(productEditorPage, /id: 'variants'/);
   assert.match(productEditorPage, /id: 'modifiers'/);
-  assert.match(productEditorPage, /id: 'combo'/);
-  assert.match(productEditorPage, /disabled: isCreateMode\.value && \['modifiers', 'combo'\]\.includes\(section\.id\)/);
+  assert.doesNotMatch(productEditorPage, /id: 'combo'|ProductComboSection|activeSection === 'combo'/);
+  assert.match(productEditorPage, /disabled: isCreateMode\.value && section\.id === 'modifiers'/);
 });
 
 test('general section provides linked inline errors dirty events and mutation lock', () => {
@@ -218,7 +218,7 @@ test('section reload applies only affected canonical slice and preserves other d
   assert.match(productEditorPage, /reloadAfterSave\(request, \['variants'\]\)/);
   assert.match(productEditorPage, /@reload="reloadFromSection\('variants'\)"/);
   assert.match(productEditorPage, /@reload="reloadFromSection\('modifiers'\)"/);
-  assert.match(productEditorPage, /@reload="reloadFromSection\('combo'\)"/);
+  assert.doesNotMatch(productEditorPage, /reloadFromSection\('combo'\)/);
 });
 
 test('editor saves existing API payload and replaces create route after success', () => {
@@ -228,16 +228,15 @@ test('editor saves existing API payload and replaces create route after success'
   assert.match(productEditorPage, /buildProductPayload\(draft\.value\)/);
 });
 
-test('editor wires variants modifiers and combo sections to canonical reload', () => {
+test('editor wires variants and modifiers while combo stays dormant', () => {
   assert.match(productEditorPage, /ProductVariantsSection/);
   assert.match(productEditorPage, /ProductModifiersSection/);
-  assert.match(productEditorPage, /ProductComboSection/);
+  assert.doesNotMatch(productEditorPage, /ProductComboSection|activeSection === 'combo'/);
   assert.match(productEditorPage, /:pending="pendingVariants"/);
   assert.match(productEditorPage, /:mode="isCreateMode \? 'create' : 'edit'"/);
   assert.match(productEditorPage, /@retry-pending="retryPendingVariants"/);
   assert.match(productEditorPage, /@reload="reloadFromSection\('variants'\)"/);
   assert.match(productEditorPage, /@reload="reloadFromSection\('modifiers'\)"/);
-  assert.match(productEditorPage, /@reload="reloadFromSection\('combo'\)"/);
 });
 
 test('variant section drafts without IDs and persists via existing endpoints', () => {
@@ -280,17 +279,17 @@ test('variant section disables clearing persisted original price and emits dirty
   assert.doesNotMatch(productVariantsSection, /:key="index"/);
 });
 
-test('editor tracks dirty across all five sections and syncs editable pending variants', () => {
-  assert.match(productEditorPage, /dirtySections = ref\(\{ general: false, media: false, variants: false, modifiers: false, combo: false \}\)/);
+test('editor tracks dirty across visible sections and syncs editable pending variants', () => {
+  assert.match(productEditorPage, /dirtySections = ref\(\{ general: false, media: false, variants: false, modifiers: false \}\)/);
   assert.match(productEditorPage, /function setSectionDirty\(section, value\)/);
   assert.match(productEditorPage, /dirtySections\[section\.id\]/);
   assert.match(productEditorPage, /setSectionDirty\('general', \$event\)/);
   assert.match(productEditorPage, /setSectionDirty\('media', \$event\)/);
   assert.match(productEditorPage, /setSectionDirty\('variants', \$event\)/);
   assert.match(productEditorPage, /setSectionDirty\('modifiers', \$event\)/);
-  assert.match(productEditorPage, /setSectionDirty\('combo', \$event\)/);
+  assert.doesNotMatch(productEditorPage, /setSectionDirty\('combo', \$event\)/);
   assert.match(productEditorPage, /@update:pending="pendingVariants = \$event"/);
-  assert.match(productEditorPage, /dirtySections\.value = \{ general: false, media: false, variants: false, modifiers: false, combo: false \}/);
+  assert.match(productEditorPage, /dirtySections\.value = \{ general: false, media: false, variants: false, modifiers: false \}/);
 });
 
 test('editor orchestrates partial create and retry retaining failed drafts', () => {

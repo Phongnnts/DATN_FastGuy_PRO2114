@@ -293,7 +293,7 @@ async function submitWaste() {
     <header class="page-header">
       <div>
         <h1>Quản lý tồn kho</h1>
-        <p class="page-subtitle">Theo dõi và cập nhật tồn kho từng biến thể</p>
+        <p class="page-subtitle">Theo dõi và cập nhật tồn kho từng kích cỡ</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-outline" @click="router.push({ name: 'AdminInventoryLedger' })">
@@ -309,7 +309,7 @@ async function submitWaste() {
 
     <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
       <button class="stat-card" :class="{ active: activeFilter === 'ALL' }" :aria-pressed="activeFilter === 'ALL'" @click="activeFilter = 'ALL'">
-        <span class="stat-icon stat-blue"><i class="bi bi-boxes" aria-hidden="true"></i></span><strong class="stat-value">{{ rows.length }}</strong><span class="stat-label">Tổng biến thể</span>
+        <span class="stat-icon stat-blue"><i class="bi bi-boxes" aria-hidden="true"></i></span><strong class="stat-value">{{ rows.length }}</strong><span class="stat-label">Tổng kích cỡ</span>
       </button>
       <button class="stat-card" :class="{ active: activeFilter === 'LOW' }" :aria-pressed="activeFilter === 'LOW'" @click="activeFilter = 'LOW'">
         <span class="stat-icon stat-yellow"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><strong class="stat-value">{{ lowStockRows.length }}</strong><span class="stat-label">Sắp hết (1–{{ lowStockThreshold }})</span>
@@ -332,26 +332,26 @@ async function submitWaste() {
       <div class="toolbar">
         <label class="search-box">
           <span class="sr-only">Tìm kiếm tồn kho</span><i class="bi bi-search" aria-hidden="true"></i>
-          <input v-model="searchTerm" class="form-input" type="search" placeholder="Tìm sản phẩm, biến thể, SKU, danh mục..." />
+          <input v-model="searchTerm" class="form-input" type="search" placeholder="Tìm sản phẩm, kích cỡ, SKU, danh mục..." />
         </label>
         <div class="filters">
           <label><span class="sr-only">Danh mục</span><select v-model="categoryFilter" class="form-select"><option value="ALL">Mọi danh mục</option><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select></label>
           <label><span class="sr-only">Trạng thái kho</span><select v-model="activeFilter" class="form-select"><option value="ALL">Mọi trạng thái</option><option value="LOW">Sắp hết</option><option value="OUT">Hết hàng</option><option value="UNMANAGED">Không giới hạn</option><option value="UNKNOWN">Lỗi dữ liệu</option><option value="UNAVAILABLE">Ngừng bán</option></select></label>
-          <label><span class="sr-only">Sắp xếp</span><select v-model="sortBy" class="form-select"><option value="product-asc">Sản phẩm A–Z</option><option value="product-desc">Sản phẩm Z–A</option><option value="variant-asc">Biến thể A–Z</option><option value="category-asc">Danh mục A–Z</option><option value="stock-asc">Tồn kho tăng dần</option><option value="stock-desc">Tồn kho giảm dần</option></select></label>
+          <label><span class="sr-only">Sắp xếp</span><select v-model="sortBy" class="form-select"><option value="product-asc">Sản phẩm A–Z</option><option value="product-desc">Sản phẩm Z–A</option><option value="variant-asc">Kích cỡ A–Z</option><option value="category-asc">Danh mục A–Z</option><option value="stock-asc">Tồn kho tăng dần</option><option value="stock-desc">Tồn kho giảm dần</option></select></label>
         </div>
       </div>
-      <div class="result-count" aria-live="polite">{{ filteredRows.length }} / {{ rows.length }} biến thể</div>
+      <div class="result-count" aria-live="polite">{{ filteredRows.length }} / {{ rows.length }} kích cỡ</div>
 
       <div v-if="loading" class="state-panel" role="status"><i class="bi bi-arrow-repeat spin" aria-hidden="true"></i><span>Đang tải dữ liệu tồn kho...</span></div>
       <div v-else-if="loadError" class="state-panel error-panel" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><strong>{{ loadError }}</strong><button class="btn btn-outline btn-sm" @click="loadProducts">Thử lại</button></div>
-      <div v-else-if="filteredRows.length === 0" class="state-panel"><i class="bi bi-inbox" aria-hidden="true"></i><strong>Không tìm thấy biến thể</strong><span>Điều chỉnh từ khóa hoặc bộ lọc.</span></div>
+      <div v-else-if="filteredRows.length === 0" class="state-panel"><i class="bi bi-inbox" aria-hidden="true"></i><strong>Không tìm thấy kích cỡ</strong><span>Điều chỉnh từ khóa hoặc bộ lọc.</span></div>
       <div v-else class="table-wrapper">
         <table class="table">
-          <thead><tr><th scope="col">Sản phẩm</th><th scope="col">Biến thể</th><th scope="col">Giá</th><th scope="col">Trạng thái</th><th scope="col">Tồn kho</th><th scope="col"><span class="sr-only">Thao tác</span></th></tr></thead>
+          <thead><tr><th scope="col">Sản phẩm</th><th scope="col">Kích cỡ</th><th scope="col">Giá</th><th scope="col">Trạng thái</th><th scope="col">Tồn kho</th><th scope="col"><span class="sr-only">Thao tác</span></th></tr></thead>
           <tbody>
             <tr v-for="row in filteredRows" :key="row.variantId">
               <td data-label="Sản phẩm"><div class="product-cell"><img :src="row.image" :alt="row.productName" loading="lazy" /><div><strong>{{ row.productName }}</strong><div class="muted">{{ row.categoryName || 'Chưa phân loại' }}</div></div></div></td>
-              <td data-label="Biến thể"><strong>{{ row.variantName }}</strong><div v-if="row.sku" class="muted">SKU: {{ row.sku }}</div></td>
+              <td data-label="Kích cỡ"><strong>{{ row.variantName }}</strong><div v-if="row.sku" class="muted">SKU: {{ row.sku }}</div></td>
               <td data-label="Giá">{{ formatPrice(row.price) }}</td>
               <td data-label="Trạng thái"><span class="badge" :class="statusClass(row)">{{ statusLabel(row) }}</span></td>
                <td data-label="Tồn kho">{{ row.stock === null ? 'Không giới hạn' : row.stock }}</td>

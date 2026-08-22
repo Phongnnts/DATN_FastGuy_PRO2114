@@ -45,7 +45,8 @@ test('staff kitchen synchronizes tab query and searches canonical customer field
 test('staff detail renders canonical data and guards refresh mutations', () => {
   assert.match(orderDetailPage, /:href="`tel:\$\{order\.customerPhone\}`"/);
   assert.match(orderDetailPage, /item\.modifiers/);
-  assert.match(orderDetailPage, /order\.serviceFee/);
+  assert.doesNotMatch(orderDetailPage, /order\.serviceFee|Phí dịch vụ/);
+  assert.match(orderDetailPage, /formatPrice\(order\.total\)/);
   assert.match(orderDetailPage, /order\.discount/);
   assert.match(orderDetailPage, /order\.refundStatus/);
   assert.match(orderDetailPage, /order\.internalNotes/);

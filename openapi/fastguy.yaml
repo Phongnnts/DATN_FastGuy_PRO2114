@@ -130,6 +130,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CategoryListResponse'
+  /products:
+    get:
+      operationId: listProducts
+      summary: List public products with review summaries
+      security: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: categoryId
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: minPrice
+          in: query
+          schema: { type: number, minimum: 0 }
+        - name: maxPrice
+          in: query
+          schema: { type: number, minimum: 0 }
+        - name: availability
+          in: query
+          schema: { type: string, enum: [ALL, AVAILABLE, OUT_OF_STOCK, OUTSIDE_HOURS] }
+        - name: productType
+          in: query
+          schema: { type: string, enum: [SIMPLE, VARIANT, COMBO, CUSTOMIZABLE] }
+        - name: discounted
+          in: query
+          schema: { type: boolean }
+        - name: sold
+          in: query
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: sort
+          in: query
+          schema: { type: string, default: default, enum: [default, name, name-desc, newest, price-asc, price-desc, best-selling, discount-desc] }
+        - name: page
+          in: query
+          description: Zero-based page index. page and size are both required when either is supplied.
+          schema: { type: integer, minimum: 0 }
+        - name: size
+          in: query
+          description: Page size. page and size are both required when either is supplied.
+          schema: { type: integer, minimum: 1, maximum: 48 }
+      responses:
+        '200':
+          description: Unpaged array when page and size are omitted; page envelope when both are supplied
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProductListResponse'
+                  - $ref: '#/components/schemas/ProductPageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      summary: Get a public product with its review summary
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Public product detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /homepage:
     get:
       operationId: getHomepage
@@ -345,12 +413,45 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
-          description: Order was already reviewed
+          description: Product was already reviewed for this order
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /reviews/product/{productId}:
+    get:
+      operationId: getReviewsByProduct
+      summary: Get public paginated reviews and rating aggregates for a product
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Public product reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductReviewPageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /admin/categories:
     get:
       operationId: listAdminCategories
@@ -1233,8 +1334,8 @@ components:
     ProductSummary:
       type: object
       additionalProperties: false
-      required: [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, isCombo, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, variants, modifierGroups]
-      properties:
+      required: &ProductSummaryRequired [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, isCombo, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups]
+      properties: &ProductSummaryProperties
         productId:
           type: integer
           minimum: 1
@@ -1299,6 +1400,13 @@ components:
           maximum: 3
         bestSeller:
           type: boolean
+        averageRating:
+          type: number
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          type: integer
+          minimum: 0
         variants:
           type: array
           items:
@@ -1307,6 +1415,99 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ModifierGroupSummary'
+    ProductListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+    ProductPageData:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 48
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int64
+          minimum: 0
+    ProductPageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ProductPageData'
+    ProductDetail:
+      type: object
+      additionalProperties: false
+      required: [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, isCombo, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups, galleryImages, combo]
+      properties:
+        <<: *ProductSummaryProperties
+        galleryImages:
+          type: array
+          items:
+            type: string
+        combo:
+          oneOf:
+            - $ref: '#/components/schemas/ProductComboSummary'
+            - type: 'null'
+    ProductDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ProductDetail'
+    ProductComboSummary:
+      type: object
+      additionalProperties: false
+      required: [comboId, items]
+      properties:
+        comboId:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductComboItemSummary'
+    ProductComboItemSummary:
+      type: object
+      additionalProperties: false
+      required: [comboItemId, productId, productName, variantId, variantName, quantity]
+      properties:
+        comboItemId: { type: integer, minimum: 1 }
+        productId: { type: integer, minimum: 1 }
+        productName: { type: string, minLength: 1 }
+        variantId: { type: integer, minimum: 1 }
+        variantName: { type: string }
+        quantity: { type: integer, minimum: 1 }
     ProductVariantSummary:
       type: object
       additionalProperties: false
@@ -1709,9 +1910,12 @@ components:
     ReviewCreateRequest:
       type: object
       additionalProperties: false
-      required: [orderId, rating]
+      required: [orderId, productId, rating]
       properties:
         orderId:
+          type: integer
+          minimum: 1
+        productId:
           type: integer
           minimum: 1
         rating:
@@ -1724,12 +1928,15 @@ components:
         homepageConsent:
           type: boolean
           default: false
-    Review:
+    CustomerReviewItem:
       type: object
       additionalProperties: false
-      required: [reviewId, rating, comment, createdAt, updatedAt, userName, avatarUrl, orderId, featured, homepageConsent]
+      required: [reviewId, productId, rating, comment, createdAt]
       properties:
         reviewId:
+          type: integer
+          minimum: 1
+        productId:
           type: integer
           minimum: 1
         rating:
@@ -1740,31 +1947,96 @@ components:
           type: [string, 'null']
           maxLength: 1000
         createdAt:
-          type: [string, 'null']
-        updatedAt:
-          type: [string, 'null']
-        userName:
-          type: [string, 'null']
-        avatarUrl:
-          type: [string, 'null']
-        orderId:
-          type: [integer, 'null']
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?$'
+    PublicReviewItem:
+      type: object
+      additionalProperties: false
+      required: [reviewId, productId, rating, comment, userName, createdAt]
+      properties:
+        reviewId:
+          type: integer
           minimum: 1
-        featured:
-          type: boolean
-        homepageConsent:
-          type: boolean
+        productId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        userName:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?$'
+    RatingDistribution:
+      description: Counts for ratings 1 through 5. The sum of all five counts equals reviewCount and total; all counts are 0 when there are no reviews.
+      type: object
+      additionalProperties: false
+      required: ['1', '2', '3', '4', '5']
+      properties:
+        '1': { type: integer, minimum: 0 }
+        '2': { type: integer, minimum: 0 }
+        '3': { type: integer, minimum: 0 }
+        '4': { type: integer, minimum: 0 }
+        '5': { type: integer, minimum: 0 }
+    ProductReviewPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size, averageRating, reviewCount, ratingDistribution]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicReviewItem'
+        total:
+          description: Total number of reviews for the product across all pages. total equals reviewCount.
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        size:
+          type: integer
+          minimum: 1
+          maximum: 50
+        averageRating:
+          description: Rounded to one decimal place. When there are no reviews, averageRating is 0.0.
+          type: number
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          description: Total number of reviews for the product. reviewCount equals total and is 0 when there are no reviews.
+          type: integer
+          minimum: 0
+        ratingDistribution:
+          $ref: '#/components/schemas/RatingDistribution'
+    ProductReviewPageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ProductReviewPage'
     ReviewByOrderData:
       type: object
       additionalProperties: false
-      required: [reviewed, review]
+      required: [orderId, reviews]
       properties:
-        reviewed:
-          type: boolean
-        review:
-          oneOf:
-            - $ref: '#/components/schemas/Review'
-            - type: 'null'
+        orderId:
+          type: integer
+          minimum: 1
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerReviewItem'
     ReviewByOrderResponse:
       type: object
       additionalProperties: false
@@ -1784,7 +2056,7 @@ components:
           type: string
           const: success
         data:
-          $ref: '#/components/schemas/Review'
+          $ref: '#/components/schemas/CustomerReviewItem'
         message:
           type: string
           const: Reviewed

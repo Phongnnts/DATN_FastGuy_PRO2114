@@ -103,12 +103,12 @@ async function deleteOption(group, option) {
 
 <template>
   <section class="editor-card" aria-labelledby="modifiers-title">
-    <h2 id="modifiers-title">Tùy chọn (topping)</h2>
-    <p v-if="locked" class="hint" role="alert">Tạo sản phẩm trước khi cấu hình tùy chọn.</p>
+    <h2 id="modifiers-title">Topping</h2>
+    <p v-if="locked" class="hint" role="alert">Tạo sản phẩm trước khi cấu hình topping.</p>
     <template v-else>
       <p v-if="message" class="message" role="alert">{{ message }}</p>
       <div class="group-block">
-        <h3>Thêm nhóm tùy chọn</h3>
+        <h3>Thêm nhóm topping</h3>
         <div class="inline-form">
           <div class="field">
             <label for="modifier-group-name">Tên nhóm</label>
@@ -128,7 +128,7 @@ async function deleteOption(group, option) {
           <button class="btn btn-outline" type="button" :disabled="busy || mutating" @click="saveGroup">Thêm nhóm</button>
         </div>
       </div>
-      <div v-if="!groups.length" class="hint">Chưa có nhóm tùy chọn nào.</div>
+      <div v-if="!groups.length" class="hint">Chưa có nhóm topping nào.</div>
       <div v-for="group in groups" :key="group.modifierGroupId" class="group-block">
         <div class="inline-form">
           <div class="field grow">

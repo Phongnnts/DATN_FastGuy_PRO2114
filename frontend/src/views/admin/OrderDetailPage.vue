@@ -20,18 +20,9 @@ const showNoteModal = ref(false);
 const noteText = ref('');
 const overrideNote = ref('');
 const overrideError = ref('');
-const reviewSaving = ref(false);
-const reviewMessage = ref('');
 
 const canCancel = computed(() => order.value && !['CANCELLED', 'DELIVERED'].includes(order.value.status));
 const canPrint = computed(() => true);
-const reviewEligibilityReasons = {
-  MISSING_HOMEPAGE_CONSENT: 'Khách hàng chưa đồng ý công khai đánh giá.',
-  MISSING_COMMENT: 'Đánh giá chưa có bình luận để hiển thị.',
-  INACTIVE_USER: 'Tài khoản khách hàng không hoạt động.',
-  MISSING_USER_NAME: 'Khách hàng chưa có tên hiển thị.',
-  MISSING_CREATED_AT: 'Đánh giá thiếu thời điểm tạo.',
-};
 
 async function load() {
   loading.value = true;
@@ -83,22 +74,6 @@ async function saveNote() {
     await load();
   } catch (e) { toast.error(e.message); }
   finally { saving.value = false; }
-}
-
-async function updateFeaturedReview(event) {
-  if (!order.value?.review || reviewSaving.value) return;
-  reviewSaving.value = true;
-  reviewMessage.value = '';
-  try {
-    await adminApi.updateFeaturedReview(order.value.orderId, event.target.checked);
-    reviewMessage.value = 'Đã cập nhật hiển thị đánh giá.';
-    await load();
-  } catch (error) {
-    reviewMessage.value = error.message || 'Không thể cập nhật hiển thị đánh giá.';
-    await load();
-  } finally {
-    reviewSaving.value = false;
-  }
 }
 
 function printInvoice() { window.print(); }
@@ -172,7 +147,7 @@ onMounted(load);
       <h3>Sản phẩm</h3>
       <div class="table-wrapper">
         <table class="table">
-          <thead><tr><th>Sản phẩm</th><th>Phân loại</th><th>Đơn giá</th><th>SL</th><th>Thành tiền</th></tr></thead>
+          <thead><tr><th>Sản phẩm</th><th>Kích cỡ</th><th>Đơn giá</th><th>SL</th><th>Thành tiền</th></tr></thead>
           <tbody>
             <tr v-for="(item, idx) in order.items" :key="idx">
               <td>{{ item.productName }}</td>
@@ -189,17 +164,6 @@ onMounted(load);
     <section v-if="order.internalNote" class="card" style="margin-top:16px">
       <h3>Ghi chú nội bộ</h3>
       <div style="white-space:pre-wrap;font-size:14px;color:var(--text-mid)">{{ order.internalNote }}</div>
-    </section>
-
-    <section v-if="order.review" class="card review-card" style="margin-top:16px">
-      <h3>Đánh giá của khách hàng</h3>
-      <div class="review-meta"><strong>{{ order.review.userName }}</strong><span>{{ formatDate(order.review.createdAt) }}</span></div>
-      <div class="review-stars" :aria-label="`${order.review.rating} trên 5 sao`"><span aria-hidden="true">{{ '★'.repeat(order.review.rating) }}{{ '☆'.repeat(5 - order.review.rating) }}</span></div>
-      <p v-if="order.review.comment" class="review-comment">{{ order.review.comment }}</p>
-      <label class="review-toggle"><input type="checkbox" role="switch" :checked="order.review.featured" :disabled="saving || reviewSaving || (!order.review.featured && !order.review.featureEligible)" @change="updateFeaturedReview" /> <span>Hiển thị đánh giá này trên trang chủ</span></label>
-      <p v-if="!order.review.featureEligible" class="review-status">{{ reviewEligibilityReasons[order.review.featureIneligibilityReason] || 'Đánh giá không đủ điều kiện hiển thị.' }}</p>
-      <p class="review-status" aria-live="polite">{{ reviewSaving ? 'Đang cập nhật...' : reviewMessage }}</p>
-
     </section>
 
     <section v-if="order.statusHistory && order.statusHistory.length" class="card" style="margin-top:16px">
@@ -248,6 +212,5 @@ onMounted(load);
 .info-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border-light); font-size:14px; }
 .info-row span { color:var(--text-mid); }
 .info-row strong { max-width:60%; text-align:right; }
-.review-meta{display:flex;justify-content:space-between;gap:12px;color:var(--text-mid);font-size:13px}.review-meta strong{color:var(--text-dark)}.review-stars{margin-top:8px;color:#f59e0b;font-size:20px}.review-comment{margin-top:8px;white-space:pre-wrap}.review-toggle{display:flex;align-items:center;gap:9px;min-height:44px;margin-top:14px;font-weight:600}.review-toggle input{width:18px;height:18px}.review-status{min-height:20px;margin-top:6px;color:var(--text-mid);font-size:12px}
 @media (max-width:768px) { div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns:1fr !important; } }
 </style>

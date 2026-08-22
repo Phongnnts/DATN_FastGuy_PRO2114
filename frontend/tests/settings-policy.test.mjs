@@ -24,6 +24,13 @@ test('settings page defines seven grouped tabs with accessible roving tablist', 
   for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) assert.match(page, new RegExp(key));
 });
 
+test('settings page hides the service fee control while preserving dormant config mapping', () => {
+  assert.doesNotMatch(page, /settings-service-fee|Phí dịch vụ/);
+  assert.match(page, /service_fee: 0/);
+  assert.match(page, /form\.value\.service_fee = Number/);
+  assert.match(helper, /service_fee/);
+});
+
 test('settings page loads settings exactly once via getSettings', () => {
   assert.equal((page.match(/adminApi\.getSettings\(\)/g) || []).length, 1);
   assert.match(page, /tabErrors\.value = \{ store: \{\}, hours: \{\}, fees: \{\}, delivery: \{\}, inventory: \{\} \}/);

@@ -116,7 +116,6 @@ async function runPrimary() {
         <div class="totals">
           <div class="row"><span>Tổng thu</span><strong>{{ formatPrice(order.total) }}</strong></div>
           <div v-if="order.shippingFee" class="row"><span>Phí giao</span><span>{{ formatPrice(order.shippingFee) }}</span></div>
-          <div v-if="order.serviceFee" class="row"><span>Phí dịch vụ</span><span>{{ formatPrice(order.serviceFee) }}</span></div>
           <div v-if="order.discount" class="row"><span>Giảm giá</span><span>{{ formatPrice(order.discount) }}</span></div>
           <div class="row"><span>Thanh toán</span><span>{{ order.paymentMethod }} · {{ order.paymentStatus }}</span></div>
           <div v-if="order.codCollectedAmount != null" class="row"><span>COD đã thu</span><strong>{{ formatPrice(order.codCollectedAmount) }}</strong></div>

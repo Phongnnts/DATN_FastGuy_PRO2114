@@ -2,6 +2,7 @@ package servlet;
 
 import dao.ProductDAO;
 import dao.ProductModifierDAO;
+import dao.ReviewDAO;
 import entity.Product;
 import entity.ProductCombo;
 import entity.ProductComboItem;
@@ -29,7 +30,16 @@ import java.util.stream.Collectors;
 public class ProductServlet extends HttpServlet {
     private ProductDAO productDAO = new ProductDAO();
     private ProductModifierDAO modifierDAO = new ProductModifierDAO();
+    private ReviewDAO reviewDAO = new ReviewDAO();
     private static final ObjectMapper mapper = new ObjectMapper();
+
+    public ProductServlet() {}
+
+    ProductServlet(ProductDAO productDAO, ProductModifierDAO modifierDAO, ReviewDAO reviewDAO) {
+        this.productDAO = productDAO;
+        this.modifierDAO = modifierDAO;
+        this.reviewDAO = reviewDAO;
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -108,9 +118,9 @@ public class ProductServlet extends HttpServlet {
 
             // Related products (same category)
             if (req.getParameter("related") != null) {
-                List<Map<String, Object>> related = productDAO.findByCategoryId(p.getCategory().getCategoryId())
-                        .stream().filter(r -> r.getProductId() != productId).limit(4)
-                        .map(this::toMap).collect(Collectors.toList());
+                List<Product> relatedProducts = productDAO.findByCategoryId(p.getCategory().getCategoryId())
+                        .stream().filter(r -> r.getProductId() != productId).limit(4).collect(Collectors.toList());
+                List<Map<String, Object>> related = toMaps(relatedProducts);
                 ApiResponse.ok(resp, related);
                 return;
             }
@@ -194,12 +204,17 @@ public class ProductServlet extends HttpServlet {
         return from.isBefore(to) ? !now.isBefore(from) && now.isBefore(to) : !now.isBefore(from) || now.isBefore(to);
     }
 
-    private List<Map<String, Object>> toMaps(List<Product> products) {
+    List<Map<String, Object>> toMaps(List<Product> products) {
         List<Integer> ids = products.stream().map(Product::getProductId).collect(Collectors.toList());
         Map<Integer, Long> sold = productDAO.soldCounts(ids);
         Map<Integer, Integer> flags = productDAO.featureFlags(ids);
         Map<Integer, ProductVariant> defaults = productDAO.defaultVariants(ids);
-        return products.stream().map(p -> toMap(p, sold.getOrDefault(p.getProductId(), 0L), flags.getOrDefault(p.getProductId(), 0), defaults.get(p.getProductId()))).collect(Collectors.toList());
+        Map<Integer, List<ProductVariant>> variants = productDAO.variantsByProductIds(ids);
+        Map<Integer, List<ProductModifierGroup>> groups = modifierDAO.groupsByProductIds(ids);
+        List<Integer> groupIds = groups.values().stream().flatMap(List::stream).map(ProductModifierGroup::getModifierGroupId).collect(Collectors.toList());
+        Map<Integer, List<ProductModifierOption>> options = modifierDAO.optionsByGroupIds(groupIds);
+        Map<Integer, ReviewDAO.ProductReviewSummary> ratings = reviewDAO.summariesByProductIds(ids);
+        return products.stream().map(p -> toMap(p, sold.getOrDefault(p.getProductId(), 0L), flags.getOrDefault(p.getProductId(), 0), defaults.get(p.getProductId()), variants.getOrDefault(p.getProductId(), List.of()), groups.getOrDefault(p.getProductId(), List.of()), options, ratings.get(p.getProductId()))).collect(Collectors.toList());
     }
 
     static void setBestSeller(List<Map<String, Object>> products, boolean bestSeller) {
@@ -207,12 +222,13 @@ public class ProductServlet extends HttpServlet {
     }
 
     private Map<String, Object> toMap(Product p) {
-        return toMap(p, productDAO.soldCounts(List.of(p.getProductId())).getOrDefault(p.getProductId(), 0L), productDAO.featureFlags(List.of(p.getProductId())).getOrDefault(p.getProductId(), 0), productDAO.findDefaultVariantByProductId(p.getProductId()));
+        return toMaps(List.of(p)).get(0);
     }
 
-    private Map<String, Object> toMap(Product p, long soldCount, int flags, ProductVariant defaultVariant) {
+    private Map<String, Object> toMap(Product p, long soldCount, int flags, ProductVariant defaultVariant,
+            List<ProductVariant> variants, List<ProductModifierGroup> groups,
+            Map<Integer, List<ProductModifierOption>> options, ReviewDAO.ProductReviewSummary rating) {
         Map<String, Object> m = new HashMap<>();
-        List<ProductVariant> variants = productDAO.findVariantsByProductId(p.getProductId());
         boolean hasStock = variants.stream().anyMatch(v -> "AVAILABLE".equals(v.getStatus())
                 && (v.getQuantityAvailable() == null || v.getQuantityAvailable() > 0));
         m.put("productId", p.getProductId());
@@ -233,6 +249,8 @@ public class ProductServlet extends HttpServlet {
         m.put("originalPrice", originalPrice);
         m.put("discountPercent", discounted ? originalPrice.subtract(currentPrice).multiply(BigDecimal.valueOf(100)).divide(originalPrice, 2, java.math.RoundingMode.HALF_UP) : null);
         m.put("soldCount", soldCount);
+        m.put("averageRating", rating == null || rating.averageRating() == null ? 0.0 : BigDecimal.valueOf(rating.averageRating()).setScale(1, java.math.RoundingMode.HALF_UP).doubleValue());
+        m.put("reviewCount", rating == null ? 0L : rating.reviewCount());
         m.put("hasVariants", hasVariants);
         m.put("hasModifiers", hasModifiers);
         m.put("isCombo", isCombo);
@@ -244,6 +262,8 @@ public class ProductServlet extends HttpServlet {
         m.put("isNew", Boolean.TRUE.equals(p.getIsNew()));
         m.put("spiceLevel", p.getSpiceLevel());
         m.put("bestSeller", false);
+        m.put("variants", variants.stream().map(this::toVariantMap).collect(Collectors.toList()));
+        m.put("modifierGroups", groups.stream().map(group -> toGroupMap(group, options.getOrDefault(group.getModifierGroupId(), List.of()))).collect(Collectors.toList()));
         return m;
     }
 
@@ -256,14 +276,14 @@ public class ProductServlet extends HttpServlet {
         return m;
     }
 
-    private Map<String, Object> toGroupMap(ProductModifierGroup group) {
+    private Map<String, Object> toGroupMap(ProductModifierGroup group, List<ProductModifierOption> options) {
         Map<String, Object> m = new HashMap<>();
         m.put("modifierGroupId", group.getModifierGroupId());
         m.put("name", group.getName());
         m.put("minSelections", group.getMinSelections());
         m.put("maxSelections", group.getMaxSelections());
         m.put("isActive", Boolean.TRUE.equals(group.getIsActive()));
-        m.put("options", modifierDAO.options(group.getModifierGroupId()).stream().filter(o -> Boolean.TRUE.equals(o.getIsActive())).map(this::toOptionMap).collect(Collectors.toList()));
+        m.put("options", options.stream().map(this::toOptionMap).collect(Collectors.toList()));
         return m;
     }
 
@@ -278,13 +298,8 @@ public class ProductServlet extends HttpServlet {
         return m;
     }
 
-    private Map<String, Object> toDetailMap(Product p) {
+    Map<String, Object> toDetailMap(Product p) {
         Map<String, Object> m = toMap(p);
-        List<Map<String, Object>> variants = productDAO.findVariantsByProductId(p.getProductId()).stream()
-                .map(this::toVariantMap)
-                .collect(Collectors.toList());
-        m.put("variants", variants);
-
         String gallery = p.getGalleryImages();
         List<String> galleryList = new ArrayList<>();
         if (gallery != null && !gallery.isEmpty()) {
@@ -298,7 +313,6 @@ public class ProductServlet extends HttpServlet {
             }
         }
         m.put("galleryImages", galleryList);
-        m.put("modifierGroups", modifierDAO.groups(p.getProductId()).stream().filter(g -> Boolean.TRUE.equals(g.getIsActive())).map(this::toGroupMap).collect(Collectors.toList()));
         ProductCombo combo = modifierDAO.combo(p.getProductId());
         m.put("combo", combo != null && Boolean.TRUE.equals(combo.getIsActive()) ? Map.of("comboId", combo.getComboId(), "items", modifierDAO.comboItems(combo.getComboId()).stream().map(this::toComboItemMap).collect(Collectors.toList())) : null);
         return m;

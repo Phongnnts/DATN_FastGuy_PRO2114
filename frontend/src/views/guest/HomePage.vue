@@ -2,8 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useHomepageStore } from '@/stores/homepage';
 import FeaturedProducts from '@/components/guest/FeaturedProducts.vue';
-import HomepageOccasions from '@/components/guest/HomepageOccasions.vue';
-import HomepageProof from '@/components/guest/HomepageProof.vue';
 import bannerApi from '@/api/banner';
 import { productApi, storeApi } from '@/api';
 
@@ -100,7 +98,6 @@ onBeforeUnmount(() => { stopCarousel(); motionQuery?.removeEventListener('change
     </section>
 
     <FeaturedProducts :products="homepageStore.bestSellers" :loading="homepageStore.loading" :error="homepageStore.error" @retry="homepageStore.retry" />
-    <HomepageOccasions :items="homepageStore.occasionCombos" />
 
     <section class="story-section" aria-labelledby="home-story-title">
       <div class="container story-shell">
@@ -108,9 +105,9 @@ onBeforeUnmount(() => { stopCarousel(); motionQuery?.removeEventListener('change
         <figure class="story-visual"><img src="https://res.cloudinary.com/ds4dnsj0o/image/upload/v1787055489/Image_Cloudinery/Home/fastguy-home-story_lfyhtg.jpg" alt="Người trẻ dùng bữa khi làm việc trên laptop" loading="lazy" width="1600" height="1067"><figcaption><span>FastGuy pause</span><strong>Một khoảng nghỉ vừa đủ để đi tiếp.</strong></figcaption></figure>
       </div>
     </section>
-    <section class="experience-section" aria-labelledby="steps-title"><div class="container steps"><div class="steps-heading"><p>Đặt món thật dễ</p><h2 id="steps-title">Ba bước để có bữa ăn vừa ý</h2><span>Từ lúc chọn món đến khi nhận hàng, mọi bước đều rõ ràng.</span></div><div class="experience-grid"><router-link class="experience-card" to="/menu" aria-label="Chọn món trong thực đơn"><span>1</span><i class="bi bi-phone" aria-hidden="true"></i><div><h3>Chọn món</h3><p>Tìm món đúng khẩu vị trong thực đơn.</p></div><i class="bi bi-arrow-up-right card-arrow" aria-hidden="true"></i></router-link><router-link class="experience-card" to="/cart" aria-label="Kiểm tra giỏ hàng"><span>2</span><i class="bi bi-bag-check" aria-hidden="true"></i><div><h3>Kiểm tra giỏ</h3><p>Xem lại món, tùy chọn và tổng tiền.</p></div><i class="bi bi-arrow-up-right card-arrow" aria-hidden="true"></i></router-link><router-link class="experience-card" to="/track-order" aria-label="Theo dõi đơn hàng"><span>3</span><i class="bi bi-geo-alt" aria-hidden="true"></i><div><h3>Theo dõi đơn</h3><p>Biết đơn hàng đang ở đâu, bất cứ lúc nào.</p></div><i class="bi bi-arrow-up-right card-arrow" aria-hidden="true"></i></router-link></div></div></section>
+    <section class="experience-section" aria-labelledby="steps-title"><div class="container steps"><div class="steps-heading"><p>Đặt món thật dễ</p><h2 id="steps-title">Ba bước để có bữa ăn vừa ý</h2><span>Từ lúc chọn món đến khi nhận hàng, mọi bước đều rõ ràng.</span></div><div class="experience-grid"><router-link class="experience-card" to="/menu" aria-label="Chọn món trong thực đơn"><span>1</span><i class="bi bi-phone" aria-hidden="true"></i><div><h3>Chọn món</h3><p>Tìm món đúng khẩu vị trong thực đơn.</p></div><i class="bi bi-arrow-up-right card-arrow" aria-hidden="true"></i></router-link><router-link class="experience-card" to="/cart" aria-label="Kiểm tra giỏ hàng"><span>2</span><i class="bi bi-bag-check" aria-hidden="true"></i><div><h3>Kiểm tra giỏ</h3><p>Xem lại món, tùy chọn và tổng tiền.</p></div><i class="bi bi-arrow-up-right card-arrow" aria-hidden="true"></i></router-link><router-link class="experience-card" to="/track-order" aria-label="Theo dõi đơn hàng"><span>3</span><i class="bi bi-geo-alt" aria-hidden="true"></i><div><h3>Theo dõi đơn</h3><p>Theo dõi trạng thái xử lý và giao đơn.</p></div><i class="bi bi-arrow-up-right card-arrow" aria-hidden="true"></i></router-link></div></div></section>
+    <section class="home-reasons" aria-labelledby="home-reasons-title"><div class="container"><div class="steps-heading"><p>Vì sao chọn FastGuy</p><h2 id="home-reasons-title">Một trải nghiệm đặt món dễ dàng</h2></div><ul><li><strong>Món rõ giá, dễ chọn</strong><span>Thông tin món và giá luôn hiển thị rõ ràng.</span></li><li><strong>Tùy chỉnh theo khẩu vị</strong><span>Chọn phiên bản và tùy chọn phù hợp với bạn.</span></li><li><strong>Theo dõi trạng thái xử lý và giao đơn</strong><span>Xem từng trạng thái từ lúc xác nhận đến khi giao xong.</span></li></ul></div></section>
 
-    <HomepageProof :featured-reviews="homepageStore.featuredReviews" :review-error="homepageStore.error" />
     <section v-if="storeAddress" class="store-location" aria-labelledby="store-location-title"><div class="container location-shell"><div class="location-copy"><p>Tìm FastGuy</p><h2 id="store-location-title">Ghé cửa hàng<br>gần bạn</h2><div class="location-address"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i><div><strong>{{ storeName }}</strong><span>{{ storeAddress }}</span></div></div><a :href="mapOpenUrl" target="_blank" rel="noopener noreferrer">Mở trong Google Maps <i class="bi bi-arrow-up-right" aria-hidden="true"></i></a></div><div class="location-map"><iframe :src="mapEmbedUrl" :title="`Bản đồ ${storeName}`" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div></div></section>
     <section class="home-cta"><div class="container"><div class="cta-panel"><div><span>Đói rồi đúng không?</span><h2>Chọn món. Đặt nhanh.<br>Ăn ngon.</h2><p>Một bữa ăn vừa ý chỉ cách bạn vài lần chạm.</p></div><router-link to="/menu">Khám phá thực đơn <i class="bi bi-arrow-up-right" aria-hidden="true"></i></router-link><div class="cta-mark" aria-hidden="true">FG</div></div></div></section>
   </div>

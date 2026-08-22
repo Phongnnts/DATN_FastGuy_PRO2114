@@ -203,13 +203,13 @@ test('OpenAPI contracts review consent without exposing consent on the public ho
   assert.match(contract, /^      operationId: getReviewByOrder$/m);
   assert.match(contract, /\$ref: '#\/components\/schemas\/ReviewByOrderResponse'/);
   const reviewByOrder = schemaSection(contract, 'ReviewByOrderData', 'ReviewByOrderResponse');
-  assert.match(reviewByOrder, /required: \[reviewed, review\]/);
-  assert.match(reviewByOrder, /review:\s+oneOf:\s+- \$ref: '#\/components\/schemas\/Review'\s+- type: 'null'/s);
+  assert.match(reviewByOrder, /required: \[orderId, reviews\]/);
+  assert.match(reviewByOrder, /reviews:\s+type: array\s+items:\s+\$ref: '#\/components\/schemas\/CustomerReviewItem'/s);
   assert.match(contract, /^  \/reviews:$/m);
   assert.match(contract, /^      operationId: createReview$/m);
-  const request = schemaSection(contract, 'ReviewCreateRequest', 'Review');
-  const review = schemaSection(contract, 'Review', 'ReviewCreateResponse');
+  const request = schemaSection(contract, 'ReviewCreateRequest', 'CustomerReviewItem');
+  const review = schemaSection(contract, 'CustomerReviewItem', 'PublicReviewItem');
   assert.match(request, /homepageConsent:\s+type: boolean\s+default: false/s);
-  assert.match(review, /homepageConsent:\s+type: boolean/s);
+  assert.doesNotMatch(review, /homepageConsent/);
   assert.doesNotMatch(schemaSection(contract, 'FeaturedReview', 'AdminVariantDetail'), /homepageConsent/);
 });

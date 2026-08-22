@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { isTrustedHomepageAvatar } from '../src/utils/homepage.js';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
@@ -25,11 +24,11 @@ test('homepage store protects stale responses and exposes retry state', async ()
   assert.match(source, /async function retry\(\)/);
 });
 
-test('homepage V2 renders contract data without product fallback', async () => {
+test('homepage V2 keeps contract loading while review and occasion UI stay dormant', async () => {
   const source = await read('../src/views/guest/HomePage.vue');
   assert.match(source, /useHomepageStore/);
-  assert.match(source, /HomepageOccasions/);
-  assert.match(source, /HomepageProof/);
+  assert.doesNotMatch(source, /HomepageOccasions|occasionCombos/);
+  assert.doesNotMatch(source, /HomepageProof|featuredReviews/);
   assert.match(source, /homepageStore\.load\(\)/);
   assert.doesNotMatch(source, /productStore\.fetchFeatured/);
   assert.doesNotMatch(source, /productStore\.fetchFeatured/);
@@ -45,40 +44,12 @@ test('homepage occasion mapping derives copy from contract enum only', async () 
   assert.match(component, /ProductCard/);
 });
 
-test('homepage proof exposes accessible review error and empty states while reasons stay full width', async () => {
-  const [proof, page] = await Promise.all([
-    read('../src/components/guest/HomepageProof.vue'),
-    read('../src/views/guest/HomePage.vue'),
-  ]);
-  assert.match(proof, /reviewError/);
-  assert.match(proof, /Không thể tải đánh giá/);
-  assert.match(proof, /Chưa có đánh giá nổi bật/);
-  assert.match(proof, /role="status"/);
-  assert.match(proof, /reasons-full/);
-  assert.doesNotMatch(proof, /role="alert"/);
-  assert.match(page, /:review-error="homepageStore\.error"/);
-});
-
-test('homepage benefits use a balanced modern hierarchy with prominent icons', async () => {
-  const source = await read('../src/components/guest/HomepageProof.vue');
-  assert.match(source, /\.section-head h2\{font-size:clamp\(42px,5\.5vw,68px\)/);
-  assert.match(source, /\.reasons\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(source, /\.reason-icon\{[^}]*width:64px;height:64px/);
-  assert.match(source, /\.reasons strong\{[^}]*font-size:clamp\(18px,2vw,24px\)/);
-  assert.match(source, /@media\(max-width:620px\)/);
-  assert.match(source, /\.reasons\{grid-template-columns:1fr;gap:10px\}/);
-});
-
-test('homepage proof only loads avatars from the FastGuy Cloudinary avatar folder', () => {
-  assert.equal(isTrustedHomepageAvatar('https://res.cloudinary.com/ds4dnsj0o/image/upload/v1234567890/Image_Cloudinery/Avatar/customer.jpg'), true);
-  assert.equal(isTrustedHomepageAvatar('https://res.cloudinary.com/ds4dnsj0o/image/upload/c_fill,w_96/v1234567890/Image_Cloudinery/Avatar/customer.jpg?cache=1'), true);
-  assert.equal(isTrustedHomepageAvatar('https://res.cloudinary.com/ds4dnsj0o/image/upload/Image_Cloudinery/Avatar/customer.jpg'), true);
-  assert.equal(isTrustedHomepageAvatar('https://res.cloudinary.com/ds4dnsj0o/image/upload/v1234567890/Image_Cloudinery/Product/customer.jpg'), false);
-  assert.equal(isTrustedHomepageAvatar('https://res.cloudinary.com/ds4dnsj0o/image/upload/Image_Cloudinery/Home/customer.jpg'), false);
-  assert.equal(isTrustedHomepageAvatar('https://res.cloudinary.com/ds4dnsj0o.evil.example/image/upload/v1/Image_Cloudinery/Avatar/customer.jpg'), false);
-  assert.equal(isTrustedHomepageAvatar('http://res.cloudinary.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Avatar/customer.jpg'), false);
-  assert.equal(isTrustedHomepageAvatar('https://example.com/ds4dnsj0o/image/upload/v1/Image_Cloudinery/Avatar/customer.jpg'), false);
-  assert.equal(isTrustedHomepageAvatar(null), false);
+test('homepage keeps non-review reasons without support or live-location claims', async () => {
+  const page = await read('../src/views/guest/HomePage.vue');
+  assert.match(page, /Món rõ giá, dễ chọn/);
+  assert.match(page, /Tùy chỉnh theo khẩu vị/);
+  assert.match(page, /Theo dõi trạng thái xử lý và giao đơn/);
+  assert.doesNotMatch(page, /HomepageProof|featuredReviews|Hỗ trợ khi cần|kênh hỗ trợ|đang ở đâu|bất cứ lúc nào/);
 });
 
 test('product card maps visible homepage badges and mobile controls remain touch sized', async () => {
