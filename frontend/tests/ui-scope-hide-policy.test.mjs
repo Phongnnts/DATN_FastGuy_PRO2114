@@ -44,10 +44,10 @@ test('product review UI stays scoped to delivered customer orders', () => {
   assert.match(userOrder, /reviewApi|StarRating|Đánh giá sản phẩm/);
   assert.doesNotMatch(userOrder, /homepageConsent|review-consent/);
   assert.doesNotMatch(adminOrder, /updateFeaturedReview|order\.review|review-card/);
-  assert.doesNotMatch(home, /HomepageProof|featuredReviews/);
-  assert.match(home, /Món rõ giá, dễ chọn/);
-  assert.match(home, /Tùy chỉnh theo khẩu vị/);
-  assert.match(home, /Theo dõi trạng thái xử lý và giao đơn/);
+  assert.match(home, /featuredReviews/);
+  assert.match(home, /Nguyên liệu mỗi ngày/);
+  assert.match(home, /Làm khi có đơn/);
+  assert.match(home, /Kiểm tra và đóng gói/);
   assert.doesNotMatch(home, /Hỗ trợ khi cần|kênh hỗ trợ/);
 });
 
@@ -71,8 +71,8 @@ test('COD refund and shifts remain visible', () => {
   assert.match(router, /StaffShifts/);
 });
 
-test('combo UI is absent from homepage product detail and admin editor', () => {
-  assert.doesNotMatch(home, /HomepageOccasions|occasionCombos/);
+test('combo UI is scoped to homepage and absent from product detail and admin editor', () => {
+  assert.match(home, /HomepageOccasions|occasionCombos/);
   assert.doesNotMatch(productDetail, /product\.combo|candidate\.isCombo|Combo gồm/);
   assert.doesNotMatch(productDetail, /review\.(avatar|orderId|homepageConsent|featured)/);
   assert.doesNotMatch(productEditor, /ProductComboSection|id: 'combo'|activeSection === 'combo'/);

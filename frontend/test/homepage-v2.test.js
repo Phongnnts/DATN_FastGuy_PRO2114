@@ -24,13 +24,12 @@ test('homepage store protects stale responses and exposes retry state', async ()
   assert.match(source, /async function retry\(\)/);
 });
 
-test('homepage V2 keeps contract loading while review and occasion UI stay dormant', async () => {
+test('homepage V2 renders review and occasion UI from the homepage contract', async () => {
   const source = await read('../src/views/guest/HomePage.vue');
   assert.match(source, /useHomepageStore/);
-  assert.doesNotMatch(source, /HomepageOccasions|occasionCombos/);
-  assert.doesNotMatch(source, /HomepageProof|featuredReviews/);
+  assert.match(source, /HomepageOccasions|occasionCombos/);
+  assert.match(source, /featuredReviews/);
   assert.match(source, /homepageStore\.load\(\)/);
-  assert.doesNotMatch(source, /productStore\.fetchFeatured/);
   assert.doesNotMatch(source, /productStore\.fetchFeatured/);
 });
 
@@ -41,15 +40,17 @@ test('homepage occasion mapping derives copy from contract enum only', async () 
   ]);
   for (const occasion of ['QUICK_BREAK', 'OFFICE_LUNCH', 'STUDENT', 'GROUP']) assert.match(mapper, new RegExp(occasion));
   assert.match(component, /props\.items\.slice\(0, 4\)/);
-  assert.match(component, /ProductCard/);
+  assert.match(component, /class="combo-feature"/);
+  assert.doesNotMatch(component, /ProductCard/);
 });
 
-test('homepage keeps non-review reasons without support or live-location claims', async () => {
+test('homepage keeps truthful signature promise without support or live-location claims', async () => {
   const page = await read('../src/views/guest/HomePage.vue');
-  assert.match(page, /Món rõ giá, dễ chọn/);
-  assert.match(page, /Tùy chỉnh theo khẩu vị/);
-  assert.match(page, /Theo dõi trạng thái xử lý và giao đơn/);
-  assert.doesNotMatch(page, /HomepageProof|featuredReviews|Hỗ trợ khi cần|kênh hỗ trợ|đang ở đâu|bất cứ lúc nào/);
+  assert.match(page, /Nguyên liệu mỗi ngày/);
+  assert.match(page, /Làm khi có đơn/);
+  assert.match(page, /Kiểm tra và đóng gói/);
+  assert.match(page, /featuredReviews/);
+  assert.doesNotMatch(page, /Hỗ trợ khi cần|kênh hỗ trợ|đang ở đâu|bất cứ lúc nào/);
 });
 
 test('product card maps truthful badges and controls remain touch sized', async () => {
@@ -73,8 +74,10 @@ test('conversion homepage uses real categories and accessible sales hero control
   assert.match(source, /productApi\.getCategories\(\)/);
   assert.match(source, /class="quick-categories"/);
   assert.match(source, /:to="\{ path: '\/menu', query: \{ category: category\.id \} \}"/);
-  assert.match(source, /class="hero-counter"/);
-  assert.match(source, /:aria-label="`Chọn banner \$\{index \+ 1\}`"/);
+  assert.match(source, /class="signature-product"/);
+  assert.match(source, /class="promo-strip"/);
+  assert.match(source, /aria-label="Ưu đãi trước"/);
+  assert.match(source, /aria-label="Ưu đãi tiếp theo"/);
   assert.match(source, /prefers-reduced-motion:reduce/);
   assert.doesNotMatch(source, /countdown|người đang chọn|2\.384/);
 });
@@ -116,7 +119,8 @@ test('homepage product presentation reuses the approved card action policy', asy
   assert.match(card, /v-if="canAdd\(\)" class="add-btn"/);
   assert.match(card, />Chọn món</);
   assert.match(featured, /<ProductCard :product="product" homepage/);
-  assert.match(occasions, /<ProductCard :product="item\.product" homepage/);
+  assert.match(occasions, /class="combo-feature"/);
+  assert.doesNotMatch(occasions, /ProductCard/);
 });
 
 test('homepage embeds an accessible map from public store configuration', async () => {

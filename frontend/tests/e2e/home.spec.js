@@ -1,13 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-async function expectHiddenHomepageScope(page) {
-  await expect(page.getByText('Combo vừa ý cho hôm nay')).toHaveCount(0);
-  await expect(page.getByText('Trải nghiệm thật từ khách hàng FastGuy')).toHaveCount(0);
+async function expectSafeHomepageClaims(page) {
   await expect(page.getByText(/Hỗ trợ khi cần|kênh hỗ trợ|đơn hàng đang ở đâu/i)).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Một trải nghiệm đặt món dễ dàng' })).toBeVisible();
-  await expect(page.getByText('Món rõ giá, dễ chọn')).toBeVisible();
-  await expect(page.getByText('Tùy chỉnh theo khẩu vị')).toBeVisible();
-  await expect(page.getByText('Theo dõi trạng thái xử lý và giao đơn', { exact: true })).toBeVisible();
+  const story = page.locator('.brand-manifesto');
+  await expect(story.getByRole('heading')).toContainText('Bận không có nghĩa');
+  await expect(page.locator('.making-story').getByRole('listitem')).toHaveCount(3);
 }
 
 test('customer home renders homepage API content accessibly without hidden UI scope or overflow', async ({ page }, testInfo) => {
@@ -19,16 +16,33 @@ test('customer home renders homepage API content accessibly without hidden UI sc
   page.on('response', response => { if (new URL(response.url()).pathname.endsWith('/api/homepage')) homepageResponses.push(response); });
 
   await page.goto('/home');
-  await expect(page.locator('.hero-counter')).toContainText(/01 \/ 0\d/);
+  await expect(page.getByRole('heading', { name: 'Bữa ngon cho ngày bận rộn.' })).toBeVisible();
+  await expect(page.locator('.signature-product')).toBeVisible();
+  await expect(page.locator('.promo-strip')).toBeVisible();
   await expect(page.getByRole('heading', { name: /Món ngon khách hàng/ })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Cuộc sống có thể vội/ })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Ba bước để có bữa ăn vừa ý' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Khám phá thực đơn' }).last()).toHaveAttribute('href', '/menu');
-  await expectHiddenHomepageScope(page);
+  await expect(page.getByRole('heading', { name: 'Hôm nay ăn gì?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Đang được yêu thích' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Bận không có nghĩa/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Nhanh ở việc đặt/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Có người đứng sau/ })).toBeVisible();
+  const map = page.locator('.store-location iframe');
+  if (await map.count()) {
+    await expect(map).toHaveAttribute('src', /google\.com\/maps/);
+    await expect(page.getByRole('link', { name: /Mở trong Google Maps/ })).toBeVisible();
+  }
+  await expect(page.locator('footer')).toHaveCount(1);
+  const rankingItem = page.locator('.ranking-list a').first();
+  await rankingItem.hover();
+  await expect(rankingItem).toHaveCSS('background-color', 'rgb(242, 106, 46)');
+  await expect(page.getByRole('tab').first()).toBeVisible();
+  await page.getByRole('tab').last().click();
+  await expect(page.getByRole('tab').last()).toHaveAttribute('aria-selected', 'true');
+  if (await page.getByRole('heading', { name: 'Khách hàng nói gì' }).count()) await expect(page.getByRole('heading', { name: 'Khách hàng nói gì' })).toBeVisible();
+  await expectSafeHomepageClaims(page);
   await expect.poll(() => homepageResponses.length).toBe(1);
   expect(homepageResponses[0].ok()).toBeTruthy();
 
-  const storyImage = page.getByRole('img', { name: 'Người trẻ dùng bữa khi làm việc trên laptop' });
+  const storyImage = page.getByRole('img', { name: 'Người trẻ dùng bữa FastGuy trong ngày bận rộn' });
   await expect(storyImage).toBeVisible();
   await expect.poll(() => storyImage.evaluate(image => image.complete && image.naturalWidth > 0)).toBeTruthy();
   const productCards = page.locator('.featured .product-card');
@@ -47,7 +61,7 @@ test('customer home renders homepage API content accessibly without hidden UI sc
     await expect(page.getByRole('navigation', { name: 'Điều hướng chính' })).toBeVisible();
     await page.getByRole('button', { name: 'Đóng menu' }).click();
   } else {
-    await expect(page.getByRole('button', { name: 'Banner tiếp theo' })).toHaveCSS('width', '44px');
+    await expect(page.getByRole('button', { name: 'Ưu đãi tiếp theo' })).toBeVisible();
   }
   await page.waitForLoadState('networkidle');
   expect(pageErrors).toEqual([]);
@@ -89,23 +103,24 @@ test('customer home keeps proof reasons and hides removed scope when homepage AP
   await page.goto('/home');
   await expect(page.getByRole('alert')).toContainText('Homepage data could not be loaded');
   await expect(page.getByRole('button', { name: 'Thử lại' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Cuộc sống có thể vội/ })).toBeVisible();
-  await expectHiddenHomepageScope(page);
+  await expect(page.locator('.signature-hero h1')).toBeVisible();
+  await expectSafeHomepageClaims(page);
 });
 
 test('customer home hides removed scope for empty homepage data', async ({ page }) => {
   await page.route('**/api/homepage', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: { bestSellers: [], occasionCombos: [], featuredReviews: [] } }) }));
   await page.goto('/home');
-  await expect(page.getByRole('heading', { name: /Cuộc sống có thể vội/ })).toBeVisible();
-  await expectHiddenHomepageScope(page);
+  await expect(page.locator('.signature-hero h1')).toBeVisible();
+  await expectSafeHomepageClaims(page);
 });
 
-test('customer home ignores removed review and occasion API content', async ({ page }) => {
-  await page.route('**/api/homepage', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: { bestSellers: [], occasionCombos: [{ productId: 1, name: 'Combo ẩn' }], featuredReviews: [{ reviewId: 1, userName: 'Ẩn', rating: 5, comment: 'Đánh giá ẩn' }] } }) }));
+test('customer home renders truthful review and occasion API content', async ({ page }) => {
+  const product = { productId: 1, name: 'Combo thật', description: '', price: 99000, imageUrl: '', soldCount: 4, averageRating: 5, reviewCount: 1, productType: 'COMBO', inStock: true, isAvailableNow: true, variants: [], modifierGroups: [] };
+  await page.route('**/api/homepage', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: { bestSellers: [product], occasionCombos: [{ occasion: 'GROUP', product }], featuredReviews: [{ reviewId: 1, userName: 'An', rating: 5, comment: 'Đánh giá thật' }] } }) }));
   await page.goto('/home');
-  await expect(page.getByText('Combo ẩn')).toHaveCount(0);
-  await expect(page.getByText('Đánh giá ẩn')).toHaveCount(0);
-  await expectHiddenHomepageScope(page);
+  await expect(page.getByText('Combo thật').first()).toBeVisible();
+  await expect(page.getByText('Đánh giá thật')).toBeVisible();
+  await expectSafeHomepageClaims(page);
 });
 
 for (const path of ['/account/support', '/staff/support']) {
