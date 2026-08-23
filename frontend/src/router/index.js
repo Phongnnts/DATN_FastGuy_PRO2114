@@ -251,17 +251,6 @@ const routes = [
         },
       },
       {
-        path: 'notifications',
-        name: 'UserNotifications',
-        component: () => import('@/views/user/NotificationsPage.vue'),
-        meta: {
-          breadcrumb: [
-            { label: 'Tài khoản', to: '/account/overview' },
-            { label: 'Thông báo' },
-          ],
-        },
-      },
-      {
         path: 'history',
         redirect: { path: '/account/orders', query: { status: 'DELIVERED' } },
       },
@@ -323,12 +312,6 @@ const routes = [
         name: 'StaffProfile',
         component: () => import('@/views/user/ProfilePage.vue'),
         meta: { breadcrumb: [{ label: 'Vận hành', to: '/staff' }, { label: 'Hồ sơ' }] },
-      },
-      {
-        path: 'notifications',
-        name: 'StaffNotifications',
-        component: () => import('@/views/user/NotificationsPage.vue'),
-        meta: { breadcrumb: [{ label: 'Vận hành', to: '/staff' }, { label: 'Thông báo' }] },
       },
       {
         path: 'shifts',

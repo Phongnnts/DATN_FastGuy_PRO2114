@@ -1,22 +1,15 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
-import { useNotificationStore } from '@/stores/notification';
 import { useRoute, useRouter } from 'vue-router';
-import { ref, onMounted, onUnmounted } from 'vue';
-import NotificationBell from '@/components/common/NotificationBell.vue';
+import { ref } from 'vue';
 import AppBreadcrumbs from '@/components/common/AppBreadcrumbs.vue';
 
 const auth = useAuthStore();
-const notificationStore = useNotificationStore();
 const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
 
-onMounted(() => notificationStore.startPolling());
-onUnmounted(() => notificationStore.stopPolling());
-
 function logout() {
-  notificationStore.reset();
   auth.logout();
   router.push('/');
 }
@@ -83,7 +76,6 @@ function isLinkActive(link) {
           <span class="fg-status-chip">Trung tâm quản trị</span>
         </div>
         <div class="topbar-right">
-          <NotificationBell />
           <router-link to="/home" class="icon-btn" title="Website">
             <i class="bi bi-house"></i>
           </router-link>

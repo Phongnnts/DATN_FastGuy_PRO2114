@@ -113,9 +113,9 @@ test('OpenAPI contracts unpaged and paged product runtime shapes plus exact deta
   assert.equal(contract.components.schemas.ProductPageData.additionalProperties, false);
   assert.deepEqual(contract.components.schemas.ProductPageData.required, ['items', 'page', 'size', 'totalItems', 'totalPages']);
   assert.equal(detail.additionalProperties, false);
-  assert.deepEqual(detail.required.sort(), [...contract.components.schemas.ProductSummary.required, 'galleryImages', 'combo'].sort());
+  assert.deepEqual(detail.required.sort(), [...contract.components.schemas.ProductSummary.required, 'galleryImages'].sort());
   assert.equal(detail.properties.galleryImages.type, 'array');
-  assert.ok(detail.properties.combo.oneOf.some(schema => schema.type === 'null'));
+  assert.equal('combo' in detail.properties, false);
   assert.equal(contract.components.schemas.ProductDetailResponse.properties.data.$ref, '#/components/schemas/ProductDetail');
 });
 

@@ -7,7 +7,6 @@ const router = read('../src/router/index.js');
 const constants = read('../src/utils/constants.js');
 const tracking = read('../src/views/guest/TrackOrderPage.vue');
 const shipperOrders = read('../src/views/shipper/MyOrdersPage.vue');
-const notifications = read('../src/components/common/NotificationBell.vue');
 
 test('keeps entry routes and redirects legacy routes', () => {
   assert.match(router, /path: '\/'[\s\S]*name: 'Login'/);
@@ -30,12 +29,9 @@ test('guest tracking omits unsupported checkout continuation', () => {
   assert.doesNotMatch(tracking, /Tiếp tục thanh toán/);
 });
 
-test('shipper tabs, cards, and notification panel expose basic accessibility', () => {
+test('shipper tabs and cards expose basic accessibility', () => {
   assert.match(shipperOrders, /role="tablist"/);
   assert.match(shipperOrders, /role="tab"/);
   assert.match(shipperOrders, /role="tabpanel"/);
   assert.match(shipperOrders, /@keydown="handleCardKeydown/);
-  assert.match(notifications, /closeAndRestoreFocus/);
-  assert.match(notifications, /trigger\.value\?\.focus/);
-  assert.match(notifications, /aria-live="polite"/);
 });

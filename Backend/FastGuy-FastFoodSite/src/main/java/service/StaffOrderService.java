@@ -20,7 +20,6 @@ public class StaffOrderService {
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private UserDAO userDAO = new UserDAO();
     private OrderTransitionService transitionService = new OrderTransitionService();
-    private NotificationService notificationService = new NotificationService();
 
     public List<Orders> getPendingOrders() {
         return ordersDAO.findByStatus("PENDING");
@@ -66,7 +65,6 @@ public class StaffOrderService {
     public OrderTransitionService.MutationResult assignShipper(int orderId, int shipperId, int staffId, String expectedStatus) {
         Orders order = getOrderDetail(orderId);
         OrderTransitionService.MutationResult result = transitionService.transition(orderId, "ASSIGNED", "STAFF", staffId, "Gán shipper", shipperId, null, expectedStatus);
-        if (result == OrderTransitionService.MutationResult.SUCCESS && order != null) notificationService.notifyUser(shipperId, "Đơn giao mới", "Bạn được gán đơn " + order.getOrderCode(), "ORDER_ASSIGNED", "/shipper/orders/" + orderId);
         return result;
     }
 
@@ -74,7 +72,6 @@ public class StaffOrderService {
         Orders order = getOrderDetail(orderId);
         OrderTransitionService.MutationResult result = transitionService.transition(orderId, status, "STAFF", staffId, failureReason, null, null, expectedStatus);
         if (result == OrderTransitionService.MutationResult.SUCCESS && order != null && order.getUser() != null) {
-            notificationService.notifyUser(order.getUser().getUserId(), "Cập nhật đơn hàng", "Đơn " + order.getOrderCode() + " chuyển sang " + status, "ORDER_STATUS", "/account/orders/" + orderId);
         }
         return result;
     }

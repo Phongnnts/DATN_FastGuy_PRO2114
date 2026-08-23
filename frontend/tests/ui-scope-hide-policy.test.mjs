@@ -71,8 +71,8 @@ test('COD refund and shifts remain visible', () => {
   assert.match(router, /StaffShifts/);
 });
 
-test('combo UI is scoped to homepage and absent from product detail and admin editor', () => {
-  assert.match(home, /HomepageOccasions|occasionCombos/);
+test('combo UI is absent from homepage, product detail, and admin editor', () => {
+  assert.doesNotMatch(home, /HomepageOccasions|occasionCombos/);
   assert.doesNotMatch(productDetail, /product\.combo|candidate\.isCombo|Combo gồm/);
   assert.doesNotMatch(productDetail, /review\.(avatar|orderId|homepageConsent|featured)/);
   assert.doesNotMatch(productEditor, /ProductComboSection|id: 'combo'|activeSection === 'combo'/);

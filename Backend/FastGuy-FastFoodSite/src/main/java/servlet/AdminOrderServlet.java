@@ -20,7 +20,6 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import service.NotificationService;
 import service.OrderService;
 import service.OrderStatusHistoryService;
 import service.ReviewService;
@@ -39,7 +38,6 @@ public class AdminOrderServlet extends HttpServlet {
     private OrderStatusHistoryService historyService = new OrderStatusHistoryService();
     private OrderService orderService = new OrderService();
     private OrderTransitionService transitionService = new OrderTransitionService();
-    private NotificationService notificationService = new NotificationService();
     private ReviewService reviewService = new ReviewService();
 
     protected boolean checkAdmin(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -226,7 +224,6 @@ public class AdminOrderServlet extends HttpServlet {
                 if (!ok) { ApiResponse.error(resp, "Cannot cancel order", 400); return; }
                 Orders order = ordersDAO.findById(orderId);
                 if (order != null && order.getUser() != null) {
-                    notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đã bị hủy", "Đơn " + order.getOrderCode() + " đã bị hủy bởi quản trị viên", "ORDER_CANCELLED", "/account/orders/" + orderId);
                 }
                 ApiResponse.ok(resp, null, "Order cancelled");
             } else if ("status".equals(action)) {

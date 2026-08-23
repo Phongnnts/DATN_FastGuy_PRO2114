@@ -4,13 +4,10 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useFavoriteStore } from '@/stores/favorite';
-import { useNotificationStore } from '@/stores/notification';
-import NotificationBell from '@/components/common/NotificationBell.vue';
 
 const auth = useAuthStore();
 const cart = useCartStore();
 const favoriteStore = useFavoriteStore();
-const notificationStore = useNotificationStore();
 const router = useRouter();
 const mobileMenuOpen = ref(false);
 const scrolled = ref(false);
@@ -47,7 +44,6 @@ function handleScroll() {
 function logout() {
   closeMenu();
   favoriteStore.clear();
-  notificationStore.reset();
   auth.logout();
   router.push('/');
 }
@@ -60,13 +56,11 @@ watch(mobileMenuOpen, async (open) => {
   }
 });
 onMounted(() => {
-  if (auth.isUser) notificationStore.startPolling();
   window.addEventListener('scroll', handleScroll, { passive: true });
   document.addEventListener('keydown', handleKeydown);
 });
 onUnmounted(() => {
   document.body.style.overflow = '';
-  notificationStore.stopPolling();
   window.removeEventListener('scroll', handleScroll);
   document.removeEventListener('keydown', handleKeydown);
 });
@@ -81,7 +75,6 @@ onUnmounted(() => {
           <router-link v-for="link in navLinks" :key="link.path" :to="link.path" class="nav-link" @click="closeMenu()">{{ link.label }}</router-link>
         </div>
         <div class="mobile-account-actions">
-          <router-link v-if="auth.isUser" to="/account/notifications" class="drawer-action" @click="closeMenu()"><i class="bi bi-bell" aria-hidden="true"></i> Thông báo</router-link>
           <router-link v-if="auth.isUser" to="/account/overview" class="drawer-action" @click="closeMenu()"><i class="bi bi-person-circle" aria-hidden="true"></i> {{ auth.user?.fullName || 'Tài khoản' }}</router-link>
           <router-link v-else-if="auth.isStaff" to="/staff" class="drawer-action" @click="closeMenu()">Khu vực Staff</router-link>
           <router-link v-else-if="auth.isAdmin" to="/admin" class="drawer-action" @click="closeMenu()">Khu vực Admin</router-link>
@@ -90,7 +83,6 @@ onUnmounted(() => {
         </div>
       </nav>
       <div class="nav-actions">
-        <NotificationBell v-if="auth.isUser" />
         <router-link to="/cart" class="cart-summary" :aria-label="`Giỏ hàng, ${cart.itemCount} món`">
           <i class="bi bi-bag" aria-hidden="true"></i>
           <span class="cart-copy"><strong>Giỏ hàng</strong><small>{{ cart.itemCount }} món</small></span>

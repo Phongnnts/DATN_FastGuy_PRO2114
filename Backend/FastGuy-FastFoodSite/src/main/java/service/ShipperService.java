@@ -15,7 +15,6 @@ import java.util.Set;
 public class ShipperService {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private UserDAO userDAO = new UserDAO();
-    private NotificationService notificationService = new NotificationService();
     private OrderTransitionService transitionService = new OrderTransitionService();
 
     static boolean canPickUp(String status, Integer assignedShipperId, int shipperId) {
@@ -77,7 +76,6 @@ public class ShipperService {
     public OrderTransitionService.MutationResult pickUpOrder(int orderId, int shipperId, String expectedStatus) {
         OrderTransitionService.MutationResult result = transitionService.transition(orderId, "PICKED_UP", "SHIPPER", shipperId, "Đã lấy hàng", null, null, expectedStatus);
         Orders order = result == OrderTransitionService.MutationResult.SUCCESS ? ordersDAO.findById(orderId) : null;
-        if (order != null && order.getUser() != null) notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đang giao", "Đơn " + order.getOrderCode() + " đã được shipper lấy hàng", "ORDER_STATUS", "/account/orders/" + orderId);
         return result;
     }
 
@@ -85,7 +83,6 @@ public class ShipperService {
         OrderTransitionService.MutationResult result = transitionService.transition(orderId, "DELIVERED", "SHIPPER", shipperId, "Đã giao hàng", null, collectedAmount, expectedStatus);
         if (result != OrderTransitionService.MutationResult.SUCCESS) return result;
         Orders order = ordersDAO.findById(orderId);
-        if (order != null && order.getUser() != null) notificationService.notifyUser(order.getUser().getUserId(), "Đơn hàng đã giao", "Đơn " + order.getOrderCode() + " đã được giao thành công", "ORDER_STATUS", "/account/orders/" + orderId);
         return result;
     }
 

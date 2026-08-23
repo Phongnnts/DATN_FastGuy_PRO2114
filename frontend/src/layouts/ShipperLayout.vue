@@ -1,13 +1,10 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
-import { useNotificationStore } from '@/stores/notification';
 import { useRouter, useRoute } from 'vue-router';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { shiftApi } from '@/api';
-import NotificationBell from '@/components/common/NotificationBell.vue';
 
 const auth = useAuthStore();
-const notificationStore = useNotificationStore();
 const router = useRouter();
 const route = useRoute();
 const shiftState = ref('UNKNOWN');
@@ -43,15 +40,12 @@ async function checkShift() {
 onMounted(async () => {
   window.addEventListener('staff-shift-changed', checkShift);
   await checkShift();
-  notificationStore.startPolling();
 });
 onUnmounted(() => {
   window.removeEventListener('staff-shift-changed', checkShift);
-  notificationStore.stopPolling();
 });
 
 function logout() {
-  notificationStore.reset();
   auth.logout();
   router.push('/');
 }
@@ -67,7 +61,6 @@ function logout() {
         <span class="fg-status-chip">{{ chipLabel }}</span>
       </div>
       <div class="header-actions">
-        <NotificationBell />
         <button class="logout-btn" @click="logout">
           <i class="bi bi-arrow-right-from-bracket"></i><span>Thoát</span>
         </button>

@@ -39,7 +39,6 @@ public class OrderService {
         return actual != null && actual.equals(expected);
     }
     private CouponService couponService = new CouponService();
-    private NotificationService notificationService = new NotificationService();
     private OrderStatusHistoryService orderStatusHistoryService = new OrderStatusHistoryService();
     private StoreConfigService storeConfigService = new StoreConfigService();
     private ShippingService shippingService = new ShippingService();
@@ -146,8 +145,6 @@ public class OrderService {
 
             orderStatusHistoryService.record(em, order.getOrderId(), userId, "USER", null, "PENDING", "Khách tạo đơn hàng");
             em.getTransaction().commit();
-            notificationService.notifyRole("STAFF", "Đơn hàng mới", "Đơn " + order.getOrderCode() + " vừa được tạo", "ORDER_CREATED", "/staff/orders/" + order.getOrderId());
-            notificationService.notifyRole("ADMIN", "Đơn hàng mới", "Đơn " + order.getOrderCode() + " vừa được tạo", "ORDER_CREATED", "/admin/orders");
             return order;
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
@@ -235,8 +232,6 @@ public class OrderService {
 
             orderStatusHistoryService.record(em, order.getOrderId(), null, "GUEST", null, "PENDING", "Khách vãng lai tạo đơn hàng");
             em.getTransaction().commit();
-            notificationService.notifyRole("STAFF", "Đơn hàng mới", "Đơn " + order.getOrderCode() + " vừa được tạo", "ORDER_CREATED", "/staff/orders/" + order.getOrderId());
-            notificationService.notifyRole("ADMIN", "Đơn hàng mới", "Đơn " + order.getOrderCode() + " vừa được tạo", "ORDER_CREATED", "/admin/orders");
             return order;
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
@@ -303,17 +298,13 @@ public class OrderService {
                 expectedPaymentStatus, pendingOnly, actorRole, actorUserId, failureReason);
         if (result == null) return false;
         if (staffId != null && result.orderUserId() != null) {
-            notificationService.notifyUser(result.orderUserId(), "Đơn hàng đã hủy", "Đơn " + result.orderCode() + " đã bị hủy", "ORDER_CANCELLED", "/account/orders/" + orderId);
         } else {
             String title = cancellationTitle(actorRole);
             String message = "SYSTEM".equals(actorRole)
                     ? "Đơn " + result.orderCode() + " đã tự động hủy"
                     : "Đơn " + result.orderCode() + " đã bị khách hủy";
             if ("SYSTEM".equals(actorRole) && result.orderUserId() != null) {
-                notificationService.notifyUser(result.orderUserId(), title, message, "ORDER_CANCELLED", "/account/orders/" + orderId);
             }
-            notificationService.notifyRole("STAFF", title, message, "ORDER_CANCELLED", "/staff/orders/" + orderId);
-            notificationService.notifyRole("ADMIN", title, message, "ORDER_CANCELLED", "/admin/orders");
         }
         return true;
     }

@@ -126,11 +126,9 @@ public class ProductDAO {
         if (maxPrice != null) where.append(" AND ").append(price).append(" <= :maxPrice");
         String variants = "EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND (v.isDefault = false OR v.variantId <> (SELECT MIN(d.variantId) FROM ProductVariant d WHERE d.product = p)))";
         String modifiers = "EXISTS (SELECT g FROM ProductModifierGroup g WHERE g.product = p AND g.isActive = true)";
-        String combo = "EXISTS (SELECT c FROM ProductCombo c WHERE c.product = p AND c.isActive = true)";
-        if ("SIMPLE".equals(productType)) where.append(" AND NOT ").append(variants).append(" AND NOT ").append(modifiers).append(" AND NOT ").append(combo);
-        if ("VARIANT".equals(productType)) where.append(" AND ").append(variants).append(" AND NOT ").append(combo);
-        if ("COMBO".equals(productType)) where.append(" AND ").append(combo);
-        if ("CUSTOMIZABLE".equals(productType)) where.append(" AND ").append(modifiers).append(" AND NOT ").append(combo);
+        if ("SIMPLE".equals(productType)) where.append(" AND NOT ").append(variants).append(" AND NOT ").append(modifiers);
+        if ("VARIANT".equals(productType)) where.append(" AND ").append(variants);
+        if ("CUSTOMIZABLE".equals(productType)) where.append(" AND ").append(modifiers);
         String hasDiscount = "EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND v.isDefault = true AND v.originalPrice IS NOT NULL AND v.originalPrice > v.price)";
         if (Boolean.TRUE.equals(discounted)) where.append(" AND ").append(hasDiscount);
         if (Boolean.FALSE.equals(discounted)) where.append(" AND NOT ").append(hasDiscount);
@@ -170,8 +168,8 @@ public class ProductDAO {
         if (productIds.isEmpty()) return result;
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            em.createQuery("SELECT p.productId, CASE WHEN EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND (v.isDefault = false OR v.variantId <> (SELECT MIN(d.variantId) FROM ProductVariant d WHERE d.product = p))) THEN 1 ELSE 0 END, CASE WHEN EXISTS (SELECT g FROM ProductModifierGroup g WHERE g.product = p AND g.isActive = true) THEN 1 ELSE 0 END, CASE WHEN EXISTS (SELECT c FROM ProductCombo c WHERE c.product = p AND c.isActive = true) THEN 1 ELSE 0 END FROM Product p WHERE p.productId IN :ids", Object[].class)
-                    .setParameter("ids", productIds).getResultList().forEach(row -> result.put((Integer) row[0], ((Number) row[1]).intValue() | (((Number) row[2]).intValue() << 1) | (((Number) row[3]).intValue() << 2)));
+            em.createQuery("SELECT p.productId, CASE WHEN EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND (v.isDefault = false OR v.variantId <> (SELECT MIN(d.variantId) FROM ProductVariant d WHERE d.product = p))) THEN 1 ELSE 0 END, CASE WHEN EXISTS (SELECT g FROM ProductModifierGroup g WHERE g.product = p AND g.isActive = true) THEN 1 ELSE 0 END FROM Product p WHERE p.productId IN :ids", Object[].class)
+                    .setParameter("ids", productIds).getResultList().forEach(row -> result.put((Integer) row[0], ((Number) row[1]).intValue() | (((Number) row[2]).intValue() << 1)));
             return result;
         } finally {
             em.close();

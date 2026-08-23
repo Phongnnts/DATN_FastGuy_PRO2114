@@ -128,7 +128,8 @@ test('menu keeps essential filters in a compact customer-facing layout', () => {
   assert.match(menuPage, /fa-solid fa-sliders/);
   assert.match(menuPage, /class="active-filters"/);
   assert.match(menuPage, /class="toolbar-sort">Sắp xếp:/);
-  assert.match(menuPage, /label: 'Tên A–Z'/);
+  assert.match(menuPage, /const sort = ref\('best-selling'\)/);
+  assert.match(menuPage, /label: 'Phổ biến nhất'/);
   assert.match(menuPage, /class="pagination-summary"/);
   assert.match(menuPage, /class="sheet-footer"/);
   assert.match(menuPage, /Xem \{\{ store\.catalogMeta\.totalItems \}\} món/);

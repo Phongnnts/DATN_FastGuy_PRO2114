@@ -14,7 +14,6 @@ const productGeneralSection = read('../src/components/admin/product-editor/Produ
 const productMediaSection = read('../src/components/admin/product-editor/ProductMediaSection.vue');
 const productVariantsSection = read('../src/components/admin/product-editor/ProductVariantsSection.vue');
 const productModifiersSection = read('../src/components/admin/product-editor/ProductModifiersSection.vue');
-const productComboSection = read('../src/components/admin/product-editor/ProductComboSection.vue');
 
 test('defines product create and edit routes before product catalog route', () => {
   const create = router.indexOf("name: 'AdminProductCreate'");
@@ -328,32 +327,6 @@ test('modifier section fails closed and validates group limits and option price'
   assert.match(productModifiersSection, /stopped/);
   assert.match(productModifiersSection, /role="alert"/);
   assert.doesNotMatch(productModifiersSection, /window\.confirm|\bconfirm\s*\(/);
-});
-
-test('combo section lazy loads choices and validates items with guards', () => {
-  assert.match(productComboSection, /catalogState/);
-  assert.match(productComboSection, /adminStore\.fetchProducts\(\)/);
-  assert.match(productComboSection, /onMounted/);
-  assert.match(productComboSection, /loadChoices/);
-  assert.match(productComboSection, /catalogState === 'error'/);
-  assert.match(productComboSection, /@click="loadChoices"/);
-  assert.match(productComboSection, /validateComboItem/);
-  assert.match(productComboSection, /comboSaveMethod/);
-  assert.match(productComboSection, /adminApi\.createCombo/);
-  assert.match(productComboSection, /adminApi\[method\]/);
-  assert.match(productComboSection, /adminApi\.createComboItem/);
-  assert.match(productComboSection, /adminApi\.deleteComboItem/);
-  assert.match(productComboSection, /isValidProductId\(props\.productId\)/);
-  assert.match(productComboSection, /variantId/);
-  assert.match(productComboSection, /quantity/);
-  assert.match(productComboSection, /emit\('reload'\)/);
-  assert.match(productComboSection, /onBeforeUnmount/);
-  assert.match(productComboSection, /stopped/);
-  assert.match(productComboSection, /role="alert"/);
-  assert.match(productComboSection, /Thử lại/);
-  assert.match(productComboSection, /watch\(\(\) => props\.busy, \(busy\) => \{ if \(!busy && catalogState\.value === 'idle'\) loadChoices\(\); \}\)/);
-  assert.match(productComboSection, /emit\('dirty-change'/);
-  assert.doesNotMatch(productComboSection, /window\.confirm|\bconfirm\s*\(/);
 });
 
 test('modifier section keys errors per group and option and emits dirty state', () => {

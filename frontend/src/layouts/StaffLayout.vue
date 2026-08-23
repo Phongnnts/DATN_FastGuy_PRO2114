@@ -1,14 +1,11 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
-import { useNotificationStore } from '@/stores/notification';
 import { useRouter } from 'vue-router';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { staffApi, shiftApi } from '@/api';
-import NotificationBell from '@/components/common/NotificationBell.vue';
 import AppBreadcrumbs from '@/components/common/AppBreadcrumbs.vue';
 
 const auth = useAuthStore();
-const notificationStore = useNotificationStore();
 const router = useRouter();
 const sidebarOpen = ref(false);
 const pendingCount = ref(0);
@@ -49,24 +46,20 @@ const sidebarLinks = computed(() => [
   ] : []),
   { label: 'Lịch sử đơn', path: '/staff/orders/history', icon: 'bi-clock-history' },
   { label: 'Ca làm', path: '/staff/shifts', icon: 'bi-calendar-week' },
-  { label: 'Thông báo', path: '/staff/notifications', icon: 'bi-bell' },
   { label: 'Hồ sơ', path: '/staff/profile', icon: 'bi-person-circle' },
 ]);
 
 onMounted(async () => {
   window.addEventListener('staff-shift-changed', checkShift);
   await checkShift();
-  notificationStore.startPolling();
 });
 
 onUnmounted(() => {
   clearInterval(refreshTimer);
   window.removeEventListener('staff-shift-changed', checkShift);
-  notificationStore.stopPolling();
 });
 
 function logout() {
-  notificationStore.reset();
   auth.logout();
   router.push('/');
 }
@@ -111,7 +104,6 @@ function logout() {
           <span class="fg-status-chip">Hàng đợi bếp</span>
         </div>
         <div class="topbar-right">
-          <NotificationBell />
           <router-link to="/home" class="icon-btn" aria-label="Mở website">
             <i class="bi bi-house"></i>
           </router-link>
@@ -126,7 +118,7 @@ function logout() {
           <i class="bi bi-calendar-x"></i>
           <div v-if="shiftState === 'UNKNOWN'">
             <strong>Không thể xác định trạng thái ca</strong>
-            <p>Chỉ lịch làm việc, lịch sử đơn, thông báo và hồ sơ đang khả dụng.</p>
+            <p>Chỉ lịch làm việc, lịch sử đơn và hồ sơ đang khả dụng.</p>
           </div>
           <div v-else-if="shiftState === 'CHECKED_OUT'">
             <strong>Ca làm đã kết thúc</strong>
@@ -138,7 +130,7 @@ function logout() {
           </div>
         </div>
         <div class="staff-view">
-          <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'StaffShifts' || $route.name === 'StaffOrderHistory' || $route.name === 'StaffNotifications' || $route.name === 'StaffProfile'" aria-live="polite" role="region" />
+          <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'StaffShifts' || $route.name === 'StaffOrderHistory' || $route.name === 'StaffProfile'" aria-live="polite" role="region" />
         </div>
       </div>
     </div>

@@ -88,21 +88,6 @@ export default {
   deleteModifierOption(groupId, optionId) {
     return client.delete(`/admin/products/${groupId}/modifier-groups/options/${optionId}`);
   },
-  getCombo(productId) {
-    return client.get(`/admin/products/${productId}/combo`);
-  },
-  createCombo(productId, data) {
-    return client.post(`/admin/products/${productId}/combo`, data);
-  },
-  createComboItem(productId, data) {
-    return client.post(`/admin/products/${productId}/combo/items`, data);
-  },
-  updateCombo(productId, data) {
-    return client.put(`/admin/products/${productId}/combo`, data);
-  },
-  deleteComboItem(productId, itemId) {
-    return client.delete(`/admin/products/${productId}/combo/items/${itemId}`);
-  },
   getSettings() {
     return client.get('/admin/settings');
   },

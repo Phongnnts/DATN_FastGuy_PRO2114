@@ -9,14 +9,12 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import dao.ProductDAO;
 import dao.ProductModifierDAO;
 import dao.ReviewDAO;
 import entity.Product;
-import entity.ProductCombo;
 import entity.ProductModifierGroup;
 import entity.ProductModifierOption;
 import entity.ProductVariant;
@@ -36,44 +34,27 @@ public class HomepageService {
 
     public Map<String, Object> getHomepage() {
         List<Product> bestSellers = productDAO.findHomepageBestSellers(6);
-        List<ProductCombo> comboRows = modifierDAO.homepageCombos();
-        LinkedHashMap<String, ProductCombo> combosByOccasion = new LinkedHashMap<>();
-        comboRows.stream().filter(c -> isAvailableNow(c.getProduct())).forEach(c -> combosByOccasion.putIfAbsent(c.getHomepageOccasion(), c));
-        List<ProductCombo> combos = combosByOccasion.values().stream().limit(4).toList();
-
-        LinkedHashSet<Integer> productIds = new LinkedHashSet<>();
-        bestSellers.forEach(p -> productIds.add(p.getProductId()));
-        combos.forEach(c -> productIds.add(c.getProduct().getProductId()));
-        List<Integer> ids = new ArrayList<>(productIds);
+        List<Integer> ids = bestSellers.stream().map(Product::getProductId).toList();
         Map<Integer, List<ProductVariant>> variants = productDAO.variantsByProductIds(ids);
         Map<Integer, Long> sold = productDAO.soldCounts(ids);
         Map<Integer, List<ProductModifierGroup>> groups = modifierDAO.groupsByProductIds(ids);
         List<Integer> groupIds = groups.values().stream().flatMap(List::stream).map(ProductModifierGroup::getModifierGroupId).toList();
         Map<Integer, List<ProductModifierOption>> options = modifierDAO.optionsByGroupIds(groupIds);
-        Set<Integer> comboProductIds = modifierDAO.activeComboProductIds(ids);
         Map<Integer, ReviewDAO.ProductReviewSummary> reviewSummaries = reviewDAO.summariesByProductIds(ids);
 
         List<Map<String, Object>> bestSellerMaps = bestSellers.stream()
-                .map(p -> productMap(p, true, sold, variants, groups, options, comboProductIds, reviewSummaries)).toList();
-        List<Map<String, Object>> occasionMaps = combos.stream().map(combo -> {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("occasion", combo.getHomepageOccasion());
-            item.put("label", occasionLabel(combo.getHomepageOccasion()));
-            item.put("product", productMap(combo.getProduct(), false, sold, variants, groups, options, comboProductIds, reviewSummaries));
-            return item;
-        }).toList();
+                .map(p -> productMap(p, true, sold, variants, groups, options, reviewSummaries)).toList();
         List<Map<String, Object>> reviews = reviewDAO.findFeatured(3).stream().map(this::reviewMap).toList();
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("bestSellers", bestSellerMaps);
-        data.put("occasionCombos", occasionMaps);
         data.put("featuredReviews", reviews);
         return data;
     }
 
     private Map<String, Object> productMap(Product product, boolean bestSeller, Map<Integer, Long> sold,
             Map<Integer, List<ProductVariant>> variantsByProduct, Map<Integer, List<ProductModifierGroup>> groupsByProduct,
-            Map<Integer, List<ProductModifierOption>> optionsByGroup, Set<Integer> comboProductIds,
+            Map<Integer, List<ProductModifierOption>> optionsByGroup,
             Map<Integer, ReviewDAO.ProductReviewSummary> reviewSummaries) {
         int id = product.getProductId();
         List<ProductVariant> variants = variantsByProduct.getOrDefault(id, List.of());
@@ -82,7 +63,6 @@ public class HomepageService {
         List<ProductModifierGroup> groups = groupsByProduct.getOrDefault(id, List.of());
         boolean hasVariants = variants.stream().anyMatch(v -> !Boolean.TRUE.equals(v.getIsDefault()));
         boolean hasModifiers = !groups.isEmpty();
-        boolean combo = comboProductIds.contains(id);
         BigDecimal price = defaultVariant == null ? product.getBasePrice() : defaultVariant.getPrice();
         BigDecimal originalPrice = defaultVariant == null ? null : defaultVariant.getOriginalPrice();
         boolean discounted = originalPrice != null && price != null && originalPrice.signum() > 0 && originalPrice.compareTo(price) > 0;
@@ -98,8 +78,8 @@ public class HomepageService {
         map.put("originalPrice", originalPrice);
         map.put("discountPercent", discounted ? originalPrice.subtract(price).multiply(BigDecimal.valueOf(100)).divide(originalPrice, 2, RoundingMode.HALF_UP) : null);
         map.put("soldCount", sold.getOrDefault(id, 0L)); map.put("hasVariants", hasVariants);
-        map.put("hasModifiers", hasModifiers); map.put("isCombo", combo);
-        map.put("productType", combo ? "COMBO" : hasModifiers ? "CUSTOMIZABLE" : hasVariants ? "VARIANT" : "SIMPLE");
+        map.put("hasModifiers", hasModifiers);
+        map.put("productType", hasModifiers ? "CUSTOMIZABLE" : hasVariants ? "VARIANT" : "SIMPLE");
         map.put("availableFrom", product.getAvailableFrom() == null ? null : product.getAvailableFrom().toString());
         map.put("availableTo", product.getAvailableTo() == null ? null : product.getAvailableTo().toString());
         map.put("isAvailableNow", isAvailableNow(product));
@@ -150,13 +130,4 @@ public class HomepageService {
         return from.isBefore(to) ? !now.isBefore(from) && now.isBefore(to) : !now.isBefore(from) || now.isBefore(to);
     }
 
-    static String occasionLabel(String occasion) {
-        return switch (occasion) {
-            case "QUICK_BREAK" -> "Bữa nhanh gọn";
-            case "OFFICE_LUNCH" -> "Bữa trưa văn phòng";
-            case "STUDENT" -> "Combo sinh viên";
-            case "GROUP" -> "Ăn vui theo nhóm";
-            default -> throw new IllegalArgumentException("Invalid homepage occasion");
-        };
-    }
 }

@@ -90,28 +90,6 @@ CREATE TABLE dbo.ProductModifierOption (
     CONSTRAINT CK_ProductModifierOption_Price CHECK (price >= 0)
 );
 
--- Tạo bảng ProductCombo
-CREATE TABLE dbo.ProductCombo (
-    combo_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProductCombo PRIMARY KEY,
-    product_id int NOT NULL CONSTRAINT FK_ProductCombo_Product REFERENCES dbo.Product(product_id),
-    is_active bit NOT NULL CONSTRAINT DF_ProductCombo_Active DEFAULT 1,
-    homepage_occasion varchar(24) NULL,
-    homepage_sort_order int NOT NULL CONSTRAINT DF_ProductCombo_HomepageSortOrder DEFAULT 0,
-    CONSTRAINT CK_ProductCombo_HomepageOccasion CHECK (homepage_occasion IS NULL OR homepage_occasion IN ('QUICK_BREAK', 'OFFICE_LUNCH', 'STUDENT', 'GROUP')),
-    CONSTRAINT UQ_ProductCombo_Product UNIQUE (product_id)
-);
-
--- Tạo bảng ProductComboItem
-CREATE TABLE dbo.ProductComboItem (
-    combo_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProductComboItem PRIMARY KEY,
-    combo_id int NOT NULL CONSTRAINT FK_ProductComboItem_Combo REFERENCES dbo.ProductCombo(combo_id),
-    product_id int NOT NULL CONSTRAINT FK_ProductComboItem_Product REFERENCES dbo.Product(product_id),
-    variant_id int NOT NULL CONSTRAINT FK_ProductComboItem_Variant REFERENCES dbo.ProductVariant(variant_id),
-    quantity int NOT NULL CONSTRAINT DF_ProductComboItem_Quantity DEFAULT 1,
-    sort_order int NOT NULL CONSTRAINT DF_ProductComboItem_Sort DEFAULT 0,
-    CONSTRAINT CK_ProductComboItem_Quantity CHECK (quantity > 0)
-);
-
 -- Tạo bảng ShippingConfig
 CREATE TABLE dbo.ShippingConfig (
     config_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ShippingConfig PRIMARY KEY,
@@ -467,47 +445,6 @@ CREATE TABLE dbo.Review (
     CONSTRAINT CK_Review_FeaturedConsent CHECK (is_featured = 0 OR homepage_consent = 1)
 );
 
--- Tạo bảng SupportTicket
-CREATE TABLE dbo.SupportTicket (
-    ticket_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_SupportTicket PRIMARY KEY,
-    user_id int NULL CONSTRAINT FK_SupportTicket_User REFERENCES dbo.Users(user_id),
-    order_id int NULL CONSTRAINT FK_SupportTicket_Order REFERENCES dbo.Orders(order_id),
-    subject nvarchar(255) NOT NULL,
-    category varchar(30) NOT NULL,
-    description nvarchar(2000) NOT NULL,
-    status varchar(20) NOT NULL CONSTRAINT DF_SupportTicket_Status DEFAULT 'OPEN',
-    staff_id int NULL CONSTRAINT FK_SupportTicket_Staff REFERENCES dbo.Users(user_id),
-    resolution nvarchar(2000) NULL,
-    created_at datetime2(0) NOT NULL CONSTRAINT DF_SupportTicket_Created DEFAULT GETDATE(),
-    updated_at datetime2(0) NOT NULL CONSTRAINT DF_SupportTicket_Updated DEFAULT GETDATE(),
-    resolved_at datetime2(0) NULL,
-    CONSTRAINT CK_SupportTicket_Category CHECK (category IN ('MISSING_ITEM', 'COLD_FOOD', 'WRONG_ITEM', 'LATE_DELIVERY', 'OTHER')),
-    CONSTRAINT CK_SupportTicket_Status CHECK (status IN ('OPEN', 'PROCESSING', 'RESOLVED'))
-);
-
--- Tạo bảng Notification
-CREATE TABLE dbo.Notification (
-    notification_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Notification PRIMARY KEY,
-    user_id int NULL CONSTRAINT FK_Notification_User REFERENCES dbo.Users(user_id),
-    role_name varchar(50) NULL,
-    title nvarchar(255) NOT NULL,
-    message nvarchar(1000) NULL,
-    type varchar(50) NULL,
-    target_url varchar(500) NULL,
-    is_read bit NOT NULL CONSTRAINT DF_Notification_Read DEFAULT 0,
-    created_at datetime2(0) NOT NULL CONSTRAINT DF_Notification_Created DEFAULT GETDATE(),
-    updated_at datetime2(0) NOT NULL CONSTRAINT DF_Notification_Updated DEFAULT GETDATE(),
-    CONSTRAINT CK_Notification_Target CHECK (user_id IS NOT NULL OR role_name IS NOT NULL),
-    CONSTRAINT CK_Notification_Role CHECK (role_name IS NULL OR role_name IN ('ADMIN', 'STAFF', 'SHIPPER', 'USER'))
-);
-
-CREATE TABLE dbo.NotificationReadReceipt (
-    notification_id int NOT NULL CONSTRAINT FK_NotificationReadReceipt_Notification REFERENCES dbo.Notification(notification_id) ON DELETE CASCADE,
-    user_id int NOT NULL CONSTRAINT FK_NotificationReadReceipt_User REFERENCES dbo.Users(user_id),
-    read_at datetime2(0) NOT NULL CONSTRAINT DF_NotificationReadReceipt_ReadAt DEFAULT GETDATE(),
-    CONSTRAINT PK_NotificationReadReceipt PRIMARY KEY (notification_id, user_id)
-);
-
 -- Tạo bảng OrderStatusHistory
 CREATE TABLE dbo.OrderStatusHistory (
     history_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_OrderStatusHistory PRIMARY KEY,
@@ -524,7 +461,6 @@ CREATE TABLE dbo.OrderStatusHistory (
 );
 GO
 
-CREATE INDEX IX_ProductCombo_HomepageOccasion ON dbo.ProductCombo(homepage_occasion, homepage_sort_order) WHERE homepage_occasion IS NOT NULL AND is_active = 1;
 CREATE INDEX IX_Review_Order ON dbo.Review(order_id);
 CREATE INDEX IX_Review_ProductCreatedAt ON dbo.Review(product_id, created_at DESC, review_id DESC);
 CREATE INDEX IX_Review_FeaturedCreatedAt ON dbo.Review(is_featured, created_at DESC) WHERE is_featured = 1;
@@ -553,12 +489,6 @@ SET IDENTITY_INSERT dbo.ProductModifierGroup OFF;
 SET IDENTITY_INSERT dbo.ProductModifierOption ON;
 INSERT INTO dbo.ProductModifierOption(modifier_option_id,modifier_group_id,name,price,is_active,sort_order) VALUES (1,1,N'Thêm phô mai',10000,1,1);
 SET IDENTITY_INSERT dbo.ProductModifierOption OFF;
-SET IDENTITY_INSERT dbo.ProductCombo ON;
-INSERT INTO dbo.ProductCombo(combo_id,product_id,is_active) VALUES (1,2,1);
-SET IDENTITY_INSERT dbo.ProductCombo OFF;
-SET IDENTITY_INSERT dbo.ProductComboItem ON;
-INSERT INTO dbo.ProductComboItem(combo_item_id,combo_id,product_id,variant_id,quantity,sort_order) VALUES (1,1,1,1,1,1);
-SET IDENTITY_INSERT dbo.ProductComboItem OFF;
 
 SET IDENTITY_INSERT dbo.Users ON;
 INSERT INTO dbo.Users(user_id,role_name,email,phone,password_hash,full_name,status,loyalty_points,favorite_ids_json,created_at,updated_at,failed_login_attempts) VALUES (1,'ADMIN','admin@fastguy.local','0901000001','pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=',N'Quản trị viên','ACTIVE',0,N'[]','2026-01-01','2026-01-01',0),(2,'STAFF','staff@fastguy.local','0901000002','pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=',N'Nhân viên','ACTIVE',0,N'[]','2026-01-01','2026-01-01',0),(3,'SHIPPER','shipper@fastguy.local','0901000003','pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=',N'Tài xế','ACTIVE',0,N'[]','2026-01-01','2026-01-01',0),(4,'USER','user@fastguy.local','0901000004','pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=',N'Khách hàng','ACTIVE',100,N'[]','2026-01-01','2026-01-01',0);
@@ -616,12 +546,6 @@ SET IDENTITY_INSERT dbo.LoyaltyTransaction OFF;
 SET IDENTITY_INSERT dbo.Review ON;
 INSERT INTO dbo.Review(review_id,user_id,order_id,product_id,rating,comment,created_at,updated_at) VALUES (1,4,7,1,5,N'Món ngon, giao nhanh.','2026-01-01 10:00','2026-01-01 10:00');
 SET IDENTITY_INSERT dbo.Review OFF;
-SET IDENTITY_INSERT dbo.SupportTicket ON;
-INSERT INTO dbo.SupportTicket(ticket_id,user_id,order_id,subject,category,description,status,staff_id,resolution,created_at,updated_at,resolved_at) VALUES (1,4,7,N'Hỗ trợ đơn hàng','OTHER',N'Cần xuất hóa đơn.','RESOLVED',2,N'Đã gửi hóa đơn.','2026-01-01 10:00','2026-01-01 10:30','2026-01-01 10:30');
-SET IDENTITY_INSERT dbo.SupportTicket OFF;
-SET IDENTITY_INSERT dbo.Notification ON;
-INSERT INTO dbo.Notification(notification_id,user_id,role_name,title,message,type,target_url,is_read,created_at,updated_at) VALUES (1,4,NULL,N'Đơn đã giao',N'Đơn FG007 đã giao thành công.','ORDER','/orders/7',0,'2026-01-01 09:30','2026-01-01 09:30');
-SET IDENTITY_INSERT dbo.Notification OFF;
 SET IDENTITY_INSERT dbo.OrderStatusHistory ON;
 INSERT INTO dbo.OrderStatusHistory(history_id,order_id,actor_user_id,actor_role,from_status,to_status,note,created_at) VALUES (1,1,4,'USER',NULL,'PENDING',N'Đã tạo đơn.','2026-01-01 08:00'),(2,2,2,'STAFF','PENDING','CONFIRMED',N'Đã xác nhận.','2026-01-01 08:10'),(3,3,2,'STAFF','CONFIRMED','PREPARING',N'Đang chuẩn bị.','2026-01-01 08:20'),(4,4,2,'STAFF','PREPARING','READY',N'Sẵn sàng giao.','2026-01-01 08:30'),(5,5,2,'STAFF','READY','ASSIGNED',N'Đã phân công.','2026-01-01 08:40'),(6,6,3,'SHIPPER','ASSIGNED','PICKED_UP',N'Đã nhận món.','2026-01-01 08:50'),(7,7,3,'SHIPPER','PICKED_UP','DELIVERED',N'Đã giao.','2026-01-01 09:30'),(8,8,4,'USER','PENDING','CANCELLED',N'Khách hủy.','2026-01-01 08:15');
 SET IDENTITY_INSERT dbo.OrderStatusHistory OFF;

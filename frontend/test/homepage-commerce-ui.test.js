@@ -6,8 +6,7 @@ const read = path => readFile(new URL(path, import.meta.url), 'utf8');
 
 test('homepage integrates commerce sections from existing homepage contract', async () => {
   const source = await read('../src/views/guest/HomePage.vue');
-  assert.match(source, /HomepageOccasions/);
-  assert.match(source, /homepageStore\.occasionCombos/);
+  assert.doesNotMatch(source, /HomepageOccasions|occasionCombos/);
   assert.match(source, /Hôm nay ăn gì\?/);
   assert.match(source, /role="tablist"/);
   assert.match(source, /Đang được yêu thích/);
@@ -17,19 +16,13 @@ test('homepage integrates commerce sections from existing homepage contract', as
 });
 
 test('signature homepage establishes one product-led focal point and commerce-first order', async () => {
-  const [page, occasions] = await Promise.all([
-    read('../src/views/guest/HomePage.vue'),
-    read('../src/components/guest/HomepageOccasions.vue'),
-  ]);
+  const page = await read('../src/views/guest/HomePage.vue');
   assert.match(page, /signatureHomepageProduct/);
   assert.match(page, /class="signature-product"/);
   assert.match(page, /class="promo-strip"/);
-  assert.ok(page.indexOf('<FeaturedProducts') < page.indexOf('<HomepageOccasions'));
-  assert.ok(page.indexOf('<HomepageOccasions') < page.indexOf('id="recommendation-title"'));
+  assert.ok(page.indexOf('<FeaturedProducts') < page.indexOf('id="recommendation-title"'));
   assert.ok(page.indexOf('id="trending-title"') < page.indexOf('class="brand-manifesto"'));
   assert.doesNotMatch(page, /class="experience-section"|class="home-reasons"|class="home-cta"/);
-  assert.doesNotMatch(occasions, /ProductCard/);
-  assert.match(occasions, /class="combo-feature"/);
 });
 
 test('homepage closes with four meaningful brand chapters then configured Google Map', async () => {

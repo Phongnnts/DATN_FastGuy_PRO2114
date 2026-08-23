@@ -6,7 +6,6 @@ const links = [
   { label: 'Ví mã', path: '/account/coupons', icon: 'bi-ticket-perforated' },
   { label: 'Yêu thích', path: '/account/favorites', icon: 'bi-heart' },
   { label: 'Điểm thưởng', path: '/account/rewards', icon: 'bi-award' },
-  { label: 'Thông báo', path: '/account/notifications', icon: 'bi-bell' },
   { label: 'Hồ sơ', path: '/account/profile', icon: 'bi-person' },
   { label: 'Mật khẩu', path: '/account/change-password', icon: 'bi-lock' },
 ];

@@ -12,8 +12,6 @@
         <class>entity.ProductVariant</class>
         <class>entity.ProductModifierGroup</class>
         <class>entity.ProductModifierOption</class>
-        <class>entity.ProductCombo</class>
-        <class>entity.ProductComboItem</class>
         <class>entity.Cart</class>
         <class>entity.CartItem</class>
         <class>entity.Orders</class>
@@ -22,9 +20,6 @@
         <class>entity.CouponRedemption</class>
         <class>entity.Banner</class>
         <class>entity.Review</class>
-        <class>entity.Notification</class>
-        <class>entity.NotificationReadReceipt</class>
-        <class>entity.SupportTicket</class>
         <class>entity.OrderStatusHistory</class>
         <class>entity.LoyaltyTransaction</class>
         <class>entity.WorkShift</class>

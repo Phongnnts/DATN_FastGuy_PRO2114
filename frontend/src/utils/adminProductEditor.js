@@ -33,7 +33,6 @@ export function createProductDraft() {
     galleryImages: [],
     variants: [],
     modifierGroups: [],
-    combo: null,
     isNew: false,
     spiceLevel: 0,
   };
@@ -57,7 +56,6 @@ export function normalizeProductDetail(raw) {
     galleryImages: Array.isArray(raw.galleryImages) ? [...raw.galleryImages] : [],
     variants: Array.isArray(raw.variants) ? raw.variants.map((variant) => ({ ...variant })) : [],
     modifierGroups: Array.isArray(raw.modifierGroups) ? raw.modifierGroups.map((group) => ({ ...group })) : [],
-    combo: raw.combo ?? null,
     isNew: raw.isNew ?? false,
     spiceLevel: raw.spiceLevel ?? 0,
   };
@@ -185,39 +183,10 @@ export function validateModifierOption(option = {}) {
   return errors;
 }
 
-export function validateComboItem(item = {}) {
-  const errors = {};
-  if (!isValidProductId(item.variantId)) errors.variantId = 'Chọn biến thể hợp lệ';
-  if (item.quantity === '' || item.quantity === null || item.quantity === undefined || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1) errors.quantity = 'Số lượng phải lớn hơn 0';
-  return errors;
-}
-
-export function validateComboHomepage(combo = {}) {
-  const order = Number(combo.homepageSortOrder);
-  return Number.isInteger(order) && order >= 0 ? {} : { homepageSortOrder: 'Thứ tự phải là số nguyên không âm' };
-}
-
-export function buildComboHomepagePayload(combo = {}) {
-  return {
-    isActive: Boolean(combo.isActive),
-    homepageOccasion: combo.homepageOccasion || null,
-    homepageSortOrder: Number(combo.homepageSortOrder),
-  };
-}
-
 export function normalizeProductScope(scope) {
   if (Array.isArray(scope)) return scope;
   return scope ? [scope] : ['general', 'media'];
 }
-
-export function comboSaveMethod(hasCombo) {
-  return hasCombo ? 'updateCombo' : 'createCombo';
-}
-
-export function comboItemLabel(choices, item) {
-  return choices.find(choice => choice.variantId === item.variantId)?.label || `Biến thể #${item.variantId}`;
-}
-
 
 export function withProductSlice(target, source, scope) {
   const next = { ...target };
@@ -238,6 +207,5 @@ export function withProductSlice(target, source, scope) {
   }
   if (scope.includes('variants')) next.variants = cloneProductState(source.variants);
   if (scope.includes('modifiers')) next.modifierGroups = cloneProductState(source.modifierGroups);
-  if (scope.includes('combo')) next.combo = cloneProductState(source.combo);
   return next;
 }

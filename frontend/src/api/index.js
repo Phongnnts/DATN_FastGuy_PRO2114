@@ -14,7 +14,5 @@ export { default as shiftApi } from './shift';
 export { default as codSettlementApi } from './codSettlement';
 export { default as reviewApi } from './review';
 export { default as favoriteApi } from './favorite';
-export { default as notificationApi } from './notification';
 export { default as storeApi } from './store';
 export { default as loyaltyApi } from './loyalty';
-export { default as supportApi } from './support';

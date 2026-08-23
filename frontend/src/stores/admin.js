@@ -184,28 +184,6 @@ export const useAdminStore = defineStore('admin', () => {
       await fetchProducts();
     }
 
-    async function saveCombo(productId, data) {
-      const result = await adminApi.createCombo(productId, data);
-      await fetchProducts();
-      return result;
-    }
-
-    async function updateCombo(productId, data) {
-      await adminApi.updateCombo(productId, data);
-      await fetchProducts();
-    }
-
-    async function createComboItem(productId, data) {
-      const result = await adminApi.createComboItem(productId, data);
-      await fetchProducts();
-      return result;
-    }
-
-    async function deleteComboItem(productId, itemId) {
-      await adminApi.deleteComboItem(productId, itemId);
-      await fetchProducts();
-    }
-
   async function createCategory(data) {
     const res = await adminApi.createCategory(data);
     await fetchCategories();
@@ -252,10 +230,6 @@ export const useAdminStore = defineStore('admin', () => {
       deleteModifierGroup,
       updateModifierOption,
       deleteModifierOption,
-      saveCombo,
-      updateCombo,
-      createComboItem,
-      deleteComboItem,
      createCategory,
      updateCategory,
      deleteCategory,

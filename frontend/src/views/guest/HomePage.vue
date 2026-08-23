@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useHomepageStore } from '@/stores/homepage';
 import FeaturedProducts from '@/components/guest/FeaturedProducts.vue';
-import HomepageOccasions from '@/components/guest/HomepageOccasions.vue';
 import ProductCard from '@/components/common/ProductCard.vue';
 import bannerApi from '@/api/banner';
 import { productApi, storeApi } from '@/api';
@@ -118,7 +117,6 @@ onBeforeUnmount(() => { stopCarousel(); motionQuery?.removeEventListener('change
     <FeaturedProducts :products="homepageStore.bestSellers" :loading="homepageStore.loading" :error="homepageStore.error" @retry="homepageStore.retry" />
 
 
-    <HomepageOccasions :items="homepageStore.occasionCombos" />
 
     <section v-if="recommendationChips.length" class="commerce-section recommendations" aria-labelledby="recommendation-title">
       <div class="container"><div class="commerce-head"><p>Chọn theo khẩu vị</p><h2 id="recommendation-title">Hôm nay ăn gì?</h2><span>Chọn theo tâm trạng của bạn.</span></div>

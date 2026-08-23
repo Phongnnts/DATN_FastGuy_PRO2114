@@ -24,24 +24,13 @@ test('homepage store protects stale responses and exposes retry state', async ()
   assert.match(source, /async function retry\(\)/);
 });
 
-test('homepage V2 renders review and occasion UI from the homepage contract', async () => {
+test('homepage V2 renders reviews without removed occasion UI', async () => {
   const source = await read('../src/views/guest/HomePage.vue');
   assert.match(source, /useHomepageStore/);
-  assert.match(source, /HomepageOccasions|occasionCombos/);
+  assert.doesNotMatch(source, /HomepageOccasions|occasionCombos/);
   assert.match(source, /featuredReviews/);
   assert.match(source, /homepageStore\.load\(\)/);
   assert.doesNotMatch(source, /productStore\.fetchFeatured/);
-});
-
-test('homepage occasion mapping derives copy from contract enum only', async () => {
-  const [component, mapper] = await Promise.all([
-    read('../src/components/guest/HomepageOccasions.vue'),
-    read('../src/utils/homepage.js'),
-  ]);
-  for (const occasion of ['QUICK_BREAK', 'OFFICE_LUNCH', 'STUDENT', 'GROUP']) assert.match(mapper, new RegExp(occasion));
-  assert.match(component, /props\.items\.slice\(0, 4\)/);
-  assert.match(component, /class="combo-feature"/);
-  assert.doesNotMatch(component, /ProductCard/);
 });
 
 test('homepage keeps truthful signature promise without support or live-location claims', async () => {
@@ -109,18 +98,15 @@ test('homepage categories use visual cards with responsive grid and mobile rail'
 });
 
 test('homepage product presentation reuses the approved card action policy', async () => {
-  const [card, featured, occasions] = await Promise.all([
+  const [card, featured] = await Promise.all([
     read('../src/components/common/ProductCard.vue'),
     read('../src/components/guest/FeaturedProducts.vue'),
-    read('../src/components/guest/HomepageOccasions.vue'),
   ]);
   assert.match(card, /homepage: \{ type: Boolean, default: false \}/);
   assert.match(card, /'homepage-card': homepage/);
   assert.match(card, /v-if="canAdd\(\)" class="add-btn"/);
   assert.match(card, />Chọn món</);
   assert.match(featured, /<ProductCard :product="product" homepage/);
-  assert.match(occasions, /class="combo-feature"/);
-  assert.doesNotMatch(occasions, /ProductCard/);
 });
 
 test('homepage embeds an accessible map from public store configuration', async () => {
@@ -158,7 +144,7 @@ test('public header balances complete navigation and role actions across breakpo
   assert.match(source, /\{ label: 'Tra cứu đơn', path: '\/track-order' \}/);
   assert.match(source, /class="site-header"/);
   assert.match(source, /class="nav-actions"/);
-  assert.match(source, /<NotificationBell v-if="auth\.isUser" \/>/);
+  assert.doesNotMatch(source, /NotificationBell|notifications/);
   assert.match(source, /class="cart-summary"/);
   assert.match(source, /v-if="auth\.isUser" to="\/account\/overview"/);
   assert.match(source, /v-else to="\/" class="login-btn"/);

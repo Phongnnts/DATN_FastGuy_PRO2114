@@ -2,10 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { reactive } from 'vue';
 import {
-  buildComboHomepagePayload,
   buildProductPayload,
-  comboSaveMethod,
-  comboItemLabel,
   cloneProductState,
 
   createProductDraft,
@@ -16,8 +13,6 @@ import {
   normalizeProductScope,
   normalizeProductDetail,
   sectionDirty,
-  validateComboItem,
-  validateComboHomepage,
   validateGeneral,
   validateModifierGroup,
   validateModifierOption,
@@ -51,7 +46,6 @@ test('createProductDraft returns independent editor defaults', () => {
     galleryImages: [],
     variants: [],
     modifierGroups: [],
-    combo: null,
     isNew: false,
     spiceLevel: 0,
   });
@@ -74,7 +68,6 @@ test('normalizeProductDetail defaults nullable collections and preserves numeric
     galleryImages: null,
     variants: [{ variantId: 9, price: 10000, originalPrice: null, quantityAvailable: null }],
     modifierGroups: null,
-    combo: null,
   });
   assert.equal(result.id, 7);
   assert.equal(result.basePrice, 12500.5);
@@ -212,52 +205,26 @@ test('validateModifierOption requires name and non-negative price', () => {
   assert.deepEqual(validateModifierOption({ name: 'Thêm phô mai', price: 5000 }), {});
 });
 
-test('validateComboItem requires valid variant and positive quantity', () => {
-  assert.deepEqual(validateComboItem({ variantId: null, quantity: 0 }), { variantId: 'Chọn biến thể hợp lệ', quantity: 'Số lượng phải lớn hơn 0' });
-  assert.deepEqual(validateComboItem({ variantId: 7, quantity: 2 }), {});
-});
 
 test('normalizeProductScope always returns an array for canonical slice reloads', () => {
-  assert.deepEqual(normalizeProductScope('combo'), ['combo']);
   assert.deepEqual(normalizeProductScope(['general', 'media']), ['general', 'media']);
   assert.deepEqual(normalizeProductScope(null), ['general', 'media']);
 });
 
-test('combo homepage controls require a nonnegative integer order and build exact PUT body', () => {
-  assert.deepEqual(validateComboHomepage({ homepageSortOrder: -1 }), { homepageSortOrder: 'Thứ tự phải là số nguyên không âm' });
-  assert.deepEqual(validateComboHomepage({ homepageSortOrder: 1.5 }), { homepageSortOrder: 'Thứ tự phải là số nguyên không âm' });
-  assert.deepEqual(validateComboHomepage({ homepageSortOrder: 0 }), {});
-  assert.deepEqual(buildComboHomepagePayload({ isActive: true, homepageOccasion: '', homepageSortOrder: '2' }), {
-    isActive: true,
-    homepageOccasion: null,
-    homepageSortOrder: 2,
-  });
-});
 
-test('combo save method selects POST create only when canonical combo is absent', () => {
-  assert.equal(comboSaveMethod(false), 'createCombo');
-  assert.equal(comboSaveMethod(true), 'updateCombo');
-});
 
-test('combo item label resolves from computed choice values with a stable fallback', () => {
-  const choices = [{ variantId: 12, label: 'Burger - Lớn' }];
-  assert.equal(comboItemLabel(choices, { variantId: 12 }), 'Burger - Lớn');
-  assert.equal(comboItemLabel(choices, { variantId: 99 }), 'Biến thể #99');
-});
 
 
 test('withProductSlice copies only the affected slice and preserves other sections', () => {
-  const current = { name: 'Giữ tên', categoryId: 1, variants: [{ variantId: 1, price: 5000 }], combo: null };
-  const canonical = { name: 'Tên mới', categoryId: 9, variants: [{ variantId: 2, price: 7000 }], combo: { isActive: true } };
+  const current = { name: 'Giữ tên', categoryId: 1, variants: [{ variantId: 1, price: 5000 }] };
+  const canonical = { name: 'Tên mới', categoryId: 9, variants: [{ variantId: 2, price: 7000 }] };
   const sliced = withProductSlice(current, canonical, ['variants']);
   assert.equal(sliced.name, 'Giữ tên');
   assert.equal(sliced.categoryId, 1);
   assert.deepEqual(sliced.variants, canonical.variants);
-  assert.equal(sliced.combo, null);
   assert.equal(sliced.variants === canonical.variants, false);
   assert.deepEqual(current.variants, [{ variantId: 1, price: 5000 }]);
-  const combined = withProductSlice(current, canonical, ['general', 'combo']);
+  const combined = withProductSlice(current, canonical, ['general']);
   assert.equal(combined.name, 'Tên mới');
-  assert.deepEqual(combined.combo, { isActive: true });
   assert.deepEqual(combined.variants, current.variants);
 });

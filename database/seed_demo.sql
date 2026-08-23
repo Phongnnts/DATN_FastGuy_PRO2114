@@ -94,21 +94,6 @@ BEGIN TRY
     CROSS APPLY (VALUES(N'FG-DEMO Thêm phô mai',10000,1),(N'FG-DEMO Thêm sốt',5000,2),(N'FG-DEMO Không hành',0,3)) o(name,price,sort_order)
     WHERE g.name=N'FG-DEMO Tùy chọn thêm' AND NOT EXISTS (SELECT 1 FROM dbo.ProductModifierOption x WHERE x.modifier_group_id=g.modifier_group_id AND x.name=o.name);
 
-    INSERT dbo.ProductCombo(product_id,is_active)
-    SELECT p.product_id,1 FROM @N n JOIN @ProductNames pn ON pn.n=n.n JOIN dbo.Product p ON p.name=pn.name
-    WHERE n.n BETWEEN 57 AND 70 AND NOT EXISTS (SELECT 1 FROM dbo.ProductCombo c WHERE c.product_id=p.product_id);
-    INSERT dbo.ProductComboItem(combo_id,product_id,variant_id,quantity,sort_order)
-    SELECT pc.combo_id,component.product_id,v.variant_id,1,x.sort_order
-    FROM @N n
-    JOIN @ProductNames comboName ON comboName.n=n.n
-    JOIN dbo.Product comboProduct ON comboProduct.name=comboName.name
-    JOIN dbo.ProductCombo pc ON pc.product_id=comboProduct.product_id
-    CROSS APPLY (VALUES(((n.n-57)%56)+1,1),(((n.n-56)%56)+1,2)) x(component_n,sort_order)
-    JOIN @ProductNames componentName ON componentName.n=x.component_n
-    JOIN dbo.Product component ON component.name=componentName.name
-    JOIN dbo.ProductVariant v ON v.product_id=component.product_id AND v.is_default=1
-    WHERE n.n BETWEEN 57 AND 70 AND NOT EXISTS (SELECT 1 FROM dbo.ProductComboItem ci WHERE ci.combo_id=pc.combo_id AND ci.sort_order=x.sort_order);
-
     INSERT dbo.Coupon(code,type,value,min_order,max_discount,max_uses,used_count,expires_at,is_active,is_public,created_at,updated_at)
     SELECT CONCAT('FG-DEMO-',RIGHT(CONCAT('00',n),2)),CASE n%3 WHEN 1 THEN 'PERCENT' WHEN 2 THEN 'FIXED' ELSE 'FREE_SHIPPING' END,
            CASE n%3 WHEN 1 THEN 10 WHEN 2 THEN 15000 ELSE 0 END,50000,CASE n%3 WHEN 1 THEN 30000 WHEN 2 THEN 15000 ELSE 25000 END,0,0,DATEADD(day,180,@Now),1,1,DATEADD(day,-30,@Now),@Now
@@ -212,16 +197,6 @@ BEGIN TRY
     SELECT DISTINCT o.user_id,o.order_id,oi.product_id,4+(o.order_id%2),CASE o.order_id%3 WHEN 0 THEN N'Món ngon, đóng gói đẹp.' WHEN 1 THEN N'Giao nhanh và phục vụ thân thiện.' ELSE N'Trải nghiệm tốt, sẽ đặt lại.' END,DATEADD(hour,4,o.delivered_at),DATEADD(hour,4,o.delivered_at)
     FROM dbo.Orders o JOIN dbo.OrderItem oi ON oi.order_id=o.order_id WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND o.order_status='DELIVERED' AND o.user_id IS NOT NULL AND oi.product_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.Review r WHERE r.user_id=o.user_id AND r.order_id=o.order_id AND r.product_id=oi.product_id);
 
-    INSERT dbo.SupportTicket(user_id,order_id,subject,category,description,status,staff_id,resolution,created_at,updated_at,resolved_at)
-    SELECT o.user_id,o.order_id,CONCAT(N'FG-DEMO Hỗ trợ ',o.order_code),CASE n.n%5 WHEN 0 THEN 'MISSING_ITEM' WHEN 1 THEN 'COLD_FOOD' WHEN 2 THEN 'WRONG_ITEM' WHEN 3 THEN 'LATE_DELIVERY' ELSE 'OTHER' END,N'Yêu cầu hỗ trợ mẫu phục vụ màn hình vận hành.',CASE n.n%3 WHEN 0 THEN 'OPEN' WHEN 1 THEN 'PROCESSING' ELSE 'RESOLVED' END,st.user_id,CASE WHEN n.n%3=2 THEN N'Đã liên hệ và xử lý thỏa đáng.' END,DATEADD(hour,3,o.created_at),@Now,CASE WHEN n.n%3=2 THEN DATEADD(hour,5,o.created_at) END
-    FROM @N n JOIN dbo.Orders o ON o.order_code=CONCAT('FG-DEMO-ORDER-',RIGHT(CONCAT('000',n.n),3)) JOIN @Staff st ON st.n=((n.n-1)%6)+1
-    WHERE n.n<=36 AND NOT EXISTS (SELECT 1 FROM dbo.SupportTicket t WHERE t.subject=CONCAT(N'FG-DEMO Hỗ trợ ',o.order_code));
-
-    INSERT dbo.Notification(user_id,role_name,title,message,type,target_url,is_read,created_at,updated_at)
-    SELECT o.user_id,NULL,CONCAT(N'FG-DEMO ',o.order_status),CONCAT(N'Đơn ',o.order_code,N' hiện ở trạng thái ',o.order_status), 'ORDER',CONCAT('/orders/',o.order_id),CASE WHEN n.n%3=0 THEN 1 ELSE 0 END,DATEADD(minute,1,o.created_at),@Now
-    FROM @N n JOIN dbo.Orders o ON o.order_code=CONCAT('FG-DEMO-ORDER-',RIGHT(CONCAT('000',n.n),3))
-    WHERE n.n<=120 AND NOT EXISTS (SELECT 1 FROM dbo.Notification x WHERE x.user_id=o.user_id AND x.message=CONCAT(N'Đơn ',o.order_code,N' hiện ở trạng thái ',o.order_status));
-
     IF EXISTS (SELECT 1 FROM dbo.Orders o WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND o.final_amount<>o.total_amount+o.shipping_fee+o.service_fee-o.discount_amount) THROW 51609, 'FG-DEMO order totals are invalid.', 1;
     IF EXISTS (SELECT 1 FROM dbo.OrderItem oi JOIN dbo.Orders o ON o.order_id=oi.order_id WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND oi.total_price<>oi.unit_price*oi.quantity) THROW 51610, 'FG-DEMO order item totals are invalid.', 1;
     IF EXISTS (SELECT 1 FROM dbo.Orders o OUTER APPLY (SELECT TOP (1) h.to_status FROM dbo.OrderStatusHistory h WHERE h.order_id=o.order_id ORDER BY h.created_at DESC,h.history_id DESC) h WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND (h.to_status IS NULL OR h.to_status<>o.order_status)) THROW 51611, 'FG-DEMO latest status history is invalid.', 1;
@@ -239,8 +214,6 @@ BEGIN TRY
         ('ProductVariant',(SELECT COUNT_BIG(*) FROM dbo.ProductVariant WHERE sku LIKE 'FG-DEMO-SKU-%')),
         ('ProductModifierGroup',(SELECT COUNT_BIG(*) FROM dbo.ProductModifierGroup WHERE name LIKE N'FG-DEMO %')),
         ('ProductModifierOption',(SELECT COUNT_BIG(*) FROM dbo.ProductModifierOption WHERE name LIKE N'FG-DEMO %')),
-        ('ProductCombo',(SELECT COUNT_BIG(*) FROM dbo.ProductCombo c JOIN dbo.Product p ON p.product_id=c.product_id WHERE p.name LIKE N'FG-DEMO %')),
-        ('ProductComboItem',(SELECT COUNT_BIG(*) FROM dbo.ProductComboItem i JOIN dbo.ProductCombo c ON c.combo_id=i.combo_id JOIN dbo.Product p ON p.product_id=c.product_id WHERE p.name LIKE N'FG-DEMO %')),
         ('Cart',(SELECT COUNT_BIG(*) FROM dbo.Cart c JOIN dbo.Users u ON u.user_id=c.user_id WHERE u.email LIKE 'fg-demo-%@fastguy.local')),
         ('CartItem',(SELECT COUNT_BIG(*) FROM dbo.CartItem ci JOIN dbo.Cart c ON c.cart_id=ci.cart_id JOIN dbo.Users u ON u.user_id=c.user_id WHERE u.email LIKE 'fg-demo-%@fastguy.local')),
         ('Coupon',(SELECT COUNT_BIG(*) FROM dbo.Coupon WHERE code LIKE 'FG-DEMO-%')),
@@ -254,8 +227,6 @@ BEGIN TRY
         ('CouponRedemption',(SELECT COUNT_BIG(*) FROM dbo.CouponRedemption r JOIN dbo.Orders o ON o.order_id=r.order_id WHERE o.order_code LIKE 'FG-DEMO-ORDER-%')),
         ('LoyaltyTransaction',(SELECT COUNT_BIG(*) FROM dbo.LoyaltyTransaction l JOIN dbo.Orders o ON o.order_id=l.order_id WHERE o.order_code LIKE 'FG-DEMO-ORDER-%')),
         ('Review',(SELECT COUNT_BIG(*) FROM dbo.Review r JOIN dbo.Orders o ON o.order_id=r.order_id WHERE o.order_code LIKE 'FG-DEMO-ORDER-%')),
-        ('SupportTicket',(SELECT COUNT_BIG(*) FROM dbo.SupportTicket WHERE subject LIKE N'FG-DEMO %')),
-        ('Notification',(SELECT COUNT_BIG(*) FROM dbo.Notification WHERE message LIKE N'%FG-DEMO-ORDER-%')),
         ('WorkShift',(SELECT COUNT_BIG(*) FROM dbo.WorkShift w JOIN dbo.Users u ON u.user_id=w.user_id WHERE u.email LIKE 'fg-demo-%@fastguy.local'))
     ) v(table_name,seed_rows)
     ORDER BY v.table_name;

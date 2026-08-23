@@ -20,15 +20,14 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import entity.Product;
-import entity.ProductCombo;
 
 class HomepageAdminContractTest {
     @Test
     void homepageServletUsesPublicContractPath() {
         WebServlet mapping = HomepageServlet.class.getAnnotation(WebServlet.class);
         assertEquals("/api/homepage", mapping.value()[0]);
-        assertEquals(Map.of("bestSellers", java.util.List.of(), "occasionCombos", java.util.List.of(), "featuredReviews", java.util.List.of()),
-                HomepageServlet.responseData(Map.of("bestSellers", java.util.List.of(), "occasionCombos", java.util.List.of(), "featuredReviews", java.util.List.of())));
+        assertEquals(Map.of("bestSellers", java.util.List.of(), "featuredReviews", java.util.List.of()),
+                HomepageServlet.responseData(Map.of("bestSellers", java.util.List.of(), "featuredReviews", java.util.List.of())));
     }
 
     @Test
@@ -74,25 +73,6 @@ class HomepageAdminContractTest {
         assertThrows(IllegalArgumentException.class, () -> AdminProductServlet.validateProductCreate(Map.of("name", "Burger", "categoryId", 2, "basePrice", 1, "spiceLevel", 4)));
     }
 
-    @Test
-    void comboCreateValidatorAcceptsExactHomepageMetadata() {
-        AdminProductServlet.validateComboCreate(Map.of("isActive", true, "homepageOccasion", "OFFICE_LUNCH", "homepageSortOrder", 2));
-        assertThrows(IllegalArgumentException.class, () -> AdminProductServlet.validateComboCreate(Map.of("homepageSortOrder", -1)));
-        assertThrows(IllegalArgumentException.class, () -> AdminProductServlet.validateComboCreate(Map.of("unknown", true)));
-    }
-
-    @Test
-    void createMetadataMapsExactValidatedValues() {
-        Product product = new Product();
-        AdminProductServlet.applyProductHomepageMetadata(product, Map.of("isNew", true, "spiceLevel", 2));
-        assertEquals(true, product.getIsNew());
-        assertEquals(2, product.getSpiceLevel());
-        ProductCombo combo = new ProductCombo();
-        AdminProductServlet.applyComboHomepageMetadata(combo, Map.of("isActive", false, "homepageOccasion", "STUDENT", "homepageSortOrder", 4));
-        assertEquals(false, combo.getIsActive());
-        assertEquals("STUDENT", combo.getHomepageOccasion());
-        assertEquals(4, combo.getHomepageSortOrder());
-    }
 
     @Test
     void featuredRouteRejectsExtraSegmentBeforeMutation() throws Exception {

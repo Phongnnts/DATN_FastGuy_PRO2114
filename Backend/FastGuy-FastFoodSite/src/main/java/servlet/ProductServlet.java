@@ -4,8 +4,6 @@ import dao.ProductDAO;
 import dao.ProductModifierDAO;
 import dao.ReviewDAO;
 import entity.Product;
-import entity.ProductCombo;
-import entity.ProductComboItem;
 import entity.ProductModifierGroup;
 import entity.ProductModifierOption;
 import entity.ProductVariant;
@@ -59,7 +57,7 @@ public class ProductServlet extends HttpServlet {
                 if (!List.of("ALL", "AVAILABLE", "OUT_OF_STOCK", "OUTSIDE_HOURS").contains(availability)) throw new IllegalArgumentException("Invalid availability");
                 String productType = optional(req, "productType");
                 productType = productType == null ? null : productType.toUpperCase();
-                if (productType != null && !List.of("SIMPLE", "VARIANT", "COMBO", "CUSTOMIZABLE").contains(productType)) throw new IllegalArgumentException("Invalid productType");
+                if (productType != null && !List.of("SIMPLE", "VARIANT", "CUSTOMIZABLE").contains(productType)) throw new IllegalArgumentException("Invalid productType");
                 Boolean discounted = bool(req, "discounted");
                 Long minSold = longInteger(req, "sold", 0, Long.MAX_VALUE);
                 String sort = optional(req, "sort");
@@ -245,7 +243,6 @@ public class ProductServlet extends HttpServlet {
         boolean discounted = originalPrice != null && currentPrice != null && originalPrice.signum() > 0 && originalPrice.compareTo(currentPrice) > 0;
         boolean hasVariants = (flags & 1) != 0;
         boolean hasModifiers = (flags & 2) != 0;
-        boolean isCombo = (flags & 4) != 0;
         m.put("originalPrice", originalPrice);
         m.put("discountPercent", discounted ? originalPrice.subtract(currentPrice).multiply(BigDecimal.valueOf(100)).divide(originalPrice, 2, java.math.RoundingMode.HALF_UP) : null);
         m.put("soldCount", soldCount);
@@ -253,8 +250,7 @@ public class ProductServlet extends HttpServlet {
         m.put("reviewCount", rating == null ? 0L : rating.reviewCount());
         m.put("hasVariants", hasVariants);
         m.put("hasModifiers", hasModifiers);
-        m.put("isCombo", isCombo);
-        m.put("productType", isCombo ? "COMBO" : hasModifiers ? "CUSTOMIZABLE" : hasVariants ? "VARIANT" : "SIMPLE");
+        m.put("productType", hasModifiers ? "CUSTOMIZABLE" : hasVariants ? "VARIANT" : "SIMPLE");
         m.put("availableFrom", p.getAvailableFrom() != null ? p.getAvailableFrom().toString() : null);
         m.put("availableTo", p.getAvailableTo() != null ? p.getAvailableTo().toString() : null);
         m.put("isAvailableNow", isAvailableNow(p));
@@ -287,17 +283,6 @@ public class ProductServlet extends HttpServlet {
         return m;
     }
 
-    private Map<String, Object> toComboItemMap(ProductComboItem item) {
-        Map<String, Object> m = new HashMap<>();
-        m.put("comboItemId", item.getComboItemId());
-        m.put("productId", item.getProduct().getProductId());
-        m.put("productName", item.getProduct().getName());
-        m.put("variantId", item.getVariant().getVariantId());
-        m.put("variantName", item.getVariant().getVariantName());
-        m.put("quantity", item.getQuantity());
-        return m;
-    }
-
     Map<String, Object> toDetailMap(Product p) {
         Map<String, Object> m = toMap(p);
         String gallery = p.getGalleryImages();
@@ -313,8 +298,6 @@ public class ProductServlet extends HttpServlet {
             }
         }
         m.put("galleryImages", galleryList);
-        ProductCombo combo = modifierDAO.combo(p.getProductId());
-        m.put("combo", combo != null && Boolean.TRUE.equals(combo.getIsActive()) ? Map.of("comboId", combo.getComboId(), "items", modifierDAO.comboItems(combo.getComboId()).stream().map(this::toComboItemMap).collect(Collectors.toList())) : null);
         return m;
     }
 }

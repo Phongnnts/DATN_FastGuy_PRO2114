@@ -11,7 +11,6 @@ import utils.DatabaseUtil;
 
 public class RefundService {
     private LoyaltyService loyaltyService = new LoyaltyService();
-    private NotificationService notificationService = new NotificationService();
 
     public void update(int orderId, String status, BigDecimal amount, String note, String reference, int adminId) {
         EntityManager em = DatabaseUtil.getEntityManager();
@@ -46,7 +45,6 @@ public class RefundService {
             }
             order.setRefundProcessedBy(adminId);
             em.getTransaction().commit();
-            if (order.getUser() != null) notificationService.notifyUser(order.getUser().getUserId(), "Cập nhật hoàn tiền", "Đơn " + order.getOrderCode() + " đã " + status, "REFUND", "/account/orders/" + orderId);
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;

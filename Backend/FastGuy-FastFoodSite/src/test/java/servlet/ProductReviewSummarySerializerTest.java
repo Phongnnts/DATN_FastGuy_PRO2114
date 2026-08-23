@@ -46,7 +46,6 @@ class ProductReviewSummarySerializerTest {
         assertEquals(List.of(1), reviews.requestedIds);
         assertSummaryShape(detail);
         assertTrue(detail.containsKey("galleryImages"));
-        assertTrue(detail.containsKey("combo"));
     }
 
     @Test
@@ -113,6 +112,5 @@ class ProductReviewSummarySerializerTest {
         @Override public Map<Integer, List<ProductModifierGroup>> groupsByProductIds(List<Integer> productIds) { return Map.of(); }
         @Override public Map<Integer, List<entity.ProductModifierOption>> optionsByGroupIds(List<Integer> groupIds) { return Map.of(); }
         @Override public List<ProductModifierGroup> groups(int productId) { throw new AssertionError("detail must reuse batch modifier groups"); }
-        @Override public entity.ProductCombo combo(int productId) { return null; }
     }
 }

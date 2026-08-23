@@ -153,7 +153,7 @@ paths:
           schema: { type: string, enum: [ALL, AVAILABLE, OUT_OF_STOCK, OUTSIDE_HOURS] }
         - name: productType
           in: query
-          schema: { type: string, enum: [SIMPLE, VARIANT, COMBO, CUSTOMIZABLE] }
+          schema: { type: string, enum: [SIMPLE, VARIANT, CUSTOMIZABLE] }
         - name: discounted
           in: query
           schema: { type: boolean }
@@ -205,7 +205,7 @@ paths:
       security: []
       responses:
         '200':
-          description: Homepage products, occasion combos, and public featured reviews
+          description: Homepage best sellers and public featured reviews
           content:
             application/json:
               schema:
@@ -641,133 +641,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-  /admin/products/{productId}/combo:
-    get:
-      operationId: getAdminProductCombo
-      summary: Get an admin product combo
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/ProductId'
-      responses:
-        '200':
-          description: Admin combo detail or null when no combo exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminComboDetailResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    post:
-
-      operationId: createAdminProductCombo
-      summary: Create combo with homepage metadata
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/ProductId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminComboUpdateRequest'
-      responses:
-        '200':
-          description: Combo created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminMutationResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      operationId: updateAdminProductCombo
-      summary: Update combo homepage metadata
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/ProductId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminComboUpdateRequest'
-      responses:
-        '200':
-          description: Combo updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminMutationResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /admin/products/{productId}/combo/items:
-    post:
-      operationId: createAdminProductComboItem
-      summary: Add an item to an admin product combo
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/ProductId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AdminComboItemCreateRequest'
-      responses:
-        '201':
-          description: Combo item created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminComboMutationResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-  /admin/products/{productId}/combo/items/{itemId}:
-    delete:
-      operationId: deleteAdminProductComboItem
-      summary: Delete an item from an admin product combo
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/ProductId'
-        - $ref: '#/components/parameters/ItemId'
-      responses:
-        '200':
-          description: Combo item deleted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminDeleteResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
   /admin/orders/{orderId}:
     get:
       operationId: getAdminOrderDetail
@@ -847,13 +720,6 @@ components:
         minimum: 1
     UserId:
       name: userId
-      in: path
-      required: true
-      schema:
-        type: integer
-        minimum: 1
-    ItemId:
-      name: itemId
       in: path
       required: true
       schema:
@@ -1314,18 +1180,13 @@ components:
     HomepageData:
       type: object
       additionalProperties: false
-      required: [bestSellers, occasionCombos, featuredReviews]
+      required: [bestSellers, featuredReviews]
       properties:
         bestSellers:
           type: array
           maxItems: 6
           items:
             $ref: '#/components/schemas/ProductSummary'
-        occasionCombos:
-          type: array
-          maxItems: 4
-          items:
-            $ref: '#/components/schemas/OccasionCombo'
         featuredReviews:
           type: array
           maxItems: 3
@@ -1334,7 +1195,7 @@ components:
     ProductSummary:
       type: object
       additionalProperties: false
-      required: &ProductSummaryRequired [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, isCombo, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups]
+      required: &ProductSummaryRequired [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups]
       properties: &ProductSummaryProperties
         productId:
           type: integer
@@ -1377,11 +1238,9 @@ components:
           type: boolean
         hasModifiers:
           type: boolean
-        isCombo:
-          type: boolean
         productType:
           type: string
-          enum: [SIMPLE, VARIANT, COMBO, CUSTOMIZABLE]
+          enum: [SIMPLE, VARIANT, CUSTOMIZABLE]
         availableFrom:
           type: [string, 'null']
           pattern: '^\d{2}:\d{2}(:\d{2})?$'
@@ -1464,17 +1323,13 @@ components:
     ProductDetail:
       type: object
       additionalProperties: false
-      required: [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, isCombo, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups, galleryImages, combo]
+      required: [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups, galleryImages ]
       properties:
         <<: *ProductSummaryProperties
         galleryImages:
           type: array
           items:
             type: string
-        combo:
-          oneOf:
-            - $ref: '#/components/schemas/ProductComboSummary'
-            - type: 'null'
     ProductDetailResponse:
       type: object
       additionalProperties: false
@@ -1485,29 +1340,6 @@ components:
           const: success
         data:
           $ref: '#/components/schemas/ProductDetail'
-    ProductComboSummary:
-      type: object
-      additionalProperties: false
-      required: [comboId, items]
-      properties:
-        comboId:
-          type: integer
-          minimum: 1
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/ProductComboItemSummary'
-    ProductComboItemSummary:
-      type: object
-      additionalProperties: false
-      required: [comboItemId, productId, productName, variantId, variantName, quantity]
-      properties:
-        comboItemId: { type: integer, minimum: 1 }
-        productId: { type: integer, minimum: 1 }
-        productName: { type: string, minLength: 1 }
-        variantId: { type: integer, minimum: 1 }
-        variantName: { type: string }
-        quantity: { type: integer, minimum: 1 }
     ProductVariantSummary:
       type: object
       additionalProperties: false
@@ -1571,23 +1403,6 @@ components:
           minimum: 0
         isActive:
           type: boolean
-    OccasionCombo:
-      type: object
-      additionalProperties: false
-      required: [occasion, label, product]
-      properties:
-        occasion:
-          type: string
-          enum:
-          - QUICK_BREAK
-          - OFFICE_LUNCH
-          - STUDENT
-          - GROUP
-        label:
-          type: string
-          minLength: 1
-        product:
-          $ref: '#/components/schemas/ProductSummary'
     FeaturedReview:
       type: object
       additionalProperties: false
@@ -1673,47 +1488,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminModifierOptionDetail'
-    AdminComboItemDetail:
-      type: object
-      additionalProperties: false
-      required: [comboItemId, productId, variantId, quantity]
-      properties:
-        comboItemId:
-          type: integer
-          minimum: 1
-        productId:
-          type: integer
-          minimum: 1
-        variantId:
-          type: integer
-          minimum: 1
-        quantity:
-          type: integer
-          minimum: 1
-    AdminComboDetail:
-      type: object
-      additionalProperties: false
-      required: [comboId, isActive, homepageOccasion, homepageSortOrder, items]
-      properties:
-        comboId:
-          type: integer
-          minimum: 1
-        isActive:
-          type: boolean
-        homepageOccasion:
-          type: [string, 'null']
-          enum: [QUICK_BREAK, OFFICE_LUNCH, STUDENT, GROUP, null]
-        homepageSortOrder:
-          type: integer
-          minimum: 0
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/AdminComboItemDetail'
     AdminProductDetail:
       type: object
       additionalProperties: false
-      required: [productId, name, categoryId, categoryName, basePrice, imageUrl, description, status, availableFrom, availableTo, isNew, spiceLevel, galleryImages, variants, modifierGroups, combo, discountPrice, rating, reviewCount, inStock, featured]
+      required: [productId, name, categoryId, categoryName, basePrice, imageUrl, description, status, availableFrom, availableTo, isNew, spiceLevel, galleryImages, variants, modifierGroups, discountPrice, rating, reviewCount, inStock, featured]
       properties:
         productId:
           type: integer
@@ -1759,10 +1537,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminModifierGroupDetail'
-        combo:
-          oneOf:
-            - $ref: '#/components/schemas/AdminComboDetail'
-            - type: 'null'
         discountPrice:
           type: 'null'
         rating:
@@ -1797,29 +1571,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminProductDetail'
-    AdminComboDetailResponse:
-      type: object
-      additionalProperties: false
-      required: [status, data]
-      properties:
-        status:
-          type: string
-          const: success
-        data:
-          oneOf:
-            - $ref: '#/components/schemas/AdminComboDetail'
-            - type: 'null'
-    AdminComboItemCreateRequest:
-      type: object
-      additionalProperties: false
-      required: [variantId, quantity]
-      properties:
-        variantId:
-          type: integer
-          minimum: 1
-        quantity:
-          type: integer
-          minimum: 1
     AdminProductCreateRequest:
       type: object
       additionalProperties: false
@@ -1894,19 +1645,6 @@ components:
           type: integer
           minimum: 0
           maximum: 3
-    AdminComboUpdateRequest:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      properties:
-        isActive:
-          type: boolean
-        homepageOccasion:
-          type: [string, 'null']
-          enum: [QUICK_BREAK, OFFICE_LUNCH, STUDENT, GROUP, null]
-        homepageSortOrder:
-          type: integer
-          minimum: 0
     ReviewCreateRequest:
       type: object
       additionalProperties: false
@@ -2288,32 +2026,6 @@ components:
         message:
           type: string
           const: Featured review updated
-    AdminComboMutationResponse:
-      type: object
-      additionalProperties: false
-      required: [status, data, message]
-      properties:
-        status:
-          type: string
-          const: success
-        data:
-          $ref: '#/components/schemas/AdminComboDetail'
-        message:
-          type: string
-          const: Created
-    AdminDeleteResponse:
-      type: object
-      additionalProperties: false
-      required: [status, data, message]
-      properties:
-        status:
-          type: string
-          const: success
-        data:
-          type: 'null'
-        message:
-          type: string
-          const: Deleted
     AdminMutationResponse:
       type: object
       required: [status]

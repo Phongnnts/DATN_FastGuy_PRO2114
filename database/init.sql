@@ -97,26 +97,6 @@ CREATE TABLE dbo.ProductModifierOption (
     CONSTRAINT CK_ProductModifierOption_Price CHECK (price >= 0)
 );
 
-CREATE TABLE dbo.ProductCombo (
-    combo_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProductCombo PRIMARY KEY,
-    product_id int NOT NULL CONSTRAINT FK_ProductCombo_Product REFERENCES dbo.Product(product_id),
-    is_active bit NOT NULL CONSTRAINT DF_ProductCombo_Active DEFAULT 1,
-    homepage_occasion varchar(24) NULL,
-    homepage_sort_order int NOT NULL CONSTRAINT DF_ProductCombo_HomepageSortOrder DEFAULT 0,
-    CONSTRAINT CK_ProductCombo_HomepageOccasion CHECK (homepage_occasion IS NULL OR homepage_occasion IN ('QUICK_BREAK', 'OFFICE_LUNCH', 'STUDENT', 'GROUP')),
-    CONSTRAINT UQ_ProductCombo_Product UNIQUE (product_id)
-);
-
-CREATE TABLE dbo.ProductComboItem (
-    combo_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProductComboItem PRIMARY KEY,
-    combo_id int NOT NULL CONSTRAINT FK_ProductComboItem_Combo REFERENCES dbo.ProductCombo(combo_id),
-    product_id int NOT NULL CONSTRAINT FK_ProductComboItem_Product REFERENCES dbo.Product(product_id),
-    variant_id int NOT NULL CONSTRAINT FK_ProductComboItem_Variant REFERENCES dbo.ProductVariant(variant_id),
-    quantity int NOT NULL CONSTRAINT DF_ProductComboItem_Quantity DEFAULT 1,
-    sort_order int NOT NULL CONSTRAINT DF_ProductComboItem_Sort DEFAULT 0,
-    CONSTRAINT CK_ProductComboItem_Quantity CHECK (quantity > 0)
-);
-
 CREATE TABLE dbo.ShippingConfig (
     config_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_ShippingConfig PRIMARY KEY,
     config_key varchar(100) NOT NULL CONSTRAINT UQ_ShippingConfig_Key UNIQUE,
@@ -444,45 +424,6 @@ CREATE TABLE dbo.Review (
     CONSTRAINT CK_Review_FeaturedConsent CHECK (is_featured = 0 OR homepage_consent = 1)
 );
 
-CREATE TABLE dbo.SupportTicket (
-    ticket_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_SupportTicket PRIMARY KEY,
-    user_id int NULL CONSTRAINT FK_SupportTicket_User REFERENCES dbo.Users(user_id),
-    order_id int NULL CONSTRAINT FK_SupportTicket_Order REFERENCES dbo.Orders(order_id),
-    subject nvarchar(255) NOT NULL,
-    category varchar(30) NOT NULL,
-    description nvarchar(2000) NOT NULL,
-    status varchar(20) NOT NULL CONSTRAINT DF_SupportTicket_Status DEFAULT 'OPEN',
-    staff_id int NULL CONSTRAINT FK_SupportTicket_Staff REFERENCES dbo.Users(user_id),
-    resolution nvarchar(2000) NULL,
-    created_at datetime2(0) NOT NULL CONSTRAINT DF_SupportTicket_Created DEFAULT GETDATE(),
-    updated_at datetime2(0) NOT NULL CONSTRAINT DF_SupportTicket_Updated DEFAULT GETDATE(),
-    resolved_at datetime2(0) NULL,
-    CONSTRAINT CK_SupportTicket_Category CHECK (category IN ('MISSING_ITEM', 'COLD_FOOD', 'WRONG_ITEM', 'LATE_DELIVERY', 'OTHER')),
-    CONSTRAINT CK_SupportTicket_Status CHECK (status IN ('OPEN', 'PROCESSING', 'RESOLVED'))
-);
-
-CREATE TABLE dbo.Notification (
-    notification_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Notification PRIMARY KEY,
-    user_id int NULL CONSTRAINT FK_Notification_User REFERENCES dbo.Users(user_id),
-    role_name varchar(50) NULL,
-    title nvarchar(255) NOT NULL,
-    message nvarchar(1000) NULL,
-    type varchar(50) NULL,
-    target_url varchar(500) NULL,
-    is_read bit NOT NULL CONSTRAINT DF_Notification_Read DEFAULT 0,
-    created_at datetime2(0) NOT NULL CONSTRAINT DF_Notification_Created DEFAULT GETDATE(),
-    updated_at datetime2(0) NOT NULL CONSTRAINT DF_Notification_Updated DEFAULT GETDATE(),
-    CONSTRAINT CK_Notification_Target CHECK (user_id IS NOT NULL OR role_name IS NOT NULL),
-    CONSTRAINT CK_Notification_Role CHECK (role_name IS NULL OR role_name IN ('ADMIN', 'STAFF', 'SHIPPER', 'USER'))
-);
-
-CREATE TABLE dbo.NotificationReadReceipt (
-    notification_id int NOT NULL CONSTRAINT FK_NotificationReadReceipt_Notification REFERENCES dbo.Notification(notification_id) ON DELETE CASCADE,
-    user_id int NOT NULL CONSTRAINT FK_NotificationReadReceipt_User REFERENCES dbo.Users(user_id),
-    read_at datetime2(0) NOT NULL CONSTRAINT DF_NotificationReadReceipt_ReadAt DEFAULT GETDATE(),
-    CONSTRAINT PK_NotificationReadReceipt PRIMARY KEY (notification_id, user_id)
-);
-
 CREATE TABLE dbo.OrderStatusHistory (
     history_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_OrderStatusHistory PRIMARY KEY,
     order_id int NOT NULL CONSTRAINT FK_OrderStatusHistory_Order REFERENCES dbo.Orders(order_id),
@@ -512,10 +453,6 @@ CREATE INDEX IX_Product_Category ON dbo.Product(category_id);
 CREATE INDEX IX_ProductVariant_Product ON dbo.ProductVariant(product_id);
 CREATE INDEX IX_ProductModifierGroup_Product ON dbo.ProductModifierGroup(product_id);
 CREATE INDEX IX_ProductModifierOption_Group ON dbo.ProductModifierOption(modifier_group_id);
-CREATE INDEX IX_ProductComboItem_Combo ON dbo.ProductComboItem(combo_id);
-CREATE INDEX IX_ProductComboItem_Product ON dbo.ProductComboItem(product_id);
-CREATE INDEX IX_ProductComboItem_Variant ON dbo.ProductComboItem(variant_id);
-CREATE INDEX IX_ProductCombo_HomepageOccasion ON dbo.ProductCombo(homepage_occasion, homepage_sort_order) WHERE homepage_occasion IS NOT NULL AND is_active = 1;
 CREATE INDEX IX_PasswordResetToken_User ON dbo.PasswordResetToken(user_id);
 CREATE INDEX IX_Address_User ON dbo.Address(user_id);
 CREATE INDEX IX_CartItem_Cart ON dbo.CartItem(cart_id);
@@ -538,11 +475,6 @@ CREATE INDEX IX_OrderItem_Variant ON dbo.OrderItem(variant_id);
 CREATE INDEX IX_Review_Order ON dbo.Review(order_id);
 CREATE INDEX IX_Review_ProductCreatedAt ON dbo.Review(product_id, created_at DESC, review_id DESC);
 CREATE INDEX IX_Review_FeaturedCreatedAt ON dbo.Review(is_featured, created_at DESC) WHERE is_featured = 1;
-CREATE INDEX IX_SupportTicket_User_Created ON dbo.SupportTicket(user_id, created_at);
-CREATE INDEX IX_SupportTicket_Order ON dbo.SupportTicket(order_id);
-CREATE INDEX IX_SupportTicket_Staff_Status ON dbo.SupportTicket(staff_id, status);
-CREATE INDEX IX_Notification_User_Read ON dbo.Notification(user_id, is_read, created_at);
-CREATE INDEX IX_Notification_Role_Read ON dbo.Notification(role_name, is_read, created_at);
 CREATE INDEX IX_OrderStatusHistory_Order_Created ON dbo.OrderStatusHistory(order_id, created_at);
 CREATE INDEX IX_OrderStatusHistory_Actor ON dbo.OrderStatusHistory(actor_user_id);
 GO
@@ -588,15 +520,6 @@ INSERT dbo.ProductModifierOption (modifier_option_id, modifier_group_id, name, p
     (3, 2, N'Sot dac biet', 0, 1, 1),
     (4, 2, N'Sot cay', 0, 1, 2);
 SET IDENTITY_INSERT dbo.ProductModifierOption OFF;
-
-SET IDENTITY_INSERT dbo.ProductCombo ON;
-INSERT dbo.ProductCombo (combo_id, product_id, is_active) VALUES (1, 4, 1);
-SET IDENTITY_INSERT dbo.ProductCombo OFF;
-
-SET IDENTITY_INSERT dbo.ProductComboItem ON;
-INSERT dbo.ProductComboItem (combo_item_id, combo_id, product_id, variant_id, quantity, sort_order) VALUES
-    (1, 1, 1, 1, 1, 1), (2, 1, 2, 3, 1, 2), (3, 1, 3, 4, 1, 3);
-SET IDENTITY_INSERT dbo.ProductComboItem OFF;
 
 INSERT dbo.ShippingConfig (config_key, config_value) VALUES
     ('ghn_from_district_id', '1442'), ('ghn_from_ward_code', '20107'),
@@ -749,18 +672,6 @@ INSERT dbo.Review (review_id, user_id, order_id, product_id, rating, comment, cr
     (1, 4, 7, 1, 5, N'Giao nhanh, mon an con nong.', DATEADD(hour, -20, GETDATE()), DATEADD(hour, -20, GETDATE()));
 SET IDENTITY_INSERT dbo.Review OFF;
 
-SET IDENTITY_INSERT dbo.SupportTicket ON;
-INSERT dbo.SupportTicket (ticket_id, user_id, order_id, subject, category, description, status, staff_id, resolution, created_at, updated_at, resolved_at) VALUES
-    (1, 4, 7, N'Can ho tro hoa don', 'OTHER', N'Xin gui lai thong tin hoa don.', 'PROCESSING', 2, NULL, DATEADD(hour, -4, GETDATE()), GETDATE(), NULL);
-SET IDENTITY_INSERT dbo.SupportTicket OFF;
-
-SET IDENTITY_INSERT dbo.Notification ON;
-INSERT dbo.Notification (notification_id, user_id, role_name, title, message, type, target_url, is_read, created_at, updated_at) VALUES
-    (1, 4, NULL, N'Don hang da giao', N'Don FG-DEMO-007 da giao thanh cong.', 'ORDER', '/orders/7', 0, DATEADD(day, -1, GETDATE()), GETDATE()),
-    (2, NULL, 'STAFF', N'Don moi', N'Don FG-DEMO-001 dang cho xu ly.', 'ORDER', '/staff/orders/1', 0, DATEADD(minute, -20, GETDATE()), GETDATE()),
-    (3, 3, NULL, N'Don da gan', N'Ban duoc gan don FG-DEMO-005.', 'ORDER', '/shipper/orders/5', 0, DATEADD(minute, -10, GETDATE()), GETDATE());
-SET IDENTITY_INSERT dbo.Notification OFF;
-
 COMMIT TRANSACTION;
 END TRY
 BEGIN CATCH
@@ -772,9 +683,8 @@ GO
 DECLARE @RequiredTables TABLE (table_name sysname PRIMARY KEY);
 INSERT @RequiredTables (table_name) VALUES
     ('Users'), ('PasswordResetToken'), ('Address'), ('Category'), ('Product'), ('ProductVariant'),
-    ('ProductModifierGroup'), ('ProductModifierOption'), ('ProductCombo'), ('ProductComboItem'), ('Cart'),
-    ('CartItem'), ('Orders'), ('OrderItem'), ('Coupon'), ('CouponRedemption'), ('Banner'), ('Review'),
-    ('Notification'), ('SupportTicket'), ('OrderStatusHistory'), ('LoyaltyTransaction'), ('WorkShift'),
+    ('ProductModifierGroup'), ('ProductModifierOption'), ('Cart'), ('CartItem'), ('Orders'), ('OrderItem'),
+    ('Coupon'), ('CouponRedemption'), ('Banner'), ('Review'), ('OrderStatusHistory'), ('LoyaltyTransaction'), ('WorkShift'),
     ('PaymentAttempt'), ('InventoryReservation'), ('InventoryTransaction'), ('ShippingConfig');
 
 IF EXISTS (
@@ -783,8 +693,8 @@ IF EXISTS (
 )
     THROW 51000, 'Validation failed: required table missing.', 1;
 
-IF (SELECT COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo')) <> 27
-    THROW 51001, 'Validation failed: dbo must contain exactly 26 entity tables plus ShippingConfig.', 1;
+IF (SELECT COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo')) <> 22
+    THROW 51001, 'Validation failed: dbo must contain exactly 21 entity tables plus ShippingConfig.', 1;
 
 IF OBJECT_ID(N'dbo.Role', N'U') IS NOT NULL
    OR OBJECT_ID(N'dbo.DeliveryZone', N'U') IS NOT NULL
@@ -798,13 +708,10 @@ IF COL_LENGTH('dbo.CartItem', 'selected_modifier_option_ids') IS NOT NULL
 
 IF (SELECT COUNT(DISTINCT role_name) FROM dbo.Users WHERE status = 'ACTIVE') <> 4
    OR (SELECT COUNT(*) FROM dbo.ProductModifierOption) = 0
-   OR (SELECT COUNT(*) FROM dbo.ProductComboItem) = 0
    OR (SELECT COUNT(*) FROM dbo.WorkShift WHERE shift_date = CAST(GETDATE() AS date)) < 2
    OR (SELECT COUNT(DISTINCT order_status) FROM dbo.Orders) <> 8
    OR (SELECT COUNT(*) FROM dbo.PaymentAttempt) = 0
    OR (SELECT COUNT(*) FROM dbo.Review) = 0
-   OR (SELECT COUNT(*) FROM dbo.SupportTicket) = 0
-   OR (SELECT COUNT(*) FROM dbo.Notification) = 0
    OR (SELECT COUNT(*) FROM dbo.LoyaltyTransaction) = 0
     THROW 51004, 'Validation failed: required demo data missing.', 1;
 
@@ -926,8 +833,7 @@ UNION ALL SELECT 'Orders', COUNT(*) FROM dbo.Orders
 UNION ALL SELECT 'OrderItems', COUNT(*) FROM dbo.OrderItem
 UNION ALL SELECT 'OrderStatuses', COUNT(DISTINCT order_status) FROM dbo.Orders
 UNION ALL SELECT 'TodayShifts', COUNT(*) FROM dbo.WorkShift WHERE shift_date = CAST(GETDATE() AS date)
-UNION ALL SELECT 'InventoryTransactions', COUNT(*) FROM dbo.InventoryTransaction
-UNION ALL SELECT 'Notifications', COUNT(*) FROM dbo.Notification;
+UNION ALL SELECT 'InventoryTransactions', COUNT(*) FROM dbo.InventoryTransaction;
 
 PRINT 'FastGuyDB canonical schema and demo data validated successfully.';
 GO

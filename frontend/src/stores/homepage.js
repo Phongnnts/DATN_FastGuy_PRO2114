@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { homepageApi } from '@/api';
-import { mapHomepageProduct, mapOccasion } from '@/utils/homepage';
+import { mapHomepageProduct } from '@/utils/homepage';
 
 export const useHomepageStore = defineStore('homepage', () => {
   const bestSellers = ref([]);
-  const occasionCombos = ref([]);
   const featuredReviews = ref([]);
   const loading = ref(false);
   const error = ref('');
@@ -19,12 +18,10 @@ export const useHomepageStore = defineStore('homepage', () => {
       const data = await homepageApi.get();
       if (request !== requestGeneration) return;
       bestSellers.value = Array.isArray(data?.bestSellers) ? data.bestSellers.map(mapHomepageProduct) : [];
-      occasionCombos.value = Array.isArray(data?.occasionCombos) ? data.occasionCombos.map(mapOccasion).filter(Boolean) : [];
       featuredReviews.value = Array.isArray(data?.featuredReviews) ? data.featuredReviews : [];
     } catch (cause) {
       if (request !== requestGeneration) return;
       bestSellers.value = [];
-      occasionCombos.value = [];
       featuredReviews.value = [];
       error.value = cause.message || 'Không thể tải nội dung trang chủ';
     } finally {
@@ -36,5 +33,5 @@ export const useHomepageStore = defineStore('homepage', () => {
     await load();
   }
 
-  return { bestSellers, occasionCombos, featuredReviews, loading, error, load, retry };
+  return { bestSellers, featuredReviews, loading, error, load, retry };
 });

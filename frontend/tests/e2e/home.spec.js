@@ -108,17 +108,17 @@ test('customer home keeps proof reasons and hides removed scope when homepage AP
 });
 
 test('customer home hides removed scope for empty homepage data', async ({ page }) => {
-  await page.route('**/api/homepage', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: { bestSellers: [], occasionCombos: [], featuredReviews: [] } }) }));
+  await page.route('**/api/homepage', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: { bestSellers: [], featuredReviews: [] } }) }));
   await page.goto('/home');
   await expect(page.locator('.signature-hero h1')).toBeVisible();
   await expectSafeHomepageClaims(page);
 });
 
-test('customer home renders truthful review and occasion API content', async ({ page }) => {
-  const product = { productId: 1, name: 'Combo thật', description: '', price: 99000, imageUrl: '', soldCount: 4, averageRating: 5, reviewCount: 1, productType: 'COMBO', inStock: true, isAvailableNow: true, variants: [], modifierGroups: [] };
-  await page.route('**/api/homepage', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: { bestSellers: [product], occasionCombos: [{ occasion: 'GROUP', product }], featuredReviews: [{ reviewId: 1, userName: 'An', rating: 5, comment: 'Đánh giá thật' }] } }) }));
+test('customer home renders truthful product and review API content', async ({ page }) => {
+  const product = { productId: 1, name: 'Burger thật', description: '', price: 99000, imageUrl: '', soldCount: 4, averageRating: 5, reviewCount: 1, inStock: true, isAvailableNow: true, variants: [], modifierGroups: [] };
+  await page.route('**/api/homepage', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: { bestSellers: [product], featuredReviews: [{ reviewId: 1, userName: 'An', rating: 5, comment: 'Đánh giá thật' }] } }) }));
   await page.goto('/home');
-  await expect(page.getByText('Combo thật').first()).toBeVisible();
+  await expect(page.getByText('Burger thật').first()).toBeVisible();
   await expect(page.getByText('Đánh giá thật')).toBeVisible();
   await expectSafeHomepageClaims(page);
 });

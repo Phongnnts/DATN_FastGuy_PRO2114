@@ -7,8 +7,6 @@ import dao.ProductDAO;
 import dao.ProductModifierDAO;
 import entity.Category;
 import entity.Product;
-import entity.ProductCombo;
-import entity.ProductComboItem;
 import entity.ProductModifierGroup;
 import entity.ProductModifierOption;
 import entity.ProductVariant;
@@ -110,7 +108,6 @@ public class AdminProductServlet extends HttpServlet {
         m.put("variants", productDAO.findVariantsByProductId(p.getProductId()).stream()
                 .map(this::toVariantMap).collect(Collectors.toList()));
         m.put("modifierGroups", modifierDAO.groups(p.getProductId()).stream().map(this::modifierGroupMap).collect(Collectors.toList()));
-        m.put("combo", comboMap(modifierDAO.combo(p.getProductId())));
         m.put("discountPrice", null);
         m.put("rating", 0);
         m.put("reviewCount", 0);
@@ -126,13 +123,7 @@ public class AdminProductServlet extends HttpServlet {
         return m;
     }
 
-    private Map<String, Object> comboMap(ProductCombo combo) {
-        if (combo == null) return null;
-        Map<String, Object> m = new HashMap<>(); m.put("comboId", combo.getComboId()); m.put("isActive", Boolean.TRUE.equals(combo.getIsActive()));
-        m.put("homepageOccasion", combo.getHomepageOccasion()); m.put("homepageSortOrder", combo.getHomepageSortOrder());
-        m.put("items", modifierDAO.comboItems(combo.getComboId()).stream().map(item -> Map.of("comboItemId", item.getComboItemId(), "productId", item.getProduct().getProductId(), "variantId", item.getVariant().getVariantId(), "quantity", item.getQuantity())).collect(Collectors.toList()));
-        return m;
-    }
+
 
     private String[] splitPath(String path) {
         if (path == null || path.equals("/")) return new String[0];
@@ -210,13 +201,7 @@ public class AdminProductServlet extends HttpServlet {
             return;
         }
 
-        if (segs.length == 2 && "combo".equals(segs[1])) {
-            Integer pid = parseId(segs[0]);
-            Product p = pid == null ? null : productDAO.findById(pid);
-            if (p == null) { ApiResponse.error(resp, "Product not found", 404); return; }
-            ApiResponse.ok(resp, comboMap(modifierDAO.combo(pid)));
-            return;
-        }
+
 
         if (segs.length == 2 && "variants".equals(segs[1])) {
             Integer pid = parseId(segs[0]);
@@ -304,24 +289,9 @@ public class AdminProductServlet extends HttpServlet {
             option.setIsActive(true); modifierDAO.save(option); resp.setStatus(201); ApiResponse.ok(resp, option, "Created"); return;
         }
 
-        if (segs.length == 2 && "combo".equals(segs[1])) {
-            Integer productId = parseId(segs[0]); Product product = productId == null ? null : productDAO.findById(productId);
-            if (product == null) { ApiResponse.error(resp, "Product not found", 404); return; }
-            try { validateComboCreate(body); }
-            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); return; }
-            ProductCombo combo = modifierDAO.combo(productId);
-            if (combo == null) { combo = new ProductCombo(); combo.setProduct(product); }
-            applyComboHomepageMetadata(combo, body);
-            modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Saved"); return;
-        }
 
-        if (segs.length == 3 && "combo".equals(segs[1]) && "items".equals(segs[2])) {
-            Integer productId = parseId(segs[0]); ProductCombo combo = productId == null ? null : modifierDAO.combo(productId);
-            Integer variantId = body.get("variantId") instanceof Number ? ((Number) body.get("variantId")).intValue() : null; ProductVariant variant = variantId == null ? null : productDAO.findVariantById(variantId);
-            int qty = body.get("quantity") instanceof Number ? ((Number) body.get("quantity")).intValue() : 0;
-            if (combo == null || variant == null || qty <= 0) { ApiResponse.error(resp, "Invalid combo item", 400); return; }
-            ProductComboItem item = new ProductComboItem(); item.setCombo(combo); item.setProduct(variant.getProduct()); item.setVariant(variant); item.setQuantity(qty); modifierDAO.save(item); resp.setStatus(201); ApiResponse.ok(resp, comboMap(combo), "Created"); return;
-        }
+
+
 
         if (segs.length == 2 && "variants".equals(segs[1])) {
             Integer productId = parseId(segs[0]);
@@ -398,7 +368,6 @@ public class AdminProductServlet extends HttpServlet {
 
     private static final Set<String> PRODUCT_UPDATE_FIELDS = Set.of("categoryId", "name", "description", "basePrice", "status",
             "availableFrom", "availableTo", "imageUrl", "galleryImages", "isNew", "spiceLevel");
-    private static final Set<String> COMBO_UPDATE_FIELDS = Set.of("isActive", "homepageOccasion", "homepageSortOrder");
 
     static void validateProductUpdate(Map<String, Object> body) {
         validateFields(body, PRODUCT_UPDATE_FIELDS);
@@ -429,22 +398,11 @@ public class AdminProductServlet extends HttpServlet {
         product.setSpiceLevel(readInteger(body, "spiceLevel", 0, 0, 3));
     }
 
-    static void validateComboUpdate(Map<String, Object> body) {
-        validateFields(body, COMBO_UPDATE_FIELDS);
-        if (body.containsKey("isActive")) readBoolean(body, "isActive", false);
-        readHomepageOccasion(body, null);
-        if (body.containsKey("homepageSortOrder")) readInteger(body, "homepageSortOrder", 0, 0, Integer.MAX_VALUE);
-    }
 
-    static void validateComboCreate(Map<String, Object> body) {
-        validateComboUpdate(body);
-    }
 
-    static void applyComboHomepageMetadata(ProductCombo combo, Map<String, Object> body) {
-        combo.setIsActive(readBoolean(body, "isActive", true));
-        combo.setHomepageOccasion(readHomepageOccasion(body, null));
-        combo.setHomepageSortOrder(readInteger(body, "homepageSortOrder", 0, 0, Integer.MAX_VALUE));
-    }
+
+
+
 
     private static void validateFields(Map<String, Object> body, Set<String> allowed) {
         if (body == null || body.isEmpty()) throw new IllegalArgumentException("Request body must contain at least one field");
@@ -488,7 +446,6 @@ public class AdminProductServlet extends HttpServlet {
 
         try {
             if (segs.length == 1) validateProductUpdate(body);
-            if (segs.length == 2 && "combo".equals(segs[1])) validateComboUpdate(body);
         } catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); return; }
 
         if (segs.length == 2 && "modifier-groups".equals(segs[1])) {
@@ -522,18 +479,7 @@ public class AdminProductServlet extends HttpServlet {
             return;
         }
 
-        if (segs.length == 2 && "combo".equals(segs[1])) {
-            Integer productId = parseId(segs[0]); ProductCombo combo = productId == null ? null : modifierDAO.combo(productId);
-            if (combo == null) { ApiResponse.error(resp, "Combo not found", 404); return; }
-            try {
-                combo.setIsActive(readActive(body, combo.getIsActive()));
-                combo.setHomepageOccasion(readHomepageOccasion(body, combo.getHomepageOccasion()));
-                combo.setHomepageSortOrder(readInteger(body, "homepageSortOrder", combo.getHomepageSortOrder(), 0, Integer.MAX_VALUE));
-                modifierDAO.save(combo); ApiResponse.ok(resp, comboMap(combo), "Updated");
-            }
-            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
-            return;
-        }
+
 
         if (segs.length == 1) {
             Integer id = parseId(segs[0]);
@@ -649,15 +595,7 @@ public class AdminProductServlet extends HttpServlet {
             return;
         }
 
-        if (segs.length == 4 && "combo".equals(segs[1]) && "items".equals(segs[2])) {
-            Integer productId = parseId(segs[0]); Integer itemId = parseId(segs[3]);
-            ProductCombo combo = productId == null ? null : modifierDAO.combo(productId);
-            ProductComboItem item = itemId == null ? null : modifierDAO.comboItem(itemId);
-            if (combo == null || item == null || item.getCombo().getComboId() != combo.getComboId()) { ApiResponse.error(resp, "Combo item not found", 404); return; }
-            modifierDAO.deleteComboItem(itemId);
-            ApiResponse.ok(resp, null, "Deleted");
-            return;
-        }
+
 
         if (segs.length == 1) {
             Integer id = parseId(segs[0]);

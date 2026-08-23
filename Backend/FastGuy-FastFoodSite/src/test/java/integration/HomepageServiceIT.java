@@ -24,13 +24,11 @@ class HomepageServiceIT {
     void disposableDatabaseProducesContractReadyHomepageReadModel() {
         Map<String, Object> data = new HomepageService().getHomepage();
 
-        assertEquals(Set.of("bestSellers", "occasionCombos", "featuredReviews"), data.keySet());
+        assertEquals(Set.of("bestSellers", "featuredReviews"), data.keySet());
         List<?> bestSellers = (List<?>) data.get("bestSellers");
-        List<?> occasionCombos = (List<?>) data.get("occasionCombos");
         List<?> featuredReviews = (List<?>) data.get("featuredReviews");
         assertFalse(bestSellers.isEmpty());
         assertTrue(bestSellers.size() <= 6);
-        assertEquals(4, occasionCombos.size());
         assertFalse(featuredReviews.isEmpty());
         assertTrue(featuredReviews.size() <= 3);
 
