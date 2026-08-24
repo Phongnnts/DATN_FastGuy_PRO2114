@@ -4,6 +4,7 @@ import { adminApi } from '@/api';
 
 const TRANSACTION_TYPES = ['RECEIPT', 'RESERVE', 'RELEASE', 'CONSUME', 'ADJUSTMENT', 'WASTE', 'RETURN'];
 const TYPE_LABELS = { RECEIPT: 'Nhập hàng', RESERVE: 'Giữ chỗ', RELEASE: 'Trả lại', CONSUME: 'Tiêu thụ', ADJUSTMENT: 'Điều chỉnh', WASTE: 'Hao hụt', RETURN: 'Khách trả lại' };
+const REASON_LABELS = { OPENING_BALANCE: 'Số dư đầu kỳ' };
 const SIZE_OPTIONS = [20, 50, 100];
 const money = (value) => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')} ₫`;
 
@@ -38,6 +39,10 @@ const kpi = computed(() => {
 
 function typeClass(type) {
   return { RECEIPT: 'badge-success', RESERVE: 'badge-info', RELEASE: 'badge-secondary', CONSUME: 'badge-warning', ADJUSTMENT: 'badge-secondary', WASTE: 'badge-danger', RETURN: 'badge-info' }[type] || 'badge-secondary';
+}
+
+function reasonLabel(reason) {
+  return REASON_LABELS[reason] || reason;
 }
 
 function itemName(id) {
@@ -206,7 +211,7 @@ onBeforeUnmount(() => {
                 <td data-label="Biến động"><span v-if="row.quantityBefore !== null && row.quantityAfter !== null">{{ row.quantityBefore }} → {{ row.quantityAfter }}</span><span v-else class="muted">—</span></td>
                 <td data-label="Giá vốn đơn vị">{{ money(row.unitCostSnapshot) }}</td>
                 <td data-label="Tổng giá vốn"><strong>{{ money(row.totalCost) }}</strong></td>
-                <td data-label="Chi tiết"><div v-if="row.reason || row.note" class="detail-cell"><span v-if="row.reason" class="badge badge-secondary">{{ row.reason }}</span><small v-if="row.note" class="sub">{{ row.note }}</small></div><span v-else class="muted">—</span></td>
+                <td data-label="Chi tiết"><div v-if="row.reason || row.note" class="detail-cell"><span v-if="row.reason" class="badge badge-secondary">{{ reasonLabel(row.reason) }}</span><small v-if="row.note" class="sub">{{ row.note }}</small></div><span v-else class="muted">—</span></td>
               </tr>
             </tbody>
           </table>

@@ -26,7 +26,7 @@ Never print credentials or place passwords in command history.
 3. Inspect migration for destructive DDL, unbounded DML, lock duration, transaction behavior, `GO`, idempotency, and deployed-file mutation.
 4. Compare migration result expectations against `database/init.sql`, `database/DB_FastGuy.sql`, JPA mappings, constraints, defaults, indexes, and seed behavior.
 5. Use `scripts/Invoke-SqlServerMigrationCheck.ps1 -Mode Preflight` before any execution.
-6. Apply migration only to a disposable database using direct `sqlcmd -b -V 16 -i ...` after explicit confirmation.
+6. Apply migration only to a disposable database using direct `sqlcmd -b -V 16 -f 65001 -i ...` after explicit confirmation.
 7. Use wrapper `-Mode Validate` for validator scripts after migration.
 8. Report command, target identity, exit code, validator result, and remaining runtime gaps.
 

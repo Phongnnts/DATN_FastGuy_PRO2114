@@ -101,3 +101,8 @@ test('ledger shows per-type KPI cards and responsive card table', () => {
   assert.match(page, /data-label="Thời gian"/);
   assert.match(page, /\.table td::before \{ content: attr\(data-label\)/);
 });
+
+test('ledger explains opening balance reason in Vietnamese', () => {
+  assert.match(page, /OPENING_BALANCE:\s*'Số dư đầu kỳ'/);
+  assert.match(page, /reasonLabel\(row\.reason\)/);
+});

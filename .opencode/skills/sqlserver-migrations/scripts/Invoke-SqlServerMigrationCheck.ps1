@@ -74,12 +74,12 @@ if ($Mode -eq 'Validate' -and -not $Disposable) {
 }
 
 $identityQuery = 'SET NOCOUNT ON; SELECT @@SERVERNAME AS ServerName, DB_NAME() AS DatabaseName, state_desc AS DatabaseState, compatibility_level AS CompatibilityLevel FROM sys.databases WHERE name = DB_NAME();'
-Invoke-SqlCmd -Arguments @('-S', $Server, '-d', $Database, '-E', '-b', '-V', '16', '-Q', $identityQuery)
+Invoke-SqlCmd -Arguments @('-S', $Server, '-d', $Database, '-E', '-b', '-V', '16', '-f', '65001', '-Q', $identityQuery)
 
 if ($Mode -eq 'Validate') {
     if ([string]::IsNullOrWhiteSpace($ScriptPath)) {
         throw 'Validate mode requires -ScriptPath.'
     }
     $validator = Assert-SafeValidator -Path $ScriptPath
-    Invoke-SqlCmd -Arguments @('-S', $Server, '-d', $Database, '-E', '-b', '-V', '16', '-i', $validator)
+    Invoke-SqlCmd -Arguments @('-S', $Server, '-d', $Database, '-E', '-b', '-V', '16', '-f', '65001', '-i', $validator)
 }
