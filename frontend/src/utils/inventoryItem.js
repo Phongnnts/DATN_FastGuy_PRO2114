@@ -85,9 +85,6 @@ export function buildAdjustmentPayload(item, form) {
 
 export function validateRecipeForm(form) {
   const errors = {};
-  if (!['INGREDIENT', 'FINISHED_GOOD', 'UNTRACKED', 'SUSPENDED'].includes(form.inventoryMode)) {
-    errors.inventoryMode = 'Chọn chế độ kho';
-  }
   if (!parseQuantity(form.yieldQuantity).ok) errors.yieldQuantity = 'Số phần đầu ra phải lớn hơn 0';
   const lines = Array.isArray(form.items) ? form.items : [];
   if (!lines.length) {
@@ -109,15 +106,15 @@ export function validateRecipeForm(form) {
   return errors;
 }
 
-export function buildRecipePayload(form) {
+export function buildRecipePayload(form, expectedUpdatedAt) {
   return {
-    inventoryMode: form.inventoryMode,
     yieldQuantity: parseQuantity(form.yieldQuantity).value,
     active: Boolean(form.active),
     items: (form.items || []).map((line) => ({
       inventoryItemId: Number(line.inventoryItemId),
       quantity: parseQuantity(line.quantity).value,
     })),
+    expectedUpdatedAt: expectedUpdatedAt ?? null,
   };
 }
 

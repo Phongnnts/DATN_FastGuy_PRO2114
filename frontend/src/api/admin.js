@@ -193,6 +193,15 @@ export default {
   replaceVariantRecipe(variantId, data) {
     return client.put(`/admin/product-variants/${variantId}/recipe`, data);
   },
+  getVariantInventorySettings(variantId) {
+    return client.get(`/admin/product-variants/${variantId}/inventory-settings`);
+  },
+  updateVariantInventorySettings(variantId, data) {
+    return client.put(`/admin/product-variants/${variantId}/inventory-settings`, data);
+  },
+  getVariantInventoryCapacity(variantId) {
+    return client.get(`/admin/product-variants/${variantId}/inventory-capacity`);
+  },
   getVariantAvailability(variantId) {
     return client.get(`/admin/product-variants/${variantId}/availability`);
   },

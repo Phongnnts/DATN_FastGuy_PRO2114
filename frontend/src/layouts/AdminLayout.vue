@@ -18,13 +18,7 @@ const sidebarLinks = [
   { label: 'Tổng quan', path: '/admin', icon: 'bi-speedometer2' },
   { label: 'Người dùng', path: '/admin/users', icon: 'bi-people' },
   { label: 'Sản phẩm', path: '/admin/products', icon: 'bi-box-seam' },
-   { label: 'Tổng quan kho', path: '/admin/inventory', icon: 'bi-boxes' },
-   { label: 'Công thức định lượng', path: '/admin/recipes', icon: 'bi-diagram-3' },
-   { label: 'Sổ tồn kho', path: '/admin/inventory/ledger', icon: 'bi-journal-text' },
-   { label: 'Phiếu nhập', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
-   { label: 'Kiểm kê', path: '/admin/inventory/stock-counts', icon: 'bi-clipboard-check' },
-   { label: 'Giá trị kho', path: '/admin/inventory/reports', icon: 'bi-graph-up-arrow' },
-   { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
+  { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
   { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
   { label: 'Đối soát COD', path: '/admin/cod-settlements', icon: 'bi-cash-stack' },
   { label: 'Hoàn tiền', path: '/admin/refunds', icon: 'bi-arrow-return-left' },
@@ -33,6 +27,14 @@ const sidebarLinks = [
    { label: 'Banner', path: '/admin/banners', icon: 'bi-images' },
    { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },
   { label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' },
+];
+
+const inventoryLinks = [
+  { label: 'Tổng quan', path: '/admin/inventory', icon: 'bi-boxes' },
+  { label: 'Nhập hàng', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
+  { label: 'Công thức món', path: '/admin/recipes', icon: 'bi-diagram-3' },
+  { label: 'Kiểm kê', path: '/admin/inventory/stock-counts', icon: 'bi-clipboard-check' },
+  { label: 'Báo cáo & lịch sử', path: '/admin/inventory/reports', icon: 'bi-graph-up-arrow', children: [{ label: 'Lịch sử kho', path: '/admin/inventory/ledger' }] },
 ];
 
 function isLinkActive(link) {
@@ -60,6 +62,23 @@ function isLinkActive(link) {
           <i :class="link.icon"></i>
           <span>{{ link.label }}</span>
         </router-link>
+        <section class="nav-group" aria-labelledby="inventory-nav-title">
+          <h2 id="inventory-nav-title">Quản lý kho</h2>
+          <router-link
+            v-for="link in inventoryLinks"
+            :key="link.path"
+            :to="link.path"
+            :class="{ 'router-link-active': isLinkActive(link) }"
+            @click="sidebarOpen = false"
+          >
+            <i :class="link.icon" aria-hidden="true"></i><span>{{ link.label }}</span>
+          </router-link>
+          <template v-for="link in inventoryLinks" :key="`${link.path}-children`">
+            <router-link v-for="child in link.children || []" :key="child.path" class="nav-child" :to="child.path" :class="{ 'router-link-active': isLinkActive(child) }" @click="sidebarOpen = false">
+              <i class="bi bi-clock-history" aria-hidden="true"></i><span>{{ child.label }}</span>
+            </router-link>
+          </template>
+        </section>
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
@@ -107,16 +126,16 @@ function isLinkActive(link) {
   padding: 4px;
   cursor: pointer;
   color: var(--text-mid);
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-sm);
   align-items: center;
   justify-content: center;
 }
 .mobile-toggle-sidebar:hover { background: var(--surface); }
 .icon-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-sm);
   background: transparent;
   display: flex;
@@ -129,8 +148,12 @@ function isLinkActive(link) {
   transition: all var(--transition-fast);
 }
 .icon-btn:hover { background: var(--surface); color: var(--text-dark); }
-.logout-btn { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:13px; font-weight:650; }
+.logout-btn { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:13px; font-weight:650; }
 .logout-btn:hover { border-color:var(--red-active); color:var(--red-active); }
+.mobile-toggle-sidebar:focus-visible,.icon-btn:focus-visible,.logout-btn:focus-visible,.sidebar-nav a:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.nav-group{display:grid;gap:3px;margin:8px 0;padding:10px 0;border-block:1px solid var(--border-light)}
+.nav-group h2{margin:0;padding:4px 14px;color:var(--text-mid);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.nav-group .nav-child{margin-left:18px;font-size:12px}
 .sidebar-overlay {
   display: none;
 }

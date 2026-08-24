@@ -21,10 +21,11 @@ test('ledger route is registered with page and title', () => {
   assert.match(router, /AdminInventoryLedger: 'Sổ tồn kho'/);
 });
 
-test('sidebar keeps inventory overview, recipes and ledger entries', () => {
-  assert.match(layout, /label: 'Tổng quan kho', path: '\/admin\/inventory'/);
-  assert.match(layout, /label: 'Công thức định lượng', path: '\/admin\/recipes'/);
-  assert.match(layout, /label: 'Sổ tồn kho', path: '\/admin\/inventory\/ledger'/);
+test('sidebar keeps grouped inventory overview, recipes and report history entry', () => {
+  assert.match(layout, /Quản lý kho/);
+  assert.match(layout, /label: 'Tổng quan', path: '\/admin\/inventory'/);
+  assert.match(layout, /label: 'Công thức món', path: '\/admin\/recipes'/);
+  assert.match(layout, /label: 'Báo cáo & lịch sử', path: '\/admin\/inventory\/reports'/);
 });
 
 test('ledger whitelists contracted transaction types and builds item filters', () => {

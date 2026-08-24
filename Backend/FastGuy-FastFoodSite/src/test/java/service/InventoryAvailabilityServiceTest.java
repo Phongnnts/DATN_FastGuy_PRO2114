@@ -27,13 +27,22 @@ class InventoryAvailabilityServiceTest {
         InventoryAvailabilityService service = service(Map.of(
                 1, variant(1, "UNTRACKED", null),
                 2, variant(2, "SUSPENDED", null),
-                3, variant(3, "FINISHED_GOOD", finished(30, true, "5.0000", "1.0000")),
+                3, variant(3, "FINISHED_GOOD", finished(30, "FINISHED_GOOD", true, "5.0000", "1.0000")),
                 4, variant(4, "INGREDIENT", recipe("1.0000", ingredient(40, "0.0001", true, "999999999999999.9999", "0")))));
 
         assertEquals("AVAILABLE", service.availability(null, 1).status());
         assertEquals("SUSPENDED", service.availability(null, 2).status());
         assertEquals(5, service.availability(null, 3).servings());
         assertEquals(Integer.MAX_VALUE, service.availability(null, 4).servings());
+    }
+
+    @Test
+    void finishedGoodModeRejectsMappedIngredientEvenWhenActive() {
+        InventoryAvailabilityService service = service(Map.of(
+                1, variant(1, "FINISHED_GOOD", finished(30, "INGREDIENT", true, "5.0000", "1.0000"))));
+
+        assertEquals("UNAVAILABLE", service.availability(null, 1).status());
+        assertThrows(IllegalStateException.class, () -> service.aggregateDemand(null, Map.of(1, 1)));
     }
 
     @Test
@@ -46,6 +55,18 @@ class InventoryAvailabilityServiceTest {
         assertThrows(IllegalStateException.class, () -> service.aggregateDemand(null, Map.of(2, 1)));
         assertEquals("UNAVAILABLE", service.availability(null, 1).status());
         assertEquals("UNAVAILABLE", service.availability(null, 2).status());
+    }
+
+    @Test
+    void finishedGoodRecipeItemFailsClosedForAvailabilityAndDemand() {
+        InventoryAvailabilityService service = service(Map.of(
+                1, variant(1, "INGREDIENT", recipe("1.0000",
+                        new InventoryAvailabilityService.IngredientStock(
+                                item(20, "FINISHED_GOOD", true, "10.0000", "0"), BigDecimal.ONE)))));
+
+        assertEquals("UNAVAILABLE", service.availability(null, 1).status());
+        assertEquals("OUT_OF_STOCK", service.publicAvailability(null, List.of(1)).get(1).get("availabilityStatus"));
+        assertThrows(IllegalStateException.class, () -> service.aggregateDemand(null, Map.of(1, 1)));
     }
 
     @Test
@@ -104,11 +125,15 @@ class InventoryAvailabilityServiceTest {
         return new InventoryAvailabilityService.IngredientStock(item(id, active, available, minimum), new BigDecimal(quantity));
     }
 
-    private InventoryAvailabilityService.ItemStock finished(int id, boolean active, String available, String minimum) {
-        return item(id, active, available, minimum);
+    private InventoryAvailabilityService.ItemStock finished(int id, String type, boolean active, String available, String minimum) {
+        return item(id, type, active, available, minimum);
     }
 
     private InventoryAvailabilityService.ItemStock item(int id, boolean active, String available, String minimum) {
-        return new InventoryAvailabilityService.ItemStock(id, active, new BigDecimal(available), new BigDecimal(minimum));
+        return item(id, "INGREDIENT", active, available, minimum);
+    }
+
+    private InventoryAvailabilityService.ItemStock item(int id, String type, boolean active, String available, String minimum) {
+        return new InventoryAvailabilityService.ItemStock(id, type, active, new BigDecimal(available), new BigDecimal(minimum));
     }
 }

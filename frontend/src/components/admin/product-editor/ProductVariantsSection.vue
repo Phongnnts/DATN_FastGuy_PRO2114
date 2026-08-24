@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { adminApi } from '@/api';
 import { useToast } from '@/stores/toast';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { createVariantDraft, isValidProductId, sectionDirty, validateVariant, variantPayload } from '@/utils/adminProductEditor';
 import { INVENTORY_MODES } from '@/utils/inventoryItem';
 
@@ -22,6 +23,7 @@ const snapshot = ref([]);
 const pendingRows = ref([]);
 const errors = ref({});
 const mutating = ref(false);
+const pendingDelete = ref(null);
 let uid = 0;
 let generation = 0;
 let stopped = false;
@@ -148,7 +150,7 @@ async function saveRow(row) {
   }
 }
 
-async function deleteRow(row) {
+function requestDelete(row) {
   if (props.busy || mutating.value) return;
   if (!row.variantId) {
     rows.value.splice(rowIndex(row), 1);
@@ -156,7 +158,16 @@ async function deleteRow(row) {
     commit();
     return;
   }
-  if (locked.value) return;
+  if (!locked.value) pendingDelete.value = row;
+}
+
+function cancelDelete() {
+  if (!mutating.value) pendingDelete.value = null;
+}
+
+async function confirmDelete() {
+  if (props.busy || mutating.value || locked.value || !pendingDelete.value?.variantId) return;
+  const row = pendingDelete.value;
   const request = { generation: ++generation };
   mutating.value = true;
   try {
@@ -164,11 +175,15 @@ async function deleteRow(row) {
     if (currentRequest(request)) {
       rows.value.splice(rowIndex(row), 1);
       errors.value = {};
+      pendingDelete.value = null;
       commit();
       emit('reload');
     }
   } catch (error) {
-    if (currentRequest(request)) errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể xóa kích cỡ' } };
+    if (currentRequest(request)) {
+      errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể xóa kích cỡ' } };
+      pendingDelete.value = null;
+    }
   } finally {
     if (currentRequest(request)) mutating.value = false;
   }
@@ -179,6 +194,7 @@ function openRecipes(row) {
 }
 
 async function changeMode(row, event) {
+  const previousMode = row.inventoryMode;
   const selectedMode = event.target.value;
   row.inventoryMode = selectedMode;
   if (!row.variantId) return;
@@ -189,18 +205,12 @@ async function changeMode(row, event) {
   const request = { generation: ++generation };
   mutating.value = true;
   try {
-    const recipe = await adminApi.getVariantRecipe(row.variantId);
-    await adminApi.replaceVariantRecipe(row.variantId, {
-      inventoryMode: selectedMode,
-      yieldQuantity: recipe.yieldQuantity,
-      active: recipe.active,
-      items: recipe.items,
-    });
-    if (currentRequest(request)) toast.success(`Đã chuyển chế độ kho sang ${selectedMode}`);
+    const updated = await adminApi.updateVariantInventorySettings(row.variantId, { inventoryMode: selectedMode, expectedUpdatedAt: row.updatedAt });
+    if (currentRequest(request)) { row.updatedAt = updated.updatedAt; toast.success(`Đã chuyển chế độ kho sang ${selectedMode}`); }
   } catch (error) {
-    row.inventoryMode = '';
+    row.inventoryMode = previousMode;
     if (currentRequest(request)) {
-      errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.status === 404 ? 'Kích cỡ chưa có công thức — hãy thiết lập trong Công thức định lượng.' : error.message || 'Không thể đổi chế độ kho' } };
+      errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.message || 'Không thể đổi chế độ kho' } };
     }
   } finally {
     if (currentRequest(request)) mutating.value = false;
@@ -280,11 +290,20 @@ function retryPending() {
       <div class="row-actions">
         <button v-if="!isCreate && row.variantId" class="btn btn-sm btn-outline" type="button" @click="openRecipes(row)">Công thức định lượng</button>
         <button v-if="!isCreate" class="btn btn-sm btn-primary" type="button" :disabled="busy || mutating" @click="saveRow(row)">{{ row.variantId ? 'Lưu' : 'Tạo' }}</button>
-        <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Xóa kích cỡ ${row.variantName || index + 1}`" @click="deleteRow(row)">Xóa</button>
+        <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Xóa kích cỡ ${row.variantName || index + 1}`" @click="requestDelete(row)">Xóa</button>
       </div>
       <p v-if="errors[index]?._server" class="server-error" role="alert">{{ errors[index]._server }}</p>
     </div>
     <div v-if="isCreate" class="actions"><button class="btn btn-primary" type="button" :disabled="busy || mutating" @click="saveAll">{{ busy ? 'Đang lưu...' : 'Lưu kích cỡ' }}</button></div>
+    <ConfirmDialog
+      :open="Boolean(pendingDelete)"
+      title="Xóa kích cỡ?"
+      :message="`Kích cỡ ${pendingDelete?.variantName || 'chưa đặt tên'} sẽ bị xóa vĩnh viễn cùng dữ liệu liên quan và không thể hoàn tác.`"
+      confirm-label="Xóa kích cỡ"
+      :busy="mutating"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </section>
 </template>
 

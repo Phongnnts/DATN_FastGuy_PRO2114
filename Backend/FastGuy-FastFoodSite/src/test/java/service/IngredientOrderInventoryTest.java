@@ -65,6 +65,22 @@ class IngredientOrderInventoryTest {
         assertTrue(fixture.persisted.isEmpty());
     }
 
+    @Test
+    void malformedFinishedGoodRecipeItemRejectsReservationBeforeStockMutation() throws Exception {
+        Fixture fixture = fixture(demand(1, "1.0000"));
+        InventoryAvailabilityService availability = new InventoryAvailabilityService((em, ids) -> Map.of(1,
+                new InventoryAvailabilityService.VariantStock(1, "INGREDIENT",
+                        new InventoryAvailabilityService.RecipeStock(BigDecimal.ONE, List.of(
+                                new InventoryAvailabilityService.IngredientStock(
+                                        new InventoryAvailabilityService.ItemStock(1, "FINISHED_GOOD", true, BigDecimal.TEN, BigDecimal.ZERO), BigDecimal.ONE))), null)));
+        fixture.service = new InventoryReservationService(availability, new InventoryItemDAO());
+
+        assertThrows(IllegalStateException.class, () -> fixture.service.reserve(fixture.em, fixture.order, Map.of(1, 1)));
+        assertEquals(0, fixture.items.get(1).getReservedQuantity().compareTo(BigDecimal.ZERO));
+        assertTrue(fixture.lockedIds.isEmpty());
+        assertTrue(fixture.persisted.isEmpty());
+    }
+
     private Map<Integer, BigDecimal> demand(Object... values) {
         Map<Integer, BigDecimal> result = new LinkedHashMap<>();
         for (int i = 0; i < values.length; i += 2) result.put((Integer) values[i], new BigDecimal((String) values[i + 1]));
@@ -109,7 +125,7 @@ class IngredientOrderInventoryTest {
 
         Map<Integer, InventoryAvailabilityService.VariantStock> stocks(Map<Integer, BigDecimal> demand) {
             List<InventoryAvailabilityService.IngredientStock> ingredients = demand.entrySet().stream().map(e -> new InventoryAvailabilityService.IngredientStock(
-                    new InventoryAvailabilityService.ItemStock(e.getKey(), true, items.get(e.getKey()).availableQuantity(), BigDecimal.ZERO), e.getValue())).toList();
+                    new InventoryAvailabilityService.ItemStock(e.getKey(), "INGREDIENT", true, items.get(e.getKey()).availableQuantity(), BigDecimal.ZERO), e.getValue())).toList();
             return Map.of(1, new InventoryAvailabilityService.VariantStock(1, "INGREDIENT", new InventoryAvailabilityService.RecipeStock(BigDecimal.ONE, ingredients), null));
         }
 

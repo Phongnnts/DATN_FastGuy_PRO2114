@@ -38,7 +38,7 @@ class ProductAvailabilitySerializationTest {
         InventoryAvailabilityService service = service(new LinkedHashMap<>(Map.of(
                 1, new InventoryAvailabilityService.VariantStock(1, "INGREDIENT", null, null),
                 2, new InventoryAvailabilityService.VariantStock(2, "INGREDIENT", new InventoryAvailabilityService.RecipeStock(BigDecimal.ONE, List.of()), null),
-                3, new InventoryAvailabilityService.VariantStock(3, "INGREDIENT", new InventoryAvailabilityService.RecipeStock(BigDecimal.ONE, List.of(new InventoryAvailabilityService.IngredientStock(new InventoryAvailabilityService.ItemStock(30, false, BigDecimal.TEN, BigDecimal.ZERO), BigDecimal.ONE))), null),
+                3, new InventoryAvailabilityService.VariantStock(3, "INGREDIENT", new InventoryAvailabilityService.RecipeStock(BigDecimal.ONE, List.of(new InventoryAvailabilityService.IngredientStock(new InventoryAvailabilityService.ItemStock(30, "INGREDIENT", false, BigDecimal.TEN, BigDecimal.ZERO), BigDecimal.ONE))), null),
                 4, new InventoryAvailabilityService.VariantStock(4, "FINISHED_GOOD", null, null),
                 5, new InventoryAvailabilityService.VariantStock(5, "BOGUS", null, null))));
 
@@ -68,7 +68,7 @@ class ProductAvailabilitySerializationTest {
 
     private InventoryAvailabilityService.VariantStock variant(int id, String mode, String available) {
         return new InventoryAvailabilityService.VariantStock(id, mode, null,
-                new InventoryAvailabilityService.ItemStock(100 + id, true, new BigDecimal(available), BigDecimal.ZERO));
+                new InventoryAvailabilityService.ItemStock(100 + id, "FINISHED_GOOD", true, new BigDecimal(available), BigDecimal.ZERO));
     }
 
     private void assertPrivateFieldsAbsent(Map<String, Object> result) {

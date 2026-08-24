@@ -17,10 +17,11 @@ public class Recipe {
     @Column(name = "active", nullable = false) private boolean active = true;
     @Column(name = "created_at", nullable = false, columnDefinition = "datetime2(0)") private LocalDateTime createdAt;
     @Column(name = "updated_at", nullable = false, columnDefinition = "datetime2(0)") private LocalDateTime updatedAt;
+    @Transient private boolean updatedAtAdvanced;
     @OneToMany(mappedBy = "recipe") private List<RecipeItem> items = new ArrayList<>();
 
-    @PrePersist void prePersist() { createdAt = updatedAt = LocalDateTime.now().withNano(0); }
-    @PreUpdate void preUpdate() { updatedAt = LocalDateTime.now().withNano(0); }
+    @PrePersist void prePersist() { createdAt = updatedAt = LocalDateTime.now().withNano(0); updatedAtAdvanced=false; }
+    @PreUpdate void preUpdate() { if(updatedAtAdvanced)updatedAtAdvanced=false;else updatedAt=nextUpdatedAt(); }
 
     public int getRecipeId() { return recipeId; }
     public ProductVariant getVariant() { return variant; }
@@ -33,4 +34,6 @@ public class Recipe {
     public void setItems(List<RecipeItem> items) { this.items = items; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void advanceUpdatedAt() { updatedAt=nextUpdatedAt();updatedAtAdvanced=true; }
+    private LocalDateTime nextUpdatedAt() { LocalDateTime now=LocalDateTime.now().withNano(0);if(updatedAt==null)return now;LocalDateTime next=updatedAt.plusSeconds(1);return now.isAfter(next)?now:next; }
 }

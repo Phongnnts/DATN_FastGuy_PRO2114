@@ -48,6 +48,11 @@ let dialogTrigger = null;
 
 const kpis = computed(() => inventoryKpis(items.value));
 const itemNameById = computed(() => new Map(items.value.map((item) => [item.inventoryItemId, item.name])));
+const todayActions = computed(() => [
+  kpis.value.belowMinimumCount ? { label: `${kpis.value.belowMinimumCount} mặt hàng cần nhập thêm`, route: 'AdminGoodsReceipts', action: 'Nhập hàng' } : null,
+  unavailableVariants.value > 0 ? { label: `${unavailableVariants.value} kích cỡ đang không bán được`, route: 'AdminRecipes', action: 'Xem công thức' } : null,
+  { label: 'Đối chiếu lượng thực tế khi đến lịch kiểm', route: 'AdminStockCounts', action: 'Kiểm kê' },
+].filter(Boolean));
 
 const filteredItems = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase('vi');
@@ -173,6 +178,10 @@ async function submitItemForm() {
     await closeDialog();
     refreshSideData();
   } catch (error) {
+    if (error.status === 409) {
+      dialogError.value = error.message || 'Mặt hàng đang được sử dụng và không thể đổi loại hoặc ngừng hoạt động.';
+      return;
+    }
     dialogError.value = error.message || 'Không thể lưu mặt hàng';
   } finally {
     saving.value = false;
@@ -217,8 +226,8 @@ onMounted(() => {
   <main class="inventory-page">
     <header class="page-header">
       <div>
-        <h1>Tổng quan kho</h1>
-        <p class="page-subtitle">Theo dõi nguyên liệu và thành phẩm theo mặt hàng kho</p>
+        <h1>Vận hành kho hôm nay</h1>
+        <p class="page-subtitle">Biết việc cần làm trước, xem số liệu chi tiết khi cần.</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-primary" @click="openDialog('create')"><i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm mặt hàng</button>
@@ -229,6 +238,23 @@ onMounted(() => {
       </div>
     </header>
 
+    <section class="today-panel" aria-labelledby="today-title">
+      <div><p class="eyebrow">Ưu tiên</p><h2 id="today-title">Hôm nay cần làm gì?</h2></div>
+      <div class="action-grid" aria-live="polite">
+        <article v-for="action in todayActions" :key="action.route" class="action-card">
+          <strong>{{ action.label }}</strong><button class="btn btn-outline" @click="router.push({ name: action.route })">{{ action.action }}</button>
+        </article>
+      </div>
+    </section>
+
+    <nav class="workflow" aria-label="Quy trình vận hành kho">
+      <router-link :to="{ name: 'AdminGoodsReceipts' }"><span>1</span><strong>Nhập hàng</strong><small>Ghi nhận hàng về</small></router-link>
+      <router-link :to="{ name: 'AdminRecipes' }"><span>2</span><strong>Công thức</strong><small>Đặt lượng dùng</small></router-link>
+      <span class="workflow-step"><span>3</span><strong>Bán món</strong><small>Kho tự trừ</small></span>
+      <router-link :to="{ name: 'AdminStockCounts' }"><span>4</span><strong>Kiểm kê</strong><small>Đếm thực tế</small></router-link>
+      <router-link :to="{ name: 'AdminInventoryReports' }"><span>5</span><strong>Báo cáo</strong><small>Xem kết quả</small></router-link>
+    </nav>
+
     <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
       <div class="stat-card stat-total"><span class="stat-icon stat-blue"><i class="bi bi-boxes" aria-hidden="true"></i></span><strong class="stat-value">{{ kpis.itemCount }}</strong><span class="stat-label">Tổng mặt hàng</span></div>
       <button class="stat-card" :class="{ active: statusFilter === 'LOW' }" :aria-pressed="statusFilter === 'LOW'" @click="statusFilter = statusFilter === 'LOW' ? 'ALL' : 'LOW'">
@@ -238,7 +264,8 @@ onMounted(() => {
       <button class="stat-card stat-total" @click="router.push({ name: 'AdminInventoryLedger' })"><span class="stat-icon stat-green"><i class="bi bi-receipt" aria-hidden="true"></i></span><strong class="stat-value">{{ recentTransactions.length }}</strong><span class="stat-label">Giao dịch gần đây</span></button>
     </section>
 
-    <section class="card card-flat" aria-label="Danh sách mặt hàng kho">
+    <section class="card card-flat" aria-label="Danh sách nguyên liệu">
+      <div class="section-title"><div><p class="eyebrow">Theo dõi hàng ngày</p><h2>Nguyên liệu</h2></div><span>Chi tiết số liệu được thu gọn</span></div>
       <div class="toolbar">
         <label class="search-box">
           <span class="sr-only">Tìm mặt hàng</span><i class="bi bi-search" aria-hidden="true"></i>
@@ -255,22 +282,13 @@ onMounted(() => {
       <div v-else-if="filteredItems.length === 0" class="state-panel"><i class="bi bi-inbox" aria-hidden="true"></i><strong>Không tìm thấy mặt hàng</strong><span>Điều chỉnh từ khóa hoặc bộ lọc.</span></div>
       <div v-else class="table-wrapper">
         <table class="table">
-          <thead><tr><th scope="col">Mặt hàng</th><th scope="col">Loại</th><th scope="col">Hiện có</th><th scope="col">Đã giữ</th><th scope="col">Khả dụng</th><th scope="col">Đơn vị</th><th scope="col">Tối thiểu</th><th scope="col">Lịch kiểm</th><th scope="col">Giá vốn TB</th><th scope="col">Giá trị tồn</th><th scope="col">Kiểm gần nhất</th><th scope="col">Trạng thái</th><th scope="col"><span class="sr-only">Thao tác</span></th></tr></thead>
+          <thead><tr><th scope="col">Mặt hàng</th><th scope="col">Khả dụng</th><th scope="col">Trạng thái</th><th scope="col">Việc tiếp theo</th></tr></thead>
           <tbody>
             <tr v-for="item in filteredItems" :key="item.inventoryItemId">
-              <td data-label="Mặt hàng"><strong>{{ item.name }}</strong><div class="muted">{{ item.inventoryCode }} · #{{ item.inventoryItemId }}</div></td>
-              <td data-label="Loại">{{ TYPE_LABELS[item.itemType] || item.itemType }}</td>
-              <td data-label="Hiện có">{{ formatQuantity(item.onHandQuantity) }}</td>
-              <td data-label="Đã giữ">{{ formatQuantity(item.reservedQuantity) }}</td>
-              <td data-label="Khả dụng"><strong>{{ formatQuantity(item.availableQuantity) }}</strong></td>
-              <td data-label="Đơn vị">{{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</td>
-              <td data-label="Tối thiểu">{{ formatQuantity(item.minimumQuantity) }}</td>
-              <td data-label="Lịch kiểm">{{ FREQUENCY_LABELS[item.countFrequency] || item.countFrequency }}</td>
-              <td data-label="Giá vốn TB">{{ Number(item.averageUnitCost).toLocaleString('vi-VN') }} ₫</td>
-              <td data-label="Giá trị tồn"><strong>{{ Number(Number(item.onHandQuantity) * Number(item.averageUnitCost)).toLocaleString('vi-VN') }} ₫</strong></td>
-              <td data-label="Kiểm gần nhất">{{ item.lastCountedAt || '—' }}</td>
+              <td data-label="Mặt hàng"><strong>{{ item.name }}</strong><div class="muted">{{ item.inventoryCode }} · {{ TYPE_LABELS[item.itemType] || item.itemType }}</div><details><summary>Xem chi tiết</summary><dl><div><dt>Hiện có</dt><dd>{{ formatQuantity(item.onHandQuantity) }}</dd></div><div><dt>Đã giữ</dt><dd>{{ formatQuantity(item.reservedQuantity) }}</dd></div><div><dt>Đơn vị</dt><dd>{{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</dd></div><div><dt>Tối thiểu</dt><dd>{{ formatQuantity(item.minimumQuantity) }}</dd></div><div><dt>Giá vốn</dt><dd>{{ Number(item.averageUnitCost).toLocaleString('vi-VN') }} ₫</dd></div><div><dt>Giá trị tồn</dt><dd>{{ Number(Number(item.onHandQuantity) * Number(item.averageUnitCost)).toLocaleString('vi-VN') }} ₫</dd></div><div><dt>Lịch kiểm</dt><dd>{{ FREQUENCY_LABELS[item.countFrequency] || item.countFrequency }}</dd></div><div><dt>Kiểm gần nhất</dt><dd>{{ item.lastCountedAt || '—' }}</dd></div></dl></details></td>
+              <td data-label="Khả dụng"><strong>{{ formatQuantity(item.availableQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</strong></td>
               <td data-label="Trạng thái"><span class="badge" :class="STATE_CLASSES[itemStockState(item)]">{{ STATE_LABELS[itemStockState(item)] }}</span></td>
-              <td data-label="Thao tác">
+              <td data-label="Việc tiếp theo">
                 <div class="row-actions">
                   <button class="btn btn-sm btn-outline" :aria-label="`Tạo phiếu nhập cho ${item.name}`" @click="router.push({ name: 'AdminGoodsReceipts' })"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i> Nhập</button>
                   <button class="btn btn-sm btn-outline" :aria-label="`Điều chỉnh ${item.name}`" @click="openDialog('adjust', item, $event)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
@@ -353,6 +371,7 @@ onMounted(() => {
 
 <style scoped>
 .inventory-page { display: grid; gap: 24px; }
+.today-panel{display:grid;gap:14px;padding:24px;border-radius:18px;background:#251d18;color:#fff}.today-panel h2{margin:2px 0 0;font-size:24px}.eyebrow{margin:0;color:#f2aa87;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.action-card{display:grid;gap:12px;align-content:space-between;min-height:118px;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.06)}.action-card .btn{justify-self:start;background:#fff}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.workflow>a,.workflow-step{display:grid;gap:3px;min-height:96px;padding:14px;border:1px solid var(--border-light);border-radius:12px;background:#fff;color:inherit;text-decoration:none}.workflow span>span,.workflow a>span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-weight:800}.workflow small{color:var(--text-mid)}
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .page-subtitle { margin: 4px 0 0; color: var(--text-mid); font-size: 14px; }
 .inventory-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -373,6 +392,7 @@ onMounted(() => {
 .result-count { margin: 12px 0; color: var(--text-mid); font-size: 13px; }
 .muted { color: var(--text-mid); font-size: 12px; margin-top: 3px; }
 .row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.section-title{display:flex;align-items:end;justify-content:space-between;gap:12px}.section-title h2{margin:2px 0 0}.section-title>span{color:var(--text-mid);font-size:13px}details{margin-top:8px}summary{width:max-content;min-height:40px;display:flex;align-items:center;color:var(--primary);font-size:12px;font-weight:700;cursor:pointer}dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px;margin:6px 0 0;padding:10px;border-radius:8px;background:var(--surface)}dl div{display:flex;justify-content:space-between;gap:8px}dt{color:var(--text-mid)}dd{margin:0;font-weight:650}
 .recent-panel h2 { margin: 0 0 12px; font-size: 16px; }
 .recent-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .recent-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--border-light); font-size: 13px; }
@@ -401,6 +421,8 @@ onMounted(() => {
 .state-panel > i { font-size: 32px; }
 .error-panel { color: var(--danger, #dc2626); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.inventory-page :is(button,a,summary,input,select):focus-visible{outline:3px solid var(--primary);outline-offset:2px}.inventory-page :is(.btn,input,select){min-height:40px}
 @media (max-width: 1024px) { .inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .toolbar { align-items: stretch; flex-direction: column; } .search-box { max-width: none; } }
-@media (max-width: 680px) { .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } }
+@media (max-width: 800px){.action-grid{grid-template-columns:1fr}.workflow{grid-template-columns:1fr 1fr}.workflow>a,.workflow-step{min-height:88px}}
+@media (max-width: 680px) { .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workflow{grid-template-columns:1fr}.section-title{align-items:flex-start;flex-direction:column}.table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } dl{grid-template-columns:1fr} }
 </style>

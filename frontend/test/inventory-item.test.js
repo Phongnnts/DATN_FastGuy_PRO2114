@@ -66,13 +66,12 @@ test('payload builders keep contracted field names exactly', () => {
   );
   assert.deepEqual(
     buildRecipePayload({ inventoryMode: 'INGREDIENT', yieldQuantity: '4', active: true, items: [{ inventoryItemId: 3, quantity: '1.5' }] }),
-    { inventoryMode: 'INGREDIENT', yieldQuantity: 4, active: true, items: [{ inventoryItemId: 3, quantity: 1.5 }] },
+    { yieldQuantity: 4, active: true, items: [{ inventoryItemId: 3, quantity: 1.5 }], expectedUpdatedAt: null },
   );
 });
 
-test('validateRecipeForm blocks missing mode, yield and duplicate or non-positive items', () => {
+test('validateRecipeForm blocks missing yield and duplicate or non-positive items', () => {
   assert.deepEqual(validateRecipeForm({ inventoryMode: '', yieldQuantity: '', items: [] }), {
-    inventoryMode: 'Chọn chế độ kho',
     yieldQuantity: 'Số phần đầu ra phải lớn hơn 0',
     items: 'Thêm ít nhất một dòng nguyên liệu',
   });

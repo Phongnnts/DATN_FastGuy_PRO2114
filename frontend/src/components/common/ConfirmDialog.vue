@@ -31,6 +31,11 @@ function handleKeydown(event) {
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
+  if (!dialogRef.value.contains(document.activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+    return;
+  }
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus();
@@ -45,19 +50,23 @@ watch(() => props.open, async (open) => {
     previousFocus.value = document.activeElement;
     previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeydown);
     await nextTick();
     cancelRef.value?.focus();
     return;
   }
   if (previousFocus.value || previousOverflow !== '') {
+    document.removeEventListener('keydown', handleKeydown);
+    const focusTarget = previousFocus.value;
     document.body.style.overflow = previousOverflow;
     previousOverflow = '';
-    nextTick(() => previousFocus.value?.focus());
+    nextTick(() => focusTarget?.focus());
     previousFocus.value = null;
   }
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeydown);
   if (props.open || previousOverflow !== '') document.body.style.overflow = previousOverflow;
 });
 </script>
@@ -65,7 +74,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div v-if="open" class="confirm-overlay" @click.self="requestCancel">
-      <section ref="dialogRef" class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message" tabindex="-1" @keydown="handleKeydown">
+      <section ref="dialogRef" class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message" tabindex="-1">
         <h2 id="confirm-dialog-title">{{ title }}</h2>
         <p id="confirm-dialog-message">{{ message }}</p>
         <div class="dialog-actions">
