@@ -1,12 +1,34 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import test from 'node:test';
 
 const contractUrl = new URL('../../openapi/fastguy.yaml', import.meta.url);
+const execFileAsync = promisify(execFile);
 
 function schemaSection(contract, name, nextName) {
   return contract.slice(contract.indexOf(`    ${name}:`), contract.indexOf(`    ${nextName}:`));
 }
+
+test('OpenAPI contracts Staff dispatch filters and classifications', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const paths = contract.paths;
+  const operation = paths['/staff/orders/dispatch']?.get;
+  const filter = operation?.parameters.find((parameter) => parameter.name === 'filter');
+  const dispatchOrder = contract.components.schemas.StaffDispatchOrder;
+  dispatchOrder.properties.readyAt.nullable = dispatchOrder.properties.readyAt.type.includes('null');
+  dispatchOrder.properties.minutesUntilClose.type = dispatchOrder.properties.minutesUntilClose.type.find((type) => type !== 'null');
+
+  assert.ok(operation);
+  assert.deepEqual(filter.schema.enum, ['PRIORITY', 'NEW', 'REVIEW']);
+  assert.deepEqual(dispatchOrder.properties.classification.enum, ['PRIORITY', 'NEW', 'REVIEW']);
+  assert.ok(dispatchOrder.properties.readyAt.nullable);
+  assert.equal(dispatchOrder.properties.minutesUntilClose.type, 'integer');
+});
 
 test('OpenAPI contracts current-shift shipper listing and assignment', async () => {
   const contract = await readFile(contractUrl, 'utf8');

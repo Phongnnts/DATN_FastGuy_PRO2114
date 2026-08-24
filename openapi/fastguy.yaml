@@ -109,6 +109,32 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /staff/orders/dispatch:
+    get:
+      operationId: listStaffDispatchOrders
+      summary: List Staff dispatch orders by server classification
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [PRIORITY, NEW, REVIEW]
+      responses:
+        '200':
+          description: Classified Staff dispatch orders and counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffDispatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /staff/orders/{orderId}/assign-shipper:
     put:
       operationId: assignOrderShipper
@@ -1663,6 +1689,44 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/AvailableShipper' }
+    StaffDispatchOrder:
+      type: object
+      required: [readyAt, classification, minutesUntilClose]
+      properties:
+        readyAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        classification:
+          type: string
+          enum: [PRIORITY, NEW, REVIEW]
+        minutesUntilClose:
+          type: [integer, 'null']
+    StaffDispatchCounts:
+      type: object
+      additionalProperties: false
+      required: [priority, new, review]
+      properties:
+        priority: { type: integer, minimum: 0 }
+        new: { type: integer, minimum: 0 }
+        review: { type: integer, minimum: 0 }
+    StaffDispatchResponse:
+      type: object
+      additionalProperties: false
+      required: [items, counts, serverTime, openTime, closeTime]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/StaffDispatchOrder' }
+        counts: { $ref: '#/components/schemas/StaffDispatchCounts' }
+        serverTime:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        openTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        closeTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
     AssignShipperRequest:
       type: object
       additionalProperties: false
