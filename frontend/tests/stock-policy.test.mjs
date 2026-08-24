@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  customerAvailability,
   normalizeLowStockThreshold,
   productStockSummary,
   stockState,
@@ -61,4 +62,23 @@ test('product status marks available product out only when all managed SKUs are 
   assert.equal(productStockSummary({ status: 'AVAILABLE', variants: [{ quantityAvailable: 0 }, { quantityAvailable: 0 }] }, 5).status, 'OUT');
   assert.equal(productStockSummary({ status: 'AVAILABLE', variants: [{ quantityAvailable: 0 }, { quantityAvailable: null }] }, 5).status, 'AVAILABLE');
   assert.equal(productStockSummary({ status: 'UNAVAILABLE', variants: [{ quantityAvailable: 8 }] }, 5).status, 'UNAVAILABLE');
+});
+
+test('maps public availability statuses to customer-safe Vietnamese copy', () => {
+  assert.deepEqual(customerAvailability({ availabilityStatus: 'IN_STOCK' }), { status: 'IN_STOCK', remainingServings: null, label: 'Còn hàng', available: true });
+  assert.deepEqual(customerAvailability({ availabilityStatus: 'UNTRACKED' }), { status: 'UNTRACKED', remainingServings: null, label: 'Còn hàng', available: true });
+  assert.deepEqual(customerAvailability({ availabilityStatus: 'LOW_STOCK', remainingServings: 2 }), { status: 'LOW_STOCK', remainingServings: 2, label: 'Chỉ còn 2 phần', available: true });
+  assert.equal(customerAvailability({ availabilityStatus: 'LOW_STOCK' }).label, 'Sắp hết');
+  assert.deepEqual(customerAvailability({ availabilityStatus: 'OUT_OF_STOCK' }), { status: 'OUT_OF_STOCK', remainingServings: null, label: 'Tạm hết', available: false });
+  assert.equal(customerAvailability({ availabilityStatus: 'SUSPENDED' }).available, false);
+  assert.equal(customerAvailability({ availabilityStatus: 'OUT_OF_STOCK', remainingServings: 2 }).remainingServings, null);
+});
+
+test('falls back to legacy variant fields when the availability snapshot is absent', () => {
+  assert.deepEqual(customerAvailability({}), { status: 'IN_STOCK', remainingServings: null, label: 'Còn hàng', available: true });
+  assert.equal(customerAvailability({ quantityAvailable: 7 }).available, true);
+  assert.equal(customerAvailability({ quantityAvailable: 7 }).label, 'Còn hàng');
+  assert.equal(customerAvailability({ quantityAvailable: 0 }).available, false);
+  assert.equal(customerAvailability({ quantityAvailable: 0 }).label, 'Tạm hết');
+  assert.equal(customerAvailability({ status: 'UNAVAILABLE', quantityAvailable: 9 }).available, false);
 });

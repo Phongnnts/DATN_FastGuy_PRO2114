@@ -1,101 +1,16 @@
 package dao;
 
 import utils.DatabaseUtil;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import jakarta.persistence.*;
+import java.time.*;
+import java.util.*;
 
 public class InventoryTransactionDAO {
-    private static final String SELECT_CLAUSE =
-            "SELECT t.inventoryTransactionId, t.order.orderId, t.order.orderCode, " +
-            "t.variant.variantId, t.variant.variantName, " +
-            "t.variant.product.productId, t.variant.product.name, " +
-            "t.transactionType, t.quantity, t.createdAt, " +
-            "t.reasonCode, t.note, t.quantityBefore, t.quantityAfter, t.createdBy.fullName " +
-            "FROM InventoryTransaction t";
-    private static final String COUNT_CLAUSE = "SELECT COUNT(t) FROM InventoryTransaction t";
-    private static final String ORDER_CLAUSE = " ORDER BY t.createdAt DESC, t.inventoryTransactionId DESC";
-    private static final DateTimeFormatter ISO_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-
-    static List<String> buildConditions(Integer variantId, Integer productId, String transactionType, LocalDateTime from, LocalDateTime to) {
-        List<String> conditions = new ArrayList<>();
-        if (variantId != null) conditions.add("t.variant.variantId = :variantId");
-        if (productId != null) conditions.add("t.variant.product.productId = :productId");
-        if (transactionType != null && !transactionType.isBlank()) conditions.add("t.transactionType = :transactionType");
-        if (from != null) conditions.add("t.createdAt >= :fromDate");
-        if (to != null) conditions.add("t.createdAt < :toDate");
-        return conditions;
-    }
-
-    static String where(List<String> conditions) {
-        return conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions);
-    }
-
-    static int firstResult(int page, int size) {
-        return (page - 1) * size;
-    }
-
-    static LocalDateTime toEnd(LocalDate date) {
-        return LocalDate.MAX.equals(date) ? LocalDateTime.MAX : date.plusDays(1).atStartOfDay();
-    }
-
-    static Map<String, Object> toDto(Object[] row) {
-        Map<String, Object> m = new HashMap<>();
-        m.put("transactionId", row[0]);
-        m.put("type", row[7]);
-        m.put("quantity", row[8]);
-        m.put("createdAt", row[9] != null ? ((LocalDateTime) row[9]).format(ISO_FORMAT) : null);
-        m.put("variantId", row[3]);
-        m.put("variantName", row[4]);
-        m.put("productId", row[5]);
-        m.put("productName", row[6]);
-        m.put("orderId", row[1]);
-        m.put("orderCode", row[2]);
-        m.put("reasonCode", row[10]);
-        m.put("note", row[11]);
-        m.put("quantityBefore", row[12]);
-        m.put("quantityAfter", row[13]);
-        m.put("createdByName", row[14]);
-        return m;
-    }
-
-    public Map<String, Object> find(Integer variantId, Integer productId, String transactionType, LocalDate fromDate, LocalDate toDate, int page, int size) {
-        LocalDateTime from = fromDate != null ? fromDate.atStartOfDay() : null;
-        LocalDateTime to = toDate != null ? toEnd(toDate) : null;
-        List<String> conditions = buildConditions(variantId, productId, transactionType, from, to);
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            String where = where(conditions);
-            Query rowsQuery = em.createQuery(SELECT_CLAUSE + where + ORDER_CLAUSE, Object[].class);
-            Query countQuery = em.createQuery(COUNT_CLAUSE + where, Long.class);
-            applyParams(rowsQuery, conditions, variantId, productId, transactionType, from, to);
-            applyParams(countQuery, conditions, variantId, productId, transactionType, from, to);
-            @SuppressWarnings("unchecked")
-            List<Object[]> rows = rowsQuery.setFirstResult(firstResult(page, size)).setMaxResults(size).getResultList();
-            long total = (long) countQuery.getSingleResult();
-            List<Map<String, Object>> items = new ArrayList<>();
-            for (Object[] row : rows) items.add(toDto(row));
-            Map<String, Object> result = new HashMap<>();
-            result.put("items", items);
-            result.put("total", total);
-            return result;
-        } finally {
-            em.close();
-        }
-    }
-
-    private static void applyParams(Query query, List<String> conditions, Integer variantId, Integer productId, String transactionType, LocalDateTime from, LocalDateTime to) {
-        if (conditions.contains("t.variant.variantId = :variantId")) query.setParameter("variantId", variantId);
-        if (conditions.contains("t.variant.product.productId = :productId")) query.setParameter("productId", productId);
-        if (conditions.contains("t.transactionType = :transactionType")) query.setParameter("transactionType", transactionType);
-        if (conditions.contains("t.createdAt >= :fromDate")) query.setParameter("fromDate", from);
-        if (conditions.contains("t.createdAt < :toDate")) query.setParameter("toDate", to);
-    }
+    static List<String> buildConditions(Integer inventoryItemId,Integer orderId,String type,LocalDateTime from,LocalDateTime to){List<String>c=new ArrayList<>();if(inventoryItemId!=null)c.add("t.inventoryItem.inventoryItemId = :inventoryItemId");if(orderId!=null)c.add("t.order.orderId = :orderId");if(type!=null&&!type.isBlank())c.add("t.transactionType = :transactionType");if(from!=null)c.add("t.createdAt >= :fromDate");if(to!=null)c.add("t.createdAt < :toDate");return c;}
+    static String where(List<String>c){return c.isEmpty()?"":" WHERE "+String.join(" AND ",c);}
+    static int firstResult(int page,int size){try{return Math.multiplyExact(page,size);}catch(ArithmeticException e){throw new IllegalArgumentException("Pagination offset too large");}}
+    static LocalDateTime toEnd(LocalDate d){return LocalDate.MAX.equals(d)?LocalDateTime.MAX:d.plusDays(1).atStartOfDay();}
+    static Map<String,Object> toDto(Object[]r){Map<String,Object>m=new LinkedHashMap<>();m.put("inventoryTransactionId",r[0]);m.put("inventoryItemId",r[1]);m.put("orderId",r[2]);m.put("transactionType",r[3]);m.put("quantity",r[4]);m.put("quantityBefore",r[5]);m.put("quantityAfter",r[6]);m.put("referenceType",r[7]);m.put("referenceId",r[8]);m.put("reason",r[9]);m.put("note",r[10]);m.put("createdBy",r[11]);m.put("unitCostSnapshot",r[12]);m.put("totalCost",r[13]);m.put("goodsReceiptId",r[14]);m.put("stockCountId",r[15]);m.put("createdAt",r[16]);return m;}
+    public Map<String,Object> find(Integer item,Integer order,String type,LocalDate fromDate,LocalDate toDate,int page,int size){LocalDateTime from=fromDate==null?null:fromDate.atStartOfDay(),to=toDate==null?null:toEnd(toDate);List<String>c=buildConditions(item,order,type,from,to);EntityManager em=DatabaseUtil.getEntityManager();try{String w=where(c);Query rows=em.createQuery("SELECT t.inventoryTransactionId,i.inventoryItemId,o.orderId,t.transactionType,t.quantity,t.quantityBefore,t.quantityAfter,t.referenceType,t.referenceId,t.reasonCode,t.note,u.userId,t.unitCostSnapshot,t.totalCost,g.goodsReceiptId,s.stockCountId,t.createdAt FROM InventoryTransaction t LEFT JOIN t.inventoryItem i LEFT JOIN t.order o LEFT JOIN t.createdBy u LEFT JOIN t.goodsReceipt g LEFT JOIN t.stockCount s"+w+" ORDER BY t.createdAt DESC,t.inventoryTransactionId DESC",Object[].class),count=em.createQuery("SELECT COUNT(t) FROM InventoryTransaction t"+w,Long.class);params(rows,c,item,order,type,from,to);params(count,c,item,order,type,from,to);List<?>raw=rows.setFirstResult(firstResult(page,size)).setMaxResults(size).getResultList();long total=(long)count.getSingleResult();List<Map<String,Object>>items=new ArrayList<>();for(Object r:raw)items.add(toDto((Object[])r));return Map.of("items",items,"page",page,"size",size,"totalItems",total,"totalPages",(int)((total+size-1)/size));}finally{em.close();}}
+    private static void params(Query q,List<String>c,Integer item,Integer order,String type,LocalDateTime from,LocalDateTime to){if(c.contains("t.inventoryItem.inventoryItemId = :inventoryItemId"))q.setParameter("inventoryItemId",item);if(c.contains("t.order.orderId = :orderId"))q.setParameter("orderId",order);if(c.contains("t.transactionType = :transactionType"))q.setParameter("transactionType",type);if(c.contains("t.createdAt >= :fromDate"))q.setParameter("fromDate",from);if(c.contains("t.createdAt < :toDate"))q.setParameter("toDate",to);}
 }

@@ -10,26 +10,26 @@ import org.junit.jupiter.api.Test;
 
 class AdminVariantServletPolicyTest {
     @Test
-    void editorStockChangesDelegateToInventoryService() throws Exception {
+    void editorStockChangesAreRejectedInFavorOfInventoryItemApi() throws Exception {
         String product = Files.readString(Path.of("src/main/java/servlet/AdminProductServlet.java"));
         String variant = Files.readString(Path.of("src/main/java/servlet/AdminVariantServlet.java"));
 
-        assertTrue(product.contains("setManagedQuantity("));
-        assertTrue(variant.contains("setManagedQuantity("));
+        assertFalse(product.contains("setManagedQuantity("));
+        assertFalse(variant.contains("setManagedQuantity("));
+        assertTrue(product.contains("Variant inventory must be changed through the inventory item API"));
+        assertTrue(variant.contains("Variant inventory must be changed through the inventory item API"));
         assertTrue(product.indexOf("setQuantityAvailable(readStock(") == product.lastIndexOf("setQuantityAvailable(readStock("));
         assertFalse(variant.contains("containsForbiddenStockUpdate"));
     }
 
     @Test
-    void stockFieldsRequireExactIntegersAndRejectMalformedAuditValues() throws Exception {
+    void legacyStockAndAuditFieldsAreRejected() throws Exception {
         String product = Files.readString(Path.of("src/main/java/servlet/AdminProductServlet.java"));
         String variant = Files.readString(Path.of("src/main/java/servlet/AdminVariantServlet.java"));
 
-        assertTrue(product.contains("intValueExact()"));
-        assertTrue(variant.contains("intValueExact()"));
-        assertTrue(product.contains("readAuditString(body, \"reasonCode\")"));
-        assertTrue(variant.contains("readAuditString(body, \"reasonCode\")"));
-        assertTrue(product.contains("readAuditString(body, \"note\")"));
-        assertTrue(variant.contains("readAuditString(body, \"note\")"));
+        assertTrue(product.contains("body.containsKey(\"quantityAvailable\")"));
+        assertTrue(variant.contains("body.containsKey(\"quantityAvailable\")"));
+        assertFalse(product.contains("setManagedQuantity("));
+        assertFalse(variant.contains("setManagedQuantity("));
     }
 }

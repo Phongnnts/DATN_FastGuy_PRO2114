@@ -13,7 +13,10 @@ class AdminInventoryServletPolicyTest {
         assertTrue(AdminInventoryServlet.isValidTransactionType("RESERVE"));
         assertTrue(AdminInventoryServlet.isValidTransactionType("RELEASE"));
         assertTrue(AdminInventoryServlet.isValidTransactionType("CONSUME"));
+        assertTrue(AdminInventoryServlet.isValidTransactionType("RECEIPT"));
+        assertTrue(AdminInventoryServlet.isValidTransactionType("ADJUSTMENT"));
         assertTrue(AdminInventoryServlet.isValidTransactionType("WASTE"));
+        assertTrue(AdminInventoryServlet.isValidTransactionType("RETURN"));
     }
 
     @Test

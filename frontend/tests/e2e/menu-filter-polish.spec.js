@@ -36,6 +36,10 @@ test('menu filter polish keeps desktop realtime and mobile draft apply behavior'
     await expect(page.locator('.compact-toolbar')).toHaveCSS('position', 'sticky');
   }
 
+  const soldOutCtas = page.locator('.product-card .soldout-btn');
+  const soldOutCount = await soldOutCtas.count();
+  for (let index = 0; index < soldOutCount; index += 1) await expect(soldOutCtas.nth(index)).toBeDisabled();
+
   expect(errors).toEqual([]);
   await page.locator('html').evaluate(element => {
     if (element.scrollWidth > element.clientWidth + 1) throw new Error('Trang Thực đơn tràn ngang');

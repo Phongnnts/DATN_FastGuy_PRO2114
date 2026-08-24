@@ -697,6 +697,226 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /admin/inventory/items:
+    get:
+      operationId: listInventoryItems
+      summary: List inventory items
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Inventory items, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      operationId: createInventoryItem
+      summary: Create an inventory item
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemRequest' } } } }
+      responses:
+        '201': { description: Inventory item created, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/items/{itemId}:
+    parameters:
+      - { name: itemId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getInventoryItem
+      summary: Get an inventory item
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Inventory item, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateInventoryItem
+      summary: Update an inventory item
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemRequest' } } } }
+      responses:
+        '200': { description: Inventory item updated, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Stale quantity or immutable base unit, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
+  /admin/inventory/transactions/adjustments:
+    post:
+      operationId: adjustInventory
+      summary: Record an inventory adjustment
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryAdjustmentRequest' } } } }
+      responses:
+        '200': { description: Adjustment recorded, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: Stale quantity, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
+  /admin/inventory/transactions:
+    get:
+      operationId: listInventoryTransactions
+      summary: List inventory transactions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: inventoryItemId, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: orderId, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: transactionType, in: query, schema: { type: string, enum: [RECEIPT, RESERVE, RELEASE, CONSUME, ADJUSTMENT, WASTE, RETURN] } }
+        - { name: fromDate, in: query, schema: { type: string, format: date } }
+        - { name: toDate, in: query, schema: { type: string, format: date } }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Inventory ledger page, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryTransactionPageResponse' } } } }
+  /admin/inventory/receipts:
+    get:
+      operationId: listGoodsReceipts
+      summary: List goods receipts
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Goods receipts, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptListResponse' } } } }
+    post:
+      operationId: createGoodsReceipt
+      summary: Create a draft goods receipt
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptRequest' } } } }
+      responses:
+        '201': { description: Draft receipt created, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /admin/inventory/receipts/{receiptId}:
+    parameters:
+      - { name: receiptId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getGoodsReceipt
+      summary: Get a goods receipt
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Goods receipt, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateGoodsReceipt
+      summary: Update a draft goods receipt
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptRequest' } } } }
+      responses:
+        '200': { description: Draft receipt updated, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteGoodsReceipt
+      summary: Delete a draft goods receipt
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Draft receipt deleted }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/receipts/{receiptId}/approve:
+    parameters:
+      - { name: receiptId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    post:
+      operationId: approveGoodsReceipt
+      summary: Approve a goods receipt
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Receipt approved, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/stock-counts:
+    get:
+      operationId: listStockCounts
+      summary: List stock counts
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Stock counts, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountListResponse' } } } }
+    post:
+      operationId: createStockCount
+      summary: Create a draft stock count
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountCreateRequest' } } } }
+      responses:
+        '201': { description: Draft count created, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+  /admin/inventory/stock-counts/{stockCountId}:
+    parameters:
+      - { name: stockCountId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getStockCount
+      summary: Get a stock count
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Stock count, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+    put:
+      operationId: updateStockCount
+      summary: Update a draft stock count
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountUpdateRequest' } } } }
+      responses:
+        '200': { description: Draft count updated, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/stock-counts/{stockCountId}/approve:
+    parameters:
+      - { name: stockCountId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    post:
+      operationId: approveStockCount
+      summary: Approve a stock count
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Count approved, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/reports/summary:
+    get:
+      operationId: getInventoryCostSummary
+      summary: Get inventory cost summary
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Inventory cost summary, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryCostSummaryResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/reports/item-loss:
+    get:
+      operationId: getInventoryItemLoss
+      summary: Get waste and stock-count loss by inventory item
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Item loss report, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemLossResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/reports/menu-cost:
+    get:
+      operationId: getInventoryMenuCost
+      summary: Get current recipe cost by menu variant
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Menu recipe cost report, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryMenuCostResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/product-variants/{variantId}/recipe:
+    parameters:
+      - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getVariantRecipe
+      summary: Get a variant recipe
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Variant recipe, content: { application/json: { schema: { $ref: '#/components/schemas/RecipeResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: replaceVariantRecipe
+      summary: Replace a variant recipe
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecipeRequest' } } } }
+      responses:
+        '200': { description: Replaced recipe, content: { application/json: { schema: { $ref: '#/components/schemas/RecipeResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/product-variants/{variantId}/availability:
+    get:
+      operationId: getVariantInventoryAvailability
+      summary: Get variant inventory availability
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Derived customer-safe availability, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryAvailability' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
 components:
   securitySchemes:
     bearerAuth:
@@ -765,12 +985,358 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     InternalServerError:
 
-      description: Homepage data could not be loaded
+      description: Internal server error
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    InventoryMode:
+      type: string
+      enum: [INGREDIENT, FINISHED_GOOD, UNTRACKED, SUSPENDED]
+    BaseUnit:
+      type: string
+      enum: [G, ML, PIECE]
+    InventoryCountFrequency:
+      type: string
+      enum: [DAILY, WEEKLY]
+    Money:
+      type: number
+      format: decimal
+      minimum: 0
+      maximum: 999999999999999.9999
+      multipleOf: 0.0001
+    InventoryItemQuantity:
+      type: number
+      format: decimal
+      minimum: 0
+      maximum: 999999999999999.9999
+      multipleOf: 0.0001
+    InventoryItem:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, inventoryCode, name, itemType, baseUnit, onHandQuantity, reservedQuantity, availableQuantity, minimumQuantity, countFrequency, averageUnitCost, active, createdAt, updatedAt]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        inventoryCode: { type: string, minLength: 1, maxLength: 30 }
+        name: { type: string, minLength: 1, maxLength: 150 }
+        itemType: { type: string, enum: [INGREDIENT, FINISHED_GOOD] }
+        baseUnit: { $ref: '#/components/schemas/BaseUnit' }
+        onHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reservedQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        availableQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        minimumQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        countFrequency: { $ref: '#/components/schemas/InventoryCountFrequency' }
+        averageUnitCost: { $ref: '#/components/schemas/Money' }
+        lastCountedAt: { type: [string, 'null'] }
+        active: { type: boolean }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    InventoryItemResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventoryItem' }
+    InventoryItemListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/InventoryItem' } }
+    InventoryItemRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryCode, name, itemType, baseUnit, minimumQuantity, countFrequency, active]
+      properties:
+        inventoryCode: { type: string, pattern: '^[A-Z0-9-]{1,30}$' }
+        name: { type: string, minLength: 1, maxLength: 150 }
+        itemType: { type: string, enum: [INGREDIENT, FINISHED_GOOD] }
+        baseUnit: { $ref: '#/components/schemas/BaseUnit' }
+        minimumQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        countFrequency: { $ref: '#/components/schemas/InventoryCountFrequency' }
+        active: { type: boolean }
+    RecipeItem:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, quantity]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        quantity:
+          allOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }]
+          exclusiveMinimum: 0
+    Recipe:
+      type: object
+      additionalProperties: false
+      required: [recipeId, variantId, yieldQuantity, active, items, createdAt, updatedAt]
+      properties:
+        recipeId: { type: integer, minimum: 1 }
+        variantId: { type: integer, minimum: 1 }
+        yieldQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        active: { type: boolean }
+        items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RecipeItem' } }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    RecipeResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/Recipe' }
+    RecipeRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryMode, yieldQuantity, active, items]
+      properties:
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        yieldQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        active: { type: boolean }
+        items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RecipeItem' } }
+    InventoryAdjustmentRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, quantity, expectedOnHandQuantity, reason]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        quantity:
+          anyOf:
+            - { type: number, format: decimal, minimum: -999999999999999.9999, maximum: -0.0001, multipleOf: 0.0001 }
+            - { type: number, format: decimal, minimum: 0.0001, maximum: 999999999999999.9999, multipleOf: 0.0001 }
+        expectedOnHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reason: { type: string, minLength: 1, maxLength: 100 }
+        note: { type: [string, 'null'], maxLength: 500 }
+    InventoryTransaction:
+      type: object
+      additionalProperties: false
+      required: [inventoryTransactionId, transactionType, quantity, quantityBefore, quantityAfter, createdAt]
+      properties:
+        inventoryTransactionId: { type: integer, minimum: 1 }
+        inventoryItemId: { type: [integer, 'null'], minimum: 1 }
+        orderId: { type: [integer, 'null'], minimum: 1 }
+        transactionType: { type: string, enum: [RECEIPT, RESERVE, RELEASE, CONSUME, ADJUSTMENT, WASTE, RETURN] }
+        quantity: { type: number, format: decimal, minimum: -999999999999999.9999, maximum: 999999999999999.9999, multipleOf: 0.0001 }
+        quantityBefore: { oneOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }, { type: 'null' }] }
+        quantityAfter: { oneOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }, { type: 'null' }] }
+        referenceType: { type: [string, 'null'] }
+        referenceId: { type: [string, 'null'] }
+        reason: { type: [string, 'null'] }
+        note: { type: [string, 'null'] }
+        createdBy: { type: [integer, 'null'], minimum: 1 }
+        unitCostSnapshot: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        totalCost: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        goodsReceiptId: { type: [integer, 'null'], minimum: 1 }
+        stockCountId: { type: [integer, 'null'], minimum: 1 }
+        createdAt: { type: string }
+    GoodsReceiptItemRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, purchaseQuantity, purchaseUnit, conversionFactor, purchaseUnitPrice]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        purchaseQuantity:
+          allOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }]
+          exclusiveMinimum: 0
+        purchaseUnit: { type: string, minLength: 1, maxLength: 30 }
+        conversionFactor:
+          allOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }]
+          exclusiveMinimum: 0
+        purchaseUnitPrice:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+    GoodsReceiptRequest:
+      type: object
+      additionalProperties: false
+      required: [supplierName, receivedAt, items]
+      properties:
+        supplierName: { type: string, minLength: 1, maxLength: 150 }
+        invoiceNumber: { type: [string, 'null'], maxLength: 100 }
+        receivedAt: { type: string }
+        items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/GoodsReceiptItemRequest' } }
+    GoodsReceipt:
+      type: object
+      additionalProperties: false
+      required: [goodsReceiptId, supplierName, invoiceNumber, receivedAt, status, items, createdAt, approvedAt]
+      properties:
+        goodsReceiptId: { type: integer, minimum: 1 }
+        supplierName: { type: string }
+        invoiceNumber: { type: [string, 'null'] }
+        receivedAt: { type: string }
+        status: { type: string, enum: [DRAFT, APPROVED] }
+        items: { type: array, items: { $ref: '#/components/schemas/GoodsReceiptLine' } }
+        createdAt: { type: string }
+        approvedAt: { type: [string, 'null'] }
+    GoodsReceiptLine:
+      type: object
+      additionalProperties: false
+      required: [goodsReceiptItemId, inventoryItemId, purchaseQuantity, purchaseUnit, conversionFactor, baseQuantity, purchaseUnitPrice, lineTotal, averageCostBefore, averageCostAfter]
+      properties:
+        goodsReceiptItemId: { type: integer, minimum: 1 }
+        inventoryItemId: { type: integer, minimum: 1 }
+        purchaseQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        purchaseUnit: { type: string, minLength: 1, maxLength: 30 }
+        conversionFactor: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        baseQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        purchaseUnitPrice: { $ref: '#/components/schemas/Money' }
+        lineTotal: { $ref: '#/components/schemas/Money' }
+        averageCostBefore: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        averageCostAfter: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+    GoodsReceiptResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/GoodsReceipt' } }
+    GoodsReceiptListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { type: array, items: { $ref: '#/components/schemas/GoodsReceipt' } } }
+    StockCountCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [countDate, frequency]
+      properties: { countDate: { type: string, format: date }, frequency: { $ref: '#/components/schemas/InventoryCountFrequency' } }
+    StockCountItemRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, theoreticalQuantity, actualQuantity]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        theoreticalQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        actualQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reasonCode: { type: [string, 'null'], maxLength: 50 }
+        note: { type: [string, 'null'], maxLength: 500 }
+    StockCountUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: { items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/StockCountItemRequest' } } }
+    StockCount:
+      type: object
+      additionalProperties: false
+      required: [stockCountId, countDate, frequency, status, items, createdAt, approvedAt]
+      properties:
+        stockCountId: { type: integer, minimum: 1 }
+        countDate: { type: string, format: date }
+        frequency: { $ref: '#/components/schemas/InventoryCountFrequency' }
+        status: { type: string, enum: [DRAFT, APPROVED] }
+        items: { type: array, items: { $ref: '#/components/schemas/StockCountLine' } }
+        createdAt: { type: string }
+        approvedAt: { type: [string, 'null'] }
+    StockCountLine:
+      type: object
+      additionalProperties: false
+      required: [stockCountItemId, inventoryItemId, theoreticalQuantity, actualQuantity, varianceQuantity, unitCostSnapshot, varianceCost, reasonCode, note]
+      properties:
+        stockCountItemId: { type: integer, minimum: 1 }
+        inventoryItemId: { type: integer, minimum: 1 }
+        theoreticalQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        actualQuantity: { oneOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }, { type: 'null' }] }
+        varianceQuantity: { type: [number, 'null'], format: decimal, minimum: -999999999999999.9999, maximum: 999999999999999.9999, multipleOf: 0.0001 }
+        unitCostSnapshot: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        varianceCost: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        reasonCode: { type: [string, 'null'], maxLength: 50 }
+        note: { type: [string, 'null'], maxLength: 500 }
+    StockCountResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/StockCount' } }
+    StockCountListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { type: array, items: { $ref: '#/components/schemas/StockCount' } } }
+    InventoryCostSummary:
+      type: object
+      additionalProperties: false
+      required: [purchaseCost, consumptionCost, wasteCost, stockCountLossCost, stockCountGainCost, totalLossCost, endingInventoryValue, lossRate]
+      properties:
+        purchaseCost: { $ref: '#/components/schemas/Money' }
+        consumptionCost: { $ref: '#/components/schemas/Money' }
+        wasteCost: { $ref: '#/components/schemas/Money' }
+        stockCountLossCost: { $ref: '#/components/schemas/Money' }
+        stockCountGainCost: { $ref: '#/components/schemas/Money' }
+        totalLossCost: { $ref: '#/components/schemas/Money' }
+        endingInventoryValue: { $ref: '#/components/schemas/Money' }
+        lossRate: { type: number, minimum: 0 }
+    InventoryCostSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/InventoryCostSummary' } }
+    InventoryItemLoss:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, inventoryCode, name, wasteQuantity, wasteCost, stockCountLossQuantity, stockCountLossCost, totalLossCost]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        inventoryCode: { type: string, minLength: 1, maxLength: 30 }
+        name: { type: string, minLength: 1, maxLength: 150 }
+        wasteQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        wasteCost: { $ref: '#/components/schemas/Money' }
+        stockCountLossQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        stockCountLossCost: { $ref: '#/components/schemas/Money' }
+        totalLossCost: { $ref: '#/components/schemas/Money' }
+    InventoryItemLossResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/InventoryItemLoss' } }
+    InventoryMenuCost:
+      type: object
+      additionalProperties: false
+      required: [variantId, variantName, sku, yieldQuantity, recipeCost, costPerServing]
+      properties:
+        variantId: { type: integer, minimum: 1 }
+        variantName: { type: [string, 'null'] }
+        sku: { type: [string, 'null'] }
+        yieldQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        recipeCost: { $ref: '#/components/schemas/Money' }
+        costPerServing: { $ref: '#/components/schemas/Money' }
+    InventoryMenuCostResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/InventoryMenuCost' } }
+    InventoryTransactionPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/InventoryTransaction' } }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalItems: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    InventoryTransactionPageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventoryTransactionPage' }
+    InventoryAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties:
+        availabilityStatus: { type: string, enum: [IN_STOCK, LOW_STOCK, OUT_OF_STOCK, UNTRACKED, SUSPENDED] }
+        remainingServings: { type: integer, minimum: 1, maximum: 3 }
+    InventoryConflict:
+      type: object
+      additionalProperties: false
+      required: [status, message, currentOnHandQuantity]
+      properties:
+        status: { type: string, const: error }
+        message: { type: string }
+        currentOnHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
     AvailableShipper:
       type: object
       additionalProperties: false
@@ -1343,7 +1909,7 @@ components:
     ProductVariantSummary:
       type: object
       additionalProperties: false
-      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, isDefault, status]
+      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, isDefault, status, availabilityStatus]
       properties:
         variantId:
           type: integer
@@ -1366,6 +1932,58 @@ components:
         status:
           type: string
           enum: [AVAILABLE, UNAVAILABLE, INACTIVE]
+        availabilityStatus:
+          type: string
+          enum: [IN_STOCK, LOW_STOCK, OUT_OF_STOCK, UNTRACKED, SUSPENDED]
+        remainingServings:
+          type: integer
+          minimum: 1
+          maximum: 3
+      oneOf:
+        - $ref: '#/components/schemas/InStockAvailability'
+        - $ref: '#/components/schemas/LowStockAvailability'
+        - $ref: '#/components/schemas/OutOfStockAvailability'
+        - $ref: '#/components/schemas/UntrackedAvailability'
+        - $ref: '#/components/schemas/SuspendedAvailability'
+      discriminator:
+        propertyName: availabilityStatus
+        mapping:
+          IN_STOCK: '#/components/schemas/InStockAvailability'
+          LOW_STOCK: '#/components/schemas/LowStockAvailability'
+          OUT_OF_STOCK: '#/components/schemas/OutOfStockAvailability'
+          UNTRACKED: '#/components/schemas/UntrackedAvailability'
+          SUSPENDED: '#/components/schemas/SuspendedAvailability'
+    InStockAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties: { availabilityStatus: { const: IN_STOCK } }
+      not: { required: [remainingServings] }
+    LowStockAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus, remainingServings]
+      properties:
+        availabilityStatus: { const: LOW_STOCK }
+        remainingServings: { type: integer, minimum: 1, maximum: 3 }
+    OutOfStockAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties: { availabilityStatus: { const: OUT_OF_STOCK } }
+      not: { required: [remainingServings] }
+    UntrackedAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties: { availabilityStatus: { const: UNTRACKED } }
+      not: { required: [remainingServings] }
+    SuspendedAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties: { availabilityStatus: { const: SUSPENDED } }
+      not: { required: [remainingServings] }
     ModifierGroupSummary:
       type: object
       additionalProperties: false

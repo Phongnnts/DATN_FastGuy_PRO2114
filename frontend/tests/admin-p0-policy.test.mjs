@@ -8,17 +8,18 @@ const dashboard = read('../src/views/admin/DashboardPage.vue');
 const store = read('../src/stores/admin.js');
 const variants = read('../src/components/admin/product-editor/ProductVariantsSection.vue');
 
-test('inventory stock changes only through adjustment and waste workflows', () => {
+test('inventory stock changes only through item-level workflows', () => {
   assert.doesNotMatch(inventory, /saveStock|draftStock|updateVariant\([^]*quantityAvailable/);
   assert.doesNotMatch(inventory, /class="stock-edit"/);
-  assert.match(inventory, /\{\{ row\.stock === null \? 'Không giới hạn' : row\.stock \}\}/);
-  assert.match(inventory, /adminApi\.adjustInventory/);
-  assert.match(inventory, /adminApi\.wasteInventory/);
+  assert.match(inventory, /adminApi\.getInventoryItems\(\)/);
+  assert.match(inventory, /adjustInventoryItem/);
+  assert.doesNotMatch(inventory, /receiptInventory|buildReceiptPayload|kind === 'receipt'/);
 });
 
-test('persisted variant update audits stock changes while create keeps initial stock', () => {
-  assert.match(variants, /buildVariantUpdatePayload\(row, expectedQuantity\)/);
-  assert.match(variants, /submitVariantUpdate\(/);
+test('variant rows persist without stock fields and link to recipe management', () => {
+  assert.match(variants, /inventoryMode/);
+  assert.match(variants, /openRecipes\(row\)/);
+  assert.doesNotMatch(variants, /buildVariantUpdatePayload|submitVariantUpdate|Quản lý tồn kho/);
   assert.match(variants, /adminApi\.createVariant\(props\.productId, variantPayload\(row\)\)/);
 });
 

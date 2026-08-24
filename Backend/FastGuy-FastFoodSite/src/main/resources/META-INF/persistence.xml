@@ -25,8 +25,17 @@
         <class>entity.WorkShift</class>
         <class>entity.CodSettlement</class>
         <class>entity.PaymentAttempt</class>
+        <class>entity.InventoryItem</class>
+        <class>entity.VariantInventoryItem</class>
+        <class>entity.Recipe</class>
+        <class>entity.RecipeItem</class>
         <class>entity.InventoryReservation</class>
+        <class>entity.InventoryReservationItem</class>
         <class>entity.InventoryTransaction</class>
+        <class>entity.GoodsReceipt</class>
+        <class>entity.GoodsReceiptItem</class>
+        <class>entity.StockCount</class>
+        <class>entity.StockCountItem</class>
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
             <property name="hibernate.dialect" value="org.hibernate.dialect.SQLServerDialect"/>

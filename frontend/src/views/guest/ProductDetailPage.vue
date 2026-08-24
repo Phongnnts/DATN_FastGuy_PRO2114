@@ -11,6 +11,7 @@ import { reviewApi, storeApi } from '@/api';
 import { createStoreConfigController } from '@/utils/deliveryClaims';
 import { createReviewPageController } from '@/utils/reviewPage';
 import { resolveProductDetailPricing } from '@/utils/productDetailPricing';
+import { customerAvailability } from '@/utils/stockPolicy';
 import ProductCard from '@/components/common/ProductCard.vue';
 
 const toast = useToast();
@@ -43,7 +44,8 @@ const storeConfigController = createStoreConfigController({
 
 const product = computed(() => productStore.currentProduct);
 const selectedStock = computed(() => selectedVariant.value?.quantityAvailable == null ? null : Number(selectedVariant.value.quantityAvailable));
-const selectedAvailable = computed(() => product.value?.inStock && product.value?.isAvailableNow !== false && selectedVariant.value?.status === 'AVAILABLE' && (selectedStock.value === null || selectedStock.value > 0));
+const selectedAvailability = computed(() => selectedVariant.value ? customerAvailability(selectedVariant.value) : null);
+const selectedAvailable = computed(() => product.value?.inStock && product.value?.isAvailableNow !== false && selectedVariant.value?.status === 'AVAILABLE' && (selectedAvailability.value?.available ?? false));
 const modifierPrice = computed(() => selectedModifiers.value.reduce((sum, option) => sum + Number(option.price || 0), 0));
 const pricing = computed(() => resolveProductDetailPricing(product.value, selectedVariant.value));
 const effectivePrice = computed(() => pricing.value.currentPrice + modifierPrice.value);
@@ -97,10 +99,7 @@ async function loadProduct(id) {
   try {
     if (!productStore.fetched) await productStore.init();
     await productStore.fetchById(id);
-    selectedVariant.value = product.value?.variants?.find((variant) => {
-      const stock = variant.quantityAvailable == null ? null : Number(variant.quantityAvailable);
-      return variant.status === 'AVAILABLE' && (stock === null || stock > 0);
-    }) || null;
+    selectedVariant.value = product.value?.variants?.find((variant) => variant.status === 'AVAILABLE' && customerAvailability(variant).available) || null;
     if (auth.isLoggedIn && product.value?.productId) await favoriteStore.check(product.value.productId);
   } catch (error) {
     loadError.value = error.message || 'Không thể tải sản phẩm';
@@ -117,7 +116,7 @@ onUnmounted(() => {
 
 function selectVariant(variant) {
   const stock = variant.quantityAvailable == null ? null : Number(variant.quantityAvailable);
-  if (variant.status !== 'AVAILABLE' || (stock !== null && stock <= 0)) return;
+  if (variant.status !== 'AVAILABLE' || !customerAvailability(variant).available) return;
   selectedVariant.value = variant;
   if (stock !== null) quantity.value = Math.min(quantity.value, stock || 1);
 }
@@ -239,14 +238,14 @@ async function placeInCart(destination) {
                 v-for="variant in product.variants"
                 :key="variant.variantId"
                 class="variant-option"
-                :class="{ active: selectedVariant?.variantId === variant.variantId, disabled: product.isAvailableNow === false || variant.status !== 'AVAILABLE' || (variant.quantityAvailable != null && Number(variant.quantityAvailable) <= 0) }"
+                :class="{ active: selectedVariant?.variantId === variant.variantId, disabled: product.isAvailableNow === false || variant.status !== 'AVAILABLE' || !customerAvailability(variant).available }"
                 :aria-pressed="selectedVariant?.variantId === variant.variantId"
-                :disabled="product.isAvailableNow === false || variant.status !== 'AVAILABLE' || (variant.quantityAvailable != null && Number(variant.quantityAvailable) <= 0)"
+                :disabled="product.isAvailableNow === false || variant.status !== 'AVAILABLE' || !customerAvailability(variant).available"
                 @click="selectVariant(variant)"
               >
                 <strong>{{ variant.variantName }}</strong>
                 <span>{{ formatPrice(variant.price) }}</span>
-                <small>{{ variant.quantityAvailable == null ? 'Còn hàng' : Number(variant.quantityAvailable) > 0 ? `Còn ${variant.quantityAvailable}` : 'Hết hàng' }}</small>
+                <small>{{ customerAvailability(variant).label }}</small>
               </button>
             </div>
           </fieldset>
@@ -262,7 +261,7 @@ async function placeInCart(destination) {
           </fieldset>
           <div class="availability" :class="{ unavailable: !selectedAvailable }">
             <i :class="selectedAvailable ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark'" aria-hidden="true"></i>
-            {{ selectedAvailable ? selectedStock == null ? 'Còn hàng, sẵn sàng giao nóng' : `Còn ${selectedStock} phần` : product.isAvailableNow === false ? `Ngoài giờ bán${product.availableFrom || product.availableTo ? ` (${product.availableFrom || '00:00'} - ${product.availableTo || '24:00'})` : ''}` : 'Sản phẩm hiện đã hết hàng' }}
+            {{ selectedAvailable ? selectedAvailability.status === 'LOW_STOCK' ? selectedAvailability.label : 'Còn hàng, sẵn sàng giao nóng' : product.isAvailableNow === false ? `Ngoài giờ bán${product.availableFrom || product.availableTo ? ` (${product.availableFrom || '00:00'} - ${product.availableTo || '24:00'})` : ''}` : 'Tạm hết' }}
           </div>
 
           <div class="purchase-actions">

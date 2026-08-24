@@ -62,6 +62,7 @@ CREATE TABLE dbo.ProductVariant (
     original_price decimal(18,2) NULL,
     sku varchar(100) NULL,
     quantity_available int NULL,
+    inventory_mode varchar(20) NOT NULL CONSTRAINT DF_ProductVariant_InventoryMode DEFAULT 'UNTRACKED',
     weight decimal(10,2) NOT NULL CONSTRAINT DF_ProductVariant_Weight DEFAULT 500,
     length decimal(10,2) NOT NULL CONSTRAINT DF_ProductVariant_Length DEFAULT 20,
     width decimal(10,2) NOT NULL CONSTRAINT DF_ProductVariant_Width DEFAULT 20,
@@ -72,6 +73,7 @@ CREATE TABLE dbo.ProductVariant (
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_ProductVariant_Updated DEFAULT GETDATE(),
     CONSTRAINT CK_ProductVariant_Price CHECK (price >= 0 AND (original_price IS NULL OR original_price >= 0)),
     CONSTRAINT CK_ProductVariant_Quantity CHECK (quantity_available IS NULL OR quantity_available >= 0),
+    CONSTRAINT CK_ProductVariant_InventoryMode CHECK (inventory_mode IN ('INGREDIENT','FINISHED_GOOD','UNTRACKED','SUSPENDED')),
     CONSTRAINT CK_ProductVariant_Dimensions CHECK (weight > 0 AND length > 0 AND width > 0 AND height > 0),
     CONSTRAINT CK_ProductVariant_Status CHECK (status IN ('AVAILABLE', 'UNAVAILABLE', 'INACTIVE'))
 );
@@ -296,28 +298,161 @@ CREATE TABLE dbo.PaymentAttempt (
     CONSTRAINT CK_PaymentAttempt_Status CHECK (status IN ('CREATING', 'READY', 'PENDING', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED'))
 );
 
+CREATE TABLE dbo.InventoryItem (
+    inventory_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_InventoryItem PRIMARY KEY,
+    name nvarchar(255) NOT NULL,
+    item_type varchar(20) NOT NULL,
+    base_unit varchar(10) NOT NULL,
+    inventory_code varchar(30) NOT NULL,
+    count_frequency varchar(10) NOT NULL CONSTRAINT DF_InventoryItem_CountFrequency DEFAULT 'WEEKLY',
+    average_unit_cost decimal(19,4) NOT NULL CONSTRAINT DF_InventoryItem_AverageUnitCost DEFAULT 0,
+    last_counted_at datetime2(0) NULL,
+    on_hand_quantity decimal(19,4) NOT NULL CONSTRAINT DF_InventoryItem_OnHand DEFAULT 0,
+    reserved_quantity decimal(19,4) NOT NULL CONSTRAINT DF_InventoryItem_Reserved DEFAULT 0,
+    minimum_quantity decimal(19,4) NOT NULL CONSTRAINT DF_InventoryItem_Minimum DEFAULT 0,
+    active bit NOT NULL CONSTRAINT DF_InventoryItem_Active DEFAULT 1,
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_InventoryItem_Created DEFAULT GETDATE(),
+    updated_at datetime2(0) NOT NULL CONSTRAINT DF_InventoryItem_Updated DEFAULT GETDATE(),
+    CONSTRAINT CK_InventoryItem_Type CHECK (item_type IN ('INGREDIENT','FINISHED_GOOD')),
+    CONSTRAINT CK_InventoryItem_BaseUnit CHECK (base_unit IN ('G','ML','PIECE')),
+    CONSTRAINT UQ_InventoryItem_Code UNIQUE (inventory_code),
+    CONSTRAINT CK_InventoryItem_CountFrequency CHECK (count_frequency IN ('DAILY','WEEKLY')),
+    CONSTRAINT CK_InventoryItem_AverageUnitCost CHECK (average_unit_cost >= 0),
+    CONSTRAINT CK_InventoryItem_OnHand CHECK (on_hand_quantity >= 0),
+    CONSTRAINT CK_InventoryItem_Reserved CHECK (reserved_quantity >= 0 AND reserved_quantity <= on_hand_quantity),
+    CONSTRAINT CK_InventoryItem_Minimum CHECK (minimum_quantity >= 0)
+);
+CREATE TABLE dbo.VariantInventoryItem (
+    variant_inventory_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_VariantInventoryItem PRIMARY KEY,
+    variant_id int NOT NULL CONSTRAINT FK_VariantInventoryItem_Variant REFERENCES dbo.ProductVariant(variant_id),
+    inventory_item_id int NOT NULL CONSTRAINT FK_VariantInventoryItem_Item REFERENCES dbo.InventoryItem(inventory_item_id),
+    CONSTRAINT UQ_VariantInventoryItem_Variant UNIQUE (variant_id),
+    CONSTRAINT UQ_VariantInventoryItem_Item UNIQUE (inventory_item_id)
+);
+CREATE TABLE dbo.Recipe (
+    recipe_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Recipe PRIMARY KEY,
+    variant_id int NOT NULL CONSTRAINT FK_Recipe_Variant REFERENCES dbo.ProductVariant(variant_id),
+    yield_quantity decimal(19,4) NOT NULL CONSTRAINT DF_Recipe_Yield DEFAULT 1,
+    active bit NOT NULL CONSTRAINT DF_Recipe_Active DEFAULT 1,
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_Recipe_Created DEFAULT GETDATE(),
+    updated_at datetime2(0) NOT NULL CONSTRAINT DF_Recipe_Updated DEFAULT GETDATE(),
+    CONSTRAINT UQ_Recipe_Variant UNIQUE (variant_id),
+    CONSTRAINT CK_Recipe_Yield CHECK (yield_quantity > 0)
+);
+CREATE TABLE dbo.RecipeItem (
+    recipe_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_RecipeItem PRIMARY KEY,
+    recipe_id int NOT NULL CONSTRAINT FK_RecipeItem_Recipe REFERENCES dbo.Recipe(recipe_id),
+    inventory_item_id int NOT NULL CONSTRAINT FK_RecipeItem_Item REFERENCES dbo.InventoryItem(inventory_item_id),
+    quantity decimal(19,4) NOT NULL,
+    CONSTRAINT UQ_RecipeItem_RecipeInventoryItem UNIQUE (recipe_id, inventory_item_id),
+    CONSTRAINT CK_RecipeItem_Quantity CHECK (quantity > 0)
+);
 CREATE TABLE dbo.InventoryReservation (
     reservation_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_InventoryReservation PRIMARY KEY,
     order_id int NOT NULL CONSTRAINT FK_InventoryReservation_Order REFERENCES dbo.Orders(order_id),
-    variant_id int NOT NULL CONSTRAINT FK_InventoryReservation_Variant REFERENCES dbo.ProductVariant(variant_id),
-    quantity int NOT NULL,
     status varchar(20) NOT NULL,
     created_at datetime2(0) NOT NULL CONSTRAINT DF_InventoryReservation_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_InventoryReservation_Updated DEFAULT GETDATE(),
-    CONSTRAINT UQ_InventoryReservation_OrderVariant UNIQUE (order_id, variant_id),
-    CONSTRAINT CK_InventoryReservation_Quantity CHECK (quantity > 0),
-    CONSTRAINT CK_InventoryReservation_Status CHECK (status IN ('RESERVED', 'CONSUMED', 'RELEASED', 'WASTED'))
+    CONSTRAINT UQ_InventoryReservation_Order UNIQUE (order_id),
+    CONSTRAINT CK_InventoryReservation_Status CHECK (status IN ('RESERVED','CONSUMED','RELEASED','WASTED'))
 );
-
+CREATE TABLE dbo.InventoryReservationLegacyHistory (
+    legacy_reservation_id int NOT NULL CONSTRAINT PK_InventoryReservationLegacyHistory PRIMARY KEY,
+    canonical_reservation_id int NOT NULL,
+    order_id int NOT NULL,
+    variant_id int NOT NULL,
+    inventory_item_id int NOT NULL CONSTRAINT FK_InventoryReservationLegacyHistory_Item REFERENCES dbo.InventoryItem(inventory_item_id),
+    quantity decimal(19,4) NOT NULL,
+    status varchar(20) NOT NULL,
+    created_at datetime2(0) NOT NULL,
+    updated_at datetime2(0) NOT NULL
+);
+CREATE TABLE dbo.InventoryReservationItem (
+    reservation_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_InventoryReservationItem PRIMARY KEY,
+    reservation_id int NOT NULL CONSTRAINT FK_InventoryReservationItem_Reservation REFERENCES dbo.InventoryReservation(reservation_id),
+    inventory_item_id int NOT NULL CONSTRAINT FK_InventoryReservationItem_Item REFERENCES dbo.InventoryItem(inventory_item_id),
+    quantity decimal(19,4) NOT NULL,
+    CONSTRAINT UQ_InventoryReservationItem_ReservationInventoryItem UNIQUE (reservation_id, inventory_item_id),
+    CONSTRAINT CK_InventoryReservationItem_Quantity CHECK (quantity > 0)
+);
+CREATE TABLE dbo.GoodsReceipt (
+    goods_receipt_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_GoodsReceipt PRIMARY KEY,
+    supplier_name nvarchar(150) NOT NULL,
+    invoice_number nvarchar(100) NULL,
+    received_at datetime2(0) NOT NULL,
+    status varchar(10) NOT NULL CONSTRAINT DF_GoodsReceipt_Status DEFAULT 'DRAFT',
+    created_by int NOT NULL CONSTRAINT FK_GoodsReceipt_CreatedBy REFERENCES dbo.Users(user_id),
+    approved_by int NULL CONSTRAINT FK_GoodsReceipt_ApprovedBy REFERENCES dbo.Users(user_id),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_GoodsReceipt_CreatedAt DEFAULT GETDATE(),
+    approved_at datetime2(0) NULL,
+    CONSTRAINT CK_GoodsReceipt_Status CHECK (status IN ('DRAFT','APPROVED')),
+    CONSTRAINT CK_GoodsReceipt_Approval CHECK ((status='DRAFT' AND approved_by IS NULL AND approved_at IS NULL) OR (status='APPROVED' AND approved_by IS NOT NULL AND approved_at IS NOT NULL))
+);
+CREATE TABLE dbo.GoodsReceiptItem (
+    goods_receipt_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_GoodsReceiptItem PRIMARY KEY,
+    goods_receipt_id int NOT NULL CONSTRAINT FK_GoodsReceiptItem_Receipt REFERENCES dbo.GoodsReceipt(goods_receipt_id),
+    inventory_item_id int NOT NULL CONSTRAINT FK_GoodsReceiptItem_Item REFERENCES dbo.InventoryItem(inventory_item_id),
+    purchase_quantity decimal(19,4) NOT NULL,
+    purchase_unit nvarchar(30) NOT NULL,
+    conversion_factor decimal(19,4) NOT NULL,
+    base_quantity decimal(19,4) NOT NULL,
+    purchase_unit_price decimal(19,4) NOT NULL,
+    line_total decimal(19,4) NOT NULL,
+    average_cost_before decimal(19,4) NULL,
+    average_cost_after decimal(19,4) NULL,
+    CONSTRAINT UQ_GoodsReceiptItem_ReceiptItem UNIQUE (goods_receipt_id,inventory_item_id),
+    CONSTRAINT CK_GoodsReceiptItem_Positive CHECK (purchase_quantity>0 AND conversion_factor>0 AND base_quantity>0 AND purchase_unit_price>0 AND line_total>0),
+    CONSTRAINT CK_GoodsReceiptItem_Cost CHECK ((average_cost_before IS NULL AND average_cost_after IS NULL) OR (average_cost_before>=0 AND average_cost_after>=0))
+);
+CREATE TABLE dbo.StockCount (
+    stock_count_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_StockCount PRIMARY KEY,
+    count_date date NOT NULL,
+    frequency varchar(10) NOT NULL,
+    status varchar(10) NOT NULL CONSTRAINT DF_StockCount_Status DEFAULT 'DRAFT',
+    created_by int NOT NULL CONSTRAINT FK_StockCount_CreatedBy REFERENCES dbo.Users(user_id),
+    approved_by int NULL CONSTRAINT FK_StockCount_ApprovedBy REFERENCES dbo.Users(user_id),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_StockCount_CreatedAt DEFAULT GETDATE(),
+    approved_at datetime2(0) NULL,
+    CONSTRAINT CK_StockCount_Frequency CHECK (frequency IN ('DAILY','WEEKLY')),
+    CONSTRAINT CK_StockCount_Status CHECK (status IN ('DRAFT','APPROVED')),
+    CONSTRAINT CK_StockCount_Approval CHECK ((status='DRAFT' AND approved_by IS NULL AND approved_at IS NULL) OR (status='APPROVED' AND approved_by IS NOT NULL AND approved_at IS NOT NULL))
+);
+CREATE TABLE dbo.StockCountItem (
+    stock_count_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_StockCountItem PRIMARY KEY,
+    stock_count_id int NOT NULL CONSTRAINT FK_StockCountItem_Count REFERENCES dbo.StockCount(stock_count_id),
+    inventory_item_id int NOT NULL CONSTRAINT FK_StockCountItem_Item REFERENCES dbo.InventoryItem(inventory_item_id),
+    theoretical_quantity decimal(19,4) NOT NULL,
+    actual_quantity decimal(19,4) NULL,
+    variance_quantity decimal(19,4) NULL,
+    unit_cost_snapshot decimal(19,4) NULL,
+    variance_cost decimal(19,4) NULL,
+    reason_code varchar(50) NULL,
+    note nvarchar(500) NULL,
+    CONSTRAINT UQ_StockCountItem_CountItem UNIQUE (stock_count_id,inventory_item_id),
+    CONSTRAINT CK_StockCountItem_Quantity CHECK (theoretical_quantity>=0 AND (actual_quantity IS NULL OR actual_quantity>=0)),
+    CONSTRAINT CK_StockCountItem_Cost CHECK (unit_cost_snapshot IS NULL OR unit_cost_snapshot>=0)
+);
 CREATE TABLE dbo.InventoryTransaction (
     inventory_transaction_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_InventoryTransaction PRIMARY KEY,
-    order_id int NOT NULL CONSTRAINT FK_InventoryTransaction_Order REFERENCES dbo.Orders(order_id),
-    variant_id int NOT NULL CONSTRAINT FK_InventoryTransaction_Variant REFERENCES dbo.ProductVariant(variant_id),
+    inventory_item_id int NOT NULL CONSTRAINT FK_InventoryTransaction_Item REFERENCES dbo.InventoryItem(inventory_item_id),
+    order_id int NULL CONSTRAINT FK_InventoryTransaction_Order REFERENCES dbo.Orders(order_id),
     transaction_type varchar(20) NOT NULL,
-    quantity int NOT NULL,
+    quantity decimal(19,4) NOT NULL,
+    quantity_before decimal(19,4) NULL,
+    quantity_after decimal(19,4) NULL,
+    reference_type varchar(30) NULL,
+    reference_id varchar(100) NULL,
+    reason_code varchar(50) NULL,
+    note nvarchar(500) NULL,
+    unit_cost_snapshot decimal(19,4) NULL,
+    total_cost decimal(19,4) NULL,
+    goods_receipt_id int NULL CONSTRAINT FK_InventoryTransaction_GoodsReceipt REFERENCES dbo.GoodsReceipt(goods_receipt_id),
+    stock_count_id int NULL CONSTRAINT FK_InventoryTransaction_StockCount REFERENCES dbo.StockCount(stock_count_id),
+    created_by int NULL CONSTRAINT FK_InventoryTransaction_CreatedBy REFERENCES dbo.Users(user_id),
     created_at datetime2(0) NOT NULL CONSTRAINT DF_InventoryTransaction_Created DEFAULT GETDATE(),
-    CONSTRAINT CK_InventoryTransaction_Quantity CHECK (quantity > 0),
-    CONSTRAINT CK_InventoryTransaction_Type CHECK (transaction_type IN ('RESERVE', 'RELEASE', 'CONSUME', 'WASTE', 'RETURN', 'ADJUSTMENT'))
+    CONSTRAINT CK_InventoryTransaction_Quantity CHECK (quantity <> 0),
+    CONSTRAINT CK_InventoryTransaction_Type CHECK (transaction_type IN ('RECEIPT','RESERVE','RELEASE','CONSUME','ADJUSTMENT','WASTE','RETURN')),
+    CONSTRAINT CK_InventoryTransaction_Cost CHECK ((unit_cost_snapshot IS NULL OR unit_cost_snapshot>=0) AND (total_cost IS NULL OR total_cost>=0))
 );
 
 CREATE TABLE dbo.LoyaltyTransaction (
@@ -462,9 +597,15 @@ CREATE INDEX IX_Orders_User ON dbo.Orders(user_id);
 CREATE INDEX IX_Orders_Staff_Status ON dbo.Orders(staff_id, order_status);
 CREATE INDEX IX_Orders_Shipper_Status ON dbo.Orders(shipper_id, order_status);
 CREATE INDEX IX_Orders_Status_Created ON dbo.Orders(order_status, created_at);
-CREATE INDEX IX_InventoryReservation_Variant ON dbo.InventoryReservation(variant_id);
+CREATE INDEX IX_InventoryItem_ActiveType ON dbo.InventoryItem(active, item_type);
+CREATE INDEX IX_GoodsReceipt_StatusReceived ON dbo.GoodsReceipt(status, received_at DESC);
+CREATE INDEX IX_StockCount_StatusDate ON dbo.StockCount(status, count_date DESC);
+CREATE INDEX IX_InventoryTransaction_GoodsReceipt ON dbo.InventoryTransaction(goods_receipt_id) WHERE goods_receipt_id IS NOT NULL;
+CREATE INDEX IX_InventoryTransaction_StockCount ON dbo.InventoryTransaction(stock_count_id) WHERE stock_count_id IS NOT NULL;
+CREATE INDEX IX_RecipeItem_InventoryItem ON dbo.RecipeItem(inventory_item_id);
+CREATE INDEX IX_InventoryReservationItem_InventoryItem ON dbo.InventoryReservationItem(inventory_item_id);
 CREATE INDEX IX_InventoryTransaction_Order ON dbo.InventoryTransaction(order_id);
-CREATE INDEX IX_InventoryTransaction_Variant ON dbo.InventoryTransaction(variant_id);
+CREATE INDEX IX_InventoryTransaction_ItemCreated ON dbo.InventoryTransaction(inventory_item_id, created_at DESC);
 CREATE INDEX IX_LoyaltyTransaction_User_Created ON dbo.LoyaltyTransaction(user_id, created_at);
 CREATE INDEX IX_WorkShift_User_Date ON dbo.WorkShift(user_id, shift_date);
 CREATE INDEX IX_WorkShift_Date_Status ON dbo.WorkShift(shift_date, status);
@@ -506,6 +647,11 @@ INSERT dbo.ProductVariant (variant_id, product_id, variant_name, price, original
     (4, 3, N'Lon', 15000, NULL, 'COLA-L', 200, 500, 8, 8, 18, 1, 'AVAILABLE', DATEADD(day, -30, GETDATE()), GETDATE()),
     (5, 4, N'Tieu chuan', 89000, 99000, 'COMBO-BURGER', 58, 1250, 30, 25, 15, 1, 'AVAILABLE', DATEADD(day, -20, GETDATE()), GETDATE());
 SET IDENTITY_INSERT dbo.ProductVariant OFF;
+
+SET IDENTITY_INSERT dbo.InventoryItem ON;
+INSERT dbo.InventoryItem(inventory_item_id,name,item_type,base_unit,inventory_code,on_hand_quantity,reserved_quantity,minimum_quantity,active) VALUES (1,N'Classic Burger standard','FINISHED_GOOD','PIECE','INV-000001',96,0,5,1),(2,N'Classic Burger large','FINISHED_GOOD','PIECE','INV-000002',79,0,5,1),(3,N'Fries standard','FINISHED_GOOD','PIECE','INV-000003',150,0,10,1),(4,N'Cola large','FINISHED_GOOD','PIECE','INV-000004',200,0,10,1),(5,N'Combo Burger','FINISHED_GOOD','PIECE','INV-000005',58,0,5,1);
+SET IDENTITY_INSERT dbo.InventoryItem OFF;
+INSERT dbo.VariantInventoryItem(variant_id,inventory_item_id) VALUES (1,1),(2,2),(3,3),(4,4),(5,5);
 
 SET IDENTITY_INSERT dbo.ProductModifierGroup ON;
 INSERT dbo.ProductModifierGroup (modifier_group_id, product_id, name, min_selections, max_selections, is_active, sort_order) VALUES
@@ -605,27 +751,14 @@ INSERT dbo.OrderItem (order_item_id, order_id, product_id, variant_id, product_n
 SET IDENTITY_INSERT dbo.OrderItem OFF;
 
 SET IDENTITY_INSERT dbo.InventoryReservation ON;
-INSERT dbo.InventoryReservation (reservation_id, order_id, variant_id, quantity, status, created_at, updated_at) VALUES
-    (1, 1, 1, 1, 'RESERVED', DATEADD(minute, -20, GETDATE()), GETDATE()),
-    (2, 2, 1, 1, 'RESERVED', DATEADD(minute, -30, GETDATE()), GETDATE()),
-    (3, 3, 5, 1, 'CONSUMED', DATEADD(minute, -45, GETDATE()), GETDATE()),
-    (4, 4, 1, 1, 'CONSUMED', DATEADD(hour, -2, GETDATE()), GETDATE()),
-    (5, 5, 5, 1, 'CONSUMED', DATEADD(hour, -3, GETDATE()), GETDATE()),
-    (6, 6, 1, 1, 'CONSUMED', DATEADD(hour, -4, GETDATE()), GETDATE()),
-    (7, 7, 2, 1, 'CONSUMED', DATEADD(day, -2, GETDATE()), DATEADD(day, -1, GETDATE())),
-    (8, 8, 3, 1, 'RELEASED', DATEADD(day, -3, GETDATE()), DATEADD(day, -3, GETDATE()));
+INSERT dbo.InventoryReservation (reservation_id, order_id, status, created_at, updated_at) VALUES
+    (1,1,'RESERVED',DATEADD(minute,-20,GETDATE()),GETDATE()),(2,2,'RESERVED',DATEADD(minute,-30,GETDATE()),GETDATE()),(3,3,'CONSUMED',DATEADD(minute,-45,GETDATE()),GETDATE()),(4,4,'CONSUMED',DATEADD(hour,-2,GETDATE()),GETDATE()),(5,5,'CONSUMED',DATEADD(hour,-3,GETDATE()),GETDATE()),(6,6,'CONSUMED',DATEADD(hour,-4,GETDATE()),GETDATE()),(7,7,'CONSUMED',DATEADD(day,-2,GETDATE()),DATEADD(day,-1,GETDATE())),(8,8,'RELEASED',DATEADD(day,-3,GETDATE()),DATEADD(day,-3,GETDATE()));
 SET IDENTITY_INSERT dbo.InventoryReservation OFF;
+INSERT dbo.InventoryReservationItem(reservation_id,inventory_item_id,quantity) VALUES (1,1,1),(2,1,1),(3,5,1),(4,1,1),(5,5,1),(6,1,1),(7,2,1),(8,3,1);
 
 SET IDENTITY_INSERT dbo.InventoryTransaction ON;
-INSERT dbo.InventoryTransaction (inventory_transaction_id, order_id, variant_id, transaction_type, quantity, created_at) VALUES
-    (1, 1, 1, 'RESERVE', 1, DATEADD(minute, -20, GETDATE())),
-    (2, 2, 1, 'RESERVE', 1, DATEADD(minute, -30, GETDATE())),
-    (3, 3, 5, 'RESERVE', 1, DATEADD(minute, -45, GETDATE())), (4, 3, 5, 'CONSUME', 1, DATEADD(minute, -35, GETDATE())),
-    (5, 4, 1, 'RESERVE', 1, DATEADD(hour, -2, GETDATE())), (6, 4, 1, 'CONSUME', 1, DATEADD(hour, -1, GETDATE())),
-    (7, 5, 5, 'RESERVE', 1, DATEADD(hour, -3, GETDATE())), (8, 5, 5, 'CONSUME', 1, DATEADD(hour, -2, GETDATE())),
-    (9, 6, 1, 'RESERVE', 1, DATEADD(hour, -4, GETDATE())), (10, 6, 1, 'CONSUME', 1, DATEADD(hour, -3, GETDATE())),
-    (11, 7, 2, 'RESERVE', 1, DATEADD(day, -2, GETDATE())), (12, 7, 2, 'CONSUME', 1, DATEADD(day, -2, GETDATE())),
-    (13, 8, 3, 'RESERVE', 1, DATEADD(day, -3, GETDATE())), (14, 8, 3, 'RELEASE', 1, DATEADD(day, -3, GETDATE()));
+INSERT dbo.InventoryTransaction(inventory_transaction_id,order_id,inventory_item_id,transaction_type,quantity,created_at) VALUES
+    (1,1,1,'RESERVE',1,DATEADD(minute,-20,GETDATE())),(2,2,1,'RESERVE',1,DATEADD(minute,-30,GETDATE())),(3,3,5,'RESERVE',1,DATEADD(minute,-45,GETDATE())),(4,3,5,'CONSUME',1,DATEADD(minute,-35,GETDATE())),(5,4,1,'RESERVE',1,DATEADD(hour,-2,GETDATE())),(6,4,1,'CONSUME',1,DATEADD(hour,-1,GETDATE())),(7,5,5,'RESERVE',1,DATEADD(hour,-3,GETDATE())),(8,5,5,'CONSUME',1,DATEADD(hour,-2,GETDATE())),(9,6,1,'RESERVE',1,DATEADD(hour,-4,GETDATE())),(10,6,1,'CONSUME',1,DATEADD(hour,-3,GETDATE())),(11,7,2,'RESERVE',1,DATEADD(day,-2,GETDATE())),(12,7,2,'CONSUME',1,DATEADD(day,-2,GETDATE())),(13,8,3,'RESERVE',1,DATEADD(day,-3,GETDATE())),(14,8,3,'RELEASE',1,DATEADD(day,-3,GETDATE()));
 SET IDENTITY_INSERT dbo.InventoryTransaction OFF;
 
 SET IDENTITY_INSERT dbo.OrderStatusHistory ON;

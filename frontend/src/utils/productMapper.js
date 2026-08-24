@@ -14,6 +14,8 @@ function mapVariant(variant) {
     price: parsePrice(variant.price) || 0,
     quantityAvailable: variant.quantityAvailable === null || variant.quantityAvailable === undefined ? null : Number(variant.quantityAvailable),
     status: variant.status || 'UNAVAILABLE',
+    availabilityStatus: variant.availabilityStatus || null,
+    remainingServings: variant.remainingServings === null || variant.remainingServings === undefined ? null : Number(variant.remainingServings),
   };
 }
 

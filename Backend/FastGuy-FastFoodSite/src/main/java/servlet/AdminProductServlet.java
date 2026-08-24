@@ -307,7 +307,8 @@ public class AdminProductServlet extends HttpServlet {
             try {
                 v.setPrice(readMoney(body, "price", BigDecimal.ZERO));
                 v.setOriginalPrice(readMoney(body, "originalPrice", null));
-                v.setQuantityAvailable(readStock(body, "quantityAvailable", null));
+                if (body.containsKey("quantityAvailable")) throw new IllegalArgumentException("Initial stock must be received through the inventory item API");
+                v.setInventoryMode("UNTRACKED");
                 v.setStatus(readStatus(body, "status", "AVAILABLE"));
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
@@ -522,9 +523,10 @@ public class AdminProductServlet extends HttpServlet {
             ProductVariant v = productDAO.findVariantById(vid);
             if (v == null) { ApiResponse.error(resp, "Not found", 404); return; }
 
-            Integer before = v.getQuantityAvailable();
-            Integer requested = before;
-            boolean stockChanged = false;
+            if (body.containsKey("quantityAvailable") || body.containsKey("expectedQuantity") || body.containsKey("reasonCode") || body.containsKey("note")) {
+                ApiResponse.error(resp, "Variant inventory must be changed through the inventory item API", 400);
+                return;
+            }
             if (body.containsKey("variantName")) {
                 String variantName = (String) body.get("variantName");
                 if (variantName == null || variantName.trim().isEmpty()) { ApiResponse.error(resp, "Tên biến thể không được trống", 400); return; }
@@ -533,10 +535,7 @@ public class AdminProductServlet extends HttpServlet {
             try {
                 if (body.containsKey("price")) v.setPrice(readMoney(body, "price", v.getPrice()));
                 if (body.containsKey("originalPrice")) v.setOriginalPrice(readMoney(body, "originalPrice", v.getOriginalPrice()));
-                if (body.containsKey("quantityAvailable")) requested = readStock(body, "quantityAvailable", before);
                 if (body.containsKey("status")) v.setStatus(readStatus(body, "status", v.getStatus()));
-                stockChanged = !Objects.equals(before, requested);
-                if (stockChanged && (!body.containsKey("expectedQuantity") || !body.containsKey("reasonCode") || !body.containsKey("note"))) throw new IllegalArgumentException("Thiếu thông tin kiểm toán tồn kho");
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
                 return;
@@ -544,25 +543,7 @@ public class AdminProductServlet extends HttpServlet {
             if (body.containsKey("sku")) v.setSku((String) body.get("sku"));
             if (body.containsKey("isDefault")) v.setIsDefault((Boolean) body.get("isDefault"));
             v.setUpdatedAt(LocalDateTime.now());
-            if (stockChanged) {
-                try {
-                    Integer expected = readStock(body, "expectedQuantity", null);
-                    int adminId = JwtUtil.getUserId(req.getHeader("Authorization").substring(7));
-                    inventoryAdjustmentService.setManagedQuantity(vid, requested, expected, readAuditString(body, "reasonCode"), readAuditString(body, "note"), adminId, v);
-                    v.setQuantityAvailable(requested);
-                } catch (InventoryConflictException e) {
-                    Map<String, Object> data = new HashMap<>();
-                    data.put("variantId", e.getVariantId());
-                    data.put("currentQuantity", e.getCurrentQuantity());
-                    ApiResponse.error(resp, e.getMessage(), 409, data);
-                    return;
-                } catch (IllegalArgumentException e) {
-                    ApiResponse.error(resp, e.getMessage(), 400);
-                    return;
-                }
-            } else {
-                productDAO.saveVariant(v);
-            }
+            productDAO.saveVariant(v);
 
             ApiResponse.ok(resp, toVariantMap(v), "Updated");
             return;

@@ -23,13 +23,19 @@ public class HomepageService {
     private final ProductDAO productDAO;
     private final ProductModifierDAO modifierDAO;
     private final ReviewDAO reviewDAO;
+    private final InventoryAvailabilityService inventoryAvailability;
 
     public HomepageService() { this(new ProductDAO(), new ProductModifierDAO(), new ReviewDAO()); }
 
     HomepageService(ProductDAO productDAO, ProductModifierDAO modifierDAO, ReviewDAO reviewDAO) {
+        this(productDAO, modifierDAO, reviewDAO, new InventoryAvailabilityService());
+    }
+
+    HomepageService(ProductDAO productDAO, ProductModifierDAO modifierDAO, ReviewDAO reviewDAO, InventoryAvailabilityService inventoryAvailability) {
         this.productDAO = productDAO;
         this.modifierDAO = modifierDAO;
         this.reviewDAO = reviewDAO;
+        this.inventoryAvailability = inventoryAvailability;
     }
 
     public Map<String, Object> getHomepage() {
@@ -41,9 +47,11 @@ public class HomepageService {
         List<Integer> groupIds = groups.values().stream().flatMap(List::stream).map(ProductModifierGroup::getModifierGroupId).toList();
         Map<Integer, List<ProductModifierOption>> options = modifierDAO.optionsByGroupIds(groupIds);
         Map<Integer, ReviewDAO.ProductReviewSummary> reviewSummaries = reviewDAO.summariesByProductIds(ids);
+        List<Integer> variantIds = variants.values().stream().flatMap(List::stream).map(ProductVariant::getVariantId).toList();
+        Map<Integer, Map<String, Object>> availability = inventoryAvailability.publicAvailability(variantIds);
 
         List<Map<String, Object>> bestSellerMaps = bestSellers.stream()
-                .map(p -> productMap(p, true, sold, variants, groups, options, reviewSummaries)).toList();
+                .map(p -> productMap(p, true, sold, variants, groups, options, reviewSummaries, availability)).toList();
         List<Map<String, Object>> reviews = reviewDAO.findFeatured(3).stream().map(this::reviewMap).toList();
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -55,7 +63,8 @@ public class HomepageService {
     private Map<String, Object> productMap(Product product, boolean bestSeller, Map<Integer, Long> sold,
             Map<Integer, List<ProductVariant>> variantsByProduct, Map<Integer, List<ProductModifierGroup>> groupsByProduct,
             Map<Integer, List<ProductModifierOption>> optionsByGroup,
-            Map<Integer, ReviewDAO.ProductReviewSummary> reviewSummaries) {
+            Map<Integer, ReviewDAO.ProductReviewSummary> reviewSummaries,
+            Map<Integer, Map<String, Object>> availability) {
         int id = product.getProductId();
         List<ProductVariant> variants = variantsByProduct.getOrDefault(id, List.of());
         ProductVariant defaultVariant = variants.stream().filter(this::selectable).filter(v -> Boolean.TRUE.equals(v.getIsDefault())).findFirst()
@@ -66,13 +75,14 @@ public class HomepageService {
         BigDecimal price = defaultVariant == null ? product.getBasePrice() : defaultVariant.getPrice();
         BigDecimal originalPrice = defaultVariant == null ? null : defaultVariant.getOriginalPrice();
         boolean discounted = originalPrice != null && price != null && originalPrice.signum() > 0 && originalPrice.compareTo(price) > 0;
-        boolean inStock = defaultVariant != null;
+        boolean inStock = variants.stream().map(v -> availability.get(v.getVariantId())).filter(java.util.Objects::nonNull)
+                .map(a -> a.get("availabilityStatus")).anyMatch(List.of("IN_STOCK", "LOW_STOCK", "UNTRACKED")::contains);
 
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("productId", id); map.put("name", product.getName());
         map.put("description", product.getDescription() == null ? "" : product.getDescription());
         map.put("basePrice", product.getBasePrice()); map.put("price", price);
-        map.put("defaultVariant", defaultVariant == null ? null : variantMap(defaultVariant));
+        map.put("defaultVariant", defaultVariant == null ? null : variantMap(defaultVariant, availability));
         map.put("imageUrl", product.getImageUrl() == null ? "" : product.getImageUrl());
         map.put("categoryId", product.getCategory().getCategoryId()); map.put("categoryName", product.getCategory().getName());
         map.put("originalPrice", originalPrice);
@@ -89,17 +99,17 @@ public class HomepageService {
         ReviewDAO.ProductReviewSummary reviewSummary = reviewSummaries.get(id);
         map.put("averageRating", BigDecimal.valueOf(reviewSummary == null || reviewSummary.averageRating() == null ? 0 : reviewSummary.averageRating()).setScale(1, RoundingMode.HALF_UP));
         map.put("reviewCount", reviewSummary == null ? 0L : reviewSummary.reviewCount());
-        map.put("variants", variants.stream().map(this::variantMap).toList());
+        map.put("variants", variants.stream().map(v -> variantMap(v, availability)).toList());
         map.put("modifierGroups", groups.stream().map(g -> groupMap(g, optionsByGroup)).toList());
         return map;
     }
 
-    private Map<String, Object> variantMap(ProductVariant variant) {
+    private Map<String, Object> variantMap(ProductVariant variant, Map<Integer, Map<String, Object>> availability) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("variantId", variant.getVariantId()); map.put("variantName", variant.getVariantName());
         map.put("price", variant.getPrice()); map.put("originalPrice", variant.getOriginalPrice()); map.put("sku", variant.getSku());
         map.put("quantityAvailable", variant.getQuantityAvailable()); map.put("isDefault", Boolean.TRUE.equals(variant.getIsDefault()));
-        map.put("status", variant.getStatus()); return map;
+        map.put("status", variant.getStatus()); map.putAll(availability.get(variant.getVariantId())); return map;
     }
 
     private boolean selectable(ProductVariant variant) {

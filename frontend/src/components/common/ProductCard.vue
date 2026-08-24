@@ -5,6 +5,7 @@ import { useCartStore } from '@/stores/cart';
 import { useAuthStore } from '@/stores/auth';
 import { useFavoriteStore } from '@/stores/favorite';
 import { canDirectAddProduct } from '@/utils/productCard';
+import { customerAvailability } from '@/utils/stockPolicy';
 
 const props = defineProps({ product: { type: Object, required: true }, listMode: { type: Boolean, default: false }, homepage: { type: Boolean, default: false } });
 const cart = useCartStore();
@@ -38,14 +39,14 @@ const ratingText = computed(() => reviewCount.value > 0 ? `${averageRating.value
 const ratingLabel = computed(() => reviewCount.value > 0 ? `Đánh giá ${averageRating.value.toFixed(1)} trên 5 từ ${reviewCount.value} lượt` : 'Chưa có đánh giá, 0 lượt');
 const soldCount = computed(() => Math.max(0, Math.floor(Number(props.product.soldCount) || 0)));
 const formatPrice = (value) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value) || 0);
+const availability = computed(() => customerAvailability(props.product.defaultVariant));
 const canAdd = () => canDirectAddProduct(props.product);
 function notify(value) { message.value = value; clearTimeout(messageTimer); messageTimer = setTimeout(() => { message.value = ''; }, 2500); }
 onBeforeUnmount(() => { clearTimeout(messageTimer); clearTimeout(addedTimer); });
 async function addToCart() {
   const variantId = props.product.defaultVariant?.variantId;
   if (!variantId || !canAdd() || pending.value) return;
-  const stock = props.product.defaultVariant?.quantityAvailable;
-  if (stock !== null && stock !== undefined && Number(stock) <= 0) return notify('Món đã hết hàng');
+  if (!availability.value.available) return notify('Món hiện tạm hết');
   pending.value = true;
   try { await cart.addItem(props.product.productId, variantId); added.value = true; clearTimeout(addedTimer); addedTimer = setTimeout(() => { added.value = false; }, 900); notify('Đã thêm vào giỏ hàng'); } catch (error) { notify(error.message || 'Không thể thêm vào giỏ'); } finally { pending.value = false; }
 }
@@ -68,13 +69,14 @@ async function toggleFavorite() {
           <span v-if="product.isNew" class="new-badge">Mới</span>
           <span v-if="discountPercent" class="hot-badge">-{{ discountPercent }}%</span>
         </div>
-        <div v-if="!product.inStock || product.isAvailableNow === false" class="stock-badge">{{ product.isAvailableNow === false ? 'Ngoài giờ bán' : 'Hết hàng' }}</div>
+        <div v-if="!product.inStock || product.isAvailableNow === false" class="stock-badge">{{ product.isAvailableNow === false ? 'Ngoài giờ bán' : 'Tạm hết' }}</div>
       </div>
       <div class="product-info">
         <h3 class="product-name">{{ product.name }}</h3>
         <p class="product-desc">{{ product.description || '\u00a0' }}</p>
         <p class="product-rating" :aria-label="ratingLabel"><i class="fa-solid fa-star" aria-hidden="true"></i>{{ ratingText }}</p>
         <p class="product-sold"><i class="fa-solid fa-fire" aria-hidden="true"></i>{{ soldCount }} đã bán</p>
+        <p v-if="availability.status === 'LOW_STOCK'" class="stock-note">{{ availability.label }}</p>
       </div>
     </router-link>
     <button class="fav-btn" :class="{ active: favoriteStore.isFavorite(product.productId) }" :disabled="favoritePending" :aria-pressed="favoriteStore.isFavorite(product.productId)" :aria-busy="favoritePending" :aria-label="favoriteStore.isFavorite(product.productId) ? `Bỏ yêu thích ${product.name}` : `Yêu thích ${product.name}`" @click="toggleFavorite"><i :class="favoriteStore.isFavorite(product.productId) ? 'fa-solid fa-heart' : 'fa-regular fa-heart'" aria-hidden="true"></i></button>
@@ -82,6 +84,7 @@ async function toggleFavorite() {
       <div class="product-price"><span class="price-now">{{ formatPrice(currentPrice) }}</span><span v-if="crossedPrice" class="price-old">{{ formatPrice(crossedPrice) }}</span></div>
       <button v-if="canAdd()" class="add-btn" :class="{ added }" :disabled="pending" :aria-label="pending ? `Đang thêm ${product.name}` : added ? `Đã thêm ${product.name}` : `Thêm ${product.name} vào giỏ`" @click="addToCart"><span v-if="pending" class="mini-spinner"></span><i v-else :class="added ? 'fa-solid fa-check' : 'fa-solid fa-plus'" aria-hidden="true"></i></button>
       <router-link v-else-if="product.cardDataComplete === false || (product.inStock && product.isAvailableNow !== false)" class="option-btn" :to="`/product/${product.productId}`" :aria-label="`Chọn món ${product.name}`"><span>Chọn món</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></router-link>
+      <button v-else-if="!availability.available" class="option-btn soldout-btn" disabled>Tạm hết</button>
     </div>
     <div v-if="message" class="toast" role="status" aria-live="polite">{{ message }}</div>
   </article>
@@ -105,6 +108,7 @@ async function toggleFavorite() {
 .product-desc{display:-webkit-box;overflow:hidden;min-height:34.8px;margin-top:6px;color:var(--text-mid);font-size:12px;line-height:1.45;-webkit-box-orient:vertical;-webkit-line-clamp:2}
 .product-rating,.product-sold{display:flex;align-items:center;gap:5px;overflow:hidden;color:var(--text-mid);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
 .product-rating{margin-top:10px;color:#76513f}.product-rating i{color:#f59e0b}.product-sold{margin-top:5px}
+.stock-note{margin-top:5px;color:#b45309;font-size:11px;font-weight:700}
 .product-footer{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding:10px 16px 16px}
 .product-price{display:flex;min-width:0;flex-wrap:wrap;align-items:baseline;gap:5px;font-variant-numeric:tabular-nums}
 .price-now{color:var(--primary-dark);font-size:20px;font-weight:800}
@@ -122,6 +126,8 @@ async function toggleFavorite() {
 .option-btn:hover{border-color:#f5a06f;background:#dc4f19;box-shadow:0 0 0 3px rgba(242,106,46,.14),0 8px 18px rgba(220,79,25,.18);transform:translateY(-1px)}
 .option-btn:hover i{transform:translateX(3px)}
 .option-btn:active{transform:translateY(1px)}
+.option-btn.soldout-btn{cursor:not-allowed;background:#a8a29e;box-shadow:none}
+.option-btn.soldout-btn:hover{background:#a8a29e;box-shadow:none;transform:none}
 .mini-spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
 .toast{position:absolute;z-index:5;right:10px;bottom:60px;left:10px;padding:9px 12px;border-radius:10px;color:#fff;background:rgba(25,19,15,.92);font-size:12px;text-align:center;box-shadow:var(--shadow-sm)}
 .product-card.list-mode .product-main{display:grid;grid-template-columns:minmax(180px,30%) 1fr}

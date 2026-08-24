@@ -19,6 +19,7 @@ import entity.Category;
 import entity.Product;
 import entity.ProductModifierGroup;
 import entity.ProductVariant;
+import service.InventoryAvailabilityService;
 
 class ProductReviewSummarySerializerTest {
     @Test
@@ -35,6 +36,29 @@ class ProductReviewSummarySerializerTest {
         assertEquals(0.0, maps.get(1).get("averageRating"));
         assertEquals(0L, maps.get(1).get("reviewCount"));
         maps.forEach(this::assertSummaryShape);
+    }
+
+    @Test
+    void publicListAndDetailDeriveProductStockFromSafeVariantAvailability() {
+        FakeProductDAO products = new FakeProductDAO();
+        products.variants = Map.of(1, List.of(variant(1, 0), variant(2, 999)));
+        InventoryAvailabilityService availability = new InventoryAvailabilityService() {
+            @Override public Map<Integer, Map<String, Object>> publicAvailability(List<Integer> ids) { return ids.stream().collect(java.util.stream.Collectors.toMap(id -> id, id -> Map.of("availabilityStatus", "OUT_OF_STOCK"))); }
+        };
+        ProductServlet servlet = new ProductServlet(products, new FakeProductModifierDAO(), new FakeReviewDAO(Map.of()), availability);
+
+        Map<String, Object> list = servlet.toMaps(List.of(product(1))).get(0);
+        Map<String, Object> detail = servlet.toDetailMap(product(1));
+
+        assertEquals(false, list.get("inStock"));
+        assertEquals(false, detail.get("inStock"));
+        for (Map<String, Object> variant : (List<Map<String, Object>>) list.get("variants")) {
+            assertEquals("OUT_OF_STOCK", variant.get("availabilityStatus"));
+            assertFalse(variant.containsKey("inventoryItemId"));
+            assertFalse(variant.containsKey("onHandQuantity"));
+            assertFalse(variant.containsKey("reservedQuantity"));
+            assertFalse(variant.containsKey("limitingItemId"));
+        }
     }
 
     @Test
@@ -72,6 +96,13 @@ class ProductReviewSummarySerializerTest {
         assertFalse(map.containsKey("ratingDistribution"));
     }
 
+    private ProductVariant variant(int id, int quantity) {
+        ProductVariant variant = new ProductVariant();
+        variant.setVariantId(id); variant.setVariantName("Size"); variant.setPrice(BigDecimal.TEN);
+        variant.setQuantityAvailable(quantity); variant.setStatus("AVAILABLE"); variant.setIsDefault(id == 1);
+        return variant;
+    }
+
     private Product product(int id) {
         Category category = new Category();
         category.setCategoryId(1);
@@ -101,10 +132,11 @@ class ProductReviewSummarySerializerTest {
     }
 
     private static class FakeProductDAO extends ProductDAO {
+        private Map<Integer, List<ProductVariant>> variants = Map.of();
         @Override public Map<Integer, Long> soldCounts(List<Integer> productIds) { return new HashMap<>(); }
         @Override public Map<Integer, Integer> featureFlags(List<Integer> productIds) { return new HashMap<>(); }
-        @Override public Map<Integer, ProductVariant> defaultVariants(List<Integer> productIds) { return new HashMap<>(); }
-        @Override public Map<Integer, List<ProductVariant>> variantsByProductIds(List<Integer> productIds) { return new HashMap<>(); }
+        @Override public Map<Integer, ProductVariant> defaultVariants(List<Integer> productIds) { return variants.entrySet().stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get(0))); }
+        @Override public Map<Integer, List<ProductVariant>> variantsByProductIds(List<Integer> productIds) { return variants; }
         @Override public List<ProductVariant> findVariantsByProductId(int productId) { throw new AssertionError("detail must reuse batch variants"); }
     }
 

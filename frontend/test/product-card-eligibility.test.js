@@ -36,6 +36,11 @@ test('direct add rejects unavailable, out-of-stock, or outside-hours products', 
   assert.equal(canDirectAddProduct(product({ defaultVariant: { variantId: 10, status: 'AVAILABLE', quantityAvailable: 0 } })), false);
 });
 
+test('direct add rejects server-declared sold-out and suspended availability even with stock fields', () => {
+  assert.equal(canDirectAddProduct(product({ defaultVariant: { variantId: 10, status: 'AVAILABLE', quantityAvailable: 5, availabilityStatus: 'OUT_OF_STOCK' } })), false);
+  assert.equal(canDirectAddProduct(product({ defaultVariant: { variantId: 10, status: 'AVAILABLE', quantityAvailable: null, availabilityStatus: 'SUSPENDED' } })), false);
+});
+
 test('ProductCard presents the confirmed hierarchy and action copy', () => {
   assert.match(productCardSource, /class="best-badge"><i class="fa-solid fa-fire" aria-hidden="true"><\/i>Bán chạy/);
   assert.match(productCardSource, /class="fa-solid fa-star" aria-hidden="true"><\/i>\{\{ ratingText \}\}/);
@@ -71,4 +76,11 @@ test('ProductCard renders only a positive finite computed discount and no Bootst
   assert.match(productCardSource, /percent > 0/);
   assert.match(productCardSource, /v-if="discountPercent" class="hot-badge">-\{\{ discountPercent \}\}%/);
   assert.doesNotMatch(productCardSource, /\bbi-/);
+});
+
+test('ProductCard maps server availability to customer copy and locks the CTA when sold out', () => {
+  assert.match(productCardSource, /'Ngoài giờ bán' : 'Tạm hết'/);
+  assert.match(productCardSource, /v-if="availability\.status === 'LOW_STOCK'" class="stock-note">\{\{ availability\.label \}\}/);
+  assert.match(productCardSource, /v-else-if="!availability\.available" class="option-btn soldout-btn" disabled>Tạm hết</);
+  assert.match(productCardSource, /if \(!availability\.value\.available\) return notify\('Món hiện tạm hết'\)/);
 });

@@ -6,10 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Proxy;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import entity.InventoryItem;
 import entity.InventoryTransaction;
 import entity.ProductVariant;
 import exception.InventoryConflictException;
@@ -59,26 +62,9 @@ class InventoryAdjustmentPolicyTest {
         assertEquals(true, result.get("changed"));
         assertEquals(25, variant.getQuantityAvailable());
         assertTrue(capture.persisted);
-        assertEquals(2, capture.transaction.getQuantity());
-        assertEquals(27, capture.transaction.getQuantityBefore());
-        assertEquals(25, capture.transaction.getQuantityAfter());
-    }
-
-    @Test
-    void managedModeChangePreservesNullableLedgerValues() {
-        ProductVariant variant = new ProductVariant();
-        variant.setVariantId(12);
-        PersistenceCapture capture = new PersistenceCapture(variant);
-        InventoryAdjustmentService service = new InventoryAdjustmentService(capture::entityManager);
-
-        Map<String, Object> result = service.setManagedQuantity(12, 0, null, "STOCK_COUNT", null, 1);
-
-        assertEquals(true, result.get("changed"));
-        assertEquals(0, variant.getQuantityAvailable());
-        assertTrue(capture.persisted);
-        assertEquals(1, capture.transaction.getQuantity());
-        assertEquals(null, capture.transaction.getQuantityBefore());
-        assertEquals(0, capture.transaction.getQuantityAfter());
+        assertEquals(new BigDecimal("-2"), capture.transaction.getQuantity());
+        assertEquals(new BigDecimal("27"), capture.transaction.getQuantityBefore());
+        assertEquals(new BigDecimal("25"), capture.transaction.getQuantityAfter());
     }
 
     @Test
@@ -95,6 +81,18 @@ class InventoryAdjustmentPolicyTest {
         assertEquals("NEW-SKU", managed.getSku());
         assertFalse(capture.merged);
         assertTrue(capture.committed);
+    }
+
+    @Test
+    void wasteSnapshotsCurrentAverageCost() {
+        ProductVariant variant = variant(27);
+        PersistenceCapture capture = new PersistenceCapture(variant);
+        capture.item.setAverageUnitCost(new BigDecimal("2.5000"));
+
+        new InventoryAdjustmentService(capture::entityManager).waste(12, 2, "DAMAGE", null, 1);
+
+        assertEquals(new BigDecimal("2.5000"), capture.transaction.getUnitCostSnapshot());
+        assertEquals(new BigDecimal("5.0000"), capture.transaction.getTotalCost());
     }
 
     @Test
@@ -123,6 +121,7 @@ class InventoryAdjustmentPolicyTest {
 
     private class PersistenceCapture {
         private final ProductVariant variant;
+        private final InventoryItem item = inventoryItem();
         private boolean persisted;
         private boolean committed;
         private boolean rolledBack;
@@ -151,7 +150,15 @@ class InventoryAdjustmentPolicyTest {
                             case "getTransaction" -> { return tx; }
                             case "find" -> {
                                 if (args[0] == ProductVariant.class) return variant;
+                                if (args[0] == InventoryItem.class) return item;
                                 return null;
+                            }
+                            case "createQuery" -> {
+                                return Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {jakarta.persistence.TypedQuery.class}, (query, queryMethod, queryArgs) -> switch (queryMethod.getName()) {
+                                    case "setParameter", "setMaxResults" -> query;
+                                    case "getResultList" -> List.of(item);
+                                    default -> defaultValue(queryMethod.getReturnType());
+                                });
                             }
                             case "persist" -> {
                                 if (failPersist) throw new RuntimeException("ledger failure");
@@ -164,6 +171,12 @@ class InventoryAdjustmentPolicyTest {
                         }
                     });
         }
+    }
+
+    private InventoryItem inventoryItem() {
+        InventoryItem item = new InventoryItem();
+        item.setOnHandQuantity(new BigDecimal("27.0000"));
+        return item;
     }
 
     private Object defaultValue(Class<?> type) {

@@ -1,7 +1,10 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { adminApi } from '@/api';
-import { buildVariantUpdatePayload, createVariantDraft, isValidProductId, sectionDirty, submitVariantUpdate, validateVariant, variantPayload } from '@/utils/adminProductEditor';
+import { useToast } from '@/stores/toast';
+import { createVariantDraft, isValidProductId, sectionDirty, validateVariant, variantPayload } from '@/utils/adminProductEditor';
+import { INVENTORY_MODES } from '@/utils/inventoryItem';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -12,12 +15,13 @@ const props = defineProps({
   pending: { type: Array, default: () => [] },
 });
 const emit = defineEmits(['update:modelValue', 'update:pending', 'save', 'reload', 'retry-pending', 'dirty-change']);
+const router = useRouter();
+const toast = useToast();
 const rows = ref([]);
 const snapshot = ref([]);
 const pendingRows = ref([]);
 const errors = ref({});
 const mutating = ref(false);
-const confirmDisableUid = ref(null);
 let uid = 0;
 let generation = 0;
 let stopped = false;
@@ -30,7 +34,7 @@ function withUid(list) {
 }
 
 function variantShape(row) {
-  const { _uid, reasonCode, note, ...rest } = row;
+  const { _uid, reasonCode, note, inventoryMode, ...rest } = row;
   return rest;
 }
 
@@ -38,32 +42,6 @@ function syncRows() {
   const variants = props.modelValue.variants || [];
   rows.value = withUid(variants.map((variant) => ({ ...variant, reasonCode: '', note: '' })));
   snapshot.value = variants.map((variant) => ({ ...variant }));
-  confirmDisableUid.value = null;
-}
-
-function originalQuantity(row) {
-  return snapshot.value.find((variant) => variant.variantId === row.variantId)?.quantityAvailable ?? null;
-}
-
-function stockChanged(row) {
-  return Boolean(row.variantId) && row.quantityAvailable !== originalQuantity(row);
-}
-
-function setManaged(row, managed) {
-  if (!managed && row.quantityAvailable !== null) {
-    confirmDisableUid.value = row._uid;
-    return;
-  }
-  updateRow(row, 'quantityAvailable', managed ? 0 : null);
-}
-
-function confirmDisable(row) {
-  confirmDisableUid.value = null;
-  updateRow(row, 'quantityAvailable', null);
-}
-
-function cancelDisable() {
-  confirmDisableUid.value = null;
 }
 
 function rowsDirty() {
@@ -144,9 +122,6 @@ function saveAll() {
 async function saveRow(row) {
   if (props.busy || mutating.value || locked.value) return;
   const found = validateVariant(row);
-  if (stockChanged(row) && !row.reasonCode) found.reasonCode = 'Vui lòng chọn lý do điều chỉnh';
-  if (stockChanged(row) && row.reasonCode === 'OTHER' && !String(row.note ?? '').trim()) found.note = 'Ghi chú là bắt buộc khi chọn lý do Khác';
-  if (stockChanged(row) && String(row.note ?? '').length > 500) found.note = 'Ghi chú không được vượt quá 500 ký tự';
   if (Object.keys(found).length) {
     errors.value = { ...errors.value, [rowIndex(row)]: found };
     return;
@@ -155,19 +130,7 @@ async function saveRow(row) {
   mutating.value = true;
   try {
     if (row.variantId) {
-      const expectedQuantity = originalQuantity(row);
-      const result = await submitVariantUpdate(
-        (payload) => adminApi.updateVariant(row.variantId, payload),
-        buildVariantUpdatePayload(row, expectedQuantity),
-        () => currentRequest(request),
-      );
-      if (result.ignored) return;
-      if (!result.saved && currentRequest(request)) {
-        const original = snapshot.value.find((variant) => variant.variantId === row.variantId);
-        if (original) original.quantityAvailable = result.currentQuantity;
-        errors.value = { ...errors.value, [rowIndex(row)]: { _server: result.error } };
-        return;
-      }
+      await adminApi.updateVariant(row.variantId, variantPayload(row));
     } else {
       const created = await adminApi.createVariant(props.productId, variantPayload(row));
       if (currentRequest(request) && created) row.variantId = created.variantId ?? created.id;
@@ -211,6 +174,39 @@ async function deleteRow(row) {
   }
 }
 
+function openRecipes(row) {
+  router.push({ name: 'AdminRecipes', query: { variantId: row.variantId } });
+}
+
+async function changeMode(row, event) {
+  const selectedMode = event.target.value;
+  row.inventoryMode = selectedMode;
+  if (!row.variantId) return;
+  if (selectedMode === 'INGREDIENT') {
+    openRecipes(row);
+    return;
+  }
+  const request = { generation: ++generation };
+  mutating.value = true;
+  try {
+    const recipe = await adminApi.getVariantRecipe(row.variantId);
+    await adminApi.replaceVariantRecipe(row.variantId, {
+      inventoryMode: selectedMode,
+      yieldQuantity: recipe.yieldQuantity,
+      active: recipe.active,
+      items: recipe.items,
+    });
+    if (currentRequest(request)) toast.success(`Đã chuyển chế độ kho sang ${selectedMode}`);
+  } catch (error) {
+    row.inventoryMode = '';
+    if (currentRequest(request)) {
+      errors.value = { ...errors.value, [rowIndex(row)]: { _server: error.status === 404 ? 'Kích cỡ chưa có công thức — hãy thiết lập trong Công thức định lượng.' : error.message || 'Không thể đổi chế độ kho' } };
+    }
+  } finally {
+    if (currentRequest(request)) mutating.value = false;
+  }
+}
+
 function updatePending(pending, field, value) {
   pending[field] = value;
   emitPending();
@@ -239,7 +235,6 @@ function retryPending() {
       <div v-for="pending in pendingRows" :key="pending._uid" class="pending-row">
         <input :value="pending.variantName" :disabled="busy || mutating" aria-label="Tên kích cỡ chưa lưu" @input="updatePending(pending, 'variantName', $event.target.value)" placeholder="Tên kích cỡ" />
         <input :value="pending.price" type="number" min="0" :disabled="busy || mutating" aria-label="Giá kích cỡ chưa lưu" @input="updatePending(pending, 'price', $event.target.value === '' ? '' : Number($event.target.value))" />
-        <input :value="pending.quantityAvailable ?? ''" type="number" min="0" :disabled="busy || mutating" aria-label="Tồn kho kích cỡ chưa lưu" @input="updatePending(pending, 'quantityAvailable', $event.target.value === '' ? null : Number($event.target.value))" placeholder="Trống = không giới hạn" />
         <select :value="pending.status" :disabled="busy || mutating" aria-label="Trạng thái kích cỡ chưa lưu" @change="updatePending(pending, 'status', $event.target.value)"><option value="AVAILABLE">Còn bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
         <label class="checkbox-field"><input type="checkbox" :checked="pending.isDefault" :disabled="busy || mutating" @change="updatePending(pending, 'isDefault', $event.target.checked)" /> Mặc định</label>
         <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Bỏ kích cỡ chưa lưu ${pending.variantName || 'chưa đặt tên'}`" @click="removePending(pending)">Bỏ</button>
@@ -268,38 +263,22 @@ function retryPending() {
         <input :id="`variant-sku-${index}`" :value="row.sku" :disabled="busy || mutating" @input="updateRow(row, 'sku', $event.target.value)" placeholder="Mã hàng (tùy chọn)" />
       </div>
       <div class="field">
-        <label class="checkbox-field"><input type="checkbox" :checked="row.quantityAvailable !== null" :disabled="busy || mutating" @change="setManaged(row, $event.target.checked)" /> Quản lý tồn kho</label>
-        <label :for="`variant-qty-${index}`">Tồn kho</label>
-        <input :id="`variant-qty-${index}`" type="number" min="0" :value="row.quantityAvailable ?? ''" :disabled="busy || mutating || row.quantityAvailable === null" :aria-invalid="Boolean(errors[index]?.quantityAvailable)" :aria-describedby="errors[index]?.quantityAvailable ? `variant-qty-error-${index}` : undefined" @input="updateRow(row, 'quantityAvailable', $event.target.value === '' ? 0 : Number($event.target.value))" />
-        <span v-if="errors[index]?.quantityAvailable" :id="`variant-qty-error-${index}`" role="alert">{{ errors[index].quantityAvailable }}</span>
-      </div>
-      <div v-if="confirmDisableUid === row._uid" class="stock-confirm" role="alert">
-        <span>Tắt quản lý tồn kho sẽ chuyển kích cỡ sang không giới hạn.</span>
-        <button class="btn btn-sm btn-primary" type="button" @click="confirmDisable(row)">Xác nhận</button>
-        <button class="btn btn-sm btn-outline" type="button" @click="cancelDisable">Hủy</button>
-      </div>
-      <template v-if="row.variantId && stockChanged(row)">
-        <div class="field">
-          <label :for="`variant-reason-${index}`">Lý do điều chỉnh</label>
-          <select :id="`variant-reason-${index}`" v-model="row.reasonCode" :disabled="busy || mutating" :aria-invalid="Boolean(errors[index]?.reasonCode)">
-            <option value="">Chọn lý do</option><option value="STOCK_COUNT">Kiểm kê</option><option value="DAMAGE">Hư hỏng</option><option value="EXPIRED">Hết hạn</option><option value="OTHER">Khác</option>
-          </select>
-          <span v-if="errors[index]?.reasonCode" role="alert">{{ errors[index].reasonCode }}</span>
-        </div>
-        <div class="field">
-          <label :for="`variant-note-${index}`">Ghi chú</label>
-          <textarea :id="`variant-note-${index}`" v-model="row.note" maxlength="500" :disabled="busy || mutating" :required="row.reasonCode === 'OTHER'"></textarea>
-          <span v-if="errors[index]?.note" role="alert">{{ errors[index].note }}</span>
-        </div>
-      </template>
-      <div class="field">
-        <label :for="`variant-status-${index}`">Trạng thái</label>
-        <select :id="`variant-status-${index}`" :value="row.status" :disabled="busy || mutating" @change="updateRow(row, 'status', $event.target.value)"><option value="AVAILABLE">Còn bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
+        <label :for="`variant-mode-${index}`">Chế độ kho</label>
+        <select :id="`variant-mode-${index}`" :value="row.inventoryMode ?? ''" :disabled="busy || mutating || !row.variantId" @change="changeMode(row, $event)">
+          <option value="">— Chọn để chuyển —</option>
+          <option v-for="mode in INVENTORY_MODES" :key="mode.value" :value="mode.value">{{ mode.label }}</option>
+        </select>
+        <span class="hint">Công thức định lượng nằm ở trang riêng.</span>
       </div>
       <div class="field">
         <label class="checkbox-field"><input type="checkbox" :checked="row.isDefault" :disabled="busy || mutating" @change="setDefault(row)" /> Mặc định</label>
       </div>
+      <div class="field">
+        <label :for="`variant-status-${index}`">Trạng thái</label>
+        <select :id="`variant-status-${index}`" :value="row.status" :disabled="busy || mutating" @change="updateRow(row, 'status', $event.target.value)"><option value="AVAILABLE">Còn bán</option><option value="UNAVAILABLE">Ngừng bán</option></select>
+      </div>
       <div class="row-actions">
+        <button v-if="!isCreate && row.variantId" class="btn btn-sm btn-outline" type="button" @click="openRecipes(row)">Công thức định lượng</button>
         <button v-if="!isCreate" class="btn btn-sm btn-primary" type="button" :disabled="busy || mutating" @click="saveRow(row)">{{ row.variantId ? 'Lưu' : 'Tạo' }}</button>
         <button class="btn btn-sm btn-outline" type="button" :disabled="busy || mutating" :aria-label="`Xóa kích cỡ ${row.variantName || index + 1}`" @click="deleteRow(row)">Xóa</button>
       </div>
@@ -310,5 +289,5 @@ function retryPending() {
 </template>
 
 <style scoped>
-.editor-card{display:grid;gap:16px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.heading{display:flex;align-items:center;justify-content:space-between}.heading h2{margin:0}.hint{color:var(--text-mid);font-size:13px}.variant-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:16px;border:1px solid rgba(23,23,23,.08);border-radius:14px}.field{display:grid;gap:6px}.field label{font-size:12px;font-weight:700}.field input,.field select{min-height:42px;padding:9px 11px;border:1px solid #ddd;border-radius:9px;background:#fff}.field [role=alert]{color:#b91c1c;font-size:12px}.checkbox-field{display:flex;align-items:center;gap:7px;min-height:42px;cursor:pointer}.row-actions{display:flex;align-items:end;gap:8px}.server-error{grid-column:1/-1;margin:0;color:#b91c1c;font-size:12px}.pending-banner{display:grid;gap:10px;padding:14px;border-radius:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a}.pending-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pending-row input,.pending-row select{padding:7px 9px;border:1px solid #fde68a;border-radius:8px;background:#fff}.pending-row input[type=number],.pending-row input:first-child{min-width:120px}.actions{display:flex;justify-content:flex-end}@media(max-width:900px){.variant-row{grid-template-columns:repeat(2,minmax(0,1fr))}.row-actions{grid-column:1/-1;align-items:center}}@media(max-width:600px){.variant-row{grid-template-columns:1fr}.heading{flex-direction:column;align-items:start;gap:10px}}
+.editor-card{display:grid;gap:16px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.heading{display:flex;align-items:center;justify-content:space-between}.heading h2{margin:0}.hint{color:var(--text-mid);font-size:13px}.variant-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:16px;border:1px solid rgba(23,23,23,.08);border-radius:14px}.field{display:grid;gap:6px}.field label{font-size:12px;font-weight:700}.field input,.field select{min-height:42px;padding:9px 11px;border:1px solid #ddd;border-radius:9px;background:#fff}.field [role=alert]{color:#b91c1c;font-size:12px}.checkbox-field{display:flex;align-items:center;gap:7px;min-height:42px;cursor:pointer}.row-actions{display:flex;align-items:end;gap:8px;flex-wrap:wrap}.server-error{grid-column:1/-1;margin:0;color:#b91c1c;font-size:12px}.pending-banner{display:grid;gap:10px;padding:14px;border-radius:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a}.pending-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pending-row input,.pending-row select{padding:7px 9px;border:1px solid #fde68a;border-radius:8px;background:#fff}.actions{display:flex;justify-content:flex-end}@media(max-width:900px){.variant-row{grid-template-columns:repeat(2,minmax(0,1fr))}.row-actions{grid-column:1/-1;align-items:center}}@media(max-width:600px){.variant-row{grid-template-columns:1fr}.heading{flex-direction:column;align-items:start;gap:10px}}
 </style>

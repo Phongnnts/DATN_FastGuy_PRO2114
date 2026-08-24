@@ -133,10 +133,67 @@ export default {
   updateUserStatus(userId, data) {
     return client.put(`/admin/users/${userId}/status`, data);
   },
-  adjustInventory(variantId, data) {
-    return client.post('/admin/inventory/transactions/adjustments', { variantId, ...data });
+  getInventoryItems() {
+    return client.get('/admin/inventory/items');
   },
-  wasteInventory(variantId, data) {
-    return client.post('/admin/inventory/transactions/waste', { variantId, ...data });
+  createInventoryItem(data) {
+    return client.post('/admin/inventory/items', data);
+  },
+  updateInventoryItem(id, data) {
+    return client.put(`/admin/inventory/items/${id}`, data);
+  },
+  adjustInventoryItem(data) {
+    return client.post('/admin/inventory/transactions/adjustments', data);
+  },
+  getGoodsReceipts() {
+    return client.get('/admin/inventory/receipts');
+  },
+  getGoodsReceipt(id) {
+    return client.get(`/admin/inventory/receipts/${id}`);
+  },
+  createGoodsReceipt(data) {
+    return client.post('/admin/inventory/receipts', data);
+  },
+  updateGoodsReceipt(id, data) {
+    return client.put(`/admin/inventory/receipts/${id}`, data);
+  },
+  deleteGoodsReceipt(id) {
+    return client.delete(`/admin/inventory/receipts/${id}`);
+  },
+  approveGoodsReceipt(id) {
+    return client.post(`/admin/inventory/receipts/${id}/approve`);
+  },
+  getStockCounts() {
+    return client.get('/admin/inventory/stock-counts');
+  },
+  createStockCount(data) {
+    return client.post('/admin/inventory/stock-counts', data);
+  },
+  getStockCount(id) {
+    return client.get(`/admin/inventory/stock-counts/${id}`);
+  },
+  updateStockCount(id, data) {
+    return client.put(`/admin/inventory/stock-counts/${id}`, data);
+  },
+  approveStockCount(id) {
+    return client.post(`/admin/inventory/stock-counts/${id}/approve`);
+  },
+  getInventoryCostSummary(params) {
+    return client.get('/admin/inventory/reports/summary', { params });
+  },
+  getInventoryItemLoss(params) {
+    return client.get('/admin/inventory/reports/item-loss', { params });
+  },
+  getInventoryMenuCost() {
+    return client.get('/admin/inventory/reports/menu-cost');
+  },
+  getVariantRecipe(variantId) {
+    return client.get(`/admin/product-variants/${variantId}/recipe`);
+  },
+  replaceVariantRecipe(variantId, data) {
+    return client.put(`/admin/product-variants/${variantId}/recipe`, data);
+  },
+  getVariantAvailability(variantId) {
+    return client.get(`/admin/product-variants/${variantId}/availability`);
   },
 };

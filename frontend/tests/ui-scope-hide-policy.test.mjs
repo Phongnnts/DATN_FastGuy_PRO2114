@@ -115,8 +115,6 @@ test('public descriptions and admin inventory use menu option wording', () => {
     assert.doesNotMatch(source, /biến thể/i);
   }
   assert.match(productsCatalog, /Kích cỡ/);
-  assert.match(inventory, /Kích cỡ/);
-  assert.match(inventoryLedger, /Kích cỡ/);
 });
 
 test('service fee presentation is absent while checkout arithmetic and backend totals remain', () => {

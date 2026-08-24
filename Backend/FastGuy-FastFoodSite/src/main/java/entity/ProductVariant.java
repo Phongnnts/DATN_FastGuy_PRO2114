@@ -41,6 +41,9 @@ public class ProductVariant {
     @Column(name = "quantity_available")
     private Integer quantityAvailable;
 
+    @Column(name = "inventory_mode", nullable = false)
+    private String inventoryMode = "UNTRACKED";
+
     @Column(name = "weight")
     private BigDecimal weight;
 
@@ -81,6 +84,8 @@ public class ProductVariant {
     public void setSku(String sku) { this.sku = sku; }
     public Integer getQuantityAvailable() { return quantityAvailable; }
     public void setQuantityAvailable(Integer quantityAvailable) { this.quantityAvailable = quantityAvailable; }
+    public String getInventoryMode() { return inventoryMode; }
+    public void setInventoryMode(String inventoryMode) { this.inventoryMode = inventoryMode; }
     public BigDecimal getWeight() { return weight; }
     public void setWeight(BigDecimal weight) { this.weight = weight; }
     public BigDecimal getLength() { return length; }

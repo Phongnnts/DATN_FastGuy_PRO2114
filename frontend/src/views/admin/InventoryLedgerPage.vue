@@ -2,21 +2,23 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { adminApi } from '@/api';
 
-const TRANSACTION_TYPES = ['RESERVE', 'RELEASE', 'CONSUME', 'WASTE', 'ADJUSTMENT'];
-const TYPE_LABELS = { RESERVE: 'Giữ chỗ', RELEASE: 'Trả lại', CONSUME: 'Tiêu thụ', WASTE: 'Hao hụt', ADJUSTMENT: 'Điều chỉnh' };
+const TRANSACTION_TYPES = ['RECEIPT', 'RESERVE', 'RELEASE', 'CONSUME', 'ADJUSTMENT', 'WASTE', 'RETURN'];
+const TYPE_LABELS = { RECEIPT: 'Nhập hàng', RESERVE: 'Giữ chỗ', RELEASE: 'Trả lại', CONSUME: 'Tiêu thụ', ADJUSTMENT: 'Điều chỉnh', WASTE: 'Hao hụt', RETURN: 'Khách trả lại' };
 const SIZE_OPTIONS = [20, 50, 100];
+const money = (value) => value == null ? '—' : `${Number(value).toLocaleString('vi-VN')} ₫`;
 
 const rows = ref([]);
 const total = ref(0);
 const page = ref(1);
 const size = ref(20);
-const variantId = ref('');
-const productId = ref('');
+const inventoryItemId = ref('');
+const orderId = ref('');
 const transactionType = ref('');
 const fromDate = ref('');
 const toDate = ref('');
 const loading = ref(false);
 const loadError = ref('');
+const itemNameById = ref(new Map());
 
 const dateError = computed(() =>
   fromDate.value && toDate.value && fromDate.value > toDate.value ? 'Từ ngày không được sau đến ngày.' : ''
@@ -27,21 +29,27 @@ const rangeStart = computed(() => (total.value === 0 ? 0 : (page.value - 1) * si
 const rangeEnd = computed(() => Math.min(page.value * size.value, total.value));
 
 const kpi = computed(() => {
-  const counts = { RESERVE: 0, RELEASE: 0, CONSUME: 0, WASTE: 0, ADJUSTMENT: 0 };
+  const counts = Object.fromEntries(TRANSACTION_TYPES.map((type) => [type, 0]));
   rows.value.forEach((row) => {
-    if (counts[row.type] !== undefined) counts[row.type] += 1;
+    if (counts[row.transactionType] !== undefined) counts[row.transactionType] += 1;
   });
   return counts;
 });
 
 function typeClass(type) {
-  return { RESERVE: 'badge-info', RELEASE: 'badge-success', CONSUME: 'badge-warning', WASTE: 'badge-danger', ADJUSTMENT: 'badge-secondary' }[type] || 'badge-secondary';
+  return { RECEIPT: 'badge-success', RESERVE: 'badge-info', RELEASE: 'badge-secondary', CONSUME: 'badge-warning', ADJUSTMENT: 'badge-secondary', WASTE: 'badge-danger', RETURN: 'badge-info' }[type] || 'badge-secondary';
+}
+
+function itemName(id) {
+  if (!id) return null;
+  const name = itemNameById.value.get(Number(id));
+  return name ? `#${id} · ${name}` : `#${id}`;
 }
 
 function buildParams() {
-  const params = { page: page.value, size: size.value };
-  if (variantId.value.trim()) params.variantId = variantId.value.trim();
-  if (productId.value.trim()) params.productId = productId.value.trim();
+  const params = { page: page.value - 1, size: size.value };
+  if (inventoryItemId.value.trim()) params.inventoryItemId = inventoryItemId.value.trim();
+  if (orderId.value.trim()) params.orderId = orderId.value.trim();
   if (transactionType.value) params.transactionType = transactionType.value;
   if (fromDate.value) params.fromDate = fromDate.value;
   if (toDate.value) params.toDate = toDate.value;
@@ -61,7 +69,7 @@ async function load() {
     const data = await adminApi.getInventoryTransactions(request.params);
     if (stopped || request.generation !== loadGeneration) return;
     rows.value = Array.isArray(data?.items) ? data.items : [];
-    total.value = Number(data?.total) || 0;
+    total.value = Number(data?.totalItems) || 0;
     if (page.value > totalPages.value) {
       if (clampingPage) return;
       clampingPage = true;
@@ -76,6 +84,15 @@ async function load() {
       loading.value = false;
       clampingPage = false;
     }
+  }
+}
+
+async function loadItemNames() {
+  try {
+    const items = await adminApi.getInventoryItems();
+    itemNameById.value = new Map((Array.isArray(items) ? items : []).map((item) => [item.inventoryItemId, item.name]));
+  } catch {
+    itemNameById.value = new Map();
   }
 }
 
@@ -96,8 +113,8 @@ function goTo(target) {
 }
 
 function resetFilters() {
-  variantId.value = '';
-  productId.value = '';
+  inventoryItemId.value = '';
+  orderId.value = '';
   transactionType.value = '';
   fromDate.value = '';
   toDate.value = '';
@@ -116,7 +133,10 @@ function setDatePreset(days) {
   applyFilters();
 }
 
-onMounted(load);
+onMounted(() => {
+  loadItemNames();
+  load();
+});
 onBeforeUnmount(() => {
   stopped = true;
 });
@@ -138,31 +158,19 @@ onBeforeUnmount(() => {
     <section class="stats" aria-label="Tổng quan giao dịch tồn kho">
       <article>
         <span class="stat-icon slate"><i class="bi bi-receipt" aria-hidden="true"></i></span>
-        <div><small>Tổng giao dịch</small><strong>{{ rows.length }}</strong></div>
+        <div><small>Tổng giao dịch</small><strong>{{ total }}</strong></div>
       </article>
-      <article>
-        <span class="stat-icon blue"><i class="bi bi-cart-plus" aria-hidden="true"></i></span>
-        <div><small>{{ TYPE_LABELS.RESERVE }}</small><strong>{{ kpi.RESERVE }}</strong></div>
-      </article>
-      <article>
-        <span class="stat-icon green"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></span>
-        <div><small>{{ TYPE_LABELS.RELEASE }}</small><strong>{{ kpi.RELEASE }}</strong></div>
-      </article>
-      <article>
-        <span class="stat-icon amber"><i class="bi bi-fire" aria-hidden="true"></i></span>
-        <div><small>{{ TYPE_LABELS.CONSUME }}</small><strong>{{ kpi.CONSUME }}</strong></div>
-      </article>
-      <article>
-        <span class="stat-icon red"><i class="bi bi-trash" aria-hidden="true"></i></span>
-        <div><small>{{ TYPE_LABELS.WASTE }}</small><strong>{{ kpi.WASTE }}</strong></div>
+      <article v-for="type in TRANSACTION_TYPES" :key="type">
+        <span class="stat-icon slate"><i class="bi bi-list-check" aria-hidden="true"></i></span>
+        <div><small>{{ TYPE_LABELS[type] }}</small><strong>{{ kpi[type] }}</strong></div>
       </article>
     </section>
     <p class="kpi-hint"><i class="bi bi-info-circle" aria-hidden="true"></i> KPI tính theo dữ liệu trang hiện tại.</p>
 
     <section class="panel">
       <div class="filter-area">
-        <label><span class="form-label">Mã kích cỡ</span><input v-model="variantId" class="form-input" type="text" inputmode="numeric" placeholder="Ví dụ: 12" @keydown.enter="applyFilters" /></label>
-        <label><span class="form-label">Mã sản phẩm</span><input v-model="productId" class="form-input" type="text" inputmode="numeric" placeholder="Ví dụ: 5" @keydown.enter="applyFilters" /></label>
+        <label><span class="form-label">Mã mặt hàng</span><input v-model="inventoryItemId" class="form-input" type="text" inputmode="numeric" placeholder="Ví dụ: 3" @keydown.enter="applyFilters" /></label>
+        <label><span class="form-label">Mã đơn hàng</span><input v-model="orderId" class="form-input" type="text" inputmode="numeric" placeholder="Ví dụ: 12" @keydown.enter="applyFilters" /></label>
         <label><span class="form-label">Loại giao dịch</span>
           <select v-model="transactionType" class="form-select">
             <option value="">Tất cả loại</option>
@@ -187,17 +195,18 @@ onBeforeUnmount(() => {
       <template v-else>
         <div class="table-wrapper">
           <table class="table">
-            <thead><tr><th scope="col">Thời gian</th><th scope="col">Loại</th><th scope="col">Số lượng</th><th scope="col">Kích cỡ</th><th scope="col">Sản phẩm</th><th scope="col">Đơn hàng</th><th scope="col">Biến động</th><th scope="col">Chi tiết</th></tr></thead>
+            <thead><tr><th scope="col">Thời gian</th><th scope="col">Loại</th><th scope="col">Mặt hàng</th><th scope="col">Đơn hàng</th><th scope="col">Số lượng</th><th scope="col">Biến động</th><th scope="col">Giá vốn đơn vị</th><th scope="col">Tổng giá vốn</th><th scope="col">Chi tiết</th></tr></thead>
             <tbody>
-              <tr v-for="row in rows" :key="row.transactionId">
+              <tr v-for="row in rows" :key="row.inventoryTransactionId">
                 <td data-label="Thời gian"><time :datetime="row.createdAt">{{ row.createdAt }}</time></td>
-                <td data-label="Loại"><span class="badge" :class="typeClass(row.type)">{{ TYPE_LABELS[row.type] || row.type }}</span></td>
-                <td data-label="Số lượng">{{ row.quantity }}</td>
-                <td data-label="Kích cỡ"><strong>{{ row.variantName || '—' }}</strong><small v-if="row.variantId" class="sub">ID: {{ row.variantId }}</small></td>
-                <td data-label="Sản phẩm"><strong>{{ row.productName || '—' }}</strong><small v-if="row.productId" class="sub">ID: {{ row.productId }}</small></td>
-                <td data-label="Đơn hàng"><router-link v-if="row.orderId" class="order-link" :to="`/admin/orders/${row.orderId}`">{{ row.orderCode || row.orderId }}</router-link><span v-else class="muted">—</span></td>
+                <td data-label="Loại"><span class="badge" :class="typeClass(row.transactionType)">{{ TYPE_LABELS[row.transactionType] || row.transactionType }}</span></td>
+                <td data-label="Mặt hàng"><strong v-if="itemName(row.inventoryItemId)">{{ itemName(row.inventoryItemId) }}</strong><span v-else class="muted">—</span></td>
+                <td data-label="Đơn hàng"><router-link v-if="row.orderId" class="order-link" :to="`/admin/orders/${row.orderId}`">#{{ row.orderId }}</router-link><span v-else class="muted">—</span></td>
+                <td data-label="Số lượng"><strong>{{ row.quantity }}</strong></td>
                 <td data-label="Biến động"><span v-if="row.quantityBefore !== null && row.quantityAfter !== null">{{ row.quantityBefore }} → {{ row.quantityAfter }}</span><span v-else class="muted">—</span></td>
-                <td data-label="Chi tiết"><div v-if="row.reasonCode || row.note || row.createdByName" class="detail-cell"><span v-if="row.reasonCode" class="badge badge-secondary">{{ row.reasonCode }}</span><small v-if="row.createdByName" class="sub">{{ row.createdByName }}</small><small v-if="row.note" class="sub">{{ row.note }}</small></div><span v-else class="muted">—</span></td>
+                <td data-label="Giá vốn đơn vị">{{ money(row.unitCostSnapshot) }}</td>
+                <td data-label="Tổng giá vốn"><strong>{{ money(row.totalCost) }}</strong></td>
+                <td data-label="Chi tiết"><div v-if="row.reason || row.note" class="detail-cell"><span v-if="row.reason" class="badge badge-secondary">{{ row.reason }}</span><small v-if="row.note" class="sub">{{ row.note }}</small></div><span v-else class="muted">—</span></td>
               </tr>
             </tbody>
           </table>
@@ -224,14 +233,10 @@ onBeforeUnmount(() => {
 .page-heading h1 { font-size: 28px; line-height: 1.25; margin: 2px 0 4px; }
 .page-heading p { color: var(--text-mid); font-size: 14px; }
 .eyebrow { color: var(--role-admin) !important; font-size: 11px !important; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
 .stats article { align-items: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-xs); display: flex; gap: 14px; padding: 18px; }
 .stat-icon { align-items: center; border-radius: 10px; display: inline-flex; flex: 0 0 42px; height: 42px; justify-content: center; font-size: 19px; }
 .stat-icon.slate { color: #1f2937; background: #e5e7eb; }
-.stat-icon.blue { color: #1d4ed8; background: #dbeafe; }
-.stat-icon.green { color: #047857; background: #d1fae5; }
-.stat-icon.amber { color: #b45309; background: #fef3c7; }
-.stat-icon.red { color: #b91c1c; background: #fee2e2; }
 .stats small { color: var(--text-mid); display: block; font-size: 12px; margin-bottom: 2px; }
 .stats strong { font-size: 20px; }
 .kpi-hint { align-items: center; color: var(--text-mid); display: flex; font-size: 12px; gap: 6px; margin: -10px 0 0; }
@@ -246,7 +251,7 @@ onBeforeUnmount(() => {
 .state > i { color: var(--text-light); font-size: 36px; }
 .state.error > i { color: var(--red-active); }
 .table-wrapper { border-top: 1px solid var(--border); overflow-x: auto; }
-.table { min-width: 1020px; }
+.table { min-width: 980px; }
 .table th { color: var(--text-mid); font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }
 .table td { vertical-align: middle; }
 .sub { color: var(--text-light); display: block; font-size: 11px; }
@@ -266,7 +271,7 @@ onBeforeUnmount(() => {
   .filter-area { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
 }
 @media (max-width: 900px) {
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .table-wrapper { overflow: visible; }
   .table thead { display: none; }
   .table, .table tbody, .table tr, .table td { display: block; width: 100%; }

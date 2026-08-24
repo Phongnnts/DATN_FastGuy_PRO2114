@@ -1,0 +1,22 @@
+package service;
+
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.function.Supplier;
+import entity.*;
+import jakarta.persistence.EntityManager;
+import utils.DatabaseUtil;
+
+public class AdminRecipeService {
+    private final Supplier<EntityManager> entityManagers;
+    private final InventoryAvailabilityService availability;
+    public AdminRecipeService(){this(DatabaseUtil::getEntityManager,new InventoryAvailabilityService());}
+    AdminRecipeService(Supplier<EntityManager> managers,InventoryAvailabilityService availability){this.entityManagers=managers;this.availability=availability;}
+    public Map<String,Object> get(int variantId){EntityManager em=entityManagers.get();try{Recipe r=find(em,variantId);if(r==null)throw new NoSuchElementException("Recipe not found");return dto(r);}finally{em.close();}}
+    public Map<String,Object> replace(int variantId,String mode,BigDecimal yield,boolean active,List<Integer> ids,List<BigDecimal> quantities){validateItems(ids,quantities);AdminInventoryService.decimal(yield,true);EntityManager em=entityManagers.get();try{em.getTransaction().begin();ProductVariant v=em.find(ProductVariant.class,variantId,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);if(v==null)throw new NoSuchElementException("Variant not found");List<InventoryItem> items=em.createQuery("SELECT i FROM InventoryItem i WHERE i.inventoryItemId IN :ids",InventoryItem.class).setParameter("ids",ids).getResultList();if(items.size()!=ids.size()||items.stream().anyMatch(i->!i.isActive()))throw new IllegalArgumentException("All recipe items must exist and be active");Recipe r=find(em,variantId);if(r==null){r=new Recipe();r.setVariant(v);em.persist(r);}else em.createQuery("DELETE FROM RecipeItem i WHERE i.recipe=:recipe").setParameter("recipe",r).executeUpdate();r.setYieldQuantity(yield);r.setActive(active);List<RecipeItem> lines=new ArrayList<>();for(int x=0;x<ids.size();x++){int itemId=ids.get(x);InventoryItem item=items.stream().filter(i->i.getInventoryItemId()==itemId).findFirst().orElseThrow();RecipeItem line=new RecipeItem();line.setRecipe(r);line.setInventoryItem(item);line.setQuantity(quantities.get(x));em.persist(line);lines.add(line);}r.setItems(lines);validateMode(mode,active&&!lines.isEmpty());v.setInventoryMode(mode);em.flush();em.getTransaction().commit();return dto(r);}catch(RuntimeException e){if(em.getTransaction().isActive())em.getTransaction().rollback();throw e;}finally{em.close();}}
+    public Map<String,Object> availability(int variantId){EntityManager em=entityManagers.get();try{var a=availability.availability(em,variantId);Map<String,Object>m=new LinkedHashMap<>();m.put("availabilityStatus",switch(a.status()){case "AVAILABLE"->a.mode().equals("UNTRACKED")?"UNTRACKED":"IN_STOCK";case "UNAVAILABLE"->"OUT_OF_STOCK";default->a.status();});if(a.servings()!=null&&a.servings()>0)m.put("remainingServings",Math.min(3,a.servings()));return m;}finally{em.close();}}
+    public static void validateItems(List<Integer> ids,List<BigDecimal> quantities){if(ids==null||quantities==null||ids.isEmpty()||ids.size()!=quantities.size()||new HashSet<>(ids).size()!=ids.size())throw new IllegalArgumentException("Invalid recipe items");for(int i=0;i<ids.size();i++)if(ids.get(i)==null||ids.get(i)<=0)throw new IllegalArgumentException("Invalid recipe item");else AdminInventoryService.decimal(quantities.get(i),true);}
+    public static void validateMode(String mode,boolean validRecipe){if(!Set.of("INGREDIENT","FINISHED_GOOD","UNTRACKED","SUSPENDED").contains(mode)||mode.equals("INGREDIENT")&&!validRecipe)throw new IllegalArgumentException("INGREDIENT mode requires an active recipe");}
+    private Recipe find(EntityManager em,int id){List<Recipe>r=em.createQuery("SELECT DISTINCT r FROM Recipe r LEFT JOIN FETCH r.items i LEFT JOIN FETCH i.inventoryItem WHERE r.variant.variantId=:id",Recipe.class).setParameter("id",id).getResultList();return r.isEmpty()?null:r.get(0);}
+    private static Map<String,Object> dto(Recipe r){Map<String,Object>m=new LinkedHashMap<>();m.put("recipeId",r.getRecipeId());m.put("variantId",r.getVariant().getVariantId());m.put("yieldQuantity",r.getYieldQuantity());m.put("active",r.isActive());m.put("items",r.getItems().stream().map(i->Map.of("inventoryItemId",i.getInventoryItem().getInventoryItemId(),"quantity",i.getQuantity())).toList());m.put("createdAt",r.getCreatedAt());m.put("updatedAt",r.getUpdatedAt());return m;}
+}

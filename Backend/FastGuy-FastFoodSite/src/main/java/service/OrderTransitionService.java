@@ -2,10 +2,8 @@ package service;
 
 import entity.Coupon;
 import entity.CouponRedemption;
-import entity.OrderItem;
 import entity.OrderStatusHistory;
 import entity.Orders;
-import entity.ProductVariant;
 import entity.User;
 import entity.WorkShift;
 import jakarta.persistence.EntityManager;
@@ -63,7 +61,10 @@ public class OrderTransitionService {
             String from = order.getOrderStatus();
             String orderCode = order.getOrderCode();
             Integer orderUserId = order.getUser() == null ? null : order.getUser().getUserId();
-            if (!inventoryReservationService.cancel(em, order)) restoreStock(em, orderId);
+            if (!inventoryReservationService.cancel(em, order)) {
+                em.getTransaction().rollback();
+                return null;
+            }
             releaseCoupon(em, orderId);
             order.setOrderStatus("CANCELLED");
             order.setCancelledAt(LocalDateTime.now());
@@ -179,7 +180,7 @@ public class OrderTransitionService {
             else if ("PICKED_UP".equals(toStatus)) order.setPickedUpAt(LocalDateTime.now());
             else if ("DELIVERED".equals(toStatus)) order.setDeliveredAt(LocalDateTime.now());
             else if ("CANCELLED".equals(toStatus)) {
-                inventoryReservationService.cancel(em, order);
+                if (!inventoryReservationService.cancel(em, order)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
                 releaseCoupon(em, orderId);
                 order.setCancelledAt(LocalDateTime.now());
                 order.setCancelledBy("USER".equals(actorRole) ? "CUSTOMER" : actorRole);
@@ -383,18 +384,6 @@ public class OrderTransitionService {
 
     static boolean isActorRole(String role) {
         return Set.of("USER", "CUSTOMER", "STAFF", "ADMIN", "SHIPPER", "SYSTEM").contains(role);
-    }
-
-    private void restoreStock(EntityManager em, int orderId) {
-        List<OrderItem> items = em.createQuery("SELECT oi FROM OrderItem oi WHERE oi.order.orderId = :orderId", OrderItem.class)
-                .setParameter("orderId", orderId).getResultList();
-        for (OrderItem item : items) {
-            if (item.getVariant() == null) continue;
-            ProductVariant variant = em.find(ProductVariant.class, item.getVariant().getVariantId(), LockModeType.PESSIMISTIC_WRITE);
-            if (variant != null && variant.getQuantityAvailable() != null) {
-                variant.setQuantityAvailable(variant.getQuantityAvailable() + item.getQuantity());
-            }
-        }
     }
 
     private void releaseCoupon(EntityManager em, int orderId) {

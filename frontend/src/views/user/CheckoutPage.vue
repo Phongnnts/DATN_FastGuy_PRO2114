@@ -5,6 +5,7 @@ import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useOrderStore } from '@/stores/order';
+import { useProductStore } from '@/stores/product';
 import { formatPrice } from '@/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/utils/constants';
 import { createCouponController } from '@/utils/checkoutCoupon';
@@ -18,6 +19,9 @@ const router = useRouter();
 const auth = useAuthStore();
 const cart = useCartStore();
 const orderStore = useOrderStore();
+const productStore = useProductStore();
+
+const CONFLICT_MESSAGE = 'Một số món trong giỏ vừa hết hàng hoặc không đủ số lượng. Giỏ hàng đã được cập nhật, vui lòng kiểm tra lại trước khi đặt hàng.';
 
 const isGuest = computed(() => !auth.isLoggedIn);
 
@@ -408,7 +412,14 @@ async function placeOrder() {
     }
     router.push({ name: 'OrderSuccess', query: { orderId: createdOrderId.value, orderCode: result.orderCode } });
   } catch (e) {
-    toast.error(e.message);
+    if (e?.status === 409) {
+      clearIdempotencyKey();
+      if (!isGuest.value) await cart.fetchCart();
+      await productStore.refreshAvailability();
+      toast.error(CONFLICT_MESSAGE);
+    } else {
+      toast.error(e.message);
+    }
   } finally {
     submitting.value = false;
   }
