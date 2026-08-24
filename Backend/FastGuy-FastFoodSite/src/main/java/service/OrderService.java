@@ -43,6 +43,7 @@ public class OrderService {
     private StoreConfigService storeConfigService = new StoreConfigService();
     private ShippingService shippingService = new ShippingService();
     private InventoryReservationService inventoryReservationService = new InventoryReservationService();
+    private OrderItemCostService orderItemCostService = new OrderItemCostService();
     private OrderTransitionService orderTransitionService = new OrderTransitionService();
 
     private static class CheckoutLine {
@@ -92,6 +93,7 @@ public class OrderService {
             if (cart == null) throw new IllegalArgumentException("Giỏ hàng trống");
             List<CartItem> cartItems = findCartItems(em, cart.getCartId());
             if (cartItems.isEmpty()) throw new IllegalArgumentException("Giỏ hàng trống");
+            Map<Integer,Integer> productQuantities=new HashMap<>();for(CartItem item:cartItems)productQuantities.merge(item.getProduct().getProductId(),item.getQuantity(),Integer::sum);OrderQuantityPolicy.require(productQuantities);
             if (!cartSignature(cartItems).equals(cartSignature)) throw new IllegalArgumentException("Giỏ hàng đã thay đổi, vui lòng thử lại");
 
             if (!"COD".equals(paymentMethod) && !"BANK_TRANSFER".equals(paymentMethod)) {
@@ -139,6 +141,7 @@ public class OrderService {
             inventoryReservationService.reserve(em, order, quantities);
             applyCoupon(em, coupon, order.getOrderId(), userId);
             persistItems(em, order, lines);
+            orderItemCostService.snapshot(em, order);
             if (!isBankTransfer) {
                 em.createQuery("DELETE FROM CartItem ci WHERE ci.cart.cartId = :cartId")
                         .setParameter("cartId", cart.getCartId())
@@ -188,6 +191,7 @@ public class OrderService {
             }
             Map<Integer, Integer> quantities = new HashMap<>();
             Map<Integer, Integer> productIds = new HashMap<>();
+            Map<Integer, Integer> productQuantities = new HashMap<>();
             for (Map<String, Object> itemData : itemsData) {
                 int productId = ((Number) itemData.get("productId")).intValue();
                 int variantId = ((Number) itemData.get("variantId")).intValue();
@@ -195,7 +199,9 @@ public class OrderService {
                 if (qty <= 0) throw new IllegalArgumentException("Số lượng không hợp lệ");
                 quantities.merge(variantId, qty, Integer::sum);
                 productIds.put(variantId, productId);
+                productQuantities.merge(productId, qty, Integer::sum);
             }
+            OrderQuantityPolicy.require(productQuantities);
 
             Map<Integer, CheckoutLine> lockedLines = validateStock(em, quantities, productIds);
 
@@ -233,6 +239,7 @@ public class OrderService {
             inventoryReservationService.reserve(em, order, quantities);
             applyCoupon(em, coupon, order.getOrderId(), null);
             persistItems(em, order, lines);
+            orderItemCostService.snapshot(em, order);
 
             orderStatusHistoryService.record(em, order.getOrderId(), null, "GUEST", null, "PENDING", "Khách vãng lai tạo đơn hàng");
             em.getTransaction().commit();

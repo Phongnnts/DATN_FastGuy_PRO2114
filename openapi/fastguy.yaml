@@ -8,6 +8,38 @@ info:
 servers:
   - url: /api
 paths:
+  /cart:
+    get:
+      operationId: getCart
+      summary: Get the authenticated user's cart
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Current cart, content: { application/json: { schema: { $ref: '#/components/schemas/CartResponse' } } } }
+    post:
+      operationId: addCartItem
+      summary: Add an item to the authenticated user's cart
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AddCartItemRequest' } } } }
+      responses:
+        '201': { description: Item added }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    put:
+      operationId: updateCartItemQuantity
+      summary: Update a cart item quantity
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateCartItemRequest' } } } }
+      responses:
+        '200': { description: Item updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /cart/{cartItemId}:
+    delete:
+      operationId: removeCartItem
+      summary: Remove a cart item
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: cartItemId, in: path, required: true, schema: { type: integer, minimum: 1 } }]
+      responses:
+        '200': { description: Item removed }
+        '404': { $ref: '#/components/responses/NotFound' }
   /admin/dashboard:
     get:
       operationId: getAdminDashboard
@@ -641,6 +673,70 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: hideAdminProduct
+      summary: Hide a product from sale without deleting history
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product hidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/products/{productId}/restore:
+    put:
+      operationId: restoreAdminProduct
+      summary: Restore a hidden product to sale
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/products/{productId}/permanent:
+    delete:
+      operationId: permanentlyDeleteAdminProduct
+      summary: Permanently delete a product only when no user data references it
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product permanently deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /admin/orders/{orderId}:
     get:
       operationId: getAdminOrderDetail
@@ -886,6 +982,18 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         '200': { description: Menu recipe cost report, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryMenuCostResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/reports/menu-performance:
+    get:
+      operationId: getMenuPerformanceReport
+      summary: Get delivered menu revenue, cost, and gross profit
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Menu performance report, content: { application/json: { schema: { $ref: '#/components/schemas/MenuPerformanceResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '500': { $ref: '#/components/responses/InternalServerError' }
   /admin/product-variants/{variantId}/recipe:
     parameters:
@@ -1265,9 +1373,9 @@ components:
     GoodsReceiptRequest:
       type: object
       additionalProperties: false
-      required: [supplierName, receivedAt, items]
+      required: [receivedAt, items]
       properties:
-        supplierName: { type: string, minLength: 1, maxLength: 150 }
+        supplierName: { type: [string, 'null'], maxLength: 150 }
         invoiceNumber: { type: [string, 'null'], maxLength: 100 }
         receivedAt: { type: string }
         items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/GoodsReceiptItemRequest' } }
@@ -1421,6 +1529,43 @@ components:
       properties:
         status: { type: string, const: success }
         data: { type: array, items: { $ref: '#/components/schemas/InventoryMenuCost' } }
+    MenuPerformanceItem:
+      type: object
+      additionalProperties: false
+      required: [variantId, productName, variantName, quantitySold, grossRevenue, allocatedDiscount, netRevenue, cost, costComplete, grossProfit, foodCostPercent, grossMarginPercent]
+      properties:
+        variantId: { type: [integer, 'null'], minimum: 1 }
+        productName: { type: string }
+        variantName: { type: [string, 'null'] }
+        quantitySold: { type: integer, minimum: 0 }
+        grossRevenue: { $ref: '#/components/schemas/Money' }
+        allocatedDiscount: { $ref: '#/components/schemas/Money' }
+        netRevenue: { $ref: '#/components/schemas/Money' }
+        cost: { $ref: '#/components/schemas/Money' }
+        costComplete: { type: boolean }
+        grossProfit: { $ref: '#/components/schemas/Money' }
+        foodCostPercent: { type: number, minimum: 0 }
+        grossMarginPercent: { type: number }
+    MenuPerformance:
+      type: object
+      additionalProperties: false
+      required: [grossRevenue, allocatedDiscount, netRevenue, cost, costComplete, missingCostItemCount, grossProfit, foodCostPercent, grossMarginPercent, items]
+      properties:
+        grossRevenue: { $ref: '#/components/schemas/Money' }
+        allocatedDiscount: { $ref: '#/components/schemas/Money' }
+        netRevenue: { $ref: '#/components/schemas/Money' }
+        cost: { $ref: '#/components/schemas/Money' }
+        costComplete: { type: boolean }
+        missingCostItemCount: { type: integer, minimum: 0 }
+        grossProfit: { $ref: '#/components/schemas/Money' }
+        foodCostPercent: { type: number, minimum: 0 }
+        grossMarginPercent: { type: number }
+        items: { type: array, items: { $ref: '#/components/schemas/MenuPerformanceItem' } }
+    MenuPerformanceResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/MenuPerformance' } }
     InventoryTransactionPage:
       type: object
       additionalProperties: false
@@ -1444,7 +1589,54 @@ components:
       required: [availabilityStatus]
       properties:
         availabilityStatus: { type: string, enum: [IN_STOCK, LOW_STOCK, OUT_OF_STOCK, UNTRACKED, SUSPENDED] }
-        remainingServings: { type: integer, minimum: 1, maximum: 3 }
+        remainingServings: { type: integer, minimum: 1 }
+    AddCartItemRequest:
+      type: object
+      additionalProperties: false
+      required: [productId, variantId, quantity, modifierOptionIds]
+      properties:
+        productId: { type: integer, minimum: 1 }
+        variantId: { type: integer, minimum: 1 }
+        quantity: { type: integer, minimum: 1, maximum: 20 }
+        modifierOptionIds: { type: array, uniqueItems: true, items: { type: integer, minimum: 1 } }
+    UpdateCartItemRequest:
+      type: object
+      additionalProperties: false
+      required: [cartItemId, quantity]
+      properties:
+        cartItemId: { type: integer, minimum: 1 }
+        quantity: { type: integer, minimum: 0, maximum: 20 }
+    CartItemData:
+      type: object
+      additionalProperties: false
+      required: [cartItemId, productId, variantId, productName, variantName, imageUrl, quantity, unitPrice, quantityAvailable, inventoryMode, remainingServings, variantStatus, productStatus, modifiers]
+      properties:
+        cartItemId: { type: integer, minimum: 1 }
+        productId: { type: integer, minimum: 1 }
+        variantId: { type: [integer, 'null'], minimum: 1 }
+        productName: { type: string }
+        variantName: { type: string }
+        imageUrl: { type: [string, 'null'] }
+        quantity: { type: integer, minimum: 1 }
+        unitPrice: { $ref: '#/components/schemas/Money' }
+        quantityAvailable: { type: [integer, 'null'], minimum: 0 }
+        inventoryMode: { type: [string, 'null'], enum: [INGREDIENT, FINISHED_GOOD, UNTRACKED, SUSPENDED, null] }
+        remainingServings: { type: [integer, 'null'], minimum: 0 }
+        variantStatus: { type: string }
+        productStatus: { type: string }
+        modifiers: { type: array, items: { type: object, additionalProperties: true } }
+    CartData:
+      type: object
+      additionalProperties: false
+      required: [cartId, items]
+      properties:
+        cartId: { type: integer, minimum: 1 }
+        items: { type: array, items: { $ref: '#/components/schemas/CartItemData' } }
+    CartResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/CartData' } }
     InventoryConflict:
       type: object
       additionalProperties: false
@@ -2054,7 +2246,6 @@ components:
         remainingServings:
           type: integer
           minimum: 1
-          maximum: 3
       oneOf:
         - $ref: '#/components/schemas/InStockAvailability'
         - $ref: '#/components/schemas/LowStockAvailability'
@@ -2072,9 +2263,10 @@ components:
     InStockAvailability:
       type: object
       additionalProperties: false
-      required: [availabilityStatus]
-      properties: { availabilityStatus: { const: IN_STOCK } }
-      not: { required: [remainingServings] }
+      required: [availabilityStatus, remainingServings]
+      properties:
+        availabilityStatus: { const: IN_STOCK }
+        remainingServings: { type: integer, minimum: 4 }
     LowStockAvailability:
       type: object
       additionalProperties: false

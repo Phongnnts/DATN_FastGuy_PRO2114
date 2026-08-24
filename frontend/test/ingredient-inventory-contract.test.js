@@ -39,7 +39,7 @@ test('OpenAPI freezes ingredient inventory paths, schemas, enums, and decimal qu
     assert.match(section, /expectedOnHandQuantity: \{ \$ref: '#\/components\/schemas\/InventoryItemQuantity' \}/);
   }
 
-  const availability = schemaSection(contract, 'InventoryAvailability', 'InventoryConflict');
+  const availability = schemaSection(contract, 'InventoryAvailability', 'AddCartItemRequest');
   assert.deepEqual([...availability.matchAll(/^        (\w+):/gm)].map((match) => match[1]), ['availabilityStatus', 'remainingServings']);
   assert.match(availability, /enum: \[IN_STOCK, LOW_STOCK, OUT_OF_STOCK, UNTRACKED, SUSPENDED\]/);
 });

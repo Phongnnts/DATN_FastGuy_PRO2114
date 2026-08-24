@@ -6,9 +6,12 @@ import { useAuthStore } from '@/stores/auth';
 import { useFavoriteStore } from '@/stores/favorite';
 import { canDirectAddProduct } from '@/utils/productCard';
 import { customerAvailability } from '@/utils/stockPolicy';
+import { useAlertStore } from '@/stores/alert';
+import { PRODUCT_QUANTITY_LIMIT_MESSAGE } from '@/utils/cartQuantityPolicy';
 
 const props = defineProps({ product: { type: Object, required: true }, listMode: { type: Boolean, default: false }, homepage: { type: Boolean, default: false } });
 const cart = useCartStore();
+const alert = useAlertStore();
 const auth = useAuthStore();
 const favoriteStore = useFavoriteStore();
 const router = useRouter();
@@ -48,7 +51,7 @@ async function addToCart() {
   if (!variantId || !canAdd() || pending.value) return;
   if (!availability.value.available) return notify('Món hiện tạm hết');
   pending.value = true;
-  try { await cart.addItem(props.product.productId, variantId); added.value = true; clearTimeout(addedTimer); addedTimer = setTimeout(() => { added.value = false; }, 900); notify('Đã thêm vào giỏ hàng'); } catch (error) { notify(error.message || 'Không thể thêm vào giỏ'); } finally { pending.value = false; }
+  try { await cart.addItem(props.product.productId, variantId); added.value = true; clearTimeout(addedTimer); addedTimer = setTimeout(() => { added.value = false; }, 900); notify('Đã thêm vào giỏ hàng'); } catch (error) { if(error.message===PRODUCT_QUANTITY_LIMIT_MESSAGE)alert.show(error.message);else notify(error.message || 'Không thể thêm vào giỏ'); } finally { pending.value = false; }
 }
 async function toggleFavorite() {
   if (favoritePending.value) return;

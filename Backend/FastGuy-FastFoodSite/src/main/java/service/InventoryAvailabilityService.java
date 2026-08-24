@@ -113,7 +113,7 @@ public class InventoryAvailabilityService {
         };
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("availabilityStatus", status);
-        if ("LOW_STOCK".equals(status)) result.put("remainingServings", servings);
+        if (servings > 0 && !Set.of("UNTRACKED", "SUSPENDED").contains(status)) result.put("remainingServings", servings);
         return result;
     }
 

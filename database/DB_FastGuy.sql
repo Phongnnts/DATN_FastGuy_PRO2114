@@ -410,10 +410,13 @@ CREATE TABLE dbo.OrderItem (
     quantity int NOT NULL,
     unit_price decimal(18,2) NOT NULL,
     total_price decimal(18,2) NOT NULL,
+    unit_cost_snapshot decimal(18,2) NULL,
+    total_cost_snapshot decimal(18,2) NULL,
     modifiers_json nvarchar(max) NOT NULL CONSTRAINT DF_OrderItem_Modifiers DEFAULT N'[]',
     CONSTRAINT CK_OrderItem_Quantity CHECK (quantity > 0),
     CONSTRAINT CK_OrderItem_Amounts CHECK (unit_price >= 0 AND total_price >= 0),
-    CONSTRAINT CK_OrderItem_Total CHECK (total_price = unit_price * quantity)
+    CONSTRAINT CK_OrderItem_Total CHECK (total_price = unit_price * quantity),
+    CONSTRAINT CK_OrderItem_CostSnapshot CHECK ((unit_cost_snapshot IS NULL AND total_cost_snapshot IS NULL) OR (unit_cost_snapshot >= 0 AND total_cost_snapshot >= 0))
 );
 
 -- Tạo bảng Review

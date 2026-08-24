@@ -88,7 +88,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .confirm-overlay{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.55)}
-.confirm-dialog{width:min(420px,100%);padding:24px;border-radius:18px;background:var(--surface);box-shadow:0 24px 70px rgba(15,23,42,.25)}
+.confirm-dialog{width:min(420px,100%);max-height:calc(100vh - 40px);overflow:auto;padding:24px;border-radius:18px;background:var(--surface);box-shadow:0 24px 70px rgba(15,23,42,.25)}
 .confirm-dialog h2{margin:0 0 8px}
 .confirm-dialog p{margin:0 0 18px;color:var(--text-mid);line-height:1.5}
 .dialog-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}

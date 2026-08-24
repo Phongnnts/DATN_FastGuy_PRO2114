@@ -24,6 +24,29 @@ class ProductDAOPolicyTest {
     }
 
     @Test
+    void restoringProductMakesItAvailable() {
+        Product product = new Product();
+        product.setStatus("UNAVAILABLE");
+
+        ProductDAO.markRestored(product);
+
+        assertEquals("AVAILABLE", product.getStatus());
+    }
+
+    @Test
+    void permanentDeleteGuardsUserDataAndCleansOwnedConfiguration() throws IOException {
+        String source = Files.readString(Path.of("src/main/java/dao/ProductDAO.java"));
+        for (String table : new String[]{"OrderItem", "Review", "CartItem", "FavoriteProduct", "CartItemModifier", "OrderItemModifier"}) {
+            assertTrue(source.contains(table), table);
+        }
+        for (String table : new String[]{"RecipeItem", "Recipe", "VariantInventoryItem", "ProductModifierOption", "ProductModifierGroup", "ProductVariant"}) {
+            assertTrue(source.contains("DELETE FROM " + table), table);
+        }
+        assertTrue(source.contains("class ProductInUseException"));
+        assertTrue(source.contains("LockModeType.PESSIMISTIC_WRITE"));
+    }
+
+    @Test
     void emptyAggregateMapsBothStockRiskCountsToZero() {
         assertArrayEquals(new long[]{0, 0}, ProductDAO.stockRiskCounts(new Object[]{null, null}));
     }

@@ -89,3 +89,16 @@ test('054 repairs authoritative inventory text and enforces UTF-8 sqlcmd input',
   const balanceAudit = read('database/migrations/056_verify_inventory_text_repair_balances.sql');
   for (const token of ['i.on_hand_quantity<>e.on_hand', 'i.minimum_quantity<>e.minimum_quantity', 'opening.row_count<>1', 'opening.quantity<>e.on_hand', 'opening.quantity_before<>0', 'opening.quantity_after<>e.on_hand']) assert.ok(balanceAudit.includes(token), token);
 });
+
+test('057 adds nullable immutable order item cost snapshots without backfill', () => {
+  const migration = read('database/migrations/057_order_item_cost_snapshot.sql');
+  const validator = read('database/migrations/057_validate.sql');
+  for (const token of ['unit_cost_snapshot decimal(18,2) NULL', 'total_cost_snapshot decimal(18,2) NULL', 'CK_OrderItem_CostSnapshot', '@order_item_count_before', '057_order_item_cost_snapshot']) assert.ok(migration.includes(token), token);
+  assert.doesNotMatch(migration, /UPDATE\s+dbo\.OrderItem/i);
+  for (const token of ["precision<>18", "scale<>2", "is_nullable<>1", "PRINT '057 validation passed'"]) assert.ok(validator.includes(token), token);
+  for (const path of ['database/init.sql', 'database/DB_FastGuy.sql']) {
+    const sql = read(path);
+    assert.ok(sql.includes('unit_cost_snapshot decimal(18,2) NULL'), path);
+    assert.ok(sql.includes('total_cost_snapshot decimal(18,2) NULL'), path);
+  }
+});

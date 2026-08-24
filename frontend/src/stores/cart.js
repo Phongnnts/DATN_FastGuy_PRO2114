@@ -4,6 +4,8 @@ import { cartApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import { useProductStore } from '@/stores/product';
 import { createCartMigrationController } from '@/utils/cartMigration';
+import { cartStockLimit } from '@/utils/cartStock';
+import { PRODUCT_QUANTITY_LIMIT_MESSAGE, validateProductQuantity } from '@/utils/cartQuantityPolicy';
 
 const GUEST_KEY = 'cart_guest';
 
@@ -65,6 +67,7 @@ export const useCartStore = defineStore('cart', () => {
   }
 
   async function addItem(productId, variantId, quantity = 1, modifiers = []) {
+    if (!validateProductQuantity(items.value, productId, quantity).allowed) throw new Error(PRODUCT_QUANTITY_LIMIT_MESSAGE);
     const modifierOptionIds = modifiers.map((m) => Number(m.modifierOptionId));
     const auth = useAuthStore();
     if (auth.isLoggedIn) {
@@ -83,7 +86,7 @@ export const useCartStore = defineStore('cart', () => {
     const key = itemKey(productId, variantId, modifiers.map((m) => m.modifierOptionId));
     const existing = items.value.find((i) => i.key === key);
     if (existing) {
-      const stock = managedStock(existing.quantityAvailable);
+      const stock = cartStockLimit(existing);
       if (stock !== null && existing.quantity + quantity > stock) throw new Error(`Chỉ còn ${stockLabel(stock)} phần`);
       existing.quantity += quantity;
     } else {
@@ -94,7 +97,7 @@ export const useCartStore = defineStore('cart', () => {
       const variant = (product.variants || []).find((v) => v.variantId === Number(variantId))
         || product.defaultVariant;
       if (!variant) return;
-      const stock = managedStock(variant.quantityAvailable);
+      const stock = cartStockLimit(variant);
       if (variant.status !== 'AVAILABLE' || (stock !== null && quantity > stock)) throw new Error(`Chỉ còn ${stockLabel(stock)} phần`);
       items.value.push({
         cartItemId: null,
@@ -108,6 +111,8 @@ export const useCartStore = defineStore('cart', () => {
           image: product.image,
           quantity,
           quantityAvailable: managedStock(variant.quantityAvailable),
+          inventoryMode: variant.inventoryMode || null,
+          remainingServings: variant.remainingServings == null ? null : Number(variant.remainingServings),
           variantStatus: variant.status || 'UNAVAILABLE',
           productStatus: product.inStock ? 'AVAILABLE' : 'UNAVAILABLE',
         });
@@ -119,11 +124,12 @@ export const useCartStore = defineStore('cart', () => {
     const key = itemKey(productId, variantId, modifierOptionIds);
     const item = items.value.find((i) => i.key === key);
     if (!item) return;
+    if (!validateProductQuantity(items.value, productId, quantity, key).allowed) throw new Error(PRODUCT_QUANTITY_LIMIT_MESSAGE);
     if (quantity <= 0) {
       await removeItem(productId, variantId, modifierOptionIds);
       return;
     }
-    const stock = managedStock(item.quantityAvailable);
+    const stock = cartStockLimit(item);
     if (stock !== null && quantity > stock) throw new Error(`Chỉ còn ${stock} phần`);
     const oldQuantity = item.quantity;
     item.quantity = quantity;
@@ -173,6 +179,8 @@ export const useCartStore = defineStore('cart', () => {
            image: ci.imageUrl || '',
           quantity: ci.quantity,
           quantityAvailable: managedStock(ci.quantityAvailable),
+          inventoryMode: ci.inventoryMode || null,
+          remainingServings: ci.remainingServings == null ? null : Number(ci.remainingServings),
           variantStatus: ci.variantStatus || 'UNAVAILABLE',
           productStatus: ci.productStatus || 'UNAVAILABLE',
         }));

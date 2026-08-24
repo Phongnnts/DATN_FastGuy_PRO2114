@@ -442,6 +442,12 @@ public class AdminProductServlet extends HttpServlet {
         if (!checkAdmin(req, resp)) return;
 
         String[] segs = splitPath(req.getPathInfo());
+        if (segs.length == 2 && "restore".equals(segs[1])) {
+            Integer id = parseId(segs[0]);
+            if (id == null || !productDAO.restore(id)) { ApiResponse.error(resp, "Product not found", 404); return; }
+            ApiResponse.ok(resp, null, "Product restored");
+            return;
+        }
         Map<String, Object> body;
         try { body = JsonUtil.fromJson(req.getReader(), Map.class); }
         catch (RuntimeException e) { ApiResponse.error(resp, "Invalid data", 400); return; }
@@ -560,6 +566,18 @@ public class AdminProductServlet extends HttpServlet {
         if (!checkAdmin(req, resp)) return;
 
         String[] segs = splitPath(req.getPathInfo());
+
+        if (segs.length == 2 && "permanent".equals(segs[1])) {
+            Integer id = parseId(segs[0]);
+            if (id == null) { resp.sendError(404); return; }
+            try {
+                if (!productDAO.permanentlyDelete(id)) { ApiResponse.error(resp, "Product not found", 404); return; }
+                ApiResponse.ok(resp, null, "Product permanently deleted");
+            } catch (ProductDAO.ProductInUseException e) {
+                ApiResponse.error(resp, e.getMessage(), 409);
+            }
+            return;
+        }
 
         if (segs.length == 2 && "modifier-groups".equals(segs[0])) {
             Integer groupId = parseId(segs[1]);

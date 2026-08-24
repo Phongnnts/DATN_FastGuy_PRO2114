@@ -51,8 +51,9 @@ const itemNameById = computed(() => new Map(items.value.map((item) => [item.inve
 const todayActions = computed(() => [
   kpis.value.belowMinimumCount ? { label: `${kpis.value.belowMinimumCount} mặt hàng cần nhập thêm`, route: 'AdminGoodsReceipts', action: 'Nhập hàng' } : null,
   unavailableVariants.value > 0 ? { label: `${unavailableVariants.value} kích cỡ đang không bán được`, route: 'AdminRecipes', action: 'Xem công thức' } : null,
-  { label: 'Đối chiếu lượng thực tế khi đến lịch kiểm', route: 'AdminStockCounts', action: 'Kiểm kê' },
 ].filter(Boolean));
+const inventoryValue = computed(() => items.value.reduce((total, item) => total + Number(item.onHandQuantity || 0) * Number(item.averageUnitCost || 0), 0));
+const money = (value) => `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
 
 const filteredItems = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase('vi');
@@ -232,7 +233,6 @@ onMounted(() => {
       <div class="header-actions">
         <button class="btn btn-primary" @click="openDialog('create')"><i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm mặt hàng</button>
         <button class="btn btn-outline" @click="router.push({ name: 'AdminGoodsReceipts' })"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i> Phiếu nhập</button>
-        <button class="btn btn-outline" @click="router.push({ name: 'AdminStockCounts' })"><i class="bi bi-clipboard-check" aria-hidden="true"></i> Kiểm kê</button>
         <button class="btn btn-outline" @click="router.push({ name: 'AdminInventoryLedger' })"><i class="bi bi-journal-text" aria-hidden="true"></i> Sổ tồn kho</button>
         <button class="btn btn-outline" :disabled="loading" @click="loadItems"><i class="bi bi-arrow-clockwise" :class="{ spin: loading }" aria-hidden="true"></i> Làm mới</button>
       </div>
@@ -247,12 +247,11 @@ onMounted(() => {
       </div>
     </section>
 
-    <nav class="workflow" aria-label="Quy trình vận hành kho">
+    <nav class="workflow" aria-label="Quy trình tồn kho và giá vốn">
       <router-link :to="{ name: 'AdminGoodsReceipts' }"><span>1</span><strong>Nhập hàng</strong><small>Ghi nhận hàng về</small></router-link>
       <router-link :to="{ name: 'AdminRecipes' }"><span>2</span><strong>Công thức</strong><small>Đặt lượng dùng</small></router-link>
       <span class="workflow-step"><span>3</span><strong>Bán món</strong><small>Kho tự trừ</small></span>
-      <router-link :to="{ name: 'AdminStockCounts' }"><span>4</span><strong>Kiểm kê</strong><small>Đếm thực tế</small></router-link>
-      <router-link :to="{ name: 'AdminInventoryReports' }"><span>5</span><strong>Báo cáo</strong><small>Xem kết quả</small></router-link>
+      <router-link :to="{ name: 'AdminInventoryReports' }"><span>4</span><strong>Lãi gộp</strong><small>Xem theo món</small></router-link>
     </nav>
 
     <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
@@ -261,7 +260,7 @@ onMounted(() => {
         <span class="stat-icon stat-yellow"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><strong class="stat-value">{{ kpis.belowMinimumCount }}</strong><span class="stat-label">Dưới mức tối thiểu</span>
       </button>
       <div class="stat-card stat-total"><span class="stat-icon stat-red"><i class="bi bi-slash-circle" aria-hidden="true"></i></span><strong class="stat-value">{{ unavailableVariants === null ? '—' : unavailableVariants }}</strong><span class="stat-label">Kích cỡ hết hàng</span></div>
-      <button class="stat-card stat-total" @click="router.push({ name: 'AdminInventoryLedger' })"><span class="stat-icon stat-green"><i class="bi bi-receipt" aria-hidden="true"></i></span><strong class="stat-value">{{ recentTransactions.length }}</strong><span class="stat-label">Giao dịch gần đây</span></button>
+      <div class="stat-card stat-total"><span class="stat-icon stat-green"><i class="bi bi-cash-coin" aria-hidden="true"></i></span><strong class="stat-value">{{ money(inventoryValue) }}</strong><span class="stat-label">Giá trị tồn hiện tại</span></div>
     </section>
 
     <section class="card card-flat" aria-label="Danh sách nguyên liệu">
@@ -282,13 +281,15 @@ onMounted(() => {
       <div v-else-if="filteredItems.length === 0" class="state-panel"><i class="bi bi-inbox" aria-hidden="true"></i><strong>Không tìm thấy mặt hàng</strong><span>Điều chỉnh từ khóa hoặc bộ lọc.</span></div>
       <div v-else class="table-wrapper">
         <table class="table">
-          <thead><tr><th scope="col">Mặt hàng</th><th scope="col">Khả dụng</th><th scope="col">Trạng thái</th><th scope="col">Việc tiếp theo</th></tr></thead>
+          <thead><tr><th scope="col">Mặt hàng</th><th scope="col">Tồn hiện tại</th><th scope="col">Tối thiểu</th><th scope="col">Giá vốn hiện tại</th><th scope="col">Trạng thái</th><th scope="col">Thao tác</th></tr></thead>
           <tbody>
             <tr v-for="item in filteredItems" :key="item.inventoryItemId">
-              <td data-label="Mặt hàng"><strong>{{ item.name }}</strong><div class="muted">{{ item.inventoryCode }} · {{ TYPE_LABELS[item.itemType] || item.itemType }}</div><details><summary>Xem chi tiết</summary><dl><div><dt>Hiện có</dt><dd>{{ formatQuantity(item.onHandQuantity) }}</dd></div><div><dt>Đã giữ</dt><dd>{{ formatQuantity(item.reservedQuantity) }}</dd></div><div><dt>Đơn vị</dt><dd>{{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</dd></div><div><dt>Tối thiểu</dt><dd>{{ formatQuantity(item.minimumQuantity) }}</dd></div><div><dt>Giá vốn</dt><dd>{{ Number(item.averageUnitCost).toLocaleString('vi-VN') }} ₫</dd></div><div><dt>Giá trị tồn</dt><dd>{{ Number(Number(item.onHandQuantity) * Number(item.averageUnitCost)).toLocaleString('vi-VN') }} ₫</dd></div><div><dt>Lịch kiểm</dt><dd>{{ FREQUENCY_LABELS[item.countFrequency] || item.countFrequency }}</dd></div><div><dt>Kiểm gần nhất</dt><dd>{{ item.lastCountedAt || '—' }}</dd></div></dl></details></td>
-              <td data-label="Khả dụng"><strong>{{ formatQuantity(item.availableQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</strong></td>
+              <td data-label="Mặt hàng"><strong>{{ item.name }}</strong><div class="muted">{{ item.inventoryCode }} · {{ TYPE_LABELS[item.itemType] || item.itemType }}</div><small class="muted">Khả dụng {{ formatQuantity(item.availableQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }} · Đã giữ {{ formatQuantity(item.reservedQuantity) }}</small></td>
+              <td data-label="Tồn hiện tại"><strong>{{ formatQuantity(item.onHandQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</strong></td>
+              <td data-label="Tối thiểu">{{ formatQuantity(item.minimumQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</td>
+              <td data-label="Giá vốn hiện tại"><strong>{{ Number(item.averageUnitCost) > 0 ? `${money(item.averageUnitCost)}/${UNIT_LABELS[item.baseUnit] || item.baseUnit}` : 'Chưa có dữ liệu' }}</strong></td>
               <td data-label="Trạng thái"><span class="badge" :class="STATE_CLASSES[itemStockState(item)]">{{ STATE_LABELS[itemStockState(item)] }}</span></td>
-              <td data-label="Việc tiếp theo">
+              <td data-label="Thao tác">
                 <div class="row-actions">
                   <button class="btn btn-sm btn-outline" :aria-label="`Tạo phiếu nhập cho ${item.name}`" @click="router.push({ name: 'AdminGoodsReceipts' })"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i> Nhập</button>
                   <button class="btn btn-sm btn-outline" :aria-label="`Điều chỉnh ${item.name}`" @click="openDialog('adjust', item, $event)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
@@ -370,7 +371,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.inventory-page { display: grid; gap: 24px; }
+.inventory-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 .today-panel{display:grid;gap:14px;padding:24px;border-radius:18px;background:#251d18;color:#fff}.today-panel h2{margin:2px 0 0;font-size:24px}.eyebrow{margin:0;color:#f2aa87;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.action-card{display:grid;gap:12px;align-content:space-between;min-height:118px;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.06)}.action-card .btn{justify-self:start;background:#fff}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.workflow>a,.workflow-step{display:grid;gap:3px;min-height:96px;padding:14px;border:1px solid var(--border-light);border-radius:12px;background:#fff;color:inherit;text-decoration:none}.workflow span>span,.workflow a>span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-weight:800}.workflow small{color:var(--text-mid)}
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .page-subtitle { margin: 4px 0 0; color: var(--text-mid); font-size: 14px; }
@@ -424,5 +425,5 @@ onMounted(() => {
 .inventory-page :is(button,a,summary,input,select):focus-visible{outline:3px solid var(--primary);outline-offset:2px}.inventory-page :is(.btn,input,select){min-height:40px}
 @media (max-width: 1024px) { .inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .toolbar { align-items: stretch; flex-direction: column; } .search-box { max-width: none; } }
 @media (max-width: 800px){.action-grid{grid-template-columns:1fr}.workflow{grid-template-columns:1fr 1fr}.workflow>a,.workflow-step{min-height:88px}}
-@media (max-width: 680px) { .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .workflow{grid-template-columns:1fr}.section-title{align-items:flex-start;flex-direction:column}.table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } dl{grid-template-columns:1fr} }
+@media (max-width: 680px) { .inventory-page,.inventory-stats,.inventory-stats .stat-card,.table { min-width: 0; } .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: 1fr; } .workflow{grid-template-columns:1fr}.section-title{align-items:flex-start;flex-direction:column}.table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } dl{grid-template-columns:1fr} }
 </style>

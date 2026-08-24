@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAdminStore } from '@/stores/admin';
 import { useToast } from '@/stores/toast';
@@ -7,13 +7,15 @@ import { formatPrice } from '@/utils/format';
 import { catalogCounts, filterProducts, paginateProducts, productTypes } from '@/utils/adminProductCatalog';
 import { productStockSummary } from '@/utils/stockPolicy';
 import { createStockPageLoader, productMatchesStockFilter } from '@/utils/adminStockOperations';
+import { createCapacityPageLoader, variantCapacityPresentation } from '@/utils/adminStockOperations';
+import { adminApi } from '@/api';
 
 const router = useRouter();
 const adminStore = useAdminStore();
 const toast = useToast();
 const searchTerm = ref('');
 const categoryFilter = ref('');
-const statusFilter = ref('');
+const statusFilter = ref('AVAILABLE');
 const productTypeFilter = ref('');
 const stockFilter = ref('');
 const sortBy = ref('name-asc');
@@ -34,7 +36,12 @@ const loader = createStockPageLoader({
   set dashboardError(value) { dashboardError.value = value; },
 });
 const productToHide = ref(null);
+const productToDelete = ref(null);
+const capacities = reactive({ values: {}, loading: false, error: '' });
+const capacityLoader = createCapacityPageLoader(capacities, id => adminApi.getVariantInventoryCapacity(id));
 const hiding = ref(false);
+const deleting = ref(false);
+const restoringId = ref(null);
 const hideDialog = ref(null);
 const hideCancelButton = ref(null);
 let previousFocus = null;
@@ -74,14 +81,30 @@ function cancelHide() {
   nextTick(() => previousFocus?.focus());
 }
 
+async function requestPermanentDelete(product, event) {
+  previousFocus = event.currentTarget;
+  previousBodyOverflow = document.body.style.overflow;
+  productToDelete.value = product;
+  document.body.style.overflow = 'hidden';
+  await nextTick();
+  hideCancelButton.value?.focus();
+}
+
+function cancelPermanentDelete() {
+  if (deleting.value) return;
+  productToDelete.value = null;
+  document.body.style.overflow = previousBodyOverflow;
+  nextTick(() => previousFocus?.focus());
+}
+
 function handleDialogKeydown(event) {
   if (event.key === 'Escape') {
     event.preventDefault();
-    cancelHide();
+    productToDelete.value ? cancelPermanentDelete() : cancelHide();
     return;
   }
   if (event.key !== 'Tab') return;
-  const focusable = [...hideDialog.value.querySelectorAll('button:not([disabled])')];
+  const focusable = [...event.currentTarget.querySelectorAll('button:not([disabled])')];
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
@@ -96,6 +119,7 @@ function handleDialogKeydown(event) {
 
 onBeforeUnmount(() => {
   loader.stop();
+  capacityLoader.stop();
   document.body.style.overflow = previousBodyOverflow;
 });
 
@@ -111,6 +135,35 @@ async function hideProduct() {
     toast.error(error.message || 'Không thể ẩn sản phẩm đang được sử dụng');
   } finally {
     hiding.value = false;
+  }
+}
+
+async function restoreProduct(product) {
+  if (restoringId.value !== null) return;
+  restoringId.value = product.id;
+  try {
+    await adminStore.restoreProduct(product.id);
+    toast.success('Đã khôi phục sản phẩm');
+  } catch (error) {
+    toast.error(error.message || 'Không thể khôi phục sản phẩm');
+  } finally {
+    restoringId.value = null;
+  }
+}
+
+async function permanentlyDeleteProduct() {
+  if (!productToDelete.value || deleting.value) return;
+  deleting.value = true;
+  try {
+    await adminStore.permanentlyDeleteProduct(productToDelete.value.id);
+    productToDelete.value = null;
+    document.body.style.overflow = previousBodyOverflow;
+    nextTick(() => previousFocus?.focus());
+    toast.success('Đã xóa vĩnh viễn sản phẩm');
+  } catch (error) {
+    toast.error(error.message || 'Không thể xóa vĩnh viễn sản phẩm');
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -163,22 +216,25 @@ const filtered = computed(() => {
 const pagination = computed(() => paginateProducts(filtered.value, page.value, pageSize));
 const pageCount = computed(() => pagination.value.pageCount);
 const paginated = computed(() => pagination.value.items);
+watch(paginated, products => capacityLoader.load(products), { immediate: true });
 watch([searchTerm, categoryFilter, productTypeFilter, statusFilter, stockFilter, sortBy], () => { page.value = 1; });
 watch(pagination, (value) => { if (page.value !== value.page) page.value = value.page; });
 
 function resetFilters() {
   searchTerm.value = '';
   categoryFilter.value = '';
-  statusFilter.value = '';
+  statusFilter.value = 'AVAILABLE';
   productTypeFilter.value = '';
   stockFilter.value = '';
   sortBy.value = 'name-asc';
 }
+function capacityFor(variant) { return capacities.values[variant.variantId]; }
+function capacityText(variant) { return variantCapacityPresentation(capacityFor(variant)); }
 </script>
 
 <template>
   <main class="products-page">
-    <div class="catalog-content" :inert="productToHide ? '' : undefined">
+    <div class="catalog-content" :inert="productToHide || productToDelete ? '' : undefined">
     <header class="products-hero">
       <div><span class="eyebrow">FASTGUY CATALOG</span><h1>Quản lý sản phẩm</h1><p>Kiểm soát thực đơn, giá bán, kích cỡ và tồn kho trong một không gian.</p></div>
       <button class="add-product" type="button" @click="openAdd"><i class="bi bi-plus-lg"></i> Thêm sản phẩm</button>
@@ -214,10 +270,10 @@ function resetFilters() {
               <td>{{ categoryName(product) }}</td>
               <td>{{ formatPrice(product.basePrice) }}</td>
               <td><span v-if="product.variants?.length" class="badge badge-info">{{ product.variants.length }} kích cỡ</span><span v-else class="text-muted">0</span></td>
-              <td><strong>{{ stockSummary(product).unknownSkus > 0 ? 'Không xác định' : stockOf(product) === null ? 'Không giới hạn' : stockOf(product) }}</strong></td>
+              <td><div v-if="product.variants?.length" class="variant-capacities"><div v-for="variant in product.variants" :key="variant.variantId"><strong>{{ variant.variantName || 'Mặc định' }}</strong><span class="capacity-label" :class="`capacity-${capacityText(variant).tone}`">{{ capacityText(variant).label }}</span><small v-if="capacityText(variant).detail">{{ capacityText(variant).detail }}</small></div></div><span v-else>Không có kích cỡ</span></td>
               <td><span :class="'badge badge-' + (stockSummary(product).status === 'AVAILABLE' ? 'success' : stockSummary(product).status === 'UNKNOWN' ? 'secondary' : 'danger')">{{ stockStatusLabel(product) }}</span></td>
               <td><span v-if="product.galleryImages?.length" class="badge badge-info">{{ product.galleryImages.length }} ảnh</span><span v-else class="text-muted">0</span></td>
-              <td><div class="row-actions"><button class="icon-action" type="button" aria-label="Sửa sản phẩm" @click="openEdit(product)"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" aria-label="Ẩn sản phẩm" @click="requestHide(product, $event)"><i class="bi bi-eye-slash"></i></button></div></td>
+              <td><div class="row-actions"><button class="icon-action" type="button" aria-label="Sửa sản phẩm" @click="openEdit(product)"><i class="bi bi-pencil"></i></button><button v-if="product.status === 'AVAILABLE'" class="icon-action danger" type="button" aria-label="Ẩn sản phẩm" @click="requestHide(product, $event)"><i class="bi bi-eye-slash"></i></button><template v-else><button class="icon-action" type="button" :disabled="restoringId === product.id" aria-label="Khôi phục sản phẩm" @click="restoreProduct(product)"><i class="bi bi-arrow-counterclockwise"></i></button><button class="icon-action danger" type="button" aria-label="Xóa vĩnh viễn sản phẩm" @click="requestPermanentDelete(product, $event)"><i class="bi bi-trash"></i></button></template></div></td>
             </tr>
           </tbody>
         </table>
@@ -225,8 +281,8 @@ function resetFilters() {
       <div v-if="!loading && !loadError && filtered.length" class="mobile-catalog">
         <article v-for="product in paginated" :key="product.id" class="product-mobile-card">
           <img class="product-thumb" :src="product.image" :alt="product.name" loading="lazy" />
-          <div class="mobile-product-main"><strong>{{ product.name }}</strong><small>#{{ product.id }} · {{ categoryName(product) }}</small><span>{{ formatPrice(product.basePrice) }} · {{ stockStatusLabel(product) }}</span></div>
-          <div class="row-actions"><button class="icon-action" type="button" :aria-label="`Sửa ${product.name}`" @click="openEdit(product)"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" :aria-label="`Ẩn ${product.name}`" @click="requestHide(product, $event)"><i class="bi bi-eye-slash"></i></button></div>
+          <div class="mobile-product-main"><strong>{{ product.name }}</strong><small>#{{ product.id }} · {{ categoryName(product) }}</small><span>{{ formatPrice(product.basePrice) }} · {{ stockStatusLabel(product) }}</span><div class="variant-capacities"><div v-for="variant in product.variants || []" :key="variant.variantId"><strong>{{ variant.variantName || 'Mặc định' }}</strong><span class="capacity-label" :class="`capacity-${capacityText(variant).tone}`">{{ capacityText(variant).label }}</span><small v-if="capacityText(variant).detail">{{ capacityText(variant).detail }}</small></div></div></div>
+          <div class="row-actions"><button class="icon-action" type="button" :aria-label="`Sửa ${product.name}`" @click="openEdit(product)"><i class="bi bi-pencil"></i></button><button v-if="product.status === 'AVAILABLE'" class="icon-action danger" type="button" :aria-label="`Ẩn ${product.name}`" @click="requestHide(product, $event)"><i class="bi bi-eye-slash"></i></button><template v-else><button class="icon-action" type="button" :disabled="restoringId === product.id" :aria-label="`Khôi phục ${product.name}`" @click="restoreProduct(product)"><i class="bi bi-arrow-counterclockwise"></i></button><button class="icon-action danger" type="button" :aria-label="`Xóa vĩnh viễn ${product.name}`" @click="requestPermanentDelete(product, $event)"><i class="bi bi-trash"></i></button></template></div>
         </article>
       </div>
       <div v-if="!loading && !loadError && filtered.length" class="pagination">
@@ -242,9 +298,17 @@ function resetFilters() {
         <div class="dialog-actions"><button ref="hideCancelButton" class="btn btn-outline" type="button" :disabled="hiding" @click="cancelHide">Hủy</button><button class="btn btn-danger" type="button" :disabled="hiding" autofocus @click="hideProduct">{{ hiding ? 'Đang ẩn...' : 'Ẩn sản phẩm' }}</button></div>
       </section>
     </div>
+    <div v-if="productToDelete" class="dialog-overlay" @click.self="cancelPermanentDelete">
+      <section class="hide-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-product-title" aria-describedby="delete-product-message" tabindex="-1" @keydown="handleDialogKeydown">
+        <h2 id="delete-product-title">Xóa vĩnh viễn sản phẩm</h2>
+        <p id="delete-product-message">Xóa vĩnh viễn “{{ productToDelete.name }}”? Thao tác chỉ thành công khi sản phẩm chưa có dữ liệu người dùng và không thể hoàn tác.</p>
+        <div class="dialog-actions"><button ref="hideCancelButton" class="btn btn-outline" type="button" :disabled="deleting" @click="cancelPermanentDelete">Hủy</button><button class="btn btn-danger" type="button" :disabled="deleting" @click="permanentlyDeleteProduct">{{ deleting ? 'Đang xóa...' : 'Xóa vĩnh viễn' }}</button></div>
+      </section>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.stat{display:flex;align-items:center;gap:14px;min-height:104px;padding:18px;border:1px solid rgba(23,23,23,.06);border-radius:18px;background:#fff;box-shadow:0 7px 25px rgba(42,28,20,.045)}.stat .stat-icon{display:grid;flex:0 0 42px;height:42px;place-items:center;border-radius:13px;color:var(--primary);background:var(--primary-50)}.stat>div{display:flex;flex-direction:column}.stat span:not(.stat-icon){color:var(--text-mid);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em}.stat strong{color:var(--text);font-size:27px}.stat-green .stat-icon{color:#15803d;background:#ecfdf3}.stat-amber .stat-icon{color:#b45309;background:#fff7e6}.stat-red .stat-icon{color:#dc2626;background:#fff1f1}.products-page{color:var(--text-dark)}.products-hero{position:relative;display:flex;align-items:end;justify-content:space-between;gap:30px;min-height:190px;margin-bottom:18px;padding:30px 34px;overflow:hidden;border-radius:26px;color:#fff;background:linear-gradient(125deg,#1b1714,#30231d 72%,#4a291d);box-shadow:0 20px 50px rgba(39,25,18,.13)}.products-hero>div,.add-product{position:relative;z-index:1}.eyebrow{color:var(--route-amber);font-size:10px;font-weight:800;letter-spacing:.17em}.products-hero h1{margin:9px 0 7px;font-size:clamp(29px,4vw,43px);line-height:1.05}.products-hero p{color:rgba(255,255,255,.53);font-size:12px}.add-product{display:flex;align-items:center;gap:8px;min-height:46px;padding:10px 18px;border:0;border-radius:999px;color:#1b1714;background:var(--route-amber);font-size:12px;font-weight:800}.catalog-card{overflow:hidden;border:1px solid rgba(23,23,23,.06);border-radius:22px;background:#fff;box-shadow:0 10px 35px rgba(42,28,20,.055)}.catalog-heading{display:flex;align-items:end;justify-content:space-between;padding:22px 24px 15px}.catalog-heading span{color:var(--primary);font-size:9px;font-weight:800;letter-spacing:.14em}.catalog-heading h2{margin:4px 0 0;font-size:20px}.catalog-heading p{color:var(--text-light);font-size:11px}.toolbar{display:grid;grid-template-columns:minmax(220px,2fr) repeat(5,minmax(120px,1fr)) auto;gap:10px;padding:0 24px 18px}.search-box{position:relative}.search-box i{position:absolute;top:50%;left:13px;transform:translateY(-50%);color:var(--text-light)}.search-box input{padding-left:36px}.state{display:flex;min-height:280px;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text-light);text-align:center}.state-error{color:var(--red-active)}.spinner{width:28px;height:28px;border:3px solid var(--border-light);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}.pagination{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;color:var(--text-mid);font-size:13px}.pagination div,.row-actions,.dialog-actions{display:flex;align-items:center;gap:10px}.product-name{display:flex;flex-direction:column}.product-thumb{width:48px;height:48px;border-radius:12px;object-fit:cover}.dialog-overlay{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.55)}.hide-dialog{width:min(420px,100%);padding:24px;border-radius:18px;background:var(--surface);box-shadow:0 24px 70px rgba(15,23,42,.25)}.hide-dialog h2{margin:0 0 10px}.hide-dialog p{margin:0 0 22px;color:var(--text-mid)}.dialog-actions{justify-content:flex-end}.mobile-catalog{display:none}.product-mobile-card{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:14px 16px;border-top:1px solid var(--border-light)}.mobile-product-main{display:flex;min-width:0;flex-direction:column;gap:3px}.mobile-product-main small,.mobile-product-main span{color:var(--text-mid);font-size:12px}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:1100px){.stats-grid{grid-template-columns:repeat(2,1fr)}.toolbar{grid-template-columns:repeat(2,1fr)}.search-box{grid-column:1/-1}}@media(max-width:700px){.desktop-catalog{display:none}.mobile-catalog{display:grid}.products-hero{align-items:flex-start;flex-direction:column;min-height:0;padding:25px}.add-product{width:100%;justify-content:center}.stats-grid,.toolbar{grid-template-columns:1fr}.search-box{grid-column:auto}.catalog-heading,.pagination{align-items:flex-start;flex-direction:column;gap:8px}}@media(max-width:430px){.stats-grid{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){.spinner{animation:none}}
+.variant-capacities{display:grid;gap:6px;min-width:190px}.variant-capacities>div{display:grid;gap:2px;padding:7px;border:1px solid var(--border-light);border-radius:8px;background:var(--surface)}.variant-capacities strong{font-size:12px}.variant-capacities small{color:var(--text-mid);font-size:10px}.capacity-label{font-size:11px;font-weight:700}.capacity-success{color:#047857}.capacity-warning{color:#b45309}.capacity-danger{color:#b91c1c}.capacity-secondary{color:var(--text-mid)}.mobile-product-main .variant-capacities{margin-top:7px}
 </style>

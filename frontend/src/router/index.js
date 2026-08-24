@@ -447,7 +447,7 @@ const routes = [
          path: 'inventory/reports',
          name: 'AdminInventoryReports',
          component: () => import('@/views/admin/InventoryReportsPage.vue'),
-         meta: { breadcrumb: [{ label: 'Tồn kho', to: '/admin/inventory' }, { label: 'Báo cáo giá trị' }] },
+          meta: { breadcrumb: [{ label: 'Tồn kho', to: '/admin/inventory' }, { label: 'Báo cáo theo món' }] },
        },
       {
         path: 'categories',

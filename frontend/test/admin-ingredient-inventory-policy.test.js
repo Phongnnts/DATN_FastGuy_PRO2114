@@ -107,7 +107,8 @@ test('sidebar groups simplified inventory destinations', () => {
   assert.match(layout, /Quản lý kho/);
   assert.match(layout, /label: 'Tổng quan', path: '\/admin\/inventory'/);
   assert.match(layout, /label: 'Công thức món', path: '\/admin\/recipes'/);
-  assert.match(layout, /label: 'Báo cáo & lịch sử', path: '\/admin\/inventory\/reports'/);
+  assert.match(layout, /label: 'Lịch sử kho', path: '\/admin\/inventory\/ledger'/);
+  assert.match(layout, /label: 'Báo cáo theo món', path: '\/admin\/inventory\/reports'/);
 });
 
 test('variant editor owns mode selection without embedded BOM editor', () => {

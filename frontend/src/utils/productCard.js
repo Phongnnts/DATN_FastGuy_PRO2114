@@ -7,8 +7,6 @@ export function canDirectAddProduct(product) {
     && product?.isAvailableNow !== false
     && Array.isArray(product?.variants)
     && product.variants.length === 1
-    && Array.isArray(product?.modifierGroups)
-    && product.modifierGroups.length === 0
     && variant?.variantId
     && variant.status === 'AVAILABLE'
     && variant.availabilityStatus !== 'OUT_OF_STOCK'

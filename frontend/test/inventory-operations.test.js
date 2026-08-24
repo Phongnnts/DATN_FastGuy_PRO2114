@@ -6,6 +6,13 @@ import {
   dateRangeForDays,
   goodsReceiptPreview,
   goodsReceiptTotal,
+  goodsReceiptUnitOptions,
+  hydrateGoodsReceiptLine,
+  receiptCostWarning,
+  receiptDateSummary,
+  receiptGroupsByDate,
+  filterGoodsReceipts,
+  resolveGoodsReceiptLine,
   recipeCost,
   recipeLinePresentation,
   stockCountProgress,
@@ -14,6 +21,55 @@ import {
   validateGoodsReceipt,
   validateStockCount,
 } from '../src/utils/inventoryOperations.js';
+
+test('receipt units derive standard and packaging conversions from the inventory base unit', () => {
+  assert.deepEqual(goodsReceiptUnitOptions('G').map(unit => unit.value), ['g', 'kg', 'bao', 'hộp', 'khay', 'thùng']);
+  assert.deepEqual(goodsReceiptUnitOptions('ML').map(unit => unit.value), ['ml', 'L', 'chai', 'hộp', 'thùng']);
+  assert.deepEqual(goodsReceiptUnitOptions('PIECE').map(unit => unit.value), ['cái', 'hộp', 'khay', 'thùng']);
+  assert.deepEqual(resolveGoodsReceiptLine({ purchaseUnit: 'kg' }, 'G'), { purchaseUnit: 'kg', conversionFactor: 1000 });
+  assert.deepEqual(resolveGoodsReceiptLine({ purchaseUnit: 'thùng', packageQuantity: '10', packageUnit: 'kg' }, 'G'), { purchaseUnit: 'thùng', conversionFactor: 10000 });
+});
+
+test('receipt payload hides conversion fields while preserving the existing API contract', () => {
+  const form = {
+    supplierName: '', invoiceNumber: '', receivedAt: '2026-08-25T08:30',
+    items: [{ inventoryItemId: '2', purchaseQuantity: '3', purchaseUnit: 'thùng', packageQuantity: '10', packageUnit: 'kg', purchaseUnitPrice: '1800000' }],
+  };
+  const items = { 2: { baseUnit: 'G' } };
+  assert.deepEqual(validateGoodsReceipt(form, items), {});
+  assert.deepEqual(buildGoodsReceiptPayload(form, items), {
+    supplierName: '', invoiceNumber: null, receivedAt: '2026-08-25T08:30',
+    items: [{ inventoryItemId: 2, purchaseQuantity: 3, purchaseUnit: 'thùng', conversionFactor: 10000, purchaseUnitPrice: 1800000 }],
+  });
+  assert.deepEqual(goodsReceiptPreview(form.items[0], items[2]), { baseQuantity: 30000, lineTotal: 5400000, baseUnitCost: 180 });
+});
+
+test('receipt cost warning compares converted cost with current average cost without blocking', () => {
+  const item = { baseUnit: 'G', averageUnitCost: 180 };
+  assert.equal(receiptCostWarning({ purchaseUnit: 'kg', purchaseUnitPrice: '200000' }, item), '');
+  assert.match(receiptCostWarning({ purchaseUnit: 'g', purchaseUnitPrice: '200000' }, item), /cao bất thường/);
+  assert.equal(receiptCostWarning({ purchaseUnit: 'g', purchaseUnitPrice: '200000' }, { ...item, averageUnitCost: 0 }), '');
+});
+
+test('legacy draft receipt units remain editable without changing persisted conversion', () => {
+  assert.deepEqual(hydrateGoodsReceiptLine({ inventoryItemId: 2, purchaseQuantity: 3, purchaseUnit: 'crate', conversionFactor: 12, purchaseUnitPrice: 240000 }, { baseUnit: 'PIECE' }), {
+    inventoryItemId: '2', purchaseQuantity: '3', purchaseUnit: 'crate', packageQuantity: '12', packageUnit: 'cái', purchaseUnitPrice: '240000', legacyUnit: true,
+  });
+});
+
+test('receipt date filtering and summary use receivedAt and approved value only', () => {
+  const receipts = [
+    { goodsReceiptId: 1, receivedAt: '2026-08-25T08:00:00', status: 'APPROVED', items: [{ inventoryItemId: 7, lineTotal: 600000 }, { inventoryItemId: 8, lineTotal: 200000 }] },
+    { goodsReceiptId: 2, receivedAt: '2026-08-25T15:00:00', status: 'DRAFT', items: [{ inventoryItemId: 7, lineTotal: 900000 }] },
+    { goodsReceiptId: 3, receivedAt: '2026-08-24T09:00:00', status: 'APPROVED', items: [{ inventoryItemId: 7, lineTotal: 100000 }] },
+  ];
+  const filtered = filterGoodsReceipts(receipts, { fromDate: '2026-08-25', toDate: '2026-08-25', status: 'ALL' });
+  assert.deepEqual(filtered.map(receipt => receipt.goodsReceiptId), [1, 2]);
+  assert.deepEqual(receiptDateSummary(filtered), { receiptCount: 2, approvedCount: 1, ingredientCount: 2, approvedValue: 800000 });
+  assert.deepEqual(receiptGroupsByDate(receipts).map(group => ({ date: group.date, ids: group.receipts.map(receipt => receipt.goodsReceiptId) })), [
+    { date: '2026-08-25', ids: [2, 1] }, { date: '2026-08-24', ids: [3] },
+  ]);
+});
 
 test('goods receipt helpers validate lines and build the contracted payload', () => {
   const form = {

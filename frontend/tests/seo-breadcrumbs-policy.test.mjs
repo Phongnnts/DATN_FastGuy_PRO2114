@@ -66,7 +66,7 @@ test('breadcrumb meta covers account, admin detail, and staff operations pages',
   assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' \},\s*{ label: 'Sổ tồn kho' }/);
   assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' }, { label: 'Phiếu nhập' }/);
   assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' }, { label: 'Kiểm kê' }/);
-  assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' }, { label: 'Báo cáo giá trị' }/);
+  assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' }, { label: 'Báo cáo theo món' }/);
 });
 
 test('AppBreadcrumbs renders meta.breadcrumb with aria contract and no title fallback', () => {

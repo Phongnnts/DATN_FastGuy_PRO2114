@@ -49,6 +49,12 @@ public class OrderItem {
     @Column(name = "total_price")
     private BigDecimal totalPrice;
 
+    @Column(name = "unit_cost_snapshot", precision = 18, scale = 2)
+    private BigDecimal unitCostSnapshot;
+
+    @Column(name = "total_cost_snapshot", precision = 18, scale = 2)
+    private BigDecimal totalCostSnapshot;
+
     @Column(name = "modifiers_json")
     private String modifiersJson;
 
@@ -72,6 +78,10 @@ public class OrderItem {
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
     public BigDecimal getTotalPrice() { return totalPrice; }
     public void setTotalPrice(BigDecimal totalPrice) { this.totalPrice = totalPrice; }
+    public BigDecimal getUnitCostSnapshot() { return unitCostSnapshot; }
+    public void setUnitCostSnapshot(BigDecimal value) { unitCostSnapshot = value; }
+    public BigDecimal getTotalCostSnapshot() { return totalCostSnapshot; }
+    public void setTotalCostSnapshot(BigDecimal value) { totalCostSnapshot = value; }
 
     public List<ModifierItem> getModifiers() {
         if (modifiersJson == null || modifiersJson.isEmpty()) return new ArrayList<>();

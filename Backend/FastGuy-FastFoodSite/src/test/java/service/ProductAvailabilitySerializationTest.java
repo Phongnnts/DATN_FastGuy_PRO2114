@@ -27,7 +27,7 @@ class ProductAvailabilitySerializationTest {
         assertEquals(Map.of("availabilityStatus", "OUT_OF_STOCK"), results.get(1));
         assertEquals(Map.of("availabilityStatus", "LOW_STOCK", "remainingServings", 1), results.get(2));
         assertEquals(Map.of("availabilityStatus", "LOW_STOCK", "remainingServings", 3), results.get(3));
-        assertEquals(Map.of("availabilityStatus", "IN_STOCK"), results.get(4));
+        assertEquals(Map.of("availabilityStatus", "IN_STOCK", "remainingServings", 4), results.get(4));
         assertEquals(Map.of("availabilityStatus", "UNTRACKED"), results.get(5));
         assertEquals(Map.of("availabilityStatus", "SUSPENDED"), results.get(6));
         results.values().forEach(this::assertPrivateFieldsAbsent);

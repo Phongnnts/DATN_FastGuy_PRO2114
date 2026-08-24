@@ -8,6 +8,21 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class InventoryCostingWorkflowTest {
+    @Test void goodsReceiptsAcceptOnlyActiveIngredients() {
+        entity.InventoryItem ingredient=new entity.InventoryItem();ingredient.setItemType("INGREDIENT");ingredient.setActive(true);
+        assertDoesNotThrow(()->GoodsReceiptService.requireReceivableItem(ingredient));
+        entity.InventoryItem finished=new entity.InventoryItem();finished.setItemType("FINISHED_GOOD");finished.setActive(true);
+        assertThrows(IllegalArgumentException.class,()->GoodsReceiptService.requireReceivableItem(finished));
+        ingredient.setActive(false);
+        assertThrows(IllegalArgumentException.class,()->GoodsReceiptService.requireReceivableItem(ingredient));
+    }
+
+    @Test void receiptNormalizesOptionalSupplierWithoutPersistingNull() {
+        assertEquals("Không khai báo", GoodsReceiptService.supplier(null));
+        assertEquals("Không khai báo", GoodsReceiptService.supplier("  "));
+        assertEquals("Fresh Food", GoodsReceiptService.supplier(" Fresh Food "));
+    }
+
     @Test void receiptCalculatesBaseQuantityLineTotalAndWeightedCostAtScaleFour() {
         assertEquals(new BigDecimal("5000.0000"), GoodsReceiptService.baseQuantity(new BigDecimal("5"), new BigDecimal("1000")));
         assertEquals(new BigDecimal("750.0000"), GoodsReceiptService.lineTotal(new BigDecimal("5"), new BigDecimal("150")));

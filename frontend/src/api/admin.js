@@ -31,6 +31,12 @@ export default {
   deleteProduct(id) {
     return client.delete(`/admin/products/${id}`);
   },
+  restoreProduct(id) {
+    return client.put(`/admin/products/${id}/restore`, {});
+  },
+  permanentlyDeleteProduct(id) {
+    return client.delete(`/admin/products/${id}/permanent`);
+  },
   getCategories() {
     return client.get('/admin/categories');
   },
@@ -186,6 +192,9 @@ export default {
   },
   getInventoryMenuCost() {
     return client.get('/admin/inventory/reports/menu-cost');
+  },
+  getMenuPerformanceReport(params) {
+    return client.get('/admin/inventory/reports/menu-performance', { params });
   },
   getVariantRecipe(variantId) {
     return client.get(`/admin/product-variants/${variantId}/recipe`);

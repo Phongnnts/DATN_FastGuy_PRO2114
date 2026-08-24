@@ -57,7 +57,13 @@ export function customerAvailability(variant) {
     };
   }
   if (status === 'OUT_OF_STOCK' || status === 'SUSPENDED') return { status, remainingServings: null, label: 'Tạm hết', available: false };
-  if (status === 'IN_STOCK' || status === 'UNTRACKED') return { status, remainingServings: null, label: 'Còn hàng', available: true };
+  if (status === 'IN_STOCK') {
+    const servings = Number(variant?.remainingServings);
+    return Number.isInteger(servings) && servings > 0
+      ? { status, remainingServings: servings, label: `Còn ${servings} phần`, available: true }
+      : { status, remainingServings: null, label: 'Còn hàng', available: true };
+  }
+  if (status === 'UNTRACKED') return { status, remainingServings: null, label: 'Còn hàng', available: true };
   const quantity = variant?.quantityAvailable;
   const managed = quantity !== null && quantity !== undefined;
   const available = variant?.status !== 'UNAVAILABLE' && !(managed && Number(quantity) <= 0);

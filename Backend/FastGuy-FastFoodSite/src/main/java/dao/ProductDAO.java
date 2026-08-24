@@ -3,6 +3,7 @@ package dao;
 import entity.Product;
 import entity.ProductVariant;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
 import utils.DatabaseUtil;
 
@@ -327,6 +328,68 @@ public class ProductDAO {
 
     static void markDeleted(Product product) {
         product.setStatus("UNAVAILABLE");
+    }
+
+    public boolean restore(int id) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Product product = em.find(Product.class, id, LockModeType.PESSIMISTIC_WRITE);
+            if (product == null) { em.getTransaction().rollback(); return false; }
+            markRestored(product);
+            em.getTransaction().commit();
+            return true;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
+    static void markRestored(Product product) {
+        product.setStatus("AVAILABLE");
+    }
+
+    public boolean permanentlyDelete(int id) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Product product = em.find(Product.class, id, LockModeType.PESSIMISTIC_WRITE);
+            if (product == null) { em.getTransaction().rollback(); return false; }
+            if (hasUserData(em, id)) throw new ProductInUseException();
+
+            em.createNativeQuery("DELETE FROM RecipeItem WHERE recipe_id IN (SELECT r.recipe_id FROM Recipe r JOIN ProductVariant v ON v.variant_id=r.variant_id WHERE v.product_id=:id)").setParameter("id", id).executeUpdate();
+            em.createNativeQuery("DELETE FROM Recipe WHERE variant_id IN (SELECT variant_id FROM ProductVariant WHERE product_id=:id)").setParameter("id", id).executeUpdate();
+            em.createNativeQuery("DELETE FROM VariantInventoryItem WHERE variant_id IN (SELECT variant_id FROM ProductVariant WHERE product_id=:id)").setParameter("id", id).executeUpdate();
+            em.createNativeQuery("DELETE FROM ProductModifierOption WHERE modifier_group_id IN (SELECT modifier_group_id FROM ProductModifierGroup WHERE product_id=:id)").setParameter("id", id).executeUpdate();
+            em.createNativeQuery("DELETE FROM ProductModifierGroup WHERE product_id=:id").setParameter("id", id).executeUpdate();
+            em.createNativeQuery("DELETE FROM ProductVariant WHERE product_id=:id").setParameter("id", id).executeUpdate();
+            em.remove(product);
+            em.getTransaction().commit();
+            return true;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
+    private static boolean hasUserData(EntityManager em, int id) {
+        String sql = "SELECT CASE WHEN "
+                + "EXISTS(SELECT 1 FROM OrderItem WHERE product_id=:id) OR "
+                + "EXISTS(SELECT 1 FROM Review WHERE product_id=:id) OR "
+                + "EXISTS(SELECT 1 FROM CartItem WHERE product_id=:id) OR "
+                + "EXISTS(SELECT 1 FROM FavoriteProduct WHERE product_id=:id) OR "
+                + "EXISTS(SELECT 1 FROM CartItemModifier cm JOIN ProductModifierOption o ON o.modifier_option_id=cm.modifier_option_id JOIN ProductModifierGroup g ON g.modifier_group_id=o.modifier_group_id WHERE g.product_id=:id) OR "
+                + "EXISTS(SELECT 1 FROM OrderItemModifier om JOIN ProductModifierOption o ON o.modifier_option_id=om.modifier_option_id JOIN ProductModifierGroup g ON g.modifier_group_id=o.modifier_group_id WHERE g.product_id=:id) "
+                + "THEN 1 ELSE 0 END";
+        return ((Number) em.createNativeQuery(sql).setParameter("id", id).getSingleResult()).intValue() == 1;
+    }
+
+    public static final class ProductInUseException extends RuntimeException {
+        public ProductInUseException() { super("Sản phẩm đã có dữ liệu người dùng và không thể xóa vĩnh viễn"); }
     }
 
     public void saveVariant(ProductVariant variant) {

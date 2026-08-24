@@ -131,6 +131,16 @@ export const useAdminStore = defineStore('admin', () => {
     await fetchProducts();
   }
 
+  async function restoreProduct(id) {
+    await adminApi.restoreProduct(id);
+    await fetchProducts();
+  }
+
+  async function permanentlyDeleteProduct(id) {
+    await adminApi.permanentlyDeleteProduct(id);
+    await fetchProducts();
+  }
+
   async function fetchVariants(productId) {
     const data = await adminApi.getVariants(productId);
     return Array.isArray(data) ? data : [];
@@ -220,6 +230,8 @@ export const useAdminStore = defineStore('admin', () => {
     createProduct,
     updateProduct,
     deleteProduct,
+    restoreProduct,
+    permanentlyDeleteProduct,
     fetchVariants,
     createVariant,
     updateVariant,

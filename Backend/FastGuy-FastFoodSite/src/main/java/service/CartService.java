@@ -25,6 +25,11 @@ public class CartService {
     private CartDAO cartDAO = new CartDAO();
     private ProductDAO productDAO = new ProductDAO();
     private ProductModifierDAO modifierDAO = new ProductModifierDAO();
+    private InventoryAvailabilityService inventoryAvailabilityService = new InventoryAvailabilityService();
+
+    static Integer availabilityLimit(InventoryAvailabilityService.AvailabilityResult availability) {
+        return "UNTRACKED".equals(availability.mode()) ? null : availability.servings() == null ? 0 : availability.servings();
+    }
 
     private Cart getOrCreateCart(User user) {
         Cart cart = cartDAO.findByUserId(user.getUserId());
@@ -44,6 +49,8 @@ public class CartService {
     public Map<String, Object> getCart(User user) {
         Cart cart = getOrCreateCart(user);
         List<CartItem> items = cartDAO.getItems(cart.getCartId());
+        List<Integer> variantIds = items.stream().map(CartItem::getVariant).filter(java.util.Objects::nonNull).map(ProductVariant::getVariantId).distinct().toList();
+        Map<Integer, Map<String,Object>> availability = inventoryAvailabilityService.publicAvailability(variantIds);
 
         List<Map<String, Object>> itemList = items.stream().map(ci -> {
             Map<String, Object> m = new HashMap<>();
@@ -56,6 +63,8 @@ public class CartService {
             m.put("quantity", ci.getQuantity());
             m.put("unitPrice", ci.getUnitPrice());
             m.put("quantityAvailable", ci.getVariant() != null ? ci.getVariant().getQuantityAvailable() : null);
+            m.put("inventoryMode", ci.getVariant() != null ? ci.getVariant().getInventoryMode() : null);
+            m.put("remainingServings", ci.getVariant() != null ? availability.getOrDefault(ci.getVariant().getVariantId(), Map.of()).get("remainingServings") : null);
             m.put("variantStatus", ci.getVariant() != null ? ci.getVariant().getStatus() : "UNAVAILABLE");
             m.put("productStatus", ci.getProduct().getStatus());
             List<Map<String, Object>> modifiers = new ArrayList<>();
@@ -76,6 +85,14 @@ public class CartService {
 
     public boolean addItem(User user, int productId, int variantId, int quantity, List<Integer> modifierOptionIds) {
         if (quantity <= 0) return false;
+        List<Integer> optionIds = modifierOptionIds != null ? modifierOptionIds.stream().distinct().collect(Collectors.toList()) : List.of();
+        String modifierKey = optionIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
+        Cart cart = getCartByUser(user);
+        List<CartItem> items = cart == null ? List.of() : cartDAO.getItems(cart.getCartId());
+        int productQuantity = items.stream().filter(ci -> ci.getProduct().getProductId() == productId).mapToInt(CartItem::getQuantity).sum() + quantity;
+        if (!OrderQuantityPolicy.allows(productQuantity)) throw new IllegalArgumentException(OrderQuantityPolicy.MESSAGE);
+        CartItem existing = items.stream().filter(ci -> ci.getProduct().getProductId() == productId && ci.getVariant() != null && ci.getVariant().getVariantId() == variantId && modifierKey.equals(getModifierKey(ci))).findFirst().orElse(null);
+        int newQty = existing == null ? quantity : existing.getQuantity() + quantity;
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -86,7 +103,6 @@ public class CartService {
             }
             if (!"AVAILABLE".equals(variant.getStatus())) { em.getTransaction().rollback(); return false; }
 
-            List<Integer> optionIds = modifierOptionIds != null ? modifierOptionIds.stream().distinct().collect(Collectors.toList()) : List.of();
             BigDecimal modifierPrice = BigDecimal.ZERO;
             Map<Integer, Integer> selectedByGroup = new HashMap<>();
             for (Integer optionId : optionIds) {
@@ -98,34 +114,23 @@ public class CartService {
                 selectedByGroup.merge(option.getGroup().getModifierGroupId(), 1, Integer::sum);
                 modifierPrice = modifierPrice.add(option.getPrice() != null ? option.getPrice() : BigDecimal.ZERO);
             }
-            for (var group : modifierDAO.groups(productId)) {
-                if (Boolean.TRUE.equals(group.getIsActive())) {
-                    int selected = selectedByGroup.getOrDefault(group.getModifierGroupId(), 0);
-                    if (selected < group.getMinSelections() || selected > group.getMaxSelections()) {
-                        em.getTransaction().rollback();
-                        return false;
+            if (!optionIds.isEmpty()) {
+                for (var group : modifierDAO.groups(productId)) {
+                    if (Boolean.TRUE.equals(group.getIsActive())) {
+                        int selected = selectedByGroup.getOrDefault(group.getModifierGroupId(), 0);
+                        if (selected < group.getMinSelections() || selected > group.getMaxSelections()) {
+                            em.getTransaction().rollback();
+                            return false;
+                        }
                     }
                 }
             }
 
+            Integer stock = availabilityLimit(inventoryAvailabilityService.availability(em, variantId));
+            if (stock != null && stock < newQty) { em.getTransaction().rollback(); return false; }
             em.getTransaction().commit();
 
-            String modifierKey = optionIds.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
-            Cart cart = getOrCreateCart(user);
-            List<CartItem> items = cartDAO.getItems(cart.getCartId());
-            CartItem existing = items.stream()
-                    .filter(ci -> ci.getProduct().getProductId() == productId
-                            && (ci.getVariant() != null && ci.getVariant().getVariantId() == variantId)
-                            && modifierKey.equals(getModifierKey(ci)))
-                    .findFirst().orElse(null);
-
-            int newQty = quantity;
-            if (existing != null) {
-                newQty = existing.getQuantity() + quantity;
-            }
-
-            Integer stock = variant.getQuantityAvailable();
-            if (stock != null && stock < newQty) return false;
+            if (cart == null) cart = getOrCreateCart(user);
 
             if (existing != null) {
                 existing.setQuantity(newQty);
@@ -174,6 +179,8 @@ public class CartService {
                 .filter(ci -> ci.getCartItemId() == cartItemId)
                 .findFirst().orElse(null);
         if (item == null) return false;
+        int productQuantity = items.stream().filter(ci -> ci.getProduct().getProductId() == item.getProduct().getProductId() && ci.getCartItemId() != cartItemId).mapToInt(CartItem::getQuantity).sum() + Math.max(0, quantity);
+        if (!OrderQuantityPolicy.allows(productQuantity)) throw new IllegalArgumentException(OrderQuantityPolicy.MESSAGE);
 
         if (quantity <= 0) {
             cartDAO.removeItem(cartItemId);
@@ -185,7 +192,7 @@ public class CartService {
             try {
                 em.getTransaction().begin();
                 ProductVariant locked = em.find(ProductVariant.class, item.getVariant().getVariantId(), LockModeType.PESSIMISTIC_WRITE);
-                Integer stock = locked != null ? locked.getQuantityAvailable() : null;
+                Integer stock = locked == null ? 0 : availabilityLimit(inventoryAvailabilityService.availability(em, locked.getVariantId()));
                 if (stock != null && stock < quantity) { em.getTransaction().rollback(); return false; }
                 em.getTransaction().commit();
             } catch (RuntimeException e) {

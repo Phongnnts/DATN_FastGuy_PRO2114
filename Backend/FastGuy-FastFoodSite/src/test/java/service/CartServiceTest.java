@@ -2,10 +2,14 @@ package service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +22,24 @@ import entity.ProductModifierOption;
 import entity.ProductVariant;
 
 class CartServiceTest {
+    @Test
+    void emptyModifierSelectionSkipsDormantGroupRequirements() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/service/CartService.java"));
+        assertTrue(source.contains("if (!optionIds.isEmpty())"));
+    }
+    @Test
+    void productQuantityLimitAllowsTwentyAndRejectsTwentyOneAcrossVariants() {
+        assertTrue(OrderQuantityPolicy.allows(20));
+        org.junit.jupiter.api.Assertions.assertFalse(OrderQuantityPolicy.allows(21));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,()->OrderQuantityPolicy.require(Map.of(7,21)));
+    }
+    @Test
+    void cartLimitUsesRecipeCapacityInsteadOfLegacyVariantQuantity() {
+        assertEquals(500, CartService.availabilityLimit(new InventoryAvailabilityService.AvailabilityResult("INGREDIENT", "AVAILABLE", 500, 7)));
+        assertEquals(8, CartService.availabilityLimit(new InventoryAvailabilityService.AvailabilityResult("FINISHED_GOOD", "AVAILABLE", 8, 9)));
+        assertNull(CartService.availabilityLimit(new InventoryAvailabilityService.AvailabilityResult("UNTRACKED", "AVAILABLE", null, null)));
+        assertEquals(0, CartService.availabilityLimit(new InventoryAvailabilityService.AvailabilityResult("SUSPENDED", "SUSPENDED", 0, null)));
+    }
 
     @Test
     @DisplayName("CartItem modifier key is empty when no modifiers")

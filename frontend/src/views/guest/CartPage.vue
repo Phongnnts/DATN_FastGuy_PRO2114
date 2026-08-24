@@ -7,13 +7,17 @@ import CartItem from '@/components/common/CartItem.vue';
 import { useToast } from '@/stores/toast';
 import { useAuthStore } from '@/stores/auth';
 import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
+import { useAlertStore } from '@/stores/alert';
+import { PRODUCT_QUANTITY_LIMIT_MESSAGE, productQuantityInCart } from '@/utils/cartQuantityPolicy';
+import { cartStockLimit } from '@/utils/cartStock';
 
 const toast = useToast();
+const alert = useAlertStore();
 const router = useRouter();
 const cart = useCartStore();
 const auth = useAuthStore();
 const pendingKeys = ref(new Set());
-const hasInvalidItems = computed(() => cart.items.some((item) => (item.variantStatus && item.variantStatus !== 'AVAILABLE') || (item.quantityAvailable != null && (Number(item.quantityAvailable) <= 0 || item.quantity > Number(item.quantityAvailable)))));
+const hasInvalidItems = computed(() => cart.items.some((item) => (item.variantStatus && item.variantStatus !== 'AVAILABLE') || (cartStockLimit(item) != null && (cartStockLimit(item) <= 0 || item.quantity > cartStockLimit(item))) || productQuantityInCart(cart.items,item.productId)>20));
 
 function pendingKey(productId, variantId, modifierOptionIds) {
   return `${productId}_${variantId}_${[...modifierOptionIds].sort((a, b) => a - b).join(',')}`;
@@ -23,7 +27,7 @@ async function runItemAction(productId, variantId, modifierOptionIds, action, me
   if (pendingKeys.value.has(key)) return;
   pendingKeys.value = new Set(pendingKeys.value).add(key);
   try { await action(); }
-  catch (error) { toast.error(error.message || message); }
+  catch (error) { if(error.message===PRODUCT_QUANTITY_LIMIT_MESSAGE)alert.show(error.message);else toast.error(error.message || message); }
   finally {
     const next = new Set(pendingKeys.value);
     next.delete(key);

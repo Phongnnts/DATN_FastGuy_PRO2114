@@ -15,24 +15,26 @@ const [layout, inventory, receipts, recipes, counts, variants] = await Promise.a
 
 test('inventory navigation is grouped under one plain-language warehouse section', () => {
   assert.match(layout, /Quản lý kho/);
-  for (const label of ['Tổng quan', 'Nhập hàng', 'Công thức món', 'Kiểm kê', 'Báo cáo & lịch sử']) assert.ok(layout.includes(label), label);
-  for (const path of ['/admin/inventory', '/admin/inventory/receipts', '/admin/recipes', '/admin/inventory/stock-counts', '/admin/inventory/reports', '/admin/inventory/ledger']) assert.ok(layout.includes(path), path);
-  assert.match(layout, /Báo cáo & lịch sử[\s\S]*Lịch sử kho/);
+  for (const label of ['Tổng quan', 'Nhập hàng', 'Công thức món', 'Lịch sử kho', 'Báo cáo theo món']) assert.ok(layout.includes(label), label);
+  for (const path of ['/admin/inventory', '/admin/inventory/receipts', '/admin/recipes', '/admin/inventory/reports', '/admin/inventory/ledger']) assert.ok(layout.includes(path), path);
+  assert.doesNotMatch(layout, /label: 'Kiểm kê'/);
 });
 
 test('inventory overview guides work then keeps operational detail expandable', () => {
-  for (const label of ['Hôm nay cần làm gì?', 'Nhập hàng', 'Công thức', 'Bán món', 'Kiểm kê', 'Báo cáo', 'Việc tiếp theo']) assert.ok(inventory.includes(label), label);
-  assert.match(inventory, /<details/);
-  for (const detail of ['Hiện có', 'Đã giữ', 'Giá vốn', 'Giá trị tồn', 'Lịch kiểm', 'Kiểm gần nhất']) assert.ok(inventory.includes(detail), detail);
+  for (const label of ['Hôm nay cần làm gì?', 'Nhập hàng', 'Công thức', 'Bán món', 'Lãi gộp', 'Giá trị tồn hiện tại', 'Giá vốn hiện tại']) assert.ok(inventory.includes(label), label);
+  assert.doesNotMatch(inventory, /AdminStockCounts/);
 });
 
 test('goods receipts use three stages, truthful previews, draft priority, and accessible confirmations', () => {
-  for (const label of ['Thông tin giao hàng', 'Nguyên liệu nhận được', 'Kiểm tra & duyệt', 'Tổng tiền phiếu', 'Tăng tồn kho', 'Chi phí mỗi đơn vị cơ sở']) assert.ok(receipts.includes(label), label);
+  for (const label of ['Thông tin phiếu', 'Nguyên liệu nhận được', 'Tóm tắt phiếu', 'Số lượng nhận', 'Đơn vị mua', 'Kho sẽ tăng', 'Giá vốn quy đổi', 'Lưu nháp', 'Kiểm tra & duyệt']) assert.ok(receipts.includes(label), label);
   assert.match(receipts, /goodsReceiptTotal/);
+  assert.match(receipts, /goodsReceiptUnitOptions/);
+  assert.match(receipts, /receiptCostWarning/);
+  assert.match(receipts, /async function save\(review = false\)[\s\S]*confirmation\.value = \{ kind: 'approve', receipt: saved \}/);
   assert.match(receipts, /ConfirmDialog/);
   assert.doesNotMatch(receipts, /window\.confirm/);
   assert.match(receipts, /DRAFT[\s\S]*sort|sort[\s\S]*DRAFT/);
-  assert.doesNotMatch(receipts, /giá vốn trung bình (trước|sau)|average cost (before|after)/i);
+  assert.doesNotMatch(receipts, /Mỗi đơn vị mua có|Lưu nháp an toàn|Chi phí mỗi đơn vị cơ sở/);
 });
 
 test('recipes explain modes, outcomes, advanced yield, and per-serving ingredient effects', () => {

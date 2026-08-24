@@ -1,5 +1,6 @@
 <script setup>
 import { formatPrice } from '@/utils/format';
+import { cartStockLimit } from '@/utils/cartStock';
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -9,9 +10,9 @@ const props = defineProps({
 const emit = defineEmits(['update:quantity', 'remove']);
 
 function changeQty(delta) {
-  const stock = props.item.quantityAvailable === null || props.item.quantityAvailable === undefined ? 99 : Number(props.item.quantityAvailable);
+  const stock = cartStockLimit(props.item);
   const nextQty = props.item.quantity + delta;
-  const newQty = Math.max(1, Math.min(99, Math.min(stock, nextQty)));
+  const newQty = Math.max(1, stock == null ? nextQty : Math.min(stock, nextQty));
   emit('update:quantity', props.item.productId, props.item.variantId, newQty, (props.item.modifiers || []).map((m) => m.modifierOptionId));
 }
 
@@ -29,11 +30,11 @@ function remove() {
       <h4 class="cart-name">{{ item.name }}</h4>
       <span v-if="item.variantName" class="cart-variant">{{ item.variantName }}</span>
       <span v-for="modifier in item.modifiers" :key="modifier.modifierOptionId" class="cart-variant">{{ modifier.groupName }}: {{ modifier.name }}</span>
-      <div class="cart-stock-warning" v-if="item.variantStatus && item.variantStatus !== 'AVAILABLE' || (item.quantityAvailable != null && Number(item.quantityAvailable) <= 0)">
+      <div class="cart-stock-warning" v-if="item.variantStatus && item.variantStatus !== 'AVAILABLE' || cartStockLimit(item) === 0">
         Hết hàng
       </div>
-      <div class="cart-stock-warning" v-else-if="item.quantityAvailable != null && item.quantity > Number(item.quantityAvailable)">
-        Chỉ còn {{ item.quantityAvailable }} phần
+      <div class="cart-stock-warning" v-else-if="cartStockLimit(item) != null && item.quantity > cartStockLimit(item)">
+        Chỉ còn {{ cartStockLimit(item) }} phần
       </div>
       <div class="cart-price">{{ formatPrice(item.price) }}</div>
     </div>
@@ -42,7 +43,7 @@ function remove() {
         <i class="bi bi-dash"></i>
       </button>
        <span class="qty-val" aria-live="polite">{{ item.quantity }}</span>
-       <button class="qty-btn" :disabled="pending || (item.quantityAvailable != null && item.quantity >= Number(item.quantityAvailable))" :aria-label="`Tăng số lượng ${item.name}`" @click="changeQty(1)">
+       <button class="qty-btn" :disabled="pending || (cartStockLimit(item) != null && item.quantity >= cartStockLimit(item))" :aria-label="`Tăng số lượng ${item.name}`" @click="changeQty(1)">
         <i class="bi bi-plus"></i>
       </button>
     </div>

@@ -77,3 +77,37 @@ export function productMatchesStockFilter(product, filter, threshold) {
   if (filter === 'unknown') return summary.unknownSkus > 0;
   return summary.outOfStockSkus === 0 && summary.lowStockSkus === 0 && summary.unknownSkus === 0;
 }
+
+export function createCapacityPageLoader(state, loadCapacity) {
+  let generation = 0;
+  let lastSignature = '';
+  return {
+    async load(products) {
+      const variants = (products || []).flatMap(product => product.variants || []).filter(variant => variant.variantId);
+      const signature = variants.map(variant => variant.variantId).sort((a,b) => a-b).join(',');
+      if (signature === lastSignature) return;
+      lastSignature = signature;
+      const request = ++generation;
+      state.loading = true;
+      state.error = '';
+      const entries = await Promise.all(variants.map(async variant => {
+        try { return [variant.variantId, await loadCapacity(variant.variantId)]; }
+        catch (error) { return [variant.variantId, { error: error.message || 'Không thể tải tồn kho' }]; }
+      }));
+      if (request !== generation) return;
+      state.values = Object.fromEntries(entries);
+      state.loading = false;
+    },
+    stop() { generation += 1; lastSignature = ''; },
+  };
+}
+
+export function variantCapacityPresentation(capacity) {
+  if (!capacity || capacity.error) return { label: 'Không xác định', detail: capacity?.error || '', tone: 'secondary' };
+  if (capacity.inventoryMode === 'SUSPENDED') return { label: 'Tạm ngừng bán', detail: '', tone: 'danger' };
+  if (capacity.inventoryMode === 'UNTRACKED') return { label: 'Không theo dõi tồn', detail: '', tone: 'secondary' };
+  const servings = Number(capacity.availableServings ?? 0);
+  if (capacity.inventoryMode === 'FINISHED_GOOD') return { label: `Tồn thành phẩm: ${servings} phần`, detail: '', tone: servings > 0 ? 'success' : 'danger' };
+  const limiting = (capacity.ingredients || []).find(item => item.limiting)?.name;
+  return { label: servings === 0 ? 'Tạm hết' : servings <= 3 ? `Chỉ còn ${servings} phần` : `Có thể bán ${servings} phần`, detail: limiting ? `Giới hạn: ${limiting}` : '', tone: servings === 0 ? 'danger' : servings <= 3 ? 'warning' : 'success' };
+}

@@ -12,9 +12,14 @@ import { createStoreConfigController } from '@/utils/deliveryClaims';
 import { createReviewPageController } from '@/utils/reviewPage';
 import { resolveProductDetailPricing } from '@/utils/productDetailPricing';
 import { customerAvailability } from '@/utils/stockPolicy';
+import { cartStockLimit } from '@/utils/cartStock';
 import ProductCard from '@/components/common/ProductCard.vue';
+import { normalizePurchaseQuantity } from '@/utils/purchaseQuantity';
+import { PRODUCT_QUANTITY_LIMIT_MESSAGE, validateProductQuantity } from '@/utils/cartQuantityPolicy';
+import { useAlertStore } from '@/stores/alert';
 
 const toast = useToast();
+const alert = useAlertStore();
 const route = useRoute();
 const router = useRouter();
 const productStore = useProductStore();
@@ -25,9 +30,7 @@ const quantity = ref(1);
 const selectedVariant = ref(null);
 const activeImageIndex = ref(0);
 const loading = ref(true);
-const selectedModifiers = ref([]);
 const loadError = ref('');
-const modifierErrors = ref({});
 const favoritePending = ref(false);
 const estimatedDeliveryMinutes = ref(null);
 const reviewPage = ref(1);
@@ -43,13 +46,12 @@ const storeConfigController = createStoreConfigController({
 });
 
 const product = computed(() => productStore.currentProduct);
-const selectedStock = computed(() => selectedVariant.value?.quantityAvailable == null ? null : Number(selectedVariant.value.quantityAvailable));
+const selectedStock = computed(() => cartStockLimit(selectedVariant.value));
 const selectedAvailability = computed(() => selectedVariant.value ? customerAvailability(selectedVariant.value) : null);
 const selectedAvailable = computed(() => product.value?.inStock && product.value?.isAvailableNow !== false && selectedVariant.value?.status === 'AVAILABLE' && (selectedAvailability.value?.available ?? false));
-const modifierPrice = computed(() => selectedModifiers.value.reduce((sum, option) => sum + Number(option.price || 0), 0));
 const pricing = computed(() => resolveProductDetailPricing(product.value, selectedVariant.value));
-const effectivePrice = computed(() => pricing.value.currentPrice + modifierPrice.value);
-const oldPrice = computed(() => pricing.value.crossedPrice ? pricing.value.crossedPrice + modifierPrice.value : null);
+const effectivePrice = computed(() => pricing.value.currentPrice);
+const oldPrice = computed(() => pricing.value.crossedPrice);
 const galleryImages = computed(() => {
   if (!product.value) return [];
   return [product.value.image, ...(product.value.galleryImages || [])].filter(Boolean);
@@ -91,7 +93,6 @@ async function loadProduct(id) {
   loading.value = true;
   loadError.value = '';
   selectedVariant.value = null;
-  selectedModifiers.value = [];
   activeImageIndex.value = 0;
   quantity.value = 1;
   loadReviews(id, { reset: true });
@@ -99,7 +100,8 @@ async function loadProduct(id) {
   try {
     if (!productStore.fetched) await productStore.init();
     await productStore.fetchById(id);
-    selectedVariant.value = product.value?.variants?.find((variant) => variant.status === 'AVAILABLE' && customerAvailability(variant).available) || null;
+    const availableVariants = product.value?.variants?.filter((variant) => variant.status === 'AVAILABLE' && customerAvailability(variant).available) || [];
+    selectedVariant.value = availableVariants.find((variant) => variant.isDefault) || availableVariants[0] || null;
     if (auth.isLoggedIn && product.value?.productId) await favoriteStore.check(product.value.productId);
   } catch (error) {
     loadError.value = error.message || 'Không thể tải sản phẩm';
@@ -115,30 +117,15 @@ onUnmounted(() => {
 });
 
 function selectVariant(variant) {
-  const stock = variant.quantityAvailable == null ? null : Number(variant.quantityAvailable);
+  const stock = cartStockLimit(variant);
   if (variant.status !== 'AVAILABLE' || !customerAvailability(variant).available) return;
   selectedVariant.value = variant;
   if (stock !== null) quantity.value = Math.min(quantity.value, stock || 1);
 }
 
-function toggleModifier(group, option) {
-  const selected = selectedModifiers.value.filter((item) => item.modifierGroupId === group.modifierGroupId);
-  if (selected.some((item) => item.modifierOptionId === option.modifierOptionId)) {
-    selectedModifiers.value = selectedModifiers.value.filter((item) => item.modifierOptionId !== option.modifierOptionId);
-  } else if (selected.length < group.maxSelections) {
-    selectedModifiers.value.push({ ...option, modifierGroupId: group.modifierGroupId, groupName: group.name });
-  }
-}
-
-function modifiersValid() {
-  const errors = {};
-  for (const group of product.value?.modifierGroups || []) {
-    const count = selectedModifiers.value.filter((item) => item.modifierGroupId === group.modifierGroupId).length;
-    if (count < group.minSelections) errors[group.modifierGroupId] = `Vui lòng chọn ít nhất ${group.minSelections}`;
-    if (count > group.maxSelections) errors[group.modifierGroupId] = `Chỉ được chọn tối đa ${group.maxSelections}`;
-  }
-  modifierErrors.value = errors;
-  return Object.keys(errors).length === 0;
+function updateQuantity(value) {
+  if (Number(value) > 20) alert.show(PRODUCT_QUANTITY_LIMIT_MESSAGE);
+  quantity.value = normalizePurchaseQuantity(value, selectedStock.value);
 }
 
 async function toggleFavorite() {
@@ -155,13 +142,15 @@ async function toggleFavorite() {
 }
 
 async function placeInCart(destination) {
-  if (!selectedAvailable.value || !modifiersValid()) return;
+  if (!selectedAvailable.value) return;
+  updateQuantity(quantity.value);
+  if (!validateProductQuantity(cart.items, product.value.productId, quantity.value).allowed) { alert.show(PRODUCT_QUANTITY_LIMIT_MESSAGE); return; }
   if (selectedStock.value !== null && quantity.value > selectedStock.value) {
     quantity.value = selectedStock.value;
     return;
   }
   try {
-    await cart.addItem(product.value.productId, selectedVariant.value.variantId, quantity.value, selectedModifiers.value);
+    await cart.addItem(product.value.productId, selectedVariant.value.variantId, quantity.value, []);
     router.push(destination);
   } catch (error) {
     toast.error(error.message || 'Không thể thêm vào giỏ');
@@ -250,25 +239,16 @@ async function placeInCart(destination) {
             </div>
           </fieldset>
 
-          <fieldset v-for="group in product.modifierGroups" :key="group.modifierGroupId" class="selection-group">
-            <legend class="selection-title"><span>{{ group.name }}</span><small>{{ group.minSelections ? `Chọn ${group.minSelections}-${group.maxSelections}` : `Tối đa ${group.maxSelections}` }}</small></legend>
-            <div class="variant-grid">
-              <button v-for="option in group.options" :key="option.modifierOptionId" class="variant-option" :class="{ active: selectedModifiers.some(item => item.modifierOptionId === option.modifierOptionId) }" :aria-pressed="selectedModifiers.some(item => item.modifierOptionId === option.modifierOptionId)" :aria-invalid="Boolean(modifierErrors[group.modifierGroupId])" :aria-describedby="`modifier-help-${group.modifierGroupId}`" @click="toggleModifier(group, option)">
-                <strong>{{ option.name }}</strong><span>+{{ formatPrice(option.price) }}</span>
-              </button>
-            </div>
-            <small :id="`modifier-help-${group.modifierGroupId}`" :class="{ 'modifier-error': modifierErrors[group.modifierGroupId] }">{{ modifierErrors[group.modifierGroupId] || `${group.minSelections ? 'Bắt buộc. ' : ''}Tối đa ${group.maxSelections} lựa chọn` }}</small>
-          </fieldset>
           <div class="availability" :class="{ unavailable: !selectedAvailable }">
             <i :class="selectedAvailable ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-xmark'" aria-hidden="true"></i>
-            {{ selectedAvailable ? selectedAvailability.status === 'LOW_STOCK' ? selectedAvailability.label : 'Còn hàng, sẵn sàng giao nóng' : product.isAvailableNow === false ? `Ngoài giờ bán${product.availableFrom || product.availableTo ? ` (${product.availableFrom || '00:00'} - ${product.availableTo || '24:00'})` : ''}` : 'Tạm hết' }}
+            {{ selectedAvailable ? `${selectedAvailability.label}${selectedAvailability.remainingServings ? ' · sẵn sàng giao nóng' : ''}` : product.isAvailableNow === false ? `Ngoài giờ bán${product.availableFrom || product.availableTo ? ` (${product.availableFrom || '00:00'} - ${product.availableTo || '24:00'})` : ''}` : 'Tạm hết' }}
           </div>
 
           <div class="purchase-actions">
             <div class="purchase-row">
               <div class="quantity-control">
                 <button aria-label="Giảm số lượng" :disabled="quantity <= 1" @click="quantity = Math.max(1, quantity - 1)"><i class="fa-solid fa-minus" aria-hidden="true"></i></button>
-                <span aria-live="polite">{{ quantity }}</span>
+                <input v-model="quantity" type="number" inputmode="numeric" min="1" step="1" :max="selectedStock ?? undefined" aria-label="Số lượng món" @change="updateQuantity($event.target.value)" @blur="updateQuantity($event.target.value)" />
                 <button aria-label="Tăng số lượng" :disabled="selectedStock != null && quantity >= selectedStock" @click="quantity = selectedStock == null ? quantity + 1 : Math.min(selectedStock, quantity + 1)"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
               </div>
               <button class="add-cart-btn" :disabled="!selectedAvailable" @click="placeInCart('/cart')"><i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>Thêm vào giỏ - {{ formatPrice(effectivePrice * quantity) }}</button>
@@ -398,7 +378,7 @@ async function placeInCart(destination) {
 .variant-option strong { font-size: 14px; }.variant-option span { font-size: 13px; font-weight: 700; }.variant-option small { font-size: 11px; color: var(--text-mid); }
 .future-addons { opacity: .78; }.addon-row { display: flex; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); margin-top: 8px; font-size: 13px; }.addon-row span { color: var(--text-mid); }.addon-row strong { color: var(--primary-dark); }
 .availability { display: flex; align-items: center; gap: 7px; margin: 20px 0; color: #15803d; font-size: 13px; font-weight: 700; }.availability.unavailable { color: var(--red-active); }
-.purchase-actions{display:grid;gap:12px}.purchase-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; }.quantity-control { display: flex; align-items: center; gap: 6px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-full); background: #fff; }.quantity-control button { width:44px;height:44px;min-height:44px;border-radius:50%;color:var(--primary-dark); }.quantity-control button:hover { background: var(--primary-light); }.quantity-control button:disabled { opacity: .35; }.quantity-control span { min-width: 30px; text-align: center; font-weight: 800; }
+.purchase-actions{display:grid;gap:12px}.purchase-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; }.quantity-control { display: flex; align-items: center; gap: 6px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-full); background: #fff; }.quantity-control button { width:44px;height:44px;min-height:44px;border-radius:50%;color:var(--primary-dark); }.quantity-control button:hover { background: var(--primary-light); }.quantity-control button:disabled { opacity: .35; }.quantity-control input{width:54px;min-height:40px;padding:0 4px;border:0;background:transparent;text-align:center;font:inherit;font-weight:800;appearance:textfield}.quantity-control input::-webkit-inner-spin-button,.quantity-control input::-webkit-outer-spin-button{margin:0;appearance:none}.quantity-control input:focus-visible{outline:3px solid var(--primary);outline-offset:1px;border-radius:8px}
 .add-cart-btn,.buy-now-btn{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:8px;border-radius:var(--radius-full);font-size:14px;font-weight:800;transition:all var(--transition-fast)}.add-cart-btn{color:#fff;background:linear-gradient(135deg,var(--primary-dark),var(--route-orange));box-shadow:0 12px 24px rgba(212,97,58,.22)}.add-cart-btn:hover{transform:translateY(-1px)}.add-cart-btn:disabled,.buy-now-btn:disabled{cursor:not-allowed;opacity:.45}.buy-now-btn{width:100%;border:2px solid var(--primary-dark);color:var(--primary-dark);background:transparent}.buy-now-btn:hover{background:var(--primary-light)}
 .delivery-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:24px}.delivery-grid>div{display:flex;align-items:center;gap:10px;padding:14px;border-radius:var(--radius);background:var(--primary-light)}.delivery-grid i{color:var(--primary-dark);font-size:20px}.delivery-grid strong,.delivery-grid small{display:block}.delivery-grid strong{font-size:12px}.delivery-grid small{color:var(--text-mid);font-size:11px}
 .product-reviews { margin-top: 48px; padding: clamp(22px, 4vw, 36px); border: 1px solid rgba(232,115,74,.14); border-radius: var(--radius-xl); background: #fff; box-shadow: var(--shadow-sm); }

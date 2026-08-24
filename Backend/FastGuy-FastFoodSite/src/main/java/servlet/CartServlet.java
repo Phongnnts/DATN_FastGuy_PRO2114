@@ -67,9 +67,11 @@ public class CartServlet extends HttpServlet {
             return;
         }
 
-        boolean ok = cartService.addItem(
+        boolean ok;
+        try { ok = cartService.addItem(
                 new entity.User() {{ setUserId(userId); }},
-                productId, variantId, quantity, modifierOptionIds);
+                productId, variantId, quantity, modifierOptionIds); }
+        catch (IllegalArgumentException e) { ApiResponse.error(resp,e.getMessage(),400);return; }
         if (!ok) {
             ApiResponse.error(resp, "Cannot add to cart: invalid product/variant or insufficient stock", 400);
             return;
@@ -97,7 +99,9 @@ public class CartServlet extends HttpServlet {
             return;
         }
 
-        boolean ok = cartService.updateItemQuantity(cartItemId, userId, quantity);
+        boolean ok;
+        try { ok = cartService.updateItemQuantity(cartItemId, userId, quantity); }
+        catch (IllegalArgumentException e) { ApiResponse.error(resp,e.getMessage(),400);return; }
         if (!ok) {
             ApiResponse.error(resp, "Cannot update: item not found or insufficient stock", 400);
             return;

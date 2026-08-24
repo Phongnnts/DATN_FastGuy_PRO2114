@@ -120,6 +120,12 @@ test('OpenAPI contract extends existing admin product read and mutation paths', 
   assert.match(contract, /^  \/admin\/products\/\{productId\}:$/m);
   assert.match(contract, /^      operationId: getAdminProduct$/m);
   assert.match(contract, /^      operationId: updateAdminProduct$/m);
+  assert.match(contract, /^  \/admin\/products\/\{productId\}\/restore:$/m);
+  assert.match(contract, /^      operationId: restoreAdminProduct$/m);
+  assert.match(contract, /^  \/admin\/products\/\{productId\}\/permanent:$/m);
+  assert.match(contract, /^      operationId: permanentlyDeleteAdminProduct$/m);
+  const permanentPath = contract.slice(contract.indexOf('  /admin/products/{productId}/permanent:'), contract.indexOf('  /admin/orders/{orderId}:'));
+  assert.match(permanentPath, /^        '409':$/m);
   const productPath = contract.slice(contract.indexOf('  /admin/products/{productId}:'), contract.indexOf('  /admin/orders/{orderId}:'));
   assert.match(productPath, /\$ref: '#\/components\/schemas\/AdminProductDetailResponse'/);
   assert.doesNotMatch(contract, /^  \/admin\/products\/\{productId\}\/combo/m);

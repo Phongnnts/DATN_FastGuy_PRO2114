@@ -25,7 +25,8 @@ test('sidebar keeps grouped inventory overview, recipes and report history entry
   assert.match(layout, /Quản lý kho/);
   assert.match(layout, /label: 'Tổng quan', path: '\/admin\/inventory'/);
   assert.match(layout, /label: 'Công thức món', path: '\/admin\/recipes'/);
-  assert.match(layout, /label: 'Báo cáo & lịch sử', path: '\/admin\/inventory\/reports'/);
+  assert.match(layout, /label: 'Lịch sử kho', path: '\/admin\/inventory\/ledger'/);
+  assert.match(layout, /label: 'Báo cáo theo món', path: '\/admin\/inventory\/reports'/);
 });
 
 test('ledger whitelists contracted transaction types and builds item filters', () => {

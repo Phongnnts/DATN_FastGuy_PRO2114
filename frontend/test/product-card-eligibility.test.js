@@ -17,11 +17,11 @@ const product = (overrides = {}) => ({
   ...overrides,
 });
 
-test('direct add allows only a simple product with one selectable available variant and no modifiers', () => {
+test('direct add ignores dormant modifiers for a simple product with one available variant', () => {
   assert.equal(canDirectAddProduct(product()), true);
+  assert.equal(canDirectAddProduct(product({ modifierGroups: [{ groupId: 1, minSelections: 1, options: [{ modifierOptionId: 1 }] }] })), true);
   assert.equal(canDirectAddProduct(product({ productType: 'COMBO' })), false);
   assert.equal(canDirectAddProduct(product({ variants: [product().defaultVariant, { variantId: 11, status: 'AVAILABLE', quantityAvailable: 5 }] })), false);
-  assert.equal(canDirectAddProduct(product({ modifierGroups: [{ groupId: 1, minSelections: 0, options: [] }] })), false);
 });
 
 test('direct add rejects reduced fallback metadata even when it resembles a simple product', () => {

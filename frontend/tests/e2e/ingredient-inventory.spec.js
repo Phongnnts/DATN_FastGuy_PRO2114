@@ -6,10 +6,11 @@ const variant = (overrides = {}) => ({
   price: '50000',
   originalPrice: null,
   sku: 'VAR-11',
-  quantityAvailable: null,
+  quantityAvailable: 3,
   isDefault: true,
   status: 'AVAILABLE',
   availabilityStatus: 'IN_STOCK',
+  remainingServings: 583,
   ...overrides,
 });
 
@@ -41,7 +42,14 @@ const product = (overrides = {}) => ({
   isAvailableNow: true,
   inStock: true,
   featured: false,
-  modifierGroups: [],
+  modifierGroups: [{
+    modifierGroupId: 91,
+    name: 'FG MVP demo options',
+    minSelections: 1,
+    maxSelections: 1,
+    isActive: true,
+    options: [{ modifierOptionId: 911, name: 'Demo extra', price: 5000, isActive: true }],
+  }],
   combo: null,
   ...overrides,
 });
@@ -109,6 +117,12 @@ test('menu maps server availability to customer copy and locks sold-out CTAs', a
 test('product detail reflects server availability per variant', async ({ page }) => {
   const errors = collectErrors(page);
   await mockCatalog(page);
+  await page.goto('/product/1');
+  await expect(page.locator('.availability')).toContainText('Còn 583 phần');
+  await expect(page.getByRole('group', { name: 'Kích cỡ' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /M.*50\.000.*Còn 583 phần/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('FG MVP demo options')).toHaveCount(0);
+  await expect(page.getByText('Demo extra')).toHaveCount(0);
   await page.goto('/product/2');
   const availability = page.locator('.availability');
   await expect(availability).toContainText('Chỉ còn 2 phần');
@@ -119,6 +133,38 @@ test('product detail reflects server availability per variant', async ({ page })
   await expect(availability).not.toContainText('Còn hàng, sẵn sàng giao nóng');
   await expect(page.getByRole('button', { name: /Thêm vào giỏ/ })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Mua ngay' })).toBeDisabled();
+  expect(errors).toEqual([]);
+});
+
+test('product detail quantity accepts keyboard input and clamps to available stock', async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockCatalog(page);
+  await page.goto('/product/1');
+  const quantity = page.getByRole('spinbutton', { name: 'Số lượng món' });
+  await quantity.fill('3');
+  await quantity.blur();
+  await expect(quantity).toHaveValue('3');
+  await expect(page.getByRole('button', { name: /Thêm vào giỏ - 150.000/ })).toBeVisible();
+  await page.getByRole('button', { name: /Thêm vào giỏ - 150.000/ }).click();
+  const cartItem = page.locator('.cart-item', { hasText: 'Gà rán giòn' });
+  await expect(cartItem.locator('.qty-val')).toHaveText('3');
+  await cartItem.getByRole('button', { name: 'Tăng số lượng Gà rán giòn' }).click();
+  await expect(cartItem.locator('.qty-val')).toHaveText('4');
+
+  await page.goto('/product/2');
+  await quantity.fill('8');
+  await quantity.blur();
+  await expect(quantity).toHaveValue('2');
+  expect(errors).toEqual([]);
+});
+
+test('product quantity over twenty shows a centered limit alert in detail and cart', async ({ page }) => {
+  const errors=collectErrors(page);await mockCatalog(page);await page.goto('/product/1');
+  const quantity=page.getByRole('spinbutton',{name:'Số lượng món'});await quantity.fill('21');await quantity.blur();
+  let dialog=page.getByRole('alertdialog',{name:'Giới hạn số lượng'});await expect(dialog).toContainText('Mỗi sản phẩm chỉ được đặt tối đa 20 cái để đảm bảo đơn hàng hợp lệ.');await dialog.getByRole('button',{name:'Đã hiểu'}).click();
+  await expect(quantity).toHaveValue('20');await page.getByRole('button',{name:/Thêm vào giỏ/}).click();
+  const cartItem=page.locator('.cart-item',{hasText:'Gà rán giòn'});await expect(cartItem.locator('.qty-val')).toHaveText('20');
+  await cartItem.getByRole('button',{name:'Tăng số lượng Gà rán giòn'}).click();dialog=page.getByRole('alertdialog',{name:'Giới hạn số lượng'});await expect(dialog).toBeVisible();await expect(dialog).toContainText('Mỗi sản phẩm chỉ được đặt tối đa 20 cái để đảm bảo đơn hàng hợp lệ.');
   expect(errors).toEqual([]);
 });
 

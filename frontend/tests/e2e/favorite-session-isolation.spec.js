@@ -48,11 +48,17 @@ test('401 during favorite hydration clears session and blocks stale account data
   await authenticate(page);
   let resolveFavorites;
   const favoritesReady = new Promise(resolve => { resolveFavorites = resolve; });
+  let favoritesStarted;
+  const favoriteRequestStarted = new Promise(resolve => { favoritesStarted = resolve; });
   await page.route('**/api/favorites**', async route => {
+    favoritesStarted();
     await favoritesReady;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'success', data: [{ productId: 91, name: 'Món tài khoản cũ', price: 45000 }] }) });
   });
-  await page.route('**/api/notifications**', route => route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ status: 'error', message: 'Phiên đăng nhập hết hạn' }) }));
+  await page.route('**/api/notifications**', async route => {
+    await favoriteRequestStarted;
+    await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ status: 'error', message: 'Phiên đăng nhập hết hạn' }) });
+  });
 
   await page.goto('/account/favorites', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Đăng nhập' })).toBeVisible();

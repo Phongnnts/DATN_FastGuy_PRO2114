@@ -33,8 +33,8 @@ const inventoryLinks = [
   { label: 'Tổng quan', path: '/admin/inventory', icon: 'bi-boxes' },
   { label: 'Nhập hàng', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
   { label: 'Công thức món', path: '/admin/recipes', icon: 'bi-diagram-3' },
-  { label: 'Kiểm kê', path: '/admin/inventory/stock-counts', icon: 'bi-clipboard-check' },
-  { label: 'Báo cáo & lịch sử', path: '/admin/inventory/reports', icon: 'bi-graph-up-arrow', children: [{ label: 'Lịch sử kho', path: '/admin/inventory/ledger' }] },
+  { label: 'Lịch sử kho', path: '/admin/inventory/ledger', icon: 'bi-clock-history' },
+  { label: 'Báo cáo theo món', path: '/admin/inventory/reports', icon: 'bi-graph-up-arrow' },
 ];
 
 function isLinkActive(link) {
@@ -172,6 +172,7 @@ function isLinkActive(link) {
 
 <style scoped>
 .fg-shell-admin{--role-accent:var(--primary);--role-soft:var(--primary-50)}
+.main-content{min-width:0}
 .fg-shell-admin :deep(.sidebar){border-right:1px solid rgba(23,23,23,.06);background:linear-gradient(180deg,#fff 0%,#fffaf6 100%)}
 .sidebar-brand{border-bottom-color:rgba(232,115,74,.12)}
 .sidebar-brand-title{letter-spacing:-.04em}

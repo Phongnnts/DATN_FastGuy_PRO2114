@@ -3,6 +3,7 @@ package entity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -131,6 +132,14 @@ class IngredientInventoryMappingTest {
         assertColumn(StockCountItem.class, "varianceQuantity", "variance_quantity", 19, 4);
         assertColumn(StockCountItem.class, "unitCostSnapshot", "unit_cost_snapshot", 19, 4);
         assertColumn(StockCountItem.class, "varianceCost", "variance_cost", 19, 4);
+    }
+
+    @Test
+    void mapsNullableOrderItemCostSnapshotsToMigration057() throws Exception {
+        assertColumn(OrderItem.class, "unitCostSnapshot", "unit_cost_snapshot", 18, 2);
+        assertColumn(OrderItem.class, "totalCostSnapshot", "total_cost_snapshot", 18, 2);
+        assertNull(new OrderItem().getUnitCostSnapshot());
+        assertNull(new OrderItem().getTotalCostSnapshot());
     }
 
     private static void assertTable(Class<?> type, String name) {

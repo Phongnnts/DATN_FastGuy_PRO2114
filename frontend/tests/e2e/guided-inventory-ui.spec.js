@@ -321,11 +321,11 @@ test('guided inventory routes render and confirmation restores focus', async ({ 
 
   await page.goto('/admin/inventory');
   await expect(page.getByRole('heading', { name: 'Hôm nay cần làm gì?' })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Quy trình vận hành kho' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Quy trình tồn kho và giá vốn' })).toBeVisible();
   await expect(page.getByText('Ức gà')).toBeVisible();
 
   await page.goto('/admin/inventory/receipts');
-  await expect(page.getByText('Thông tin giao hàng')).toBeVisible();
+  await expect(page.getByText('Thông tin phiếu')).toBeVisible();
   const approve = page.getByRole('button', { name: 'Duyệt', exact: true });
   await approve.focus();
   await approve.click();
@@ -335,7 +335,7 @@ test('guided inventory routes render and confirmation restores focus', async ({ 
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Hủy' })).toBeFocused();
   await page.evaluate(() => document.querySelector('.icon-btn')?.focus());
   await page.keyboard.press('Shift+Tab');
-  await expect(page.getByRole('dialog').getByRole('button', { name: 'Duyệt và nhập kho' })).toBeFocused();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Duyệt phiếu' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(approve).toBeFocused();

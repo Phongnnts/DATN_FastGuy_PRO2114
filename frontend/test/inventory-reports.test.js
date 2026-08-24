@@ -7,6 +7,7 @@ test('admin API exposes the contracted inventory report endpoints', async () => 
   const source = await readFile(new URL('../src/api/admin.js', import.meta.url), 'utf8');
   assert.match(source, /getInventoryItemLoss\(params\)[\s\S]*\/admin\/inventory\/reports\/item-loss/);
   assert.match(source, /getInventoryMenuCost\(\)[\s\S]*\/admin\/inventory\/reports\/menu-cost/);
+  assert.match(source, /getMenuPerformanceReport\(params\)[\s\S]*\/admin\/inventory\/reports\/menu-performance/);
 });
 
 test('report loader preserves successful reports when another report fails', async () => {

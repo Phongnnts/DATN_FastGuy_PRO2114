@@ -52,8 +52,12 @@ test('product catalog contains no editor or mutation orchestration', () => {
   assert.doesNotMatch(productsPage, /showForm|modal-content|syncVariants|modifierGroup|modifierOption|comboVariantId|uploadToCloudinary|createVariant|updateVariant|deleteVariant|createModifier|updateModifier|deleteModifier|createCombo|updateCombo|deleteCombo/);
 });
 
-test('product removal is presented as an accessible hide action', () => {
+test('product lifecycle exposes accessible hide restore and permanent delete actions', () => {
   assert.match(productsPage, /Ẩn sản phẩm/);
+  assert.match(productsPage, /Khôi phục/);
+  assert.match(productsPage, /Xóa vĩnh viễn/);
+  assert.match(productsPage, /statusFilter = ref\('AVAILABLE'\)/);
+  assert.match(productsPage, /product\.status === 'AVAILABLE'/);
   assert.match(productsPage, /role="dialog"/);
   assert.match(productsPage, /aria-modal="true"/);
   assert.match(productsPage, /nextTick/);
@@ -63,10 +67,10 @@ test('product removal is presented as an accessible hide action', () => {
   assert.match(productsPage, /previousFocus\?\.focus\(\)/);
   assert.match(productsPage, /document\.body\.style\.overflow = 'hidden'/);
   assert.match(productsPage, /onBeforeUnmount/);
-  assert.match(productsPage, /<div class="catalog-content" :inert="productToHide \? '' : undefined">[\s\S]*<\/div>\s*<div v-if="productToHide" class="dialog-overlay"/);
+  assert.match(productsPage, /<div class="catalog-content" :inert="productToHide \|\| productToDelete \? '' : undefined">[\s\S]*<\/div>\s*<div v-if="productToHide" class="dialog-overlay"/);
   assert.doesNotMatch(productsPage, /dialog-overlay"[^>]*:inert/);
   assert.doesNotMatch(productsPage, /window\.confirm|\bconfirm\s*\(/);
-  assert.doesNotMatch(productsPage, /Xóa sản phẩm/);
+  assert.doesNotMatch(productsPage, /window\.confirm|\bconfirm\s*\(/);
 });
 
 test('catalog wires canonical product types KPI and focused retry', () => {
