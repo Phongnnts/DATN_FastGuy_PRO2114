@@ -68,3 +68,24 @@ test('canonical schemas and demo seed mirror phase 1 inventory', () => {
   assert.match(seed, /INSERT dbo\.InventoryReservationItem[\s\S]*JOIN dbo\.RecipeItem[\s\S]*UNION ALL[\s\S]*FROM dbo\.VariantInventoryItem/);
   assert.match(read('database/migrations/RUNBOOK.md'), /052_ingredient_inventory_phase_1\.sql[\s\S]*052_validate\.sql[\s\S]*rerun/i);
 });
+
+test('054 repairs authoritative inventory text and enforces UTF-8 sqlcmd input', () => {
+  const migration = read('database/migrations/054_repair_inventory_text_encoding.sql');
+  const validator = read('database/migrations/054_validate.sql');
+  const wrapper = read('.opencode/skills/sqlserver-migrations/scripts/Invoke-SqlServerMigrationCheck.ps1');
+  for (const name of ['Thịt bò', 'Thịt gà', 'Thịt heo', 'Sốt món Á', 'Sữa và kem', 'Rau xà lách']) assert.ok(migration.includes(`N'${name}'`), name);
+  assert.ok(migration.includes("N'Số dư đầu kỳ khi bật tính giá vốn'"));
+  assert.ok(migration.includes("reason_code='OPENING_BALANCE'"));
+  assert.ok(migration.includes("migration_id='054_repair_inventory_text_encoding'"));
+  assert.ok(validator.includes("PRINT '054 validation passed'"));
+  assert.ok(validator.includes("N'Số dư đầu kỳ khi bật tính giá vốn'"));
+  assert.match(wrapper, /'-f', '65001'/);
+  assert.match(read('database/migrations/RUNBOOK.md'), /054_repair_inventory_text_encoding\.sql[\s\S]*054_validate\.sql/);
+  const audit = read('database/migrations/055_verify_inventory_text_repair.sql');
+  const auditValidator = read('database/migrations/055_validate.sql');
+  for (const token of ["COUNT_BIG(*) FROM @Expected)<>32", 'i.inventory_item_id IS NULL', 'i.name IS NULL', "migration_id='055_verify_inventory_text_repair'"]) assert.ok(audit.includes(token), token);
+  for (const token of ["COUNT_BIG(*) FROM @Expected)<>32", 'i.inventory_item_id IS NULL', 'i.name IS NULL', "PRINT '055 validation passed'"]) assert.ok(auditValidator.includes(token), token);
+  assert.match(read('.opencode/skills/sqlserver-migrations/SKILL.md'), /sqlcmd -b -V 16 -f 65001 -i/);
+  const balanceAudit = read('database/migrations/056_verify_inventory_text_repair_balances.sql');
+  for (const token of ['i.on_hand_quantity<>e.on_hand', 'i.minimum_quantity<>e.minimum_quantity', 'opening.row_count<>1', 'opening.quantity<>e.on_hand', 'opening.quantity_before<>0', 'opening.quantity_after<>e.on_hand']) assert.ok(balanceAudit.includes(token), token);
+});
