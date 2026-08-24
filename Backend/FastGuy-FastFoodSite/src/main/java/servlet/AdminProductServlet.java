@@ -85,6 +85,8 @@ public class AdminProductServlet extends HttpServlet {
         m.put("originalPrice", v.getOriginalPrice());
         m.put("sku", v.getSku());
         m.put("quantityAvailable", v.getQuantityAvailable());
+        m.put("inventoryMode", v.getInventoryMode());
+        m.put("updatedAt", v.getUpdatedAt());
         m.put("isDefault", v.getIsDefault() != null ? v.getIsDefault() : false);
         m.put("status", v.getStatus());
         return m;

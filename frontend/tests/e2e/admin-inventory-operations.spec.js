@@ -35,12 +35,12 @@ test('admin reviews receipts, stock counts, and inventory reports', async ({ pag
   await page.route('**/api/admin/inventory/reports/menu-cost', route => route.fulfill({ json: fulfill([{ variantId: 11, sku: 'GA-RAN-M', variantName: 'Gà rán cỡ M', yieldQuantity: 4, recipeCost: 120000, costPerServing: 30000 }]) }));
 
   await page.goto('/admin/inventory/receipts');
-  await expect(page.getByRole('heading', { name: 'Phiếu nhập hàng' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ghi nhận hàng vừa nhận' })).toBeVisible();
   await expect(page.getByText('Thực phẩm Sạch')).toBeVisible();
   await expect(page.getByText('HD-2026-21')).toBeVisible();
 
   await page.goto('/admin/inventory/stock-counts');
-  await expect(page.getByRole('heading', { name: 'Kiểm kê', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Đếm và đối chiếu tồn kho' })).toBeVisible();
   await expect(page.getByText('#31 · 2026-08-24')).toBeVisible();
   await expect(page.getByText('Hàng ngày · 1 mặt hàng')).toBeVisible();
 

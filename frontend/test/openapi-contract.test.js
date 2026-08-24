@@ -188,3 +188,22 @@ test('OpenAPI contracts review consent without exposing consent on the public ho
   assert.doesNotMatch(review, /homepageConsent/);
   assert.doesNotMatch(schemaSection(contract, 'FeaturedReview', 'AdminVariantDetail'), /homepageConsent/);
 });
+
+test('OpenAPI requires optimistic recipe and inventory settings versions', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+  const recipeRequest = schemaSection(contract, 'RecipeRequest', 'InventorySettings');
+  const settings = schemaSection(contract, 'InventorySettings', 'InventorySettingsRequest');
+  const settingsRequest = schemaSection(contract, 'InventorySettingsRequest', 'InventorySettingsResponse');
+  const variant = schemaSection(contract, 'AdminVariantDetail', 'AdminModifierOption');
+
+  assert.match(recipeRequest, /additionalProperties: false/);
+  assert.match(recipeRequest, /required: \[yieldQuantity, active, items, expectedUpdatedAt\]/);
+  assert.match(recipeRequest, /^        expectedUpdatedAt: \{ type: \[string, 'null'\] \}$/m);
+  assert.match(settings, /required: \[variantId, inventoryMode, updatedAt\]/);
+  assert.match(settings, /^        updatedAt: \{ type: string \}$/m);
+  assert.match(settingsRequest, /additionalProperties: false/);
+  assert.match(settingsRequest, /required: \[inventoryMode, expectedUpdatedAt\]/);
+  assert.match(settingsRequest, /^        expectedUpdatedAt: \{ type: string \}$/m);
+  assert.match(variant, /required: \[[^\]]*updatedAt[^\]]*\]/);
+  assert.match(variant, /^        updatedAt: \{ type: string \}$/m);
+});

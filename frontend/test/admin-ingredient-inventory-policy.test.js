@@ -24,6 +24,9 @@ test('admin API client matches OpenAPI ingredient inventory operations exactly',
   assert.match(api, /adjustInventoryItem\(data\) \{\s*return client\.post\('\/admin\/inventory\/transactions\/adjustments', data\);\s*\}/);
   assert.match(api, /getVariantRecipe\(variantId\) \{\s*return client\.get\(`\/admin\/product-variants\/\$\{variantId\}\/recipe`\);\s*\}/);
   assert.match(api, /replaceVariantRecipe\(variantId, data\) \{\s*return client\.put\(`\/admin\/product-variants\/\$\{variantId\}\/recipe`, data\);\s*\}/);
+  assert.match(api, /getVariantInventorySettings\(variantId\)[\s\S]*\/inventory-settings/);
+  assert.match(api, /updateVariantInventorySettings\(variantId, data\)[\s\S]*\/inventory-settings/);
+  assert.match(api, /getVariantInventoryCapacity\(variantId\)[\s\S]*\/inventory-capacity/);
   assert.match(api, /getVariantAvailability\(variantId\) \{\s*return client\.get\(`\/admin\/product-variants\/\$\{variantId\}\/availability`\);\s*\}/);
   assert.doesNotMatch(api, /transactions\/waste/);
   assert.doesNotMatch(api, /\{ variantId, \.\.\.data \}/);
@@ -71,8 +74,16 @@ test('recipes page edits whole recipe with duplicate and non-positive guards', (
   assert.match(recipes, /validateRecipeForm|buildRecipePayload/);
   assert.match(inventoryItemUtils, /Mặt hàng đã được chọn/);
   assert.match(inventoryItemUtils, /Số lượng phải lớn hơn 0/);
-  assert.match(recipes, /limitingItemId|Giới hạn bởi/);
-  assert.match(recipes, /remainingServings|availabilityStatus/);
+  assert.match(recipes, /Công thức cho 1 phần/);
+  assert.match(recipes, /getVariantInventoryCapacity/);
+  assert.match(recipes, /getVariantInventorySettings/);
+  assert.doesNotMatch(recipes, /v-model="form\.inventoryMode"|#\{\{ item\.inventoryItemId \}\}/);
+  assert.match(recipes, /error\.status === 409[\s\S]*Dữ liệu đã thay đổi/);
+});
+
+test('inventory item update surfaces backend invariant conflicts without changing local rows', () => {
+  assert.match(inventory, /if \(error\.status === 409\) \{\s*dialogError\.value = error\.message \|\| 'Mặt hàng đang được sử dụng và không thể đổi loại hoặc ngừng hoạt động\.';\s*return;\s*\}/);
+  assert.match(inventory, /const saved = kind === 'create'[\s\S]*else syncRow\(saved\);/);
 });
 
 test('ledger filters by item order type date with zero-based paging', () => {
@@ -92,10 +103,11 @@ test('router registers recipes route next to inventory pages', () => {
   assert.match(router, /AdminInventory: 'Tổng quan kho'/);
 });
 
-test('sidebar exposes overview, recipe and ledger destinations only', () => {
-  assert.match(layout, /label: 'Tổng quan kho', path: '\/admin\/inventory'/);
-  assert.match(layout, /label: 'Công thức định lượng', path: '\/admin\/recipes'/);
-  assert.match(layout, /label: 'Sổ tồn kho', path: '\/admin\/inventory\/ledger'/);
+test('sidebar groups simplified inventory destinations', () => {
+  assert.match(layout, /Quản lý kho/);
+  assert.match(layout, /label: 'Tổng quan', path: '\/admin\/inventory'/);
+  assert.match(layout, /label: 'Công thức món', path: '\/admin\/recipes'/);
+  assert.match(layout, /label: 'Báo cáo & lịch sử', path: '\/admin\/inventory\/reports'/);
 });
 
 test('variant editor owns mode selection without embedded BOM editor', () => {

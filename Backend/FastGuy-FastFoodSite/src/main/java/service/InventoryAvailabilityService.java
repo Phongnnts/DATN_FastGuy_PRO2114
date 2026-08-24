@@ -18,7 +18,7 @@ import utils.DatabaseUtil;
 
 public class InventoryAvailabilityService {
     public record AvailabilityResult(String mode, String status, Integer servings, Integer limitingItemId) {}
-    public record ItemStock(int id, boolean active, BigDecimal available, BigDecimal minimum) {}
+    public record ItemStock(int id, String itemType, boolean active, BigDecimal available, BigDecimal minimum) {}
     public record IngredientStock(ItemStock item, BigDecimal quantity) {}
     public record RecipeStock(BigDecimal yieldQuantity, List<IngredientStock> ingredients) {}
     public record VariantStock(int id, String mode, RecipeStock recipe, ItemStock finishedGood) {}
@@ -52,7 +52,7 @@ public class InventoryAvailabilityService {
                     }
                 }
                 case "FINISHED_GOOD" -> {
-                    if (!validItem(stock.finishedGood())) throw new IllegalStateException("Active finished-good item required");
+                    if (!validFinishedGood(stock.finishedGood())) throw new IllegalStateException("Active finished-good item required");
                     exact.merge(stock.finishedGood().id(), BigDecimal.valueOf(ordered), BigDecimal::add);
                 }
                 case "UNTRACKED" -> { }
@@ -94,7 +94,7 @@ public class InventoryAvailabilityService {
         return switch (stock.mode()) {
             case "UNTRACKED" -> new AvailabilityResult(stock.mode(), "AVAILABLE", null, null);
             case "SUSPENDED" -> new AvailabilityResult(stock.mode(), "SUSPENDED", 0, null);
-            case "FINISHED_GOOD" -> validItem(stock.finishedGood())
+            case "FINISHED_GOOD" -> validFinishedGood(stock.finishedGood())
                     ? result(stock.mode(), List.of(new Capacity(stock.finishedGood(), BigDecimal.ONE)))
                     : new AvailabilityResult(stock.mode(), "UNAVAILABLE", 0, null);
             case "INGREDIENT" -> validRecipe(stock.recipe())
@@ -143,12 +143,20 @@ public class InventoryAvailabilityService {
     private static boolean validRecipe(RecipeStock recipe) {
         return recipe != null && recipe.yieldQuantity() != null && recipe.yieldQuantity().compareTo(BigDecimal.ZERO) > 0
                 && recipe.ingredients() != null && !recipe.ingredients().isEmpty()
-                && recipe.ingredients().stream().allMatch(i -> i != null && i.quantity() != null && i.quantity().compareTo(BigDecimal.ZERO) > 0 && validItem(i.item()));
+                && recipe.ingredients().stream().allMatch(i -> i != null && i.quantity() != null && i.quantity().compareTo(BigDecimal.ZERO) > 0 && validIngredient(i.item()));
     }
 
     private static boolean validItem(ItemStock item) {
         return item != null && item.active() && item.available() != null && item.available().compareTo(BigDecimal.ZERO) >= 0
                 && item.minimum() != null && item.minimum().compareTo(BigDecimal.ZERO) >= 0;
+    }
+
+    private static boolean validFinishedGood(ItemStock item) {
+        return validItem(item) && "FINISHED_GOOD".equals(item.itemType());
+    }
+
+    private static boolean validIngredient(ItemStock item) {
+        return validItem(item) && "INGREDIENT".equals(item.itemType());
     }
 
     private static BigDecimal decimal(BigDecimal value) {
@@ -181,5 +189,5 @@ public class InventoryAvailabilityService {
     }
 
     private static IngredientStock ingredient(RecipeItem ingredient) { return new IngredientStock(item(ingredient.getInventoryItem()), ingredient.getQuantity()); }
-    private static ItemStock item(entity.InventoryItem item) { return new ItemStock(item.getInventoryItemId(), item.isActive(), item.availableQuantity(), item.getMinimumQuantity()); }
+    private static ItemStock item(entity.InventoryItem item) { return new ItemStock(item.getInventoryItemId(), item.getItemType(), item.isActive(), item.availableQuantity(), item.getMinimumQuantity()); }
 }

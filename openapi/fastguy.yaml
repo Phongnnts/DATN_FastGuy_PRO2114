@@ -738,7 +738,7 @@ paths:
         '200': { description: Inventory item updated, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: Stale quantity or immutable base unit, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
+        '409': { description: 'Immutable base unit, recipe reference, or mapped finished-good invariant conflict', content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
   /admin/inventory/transactions/adjustments:
     post:
       operationId: adjustInventory
@@ -907,6 +907,49 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /admin/product-variants/{variantId}/inventory-settings:
+    parameters:
+      - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getVariantInventorySettings
+      summary: Get variant inventory settings
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Variant inventory settings, content: { application/json: { schema: { $ref: '#/components/schemas/InventorySettingsResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      operationId: updateVariantInventorySettings
+      summary: Update variant inventory settings
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventorySettingsRequest' } } } }
+      responses:
+        '200': { description: Updated variant inventory settings, content: { application/json: { schema: { $ref: '#/components/schemas/InventorySettingsResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/product-variants/{variantId}/inventory-capacity:
+    get:
+      operationId: getVariantInventoryCapacity
+      summary: Get recipe capacity and cost snapshot
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Variant inventory capacity, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryCapacityResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /admin/product-variants/{variantId}/availability:
     get:
       operationId: getVariantInventoryAvailability
@@ -1089,12 +1132,85 @@ components:
     RecipeRequest:
       type: object
       additionalProperties: false
-      required: [inventoryMode, yieldQuantity, active, items]
+      required: [yieldQuantity, active, items, expectedUpdatedAt]
       properties:
-        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
         yieldQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
         active: { type: boolean }
         items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RecipeItem' } }
+        expectedUpdatedAt: { type: [string, 'null'] }
+    InventorySettings:
+      type: object
+      additionalProperties: false
+      required: [variantId, inventoryMode, updatedAt]
+      properties:
+        variantId: { type: integer, minimum: 1 }
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        updatedAt: { type: string }
+    InventorySettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryMode, expectedUpdatedAt]
+      properties:
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        expectedUpdatedAt: { type: string }
+    InventorySettingsResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventorySettings' }
+    InventoryCapacityIngredient:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, name, baseUnit, onHandQuantity, reservedQuantity, availableQuantity, requiredPerServing, availableServings, averageUnitCost, costPerServing, costAvailable, limiting, active]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        name: { type: string }
+        baseUnit: { $ref: '#/components/schemas/BaseUnit' }
+        onHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reservedQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        availableQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        requiredPerServing: { type: number, format: decimal, exclusiveMinimum: 0 }
+        availableServings: { type: integer, minimum: 0 }
+        averageUnitCost:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          description: Zero means cost is missing for capacity calculations.
+        costPerServing: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        costAvailable: { type: boolean }
+        limiting: { type: boolean }
+        active: { type: boolean }
+    MissingCostItem:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, name]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        name: { type: string }
+    InventoryCapacity:
+      type: object
+      additionalProperties: false
+      required: [variantId, inventoryMode, availableServings, limitingInventoryItemId, calculatedAt, variantPrice, ingredients, costStatus, recipeCostPerServing, foodCostPercent, missingCostItemCount, missingCostItems]
+      properties:
+        variantId: { type: integer, minimum: 1 }
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        availableServings: { oneOf: [{ type: integer, minimum: 0 }, { type: 'null' }] }
+        limitingInventoryItemId: { oneOf: [{ type: integer, minimum: 1 }, { type: 'null' }] }
+        calculatedAt: { type: string, format: date-time }
+        variantPrice: { $ref: '#/components/schemas/Money' }
+        ingredients: { type: array, items: { $ref: '#/components/schemas/InventoryCapacityIngredient' } }
+        costStatus: { type: string, enum: [COMPLETE, INCOMPLETE, NOT_APPLICABLE] }
+        recipeCostPerServing: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        foodCostPercent: { oneOf: [{ type: number, format: decimal, minimum: 0 }, { type: 'null' }] }
+        missingCostItemCount: { type: integer, minimum: 0 }
+        missingCostItems: { type: array, items: { $ref: '#/components/schemas/MissingCostItem' } }
+    InventoryCapacityResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventoryCapacity' }
     InventoryAdjustmentRequest:
       type: object
       additionalProperties: false
@@ -2046,7 +2162,7 @@ components:
     AdminVariantDetail:
       type: object
       additionalProperties: false
-      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, isDefault, status]
+      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, inventoryMode, isDefault, status, updatedAt]
       properties:
         variantId:
           type: integer
@@ -2064,6 +2180,8 @@ components:
         quantityAvailable:
           type: [integer, 'null']
           minimum: 0
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        updatedAt: { type: string }
         isDefault:
           type: boolean
         status:

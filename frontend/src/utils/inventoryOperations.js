@@ -48,9 +48,14 @@ export function goodsReceiptPreview(line) {
   return { baseQuantity: quantity * factor, lineTotal: quantity * price, baseUnitCost: price / factor };
 }
 
+export function goodsReceiptTotal(lines) {
+  return (lines || []).reduce((total, line) => total + (goodsReceiptPreview(line).lineTotal || 0), 0);
+}
+
 export function validateStockCount(lines) {
   if (!Array.isArray(lines) || !lines.length) return { items: 'Phiếu không có mặt hàng cần kiểm' };
   if (lines.some((line) => decimal(line.actualQuantity, true) === null)) return { items: 'Nhập số lượng thực tế cho tất cả mặt hàng' };
+  if (lines.some((line) => stockCountVariance(line).quantity !== 0 && !String(line.reasonCode ?? '').trim())) return { items: 'Nhập lý do cho mặt hàng có chênh lệch' };
   return {};
 }
 
@@ -65,8 +70,27 @@ export function buildStockCountPayload(lines) {
 }
 
 export function stockCountVariance(line, unitCost = 0) {
-  const quantity = Number((Number(line.actualQuantity) - Number(line.theoreticalQuantity)).toFixed(4));
+  const actual = decimal(line?.actualQuantity, true);
+  if (actual === null) return { quantity: null, cost: null };
+  const quantity = Number((actual - Number(line.theoreticalQuantity)).toFixed(4));
   return { quantity, cost: Number((quantity * Number(unitCost || 0)).toFixed(4)) };
+}
+
+export function stockCountProgress(lines) {
+  const total = lines?.length || 0;
+  const counted = (lines || []).filter((line) => decimal(line.actualQuantity, true) !== null).length;
+  return { counted, total, percent: total ? Math.round((counted / total) * 100) : 0 };
+}
+
+export function stockCountSummary(lines, itemsById) {
+  return (lines || []).reduce((summary, line) => {
+    const variance = stockCountVariance(line, itemsById?.[line.inventoryItemId]?.averageUnitCost);
+    if (variance.quantity < 0) {
+      summary.shortageItemCount += 1;
+      summary.lossCost += Math.abs(variance.cost);
+    } else if (variance.quantity > 0) summary.surplusItemCount += 1;
+    return summary;
+  }, { shortageItemCount: 0, surplusItemCount: 0, lossCost: 0 });
 }
 
 export function recipeCost(recipe, itemsById, variantPrice) {
@@ -80,6 +104,20 @@ export function recipeCost(recipe, itemsById, variantPrice) {
   const cost = Number((total / Number(recipe.yieldQuantity)).toFixed(4));
   const price = Number(variantPrice);
   return { cost, foodCostPercent: Number.isFinite(price) && price > 0 ? Number(((cost / price) * 100).toFixed(2)) : null };
+}
+
+export function recipeLinePresentation(line, item, yieldQuantity) {
+  const quantity = Number(line?.quantity);
+  const yieldValue = Number(yieldQuantity);
+  const amountPerServing = quantity > 0 && yieldValue > 0 ? quantity / yieldValue : null;
+  const availableQuantity = Number.isFinite(Number(item?.availableQuantity)) ? Number(item.availableQuantity) : null;
+  const unitCost = Number(item?.averageUnitCost);
+  return {
+    amountPerServing,
+    availableQuantity,
+    estimatedServings: amountPerServing > 0 && availableQuantity !== null ? Math.floor(availableQuantity / amountPerServing) : null,
+    costPerServing: amountPerServing !== null && Number.isFinite(unitCost) ? amountPerServing * unitCost : null,
+  };
 }
 
 function localDate(date) {

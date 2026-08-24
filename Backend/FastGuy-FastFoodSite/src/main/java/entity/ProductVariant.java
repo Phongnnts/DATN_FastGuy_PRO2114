@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "ProductVariant")
@@ -68,6 +69,9 @@ public class ProductVariant {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Transient
+    private boolean updatedAtAdvanced;
+
     public ProductVariant() {}
 
     public int getVariantId() { return variantId; }
@@ -102,10 +106,13 @@ public class ProductVariant {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public void advanceUpdatedAt() { updatedAt=nextUpdatedAt();updatedAtAdvanced=true; }
 
     @PrePersist
-    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+    void prePersist() { LocalDateTime now=LocalDateTime.now().withNano(0);if(createdAt==null)createdAt=now;updatedAt=now;updatedAtAdvanced=false; }
 
     @PreUpdate
-    void preUpdate() { updatedAt = LocalDateTime.now(); }
+    void preUpdate() { if(updatedAtAdvanced)updatedAtAdvanced=false;else updatedAt=nextUpdatedAt(); }
+
+    private LocalDateTime nextUpdatedAt() { LocalDateTime now=LocalDateTime.now().withNano(0);if(updatedAt==null)return now;LocalDateTime next=updatedAt.plusSeconds(1);return now.isAfter(next)?now:next; }
 }
