@@ -1,11 +1,14 @@
 package service;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import dao.InventoryItemDAO;
+import entity.InventoryItem;
 import entity.InventoryTransaction;
 import entity.ProductVariant;
 import entity.User;
@@ -17,6 +20,7 @@ import utils.DatabaseUtil;
 public class InventoryAdjustmentService {
     private static final Set<String> ADJUSTMENT_REASONS = Set.of("STOCK_COUNT", "DAMAGE", "EXPIRED", "OTHER");
     private final Supplier<EntityManager> entityManagers;
+    private final InventoryItemDAO inventoryItems = new InventoryItemDAO();
 
     public InventoryAdjustmentService() {
         this(DatabaseUtil::getEntityManager);
@@ -64,16 +68,18 @@ public class InventoryAdjustmentService {
                 return result;
             }
             variant.setQuantityAvailable(after);
+            InventoryItem item = requireFinishedGood(em, variantId);
+            item.setOnHandQuantity(item.getOnHandQuantity().add(BigDecimal.valueOf(after - before)));
             InventoryTransaction txn = new InventoryTransaction();
-            txn.setVariant(variant);
+            txn.setInventoryItem(item);
             txn.setOrder(null);
             txn.setCreatedBy(em.find(User.class, adminId));
             txn.setTransactionType("ADJUSTMENT");
-            txn.setQuantity(Math.abs(after - before));
+            txn.setQuantity(BigDecimal.valueOf(after - before));
             txn.setReasonCode(reasonCode);
             txn.setNote(note);
-            txn.setQuantityBefore(before);
-            txn.setQuantityAfter(after);
+            txn.setQuantityBefore(BigDecimal.valueOf(before));
+            txn.setQuantityAfter(BigDecimal.valueOf(after));
             em.persist(txn);
             em.getTransaction().commit();
             result.put("changed", true);
@@ -126,18 +132,20 @@ public class InventoryAdjustmentService {
                 em.getTransaction().commit();
                 return result;
             }
+            if (newQuantity == null || before == null) throw new IllegalArgumentException("Biến thể phải quản lý tồn kho thành phẩm");
             variant.setQuantityAvailable(newQuantity);
+            InventoryItem item = requireFinishedGood(em, variantId);
+            item.setOnHandQuantity(item.getOnHandQuantity().add(BigDecimal.valueOf(newQuantity - before)));
             InventoryTransaction txn = new InventoryTransaction();
-            txn.setVariant(variant);
+            txn.setInventoryItem(item);
             txn.setOrder(null);
             txn.setCreatedBy(em.find(User.class, adminId));
             txn.setTransactionType("ADJUSTMENT");
-            int quantity = before == null ? newQuantity : newQuantity == null ? before : Math.abs(newQuantity - before);
-            txn.setQuantity(quantity == 0 ? 1 : quantity);
+            txn.setQuantity(BigDecimal.valueOf(newQuantity - before));
             txn.setReasonCode(reasonCode);
             txn.setNote(note);
-            txn.setQuantityBefore(before);
-            txn.setQuantityAfter(newQuantity);
+            txn.setQuantityBefore(BigDecimal.valueOf(before));
+            txn.setQuantityAfter(BigDecimal.valueOf(newQuantity));
             em.persist(txn);
             em.getTransaction().commit();
             result.put("changed", true);
@@ -164,16 +172,21 @@ public class InventoryAdjustmentService {
             int before = stock;
             int after = stock - quantity;
             variant.setQuantityAvailable(after);
+            InventoryItem item = requireFinishedGood(em, variantId);
+            item.setOnHandQuantity(item.getOnHandQuantity().subtract(BigDecimal.valueOf(quantity)));
             InventoryTransaction txn = new InventoryTransaction();
-            txn.setVariant(variant);
+            txn.setInventoryItem(item);
             txn.setOrder(null);
             txn.setCreatedBy(em.find(User.class, adminId));
             txn.setTransactionType("WASTE");
-            txn.setQuantity(quantity);
+            txn.setQuantity(BigDecimal.valueOf(quantity).negate());
             txn.setReasonCode(reasonCode);
             txn.setNote(note);
-            txn.setQuantityBefore(before);
-            txn.setQuantityAfter(after);
+            txn.setQuantityBefore(BigDecimal.valueOf(before));
+            txn.setQuantityAfter(BigDecimal.valueOf(after));
+            BigDecimal cost=item.getAverageUnitCost().setScale(4,java.math.RoundingMode.HALF_UP);
+            txn.setUnitCostSnapshot(cost);
+            txn.setTotalCost(BigDecimal.valueOf(quantity).multiply(cost).setScale(4,java.math.RoundingMode.HALF_UP));
             em.persist(txn);
             em.getTransaction().commit();
             Map<String, Object> result = new HashMap<>();
@@ -188,5 +201,11 @@ public class InventoryAdjustmentService {
         } finally {
             em.close();
         }
+    }
+
+    private InventoryItem requireFinishedGood(EntityManager em, int variantId) {
+        InventoryItem item = inventoryItems.findFinishedGood(em, variantId);
+        if (item == null) throw new IllegalArgumentException("Biến thể không có tồn kho thành phẩm");
+        return em.find(InventoryItem.class, item.getInventoryItemId(), LockModeType.PESSIMISTIC_WRITE);
     }
 }

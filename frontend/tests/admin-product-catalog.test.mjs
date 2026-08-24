@@ -43,14 +43,12 @@ test('admin catalog hides COMBO type while preserving regular product rows', () 
   assert.match(productsPage, /#\{\{ product\.id \}\} · \{\{ categoryName\(product\) \}\}/);
 });
 
-test('products and inventory consume one shared low-stock policy', () => {
+test('products page keeps shared low-stock policy while inventory uses item-level states', () => {
   assert.match(productsPage, /productStockSummary/);
   assert.match(productsPage, /lowStockThreshold/);
   assert.doesNotMatch(productsPage, /stock <= 10|stock > 10/);
-  assert.match(inventoryPage, /stockState/);
-  assert.match(inventoryPage, /lowStockThreshold/);
-  assert.doesNotMatch(inventoryPage, /stock <= 5|stock > 0 && row\.stock <= 5/);
-  assert.match(inventoryPage, /inventoryRowsSummary/);
-  assert.match(inventoryPage, /Lỗi dữ liệu tồn kho/);
+  assert.match(inventoryPage, /itemStockState/);
+  assert.match(inventoryPage, /availableQuantity/);
+  assert.doesNotMatch(inventoryPage, /lowStockThreshold|inventoryRowsSummary/);
   assert.match(adminStore, /createLatestCatalogFetcher/);
 });

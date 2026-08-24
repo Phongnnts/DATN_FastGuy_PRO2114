@@ -18,8 +18,12 @@ const sidebarLinks = [
   { label: 'Tổng quan', path: '/admin', icon: 'bi-speedometer2' },
   { label: 'Người dùng', path: '/admin/users', icon: 'bi-people' },
   { label: 'Sản phẩm', path: '/admin/products', icon: 'bi-box-seam' },
-   { label: 'Tồn kho', path: '/admin/inventory', icon: 'bi-boxes' },
+   { label: 'Tổng quan kho', path: '/admin/inventory', icon: 'bi-boxes' },
+   { label: 'Công thức định lượng', path: '/admin/recipes', icon: 'bi-diagram-3' },
    { label: 'Sổ tồn kho', path: '/admin/inventory/ledger', icon: 'bi-journal-text' },
+   { label: 'Phiếu nhập', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
+   { label: 'Kiểm kê', path: '/admin/inventory/stock-counts', icon: 'bi-clipboard-check' },
+   { label: 'Giá trị kho', path: '/admin/inventory/reports', icon: 'bi-graph-up-arrow' },
    { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
   { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
   { label: 'Đối soát COD', path: '/admin/cod-settlements', icon: 'bi-cash-stack' },
@@ -33,6 +37,7 @@ const sidebarLinks = [
 
 function isLinkActive(link) {
   if (link.path === '/admin/products') return route.path === link.path || route.path.startsWith(`${link.path}/`);
+  if (link.path === '/admin/inventory') return route.path === link.path;
   return route.path === link.path;
 }
 </script>

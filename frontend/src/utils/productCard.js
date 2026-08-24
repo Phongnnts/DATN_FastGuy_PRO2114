@@ -11,5 +11,7 @@ export function canDirectAddProduct(product) {
     && product.modifierGroups.length === 0
     && variant?.variantId
     && variant.status === 'AVAILABLE'
+    && variant.availabilityStatus !== 'OUT_OF_STOCK'
+    && variant.availabilityStatus !== 'SUSPENDED'
     && (stock == null || Number(stock) > 0));
 }

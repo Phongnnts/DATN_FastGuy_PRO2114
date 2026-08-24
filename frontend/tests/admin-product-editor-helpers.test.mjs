@@ -141,14 +141,13 @@ test('tab navigation wraps and skips disabled sections', () => {
   assert.equal(nextEnabledSectionIndex(sections, 1, 'Enter'), 1);
 });
 
-test('validateVariant preserves unlimited stock and validates entered numbers', () => {
-  assert.deepEqual(validateVariant({ variantName: ' ', price: -1, originalPrice: -2, quantityAvailable: -3 }), {
+test('validateVariant checks names and prices without stock fields', () => {
+  assert.deepEqual(validateVariant({ variantName: ' ', price: -1, originalPrice: -2 }), {
     variantName: 'Tên biến thể không được trống',
     price: 'Giá biến thể không được âm',
     originalPrice: 'Giá gốc không được âm',
-    quantityAvailable: 'Tồn kho không được âm',
   });
-  assert.deepEqual(validateVariant({ variantName: 'Mặc định', price: 0, originalPrice: null, quantityAvailable: null }), {});
+  assert.deepEqual(validateVariant({ variantName: 'Mặc định', price: 0, originalPrice: null }), {});
 });
 
 test('createVariantDraft returns independent unbounded draft rows', () => {
@@ -160,7 +159,6 @@ test('createVariantDraft returns independent unbounded draft rows', () => {
     price: 0,
     originalPrice: null,
     sku: '',
-    quantityAvailable: null,
     isDefault: false,
     status: 'AVAILABLE',
   });
@@ -168,17 +166,17 @@ test('createVariantDraft returns independent unbounded draft rows', () => {
   assert.equal(second.sku, '');
 });
 
-test('variantPayload keeps null quantity unlimited and omits blank original price', () => {
-  assert.deepEqual(variantPayload({ variantName: ' L ', price: 0, originalPrice: null, sku: '', quantityAvailable: null, isDefault: false, status: 'AVAILABLE' }), {
+test('variantPayload omits stock fields and blank original price', () => {
+  const payload = variantPayload({ variantName: ' L ', price: 0, originalPrice: null, sku: '', quantityAvailable: null, isDefault: false, status: 'AVAILABLE' });
+  assert.deepEqual(payload, {
     variantName: 'L',
     price: 0,
     status: 'AVAILABLE',
-    quantityAvailable: null,
     sku: '',
     isDefault: false,
   });
-  assert.equal(variantPayload({ variantName: 'M', price: '10000', originalPrice: 12000, quantityAvailable: '', status: 'UNAVAILABLE' }).originalPrice, 12000);
-  assert.equal(variantPayload({ variantName: 'M', price: 10000, originalPrice: null, quantityAvailable: '3' }).quantityAvailable, 3);
+  assert.equal('quantityAvailable' in payload, false);
+  assert.equal(variantPayload({ variantName: 'M', price: '10000', originalPrice: 12000, status: 'UNAVAILABLE' }).originalPrice, 12000);
   assert.equal('originalPrice' in variantPayload({ variantName: 'M', price: 10000, originalPrice: '' }), false);
 });
 

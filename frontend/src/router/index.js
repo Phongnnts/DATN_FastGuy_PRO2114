@@ -410,7 +410,18 @@ const routes = [
          component: () => import('@/views/admin/InventoryPage.vue'),
        },
        {
-        path: 'inventory/ledger',
+        path: 'recipes',
+        name: 'AdminRecipes',
+        component: () => import('@/views/admin/RecipesPage.vue'),
+        meta: {
+          breadcrumb: [
+            { label: 'Tồn kho', to: '/admin/inventory' },
+            { label: 'Công thức định lượng' },
+          ],
+        },
+       },
+       {
+         path: 'inventory/ledger',
         name: 'AdminInventoryLedger',
         component: () => import('@/views/admin/InventoryLedgerPage.vue'),
         meta: {
@@ -419,6 +430,24 @@ const routes = [
             { label: 'Sổ tồn kho' },
           ],
         },
+       },
+       {
+         path: 'inventory/receipts',
+         name: 'AdminGoodsReceipts',
+         component: () => import('@/views/admin/GoodsReceiptsPage.vue'),
+         meta: { breadcrumb: [{ label: 'Tồn kho', to: '/admin/inventory' }, { label: 'Phiếu nhập' }] },
+       },
+       {
+         path: 'inventory/stock-counts',
+         name: 'AdminStockCounts',
+         component: () => import('@/views/admin/StockCountsPage.vue'),
+         meta: { breadcrumb: [{ label: 'Tồn kho', to: '/admin/inventory' }, { label: 'Kiểm kê' }] },
+       },
+       {
+         path: 'inventory/reports',
+         name: 'AdminInventoryReports',
+         component: () => import('@/views/admin/InventoryReportsPage.vue'),
+         meta: { breadcrumb: [{ label: 'Tồn kho', to: '/admin/inventory' }, { label: 'Báo cáo giá trị' }] },
        },
       {
         path: 'categories',
@@ -508,7 +537,7 @@ const pageTitles = {
   StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffNotifications: 'Thông báo', StaffShifts: 'Ca làm việc', StaffProfile: 'Hồ sơ',
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
   ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', ShipperCash: 'Đối soát COD', ShipperProfile: 'Hồ sơ', AdminDashboard: 'Tổng quan quản trị', AdminUsers: 'Người dùng',
-  AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Kho hàng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
+   AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Tổng quan kho', AdminRecipes: 'Công thức định lượng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
   AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền', AdminCodSettlements: 'Đối soát COD',
   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',
 };

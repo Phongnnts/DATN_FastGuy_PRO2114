@@ -1,55 +1,47 @@
-import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import assert from 'node:assert/strict';
 import { normalizeApiError } from '../src/api/error.js';
-import { buildVariantUpdatePayload, submitVariantUpdate, variantPayload } from '../src/utils/adminProductEditor.js';
 import {
-  adjustmentState,
-  nextFocusIndex,
-  nextOperationIndex,
-  submitAdjustment,
-} from '../src/utils/inventoryAdjustment.js';
+  buildAdjustmentPayload,
+  buildItemPayload,
+  formatQuantity,
+  parseQuantity,
+} from '../src/utils/inventoryItem.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const api = read('../src/api/admin.js');
 const inventory = read('../src/views/admin/InventoryPage.vue');
-const ledger = read('../src/views/admin/InventoryLedgerPage.vue');
-const variantSection = read('../src/components/admin/product-editor/ProductVariantsSection.vue');
 
-test('admin API exposes inventory adjustment and waste mutations', () => {
-  assert.match(api, /adjustInventory\(variantId, data\)/);
-  assert.match(api, /wasteInventory\(variantId, data\)/);
-  assert.match(api, /client\.post\('\/admin\/inventory\/transactions\/adjustments'/);
-  assert.match(api, /client\.post\('\/admin\/inventory\/transactions\/waste'/);
-  assert.match(api, /\{ variantId, \.\.\.data \}/);
+test('admin API exposes item-level inventory mutations without legacy variant stock routes', () => {
+  assert.match(api, /client\.post\('\/admin\/inventory\/items', data\)/);
+  assert.doesNotMatch(api, /receiptInventory|\/admin\/inventory\/transactions\/receipts/);
+  assert.match(api, /adjustInventoryItem\(data\)/);
+  assert.doesNotMatch(api, /transactions\/waste/);
+  assert.doesNotMatch(api, /\{ variantId, \.\.\.data \}/);
 });
 
-test('inventory page offers adjustment and waste actions for managed stock only', () => {
-  assert.match(inventory, /openAdjust\(row, \$event\)/);
-  assert.match(inventory, /openWaste\(row, \$event\)/);
-  assert.match(inventory, /v-if="inventoryRowCanMutate\(row, lowStockThreshold\)"/);
-  assert.match(inventory, /Lỗi dữ liệu tồn kho/);
-  assert.match(inventory, /submitAdjust/);
-  assert.match(inventory, /submitWaste/);
-  assert.match(inventory, /adminApi\.adjustInventory\(row\.variantId/);
-  assert.match(inventory, /adminApi\.wasteInventory\(wasteRow\.value\.variantId/);
+test('inventory page offers create, goods receipt navigation and adjustment actions per item', () => {
+  assert.match(inventory, /openDialog\('create'\)/);
+  assert.match(inventory, /name: 'AdminGoodsReceipts'/);
+  assert.doesNotMatch(inventory, /openDialog\('receipt', item, \$event\)/);
+  assert.match(inventory, /openDialog\('adjust', item, \$event\)/);
+  assert.match(inventory, /submitItemForm/);
+  assert.match(inventory, /submitMutation\(dialog\.kind\)/);
+  assert.doesNotMatch(inventory, /openWaste|Lãng phí|wasteInventory/);
 });
 
-test('inventory page validates adjustment and waste inputs', () => {
-  assert.match(inventory, /quantity <= 0/);
-  assert.match(inventory, /projectedQuantity\.value < 0/);
-  assert.match(inventory, /quantity > wasteRow\.value\.stock/);
-  assert.match(inventory, /Vui lòng chọn lý do điều chỉnh/);
-  assert.match(inventory, /Vui lòng chọn lý do lãng phí/);
+test('inventory dialogs validate decimal quantity and required reason', () => {
+  assert.match(inventory, /Số lượng phải là số dương, tối đa 4 chữ số thập phân/);
+  assert.match(inventory, /Vui lòng nhập lý do/);
+  assert.match(inventory, /Khả dụng sau điều chỉnh không thể âm/);
 });
 
-test('adjustment modal supports operation tabs and expected stock', () => {
-  assert.match(inventory, /INCREASE/);
-  assert.match(inventory, /DECREASE/);
-  assert.match(inventory, /SET/);
-  assert.match(inventory, /expectedQuantity/);
-  assert.match(inventory, /role="tablist"/);
-  assert.match(inventory, /role="tabpanel"/);
+test('adjustment dialog supports increase and decrease with projected preview', () => {
+  assert.match(inventory, /'INCREASE'/);
+  assert.match(inventory, /'DECREASE'/);
+  assert.match(inventory, /projectedQuantity\(form\)/);
+  assert.match(inventory, /aria-live="polite"/);
 });
 
 test('normalized API errors preserve conflict response data', () => {
@@ -59,135 +51,42 @@ test('normalized API errors preserve conflict response data', () => {
   });
   assert.equal(error.status, 409);
   assert.deepEqual(error.data, { variantId: 12, currentQuantity: 27 });
-});
-
-test('adjustment state projects quantities and disables invalid or no-op input', () => {
-  assert.deepEqual(adjustmentState('INCREASE', '3', 10), { projectedQuantity: 13, canSubmit: true });
-  assert.deepEqual(adjustmentState('DECREASE', '11', 10), { projectedQuantity: -1, canSubmit: false });
-  assert.deepEqual(adjustmentState('SET', '10', 10), { projectedQuantity: 10, canSubmit: false });
-  assert.deepEqual(adjustmentState('SET', '0', 10), { projectedQuantity: 0, canSubmit: true });
-  assert.deepEqual(adjustmentState('INCREASE', '', 10), { projectedQuantity: null, canSubmit: false });
-});
-
-test('submit coordinator calls mutation once and keeps conflict modal state', async () => {
-  let calls = 0;
-  const state = await submitAdjustment(async () => {
-    calls += 1;
-    throw Object.assign(new Error('Stale'), { status: 409, data: { currentQuantity: 27 } });
-  }, { variantId: 12 });
-  assert.equal(calls, 1);
-  assert.deepEqual(state, {
-    close: false,
-    currentQuantity: 27,
-    error: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.',
+  const conflict = normalizeApiError({
+    message: 'Request failed',
+    response: { status: 409, data: { status: 'error', message: 'Stale expected quantity', currentOnHandQuantity: 30.5 } },
   });
+  assert.equal(conflict.currentOnHandQuantity, 30.5);
 });
 
-test('submit coordinator keeps server no-op open without success', async () => {
-  const state = await submitAdjustment(async () => ({ changed: false, currentQuantity: 10 }), {});
-  assert.deepEqual(state, { close: false, currentQuantity: 10, error: 'Tồn kho không thay đổi' });
+test('quantity parsing accepts only positive decimals up to four fractional digits', () => {
+  assert.equal(parseQuantity('2,5').value, 2.5);
+  assert.equal(parseQuantity('0').ok, false);
+  assert.equal(parseQuantity('-1').ok, false);
+  assert.equal(parseQuantity('1.00001').ok, false);
 });
 
-test('tab navigation reducer handles arrows home end and ignores other keys', () => {
-  assert.equal(nextOperationIndex('ArrowRight', 2, 3), 0);
-  assert.equal(nextOperationIndex('ArrowLeft', 0, 3), 2);
-  assert.equal(nextOperationIndex('Home', 2, 3), 0);
-  assert.equal(nextOperationIndex('End', 0, 3), 2);
-  assert.equal(nextOperationIndex('Enter', 1, 3), null);
+test('formatQuantity renders decimals deterministically without float arithmetic', () => {
+  assert.equal(formatQuantity('10.5000'), '10,5');
+  assert.equal(formatQuantity('0.30000004'), '0,3');
+  assert.equal(formatQuantity(null), '—');
 });
 
-test('focus trap reducer wraps forward and backward only at boundaries', () => {
-  assert.equal(nextFocusIndex(2, 3, false), 0);
-  assert.equal(nextFocusIndex(0, 3, true), 2);
-  assert.equal(nextFocusIndex(1, 3, false), null);
-  assert.equal(nextFocusIndex(1, 3, true), null);
+test('adjustment payload builder sends contracted fields', () => {
+  const item = { inventoryItemId: 7, onHandQuantity: 20 };
+  assert.deepEqual(
+    buildAdjustmentPayload(item, { operation: 'INCREASE', quantity: '1.5', reason: 'Kiểm kê', note: 'bù' }),
+    { inventoryItemId: 7, quantity: 1.5, expectedOnHandQuantity: 20, reason: 'Kiểm kê', note: 'bù' },
+  );
+  assert.deepEqual(buildItemPayload({ name: ' Bột ', itemType: 'INGREDIENT', baseUnit: 'G', minimumQuantity: '', active: true }).minimumQuantity, 0);
 });
 
-test('component wires tested helpers to DOM focus and live feedback', () => {
-  assert.match(inventory, /:disabled="submitting \|\| !canSubmitAdjustment"/);
-  assert.match(inventory, /nextOperationIndex\(/);
-  assert.match(inventory, /nextFocusIndex\(/);
-  assert.match(inventory, /submitAdjustment\(/);
-  assert.match(inventory, /event\.key === 'Escape'/);
-  assert.match(inventory, /adjustmentTrigger = event\.currentTarget/);
-  assert.match(inventory, /restoreTarget\?\.focus\(\)/);
-  assert.match(inventory, /ref="wasteModal"/);
-  assert.match(inventory, /@keydown="handleModalKey"/);
-  assert.match(inventory, /wasteModal\.value\.querySelector\('input'\)\.focus\(\)/);
-  assert.match(inventory, /aria-live="polite"/);
-  assert.match(inventory, /role="alert"/);
-});
-
-test('submitting modal ignores close attempts and keeps submitted row stable', () => {
-  assert.match(inventory, /if \(submitting\.value\) return;/);
-  assert.match(inventory, /const row = adjustmentRow\.value;/);
-  assert.match(inventory, /adminApi\.adjustInventory\(row\.variantId/);
-  assert.match(inventory, /expectedQuantity: row\.stock/);
-  assert.match(inventory, /if \(Number\.isInteger\(state\.currentQuantity\)\) row\.stock = state\.currentQuantity/);
-});
-
-test('OTHER requires note', () => {
-  assert.match(inventory, /reasonCode === 'OTHER'/);
-  assert.match(inventory, /Ghi chú là bắt buộc/);
-});
-
-test('inventory page ships reason codes and accessible modals', () => {
-  assert.match(inventory, /STOCK_COUNT/);
-  assert.match(inventory, /DAMAGE/);
-  assert.match(inventory, /EXPIRED/);
-  assert.match(inventory, /OTHER/);
+test('modal keeps accessible dialog semantics and stale-conflict recovery', () => {
   assert.match(inventory, /role="dialog"/);
   assert.match(inventory, /aria-modal="true"/);
+  assert.match(inventory, /event\.key === 'Escape'/);
+  assert.match(inventory, /currentOnHandQuantity/);
+  assert.match(inventory, /dialogTrigger/);
+  assert.ok(inventory.includes('trigger?.focus?.();'));
+  assert.match(inventory, /if \(saving\.value\) return;/);
   assert.doesNotMatch(inventory, /window\.confirm\(/);
-});
-
-test('new variant payload keeps creation contract without audit fields', () => {
-  assert.deepEqual(variantPayload({ variantName: 'L', price: 20, quantityAvailable: 3 }), {
-    variantName: 'L', price: 20, status: 'AVAILABLE', sku: '', isDefault: false, quantityAvailable: 3,
-  });
-});
-
-test('existing variant update includes exact audit fields only for stock changes', () => {
-  const row = { variantName: 'L', price: 20, quantityAvailable: 7, reasonCode: 'OTHER', note: '  recount  ' };
-  assert.deepEqual(buildVariantUpdatePayload(row, 5), {
-    variantName: 'L', price: 20, status: 'AVAILABLE', sku: '', isDefault: false,
-    quantityAvailable: 7, expectedQuantity: 5, reasonCode: 'OTHER', note: 'recount',
-  });
-  assert.deepEqual(buildVariantUpdatePayload(row, 7), {
-    variantName: 'L', price: 20, status: 'AVAILABLE', sku: '', isDefault: false,
-  });
-});
-
-test('variant conflict coordinator applies current conflict and ignores stale conflict', async () => {
-  let calls = 0;
-  const conflict = async () => {
-    calls += 1;
-    throw Object.assign(new Error('Stale'), { status: 409, data: { currentQuantity: 9 } });
-  };
-  const current = await submitVariantUpdate(conflict, { quantityAvailable: 7 }, () => true);
-  const stale = await submitVariantUpdate(conflict, { quantityAvailable: 7 }, () => false);
-  assert.equal(calls, 2);
-  assert.deepEqual(current, { saved: false, currentQuantity: 9, error: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.' });
-  assert.deepEqual(stale, { ignored: true });
-});
-
-test('variant editor exposes managed stock audit fields only after existing stock changes', () => {
-  assert.match(variantSection, /quantityAvailable/);
-  assert.match(variantSection, /reasonCode/);
-  assert.match(variantSection, /note/);
-  assert.match(variantSection, /expectedQuantity/);
-  assert.match(variantSection, /Quản lý tồn kho/);
-  assert.match(variantSection, /v-if="row\.variantId && stockChanged\(row\)"/);
-  assert.match(variantSection, /buildVariantUpdatePayload\(row, expectedQuantity\)/);
-  assert.match(variantSection, /submitVariantUpdate\(/);
-});
-
-test('ledger exposes adjustment type and audit columns', () => {
-  assert.match(ledger, /ADJUSTMENT/);
-  assert.match(ledger, /Điều chỉnh/);
-  assert.match(ledger, /Biến động/);
-  assert.match(ledger, /Chi tiết/);
-  assert.match(ledger, /row\.reasonCode/);
-  assert.match(ledger, /row\.createdByName/);
-  assert.match(ledger, /quantityBefore !== null && row\.quantityAfter !== null/);
 });

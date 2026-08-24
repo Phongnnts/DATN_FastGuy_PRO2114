@@ -2,6 +2,7 @@ package dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDate;
@@ -17,8 +18,8 @@ class InventoryTransactionDAOPolicyTest {
         List<String> conditions = InventoryTransactionDAO.buildConditions(1, 2, "RESERVE",
                 LocalDateTime.of(2024, 1, 1, 0, 0), LocalDateTime.of(2024, 1, 2, 0, 0));
         assertEquals(5, conditions.size());
-        assertTrue(conditions.contains("t.variant.variantId = :variantId"));
-        assertTrue(conditions.contains("t.variant.product.productId = :productId"));
+        assertTrue(conditions.contains("t.inventoryItem.inventoryItemId = :inventoryItemId"));
+        assertTrue(conditions.contains("t.order.orderId = :orderId"));
         assertTrue(conditions.contains("t.transactionType = :transactionType"));
         assertTrue(conditions.contains("t.createdAt >= :fromDate"));
         assertTrue(conditions.contains("t.createdAt < :toDate"));
@@ -43,9 +44,9 @@ class InventoryTransactionDAOPolicyTest {
 
     @Test
     void firstResultComputesOffset() {
-        assertEquals(0, InventoryTransactionDAO.firstResult(1, 50));
-        assertEquals(100, InventoryTransactionDAO.firstResult(3, 50));
-        assertEquals(0, InventoryTransactionDAO.firstResult(1, 200));
+        assertEquals(0, InventoryTransactionDAO.firstResult(0, 50));
+        assertEquals(100, InventoryTransactionDAO.firstResult(2, 50));
+        assertEquals(200, InventoryTransactionDAO.firstResult(1, 200));
     }
 
     @Test
@@ -56,23 +57,35 @@ class InventoryTransactionDAOPolicyTest {
 
     @Test
     void toDtoFormatsCreatedAtAsIso() {
-        Object[] row = {11, 22, "FG0001", 33, "S", 44, "Coke", "RESERVE", 5,
-                LocalDateTime.of(2024, 5, 6, 7, 8, 9, 123_000_000), "REASON", "ghi chu", 4, 5, "Admin"};
+        Object[] row = {11, 33, 22, "RESERVE", 5, 4, 9, "ORDER", "22", "REASON", "ghi chu", 7,
+                new java.math.BigDecimal("0.1200"), new java.math.BigDecimal("0.6000"), 8, 9,
+                LocalDateTime.of(2024, 5, 6, 7, 8, 9)};
         Map<String, Object> dto = InventoryTransactionDAO.toDto(row);
-        assertEquals(11, dto.get("transactionId"));
-        assertEquals("RESERVE", dto.get("type"));
+        assertEquals(11, dto.get("inventoryTransactionId"));
+        assertEquals(33, dto.get("inventoryItemId"));
+        assertEquals("RESERVE", dto.get("transactionType"));
         assertEquals(5, dto.get("quantity"));
-        assertEquals("2024-05-06T07:08:09", dto.get("createdAt"));
-        assertEquals(33, dto.get("variantId"));
-        assertEquals("S", dto.get("variantName"));
-        assertEquals(44, dto.get("productId"));
-        assertEquals("Coke", dto.get("productName"));
+        assertEquals(LocalDateTime.of(2024, 5, 6, 7, 8, 9), dto.get("createdAt"));
         assertEquals(22, dto.get("orderId"));
-        assertEquals("FG0001", dto.get("orderCode"));
-        assertEquals("REASON", dto.get("reasonCode"));
+        assertEquals("REASON", dto.get("reason"));
         assertEquals("ghi chu", dto.get("note"));
         assertEquals(4, dto.get("quantityBefore"));
-        assertEquals(5, dto.get("quantityAfter"));
-        assertEquals("Admin", dto.get("createdByName"));
+        assertEquals(9, dto.get("quantityAfter"));
+        assertEquals(7, dto.get("createdBy"));
+        assertEquals(new java.math.BigDecimal("0.1200"), dto.get("unitCostSnapshot"));
+        assertEquals(new java.math.BigDecimal("0.6000"), dto.get("totalCost"));
+        assertEquals(8, dto.get("goodsReceiptId"));
+        assertEquals(9, dto.get("stockCountId"));
+    }
+
+    @Test
+    void toDtoEmitsNullableQuantityBalances() {
+        Object[] row = {11, 33, null, "ADJUSTMENT", 5, null, null, null, null, null, null, null,
+                null, null, null, null, LocalDateTime.of(2024, 5, 6, 7, 8, 9)};
+        Map<String, Object> dto = InventoryTransactionDAO.toDto(row);
+        assertTrue(dto.containsKey("quantityBefore"));
+        assertTrue(dto.containsKey("quantityAfter"));
+        assertNull(dto.get("quantityBefore"));
+        assertNull(dto.get("quantityAfter"));
     }
 }

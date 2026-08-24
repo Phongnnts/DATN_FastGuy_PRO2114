@@ -109,7 +109,6 @@ export function validateVariant(variant = {}) {
   if (!String(variant.variantName ?? '').trim()) errors.variantName = 'Tên biến thể không được trống';
   if (variant.price === '' || variant.price === null || variant.price === undefined || !Number.isFinite(Number(variant.price)) || Number(variant.price) < 0) errors.price = 'Giá biến thể không được âm';
   if (variant.originalPrice !== null && variant.originalPrice !== undefined && variant.originalPrice !== '' && (!Number.isFinite(Number(variant.originalPrice)) || Number(variant.originalPrice) < 0)) errors.originalPrice = 'Giá gốc không được âm';
-  if (variant.quantityAvailable !== null && variant.quantityAvailable !== undefined && variant.quantityAvailable !== '' && (!Number.isInteger(Number(variant.quantityAvailable)) || Number(variant.quantityAvailable) < 0)) errors.quantityAvailable = 'Tồn kho không được âm';
   return errors;
 }
 
@@ -120,13 +119,12 @@ export function createVariantDraft() {
     price: 0,
     originalPrice: null,
     sku: '',
-    quantityAvailable: null,
     isDefault: false,
     status: 'AVAILABLE',
   };
 }
 
-export function variantPayload(variant = {}, { includeStock = true } = {}) {
+export function variantPayload(variant = {}) {
   const payload = {
     variantName: String(variant.variantName ?? '').trim(),
     price: Number(variant.price) || 0,
@@ -134,35 +132,8 @@ export function variantPayload(variant = {}, { includeStock = true } = {}) {
     sku: variant.sku ?? '',
     isDefault: Boolean(variant.isDefault),
   };
-  if (includeStock) payload.quantityAvailable = variant.quantityAvailable === '' || variant.quantityAvailable === null || variant.quantityAvailable === undefined ? null : Math.max(0, Number(variant.quantityAvailable) || 0);
   if (variant.originalPrice !== '' && variant.originalPrice !== null && variant.originalPrice !== undefined) payload.originalPrice = Number(variant.originalPrice);
   return payload;
-}
-
-export function buildVariantUpdatePayload(variant, expectedQuantity) {
-  const payload = variantPayload(variant, { includeStock: false });
-  if (variant.quantityAvailable !== expectedQuantity) Object.assign(payload, {
-    quantityAvailable: variant.quantityAvailable,
-    expectedQuantity,
-    reasonCode: variant.reasonCode,
-    note: String(variant.note ?? '').trim(),
-  });
-  return payload;
-}
-
-export async function submitVariantUpdate(mutate, payload, isCurrent = () => true) {
-  try {
-    await mutate(payload);
-    return { saved: true };
-  } catch (error) {
-    if (error.status !== 409) throw error;
-    if (!isCurrent()) return { ignored: true };
-    return {
-      saved: false,
-      currentQuantity: error.data?.currentQuantity ?? null,
-      error: 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.',
-    };
-  }
 }
 
 export function validateModifierGroup(group = {}) {

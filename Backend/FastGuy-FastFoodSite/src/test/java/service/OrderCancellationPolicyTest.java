@@ -14,9 +14,9 @@ class OrderCancellationPolicyTest {
     }
 
     @Test
-    void cancellationReleasesReservedInventoryAndWastesConsumedInventory() {
+    void cancellationReleasesReservedInventoryWithoutReversingConsumedInventory() {
         assertTrue("RELEASE".equals(InventoryReservationService.cancellationTransactionType("RESERVED")));
-        assertTrue("WASTE".equals(InventoryReservationService.cancellationTransactionType("CONSUMED")));
+        assertTrue(InventoryReservationService.cancellationTransactionType("CONSUMED") == null);
         assertTrue(InventoryReservationService.cancellationTransactionType("WASTED") == null);
         assertTrue(InventoryReservationService.cancellationTransactionType("RELEASED") == null);
     }

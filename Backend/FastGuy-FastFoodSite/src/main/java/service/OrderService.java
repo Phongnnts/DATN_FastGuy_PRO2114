@@ -104,7 +104,7 @@ public class OrderService {
                 quantities.merge(item.getVariant().getVariantId(), item.getQuantity(), Integer::sum);
             }
 
-            Map<Integer, CheckoutLine> lockedLines = lockAndDeduct(em, quantities, null);
+            Map<Integer, CheckoutLine> lockedLines = validateStock(em, quantities, null);
 
             List<CheckoutLine> lines = new ArrayList<>();
             BigDecimal totalAmount = BigDecimal.ZERO;
@@ -121,6 +121,8 @@ public class OrderService {
             }
 
             BigDecimal shippingFee = calculateGhnFee(lines, ghnDistrictId, ghnWardCode);
+            lockedLines = lockAndValidate(em, quantities, null);
+            totalAmount = refreshLockedLines(lines, lockedLines);
             CouponResult coupon = verifyCoupon(em, couponCode, totalAmount, shippingFee, userId);
             BigDecimal finalAmount = totalAmount.add(shippingFee).add(serviceFee).subtract(coupon.discount);
             if (finalAmount.compareTo(BigDecimal.ZERO) < 0) finalAmount = BigDecimal.ZERO;
@@ -195,7 +197,7 @@ public class OrderService {
                 productIds.put(variantId, productId);
             }
 
-            Map<Integer, CheckoutLine> lockedLines = lockAndDeduct(em, quantities, productIds);
+            Map<Integer, CheckoutLine> lockedLines = validateStock(em, quantities, productIds);
 
             List<CheckoutLine> lines = new ArrayList<>();
             BigDecimal totalAmount = BigDecimal.ZERO;
@@ -214,6 +216,8 @@ public class OrderService {
             }
 
             BigDecimal shippingFee = calculateGhnFee(lines, ghnDistrictId, ghnWardCode);
+            lockedLines = lockAndValidate(em, quantities, productIds);
+            totalAmount = refreshLockedLines(lines, lockedLines);
             CouponResult coupon = verifyCoupon(em, couponCode, totalAmount, shippingFee, null);
             BigDecimal finalAmount = totalAmount.add(shippingFee).add(serviceFee).subtract(coupon.discount);
             if (finalAmount.compareTo(BigDecimal.ZERO) < 0) finalAmount = BigDecimal.ZERO;
@@ -356,6 +360,18 @@ public class OrderService {
                 .getResultList();
     }
 
+    private BigDecimal refreshLockedLines(List<CheckoutLine> lines, Map<Integer, CheckoutLine> lockedLines) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (CheckoutLine line : lines) {
+            CheckoutLine locked = lockedLines.get(line.variant.getVariantId());
+            line.product = locked.product;
+            line.variant = locked.variant;
+            line.unitPrice = locked.unitPrice.add(line.modifiers.stream().map(o -> o.getPrice() != null ? o.getPrice() : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add));
+            total = total.add(line.unitPrice.multiply(BigDecimal.valueOf(line.quantity)));
+        }
+        return total;
+    }
+
     private Map<Integer, CheckoutLine> validateStock(EntityManager em, Map<Integer, Integer> quantities, Map<Integer, Integer> productIds) {
         Map<Integer, CheckoutLine> lines = new HashMap<>();
         for (Integer variantId : quantities.keySet().stream().sorted().toList()) {
@@ -380,7 +396,7 @@ public class OrderService {
         return lines;
     }
 
-    private Map<Integer, CheckoutLine> lockAndDeduct(EntityManager em, Map<Integer, Integer> quantities, Map<Integer, Integer> productIds) {
+    private Map<Integer, CheckoutLine> lockAndValidate(EntityManager em, Map<Integer, Integer> quantities, Map<Integer, Integer> productIds) {
         Map<Integer, CheckoutLine> lines = new HashMap<>();
         for (Integer variantId : quantities.keySet().stream().sorted().toList()) {
             int qty = quantities.get(variantId);
@@ -393,8 +409,6 @@ public class OrderService {
             if (stock != null && stock < qty) throw new IllegalArgumentException(product.getName() + " chỉ còn " + stock + " phần");
             BigDecimal unitPrice = variant.getPrice() != null ? variant.getPrice() : product.getBasePrice();
             if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException("Giá sản phẩm không hợp lệ");
-            if (stock != null) variant.setQuantityAvailable(stock - qty);
-
             CheckoutLine line = new CheckoutLine();
             line.product = product;
             line.variant = variant;
@@ -564,19 +578,6 @@ public class OrderService {
         }
         cr.setUsedAt(null);
         cr.setOrderId(null);
-    }
-
-    private void restoreStock(EntityManager em, int orderId) {
-        List<OrderItem> items = em.createQuery("SELECT oi FROM OrderItem oi WHERE oi.order.orderId = :orderId", OrderItem.class)
-                .setParameter("orderId", orderId)
-                .getResultList();
-        for (OrderItem item : items) {
-            if (item.getVariant() == null) continue;
-            ProductVariant variant = em.find(ProductVariant.class, item.getVariant().getVariantId(), LockModeType.PESSIMISTIC_WRITE);
-            if (variant != null && variant.getQuantityAvailable() != null) {
-                variant.setQuantityAvailable(variant.getQuantityAvailable() + item.getQuantity());
-            }
-        }
     }
 
     private BigDecimal validateBusinessHoursAndGetServiceFee(Map<String, String> config) {

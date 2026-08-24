@@ -10,7 +10,7 @@ class InventoryReservationPolicyTest {
     void reservationOnlyMovesForward() {
         assertTrue(InventoryReservationService.canTransition("RESERVED", "CONSUMED"));
         assertTrue(InventoryReservationService.canTransition("RESERVED", "RELEASED"));
-        assertTrue(InventoryReservationService.canTransition("CONSUMED", "WASTED"));
+        assertFalse(InventoryReservationService.canTransition("CONSUMED", "WASTED"));
         assertFalse(InventoryReservationService.canTransition("CONSUMED", "RELEASED"));
         assertFalse(InventoryReservationService.canTransition("WASTED", "WASTED"));
         assertFalse(InventoryReservationService.canTransition("RELEASED", "RELEASED"));

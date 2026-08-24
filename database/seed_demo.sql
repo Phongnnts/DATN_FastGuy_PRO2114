@@ -13,6 +13,7 @@ IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '04
 IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '042_login_bruteforce_lock') THROW 51605, 'Run migration 042_login_bruteforce_lock first.', 1;
 IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '043_inventory_adjustment_audit') THROW 51606, 'Run migration 043_inventory_adjustment_audit first.', 1;
 IF NOT EXISTS (SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id = '050_product_scoped_reviews') THROW 51614, 'Run migration 050_product_scoped_reviews first.', 1;
+IF COL_LENGTH(N'dbo.ProductVariant', N'inventory_mode') IS NULL OR OBJECT_ID(N'dbo.InventoryItem', N'U') IS NULL THROW 51615, 'Run migration 052_ingredient_inventory_phase_1 first.', 1;
 IF COL_LENGTH(N'dbo.Users', N'failed_login_attempts') IS NULL OR COL_LENGTH(N'dbo.Users', N'locked_until') IS NULL THROW 51607, 'Latest Users schema is missing.', 1;
 IF COL_LENGTH(N'dbo.InventoryTransaction', N'created_by') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'reason_code') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'note') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'quantity_before') IS NULL OR COL_LENGTH(N'dbo.InventoryTransaction', N'quantity_after') IS NULL THROW 51608, 'Latest InventoryTransaction schema is missing.', 1;
 BEGIN TRY
@@ -83,6 +84,26 @@ BEGIN TRY
     JOIN dbo.Product p ON p.name=pn.name
     CROSS APPLY (VALUES(N'Tiêu chuẩn',CAST(0 AS decimal(18,2)),'STD',CAST(1 AS bit)),(N'Phần lớn',CAST(15000 AS decimal(18,2)),'L',CAST(0 AS bit))) v(variant_name,extra,suffix,is_default)
     WHERE n.n<=70 AND NOT EXISTS (SELECT 1 FROM dbo.ProductVariant x WHERE x.sku=CONCAT('FG-DEMO-SKU-',RIGHT(CONCAT('00',n.n),2),'-',v.suffix));
+
+    UPDATE dbo.ProductVariant SET inventory_mode='FINISHED_GOOD' WHERE sku='FG-DEMO-SKU-01-L';
+    IF NOT EXISTS (SELECT 1 FROM dbo.InventoryItem WHERE name=N'FG-DEMO Bột mì')
+        INSERT dbo.InventoryItem(name,item_type,base_unit,on_hand_quantity,reserved_quantity,minimum_quantity,active) VALUES(N'FG-DEMO Bột mì','INGREDIENT','G',25000,0,5000,1);
+    DECLARE @IngredientVariantId int=(SELECT variant_id FROM dbo.ProductVariant WHERE sku='FG-DEMO-SKU-01-STD');
+    DECLARE @IngredientItemId int=(SELECT inventory_item_id FROM dbo.InventoryItem WHERE name=N'FG-DEMO Bột mì');
+    IF NOT EXISTS (SELECT 1 FROM dbo.Recipe WHERE variant_id=@IngredientVariantId)
+        INSERT dbo.Recipe(variant_id,yield_quantity,active) VALUES(@IngredientVariantId,1,1);
+    IF NOT EXISTS (SELECT 1 FROM dbo.RecipeItem WHERE recipe_id=(SELECT recipe_id FROM dbo.Recipe WHERE variant_id=@IngredientVariantId) AND inventory_item_id=@IngredientItemId)
+        INSERT dbo.RecipeItem(recipe_id,inventory_item_id,quantity) VALUES((SELECT recipe_id FROM dbo.Recipe WHERE variant_id=@IngredientVariantId),@IngredientItemId,120);
+    UPDATE dbo.ProductVariant SET inventory_mode='INGREDIENT' WHERE variant_id=@IngredientVariantId;
+    IF NOT EXISTS (SELECT 1 FROM dbo.VariantInventoryItem WHERE variant_id=(SELECT variant_id FROM dbo.ProductVariant WHERE sku='FG-DEMO-SKU-01-L'))
+    BEGIN
+        INSERT dbo.InventoryItem(name,item_type,base_unit,on_hand_quantity,reserved_quantity,minimum_quantity,active) VALUES(N'FG-DEMO Thành phẩm Burger lớn','FINISHED_GOOD','PIECE',40,0,5,1);
+        INSERT dbo.VariantInventoryItem(variant_id,inventory_item_id) VALUES((SELECT variant_id FROM dbo.ProductVariant WHERE sku='FG-DEMO-SKU-01-L'),SCOPE_IDENTITY());
+    END;
+
+    DECLARE @MissingVariantItems TABLE(variant_id int PRIMARY KEY,inventory_item_id int);
+    MERGE dbo.InventoryItem target USING(SELECT v.variant_id,CONCAT(N'FG-DEMO Thành phẩm ',v.sku) name,CONVERT(decimal(19,4),COALESCE(v.quantity_available,0)) quantity FROM dbo.ProductVariant v WHERE v.sku LIKE 'FG-DEMO-SKU-%' AND v.inventory_mode<>'INGREDIENT' AND NOT EXISTS(SELECT 1 FROM dbo.VariantInventoryItem m WHERE m.variant_id=v.variant_id)) source ON 1=0 WHEN NOT MATCHED THEN INSERT(name,item_type,base_unit,on_hand_quantity,reserved_quantity,minimum_quantity,active) VALUES(source.name,'FINISHED_GOOD','PIECE',source.quantity,0,5,1) OUTPUT source.variant_id,inserted.inventory_item_id INTO @MissingVariantItems;
+    INSERT dbo.VariantInventoryItem(variant_id,inventory_item_id) SELECT variant_id,inventory_item_id FROM @MissingVariantItems;
 
     INSERT dbo.ProductModifierGroup(product_id,name,min_selections,max_selections,is_active,sort_order)
     SELECT p.product_id,N'FG-DEMO Tùy chọn thêm',0,2,1,90
@@ -166,19 +187,19 @@ BEGIN TRY
     SELECT o.order_id,NULL,'SYSTEM',NULL,o.order_status,N'FG-DEMO trạng thái hiện tại.',o.created_at
     FROM dbo.Orders o WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND NOT EXISTS (SELECT 1 FROM dbo.OrderStatusHistory h WHERE h.order_id=o.order_id);
 
-    INSERT dbo.InventoryReservation(order_id,variant_id,quantity,status,created_at,updated_at)
-    SELECT o.order_id,oi.variant_id,oi.quantity,CASE WHEN o.order_status IN ('PENDING','CONFIRMED') THEN 'RESERVED' WHEN o.order_status='CANCELLED' THEN 'RELEASED' ELSE 'CONSUMED' END,o.created_at,@Now
-    FROM dbo.Orders o JOIN dbo.OrderItem oi ON oi.order_id=o.order_id
-    WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND NOT EXISTS (SELECT 1 FROM dbo.InventoryReservation r WHERE r.order_id=o.order_id AND r.variant_id=oi.variant_id);
+    INSERT dbo.InventoryReservation(order_id,status,created_at,updated_at)
+    SELECT o.order_id,CASE WHEN o.order_status IN ('PENDING','CONFIRMED') THEN 'RESERVED' WHEN o.order_status='CANCELLED' THEN 'RELEASED' ELSE 'CONSUMED' END,o.created_at,@Now
+    FROM dbo.Orders o WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND NOT EXISTS (SELECT 1 FROM dbo.InventoryReservation r WHERE r.order_id=o.order_id);
+    INSERT dbo.InventoryReservationItem(reservation_id,inventory_item_id,quantity)
+    SELECT r.reservation_id,d.inventory_item_id,SUM(d.quantity) FROM dbo.Orders o JOIN dbo.OrderItem oi ON oi.order_id=o.order_id JOIN dbo.InventoryReservation r ON r.order_id=o.order_id CROSS APPLY (SELECT ri.inventory_item_id,CONVERT(decimal(19,4),oi.quantity)*ri.quantity/recipe.yield_quantity quantity FROM dbo.Recipe recipe JOIN dbo.RecipeItem ri ON ri.recipe_id=recipe.recipe_id WHERE recipe.variant_id=oi.variant_id AND recipe.active=1 UNION ALL SELECT m.inventory_item_id,CONVERT(decimal(19,4),oi.quantity) FROM dbo.VariantInventoryItem m WHERE m.variant_id=oi.variant_id) d
+    WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND NOT EXISTS (SELECT 1 FROM dbo.InventoryReservationItem existing WHERE existing.reservation_id=r.reservation_id AND existing.inventory_item_id=d.inventory_item_id) GROUP BY r.reservation_id,d.inventory_item_id;
 
-    INSERT dbo.InventoryTransaction(order_id,variant_id,transaction_type,quantity,created_at,created_by,reason_code,note,quantity_before,quantity_after)
-    SELECT o.order_id,oi.variant_id,'RESERVE',oi.quantity,o.created_at,NULL,NULL,N'FG-DEMO reserve',NULL,NULL
-    FROM dbo.Orders o JOIN dbo.OrderItem oi ON oi.order_id=o.order_id
-    WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND NOT EXISTS (SELECT 1 FROM dbo.InventoryTransaction t WHERE t.order_id=o.order_id AND t.variant_id=oi.variant_id AND t.transaction_type='RESERVE');
-    INSERT dbo.InventoryTransaction(order_id,variant_id,transaction_type,quantity,created_at,created_by,reason_code,note,quantity_before,quantity_after)
-    SELECT o.order_id,oi.variant_id,CASE WHEN o.order_status='CANCELLED' THEN 'RELEASE' ELSE 'CONSUME' END,oi.quantity,DATEADD(minute,30,o.created_at),NULL,NULL,N'FG-DEMO inventory completion',NULL,NULL
-    FROM dbo.Orders o JOIN dbo.OrderItem oi ON oi.order_id=o.order_id
-    WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND o.order_status NOT IN ('PENDING','CONFIRMED') AND NOT EXISTS (SELECT 1 FROM dbo.InventoryTransaction t WHERE t.order_id=o.order_id AND t.variant_id=oi.variant_id AND t.transaction_type=CASE WHEN o.order_status='CANCELLED' THEN 'RELEASE' ELSE 'CONSUME' END);
+    INSERT dbo.InventoryTransaction(order_id,inventory_item_id,transaction_type,quantity,created_at,created_by,reason_code,note,quantity_before,quantity_after)
+    SELECT o.order_id,ri.inventory_item_id,'RESERVE',ri.quantity,o.created_at,NULL,NULL,N'FG-DEMO reserve',NULL,NULL FROM dbo.Orders o JOIN dbo.InventoryReservation r ON r.order_id=o.order_id JOIN dbo.InventoryReservationItem ri ON ri.reservation_id=r.reservation_id
+    WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND NOT EXISTS (SELECT 1 FROM dbo.InventoryTransaction t WHERE t.order_id=o.order_id AND t.inventory_item_id=ri.inventory_item_id AND t.transaction_type='RESERVE');
+    INSERT dbo.InventoryTransaction(order_id,inventory_item_id,transaction_type,quantity,created_at,created_by,reason_code,note,quantity_before,quantity_after)
+    SELECT o.order_id,ri.inventory_item_id,CASE WHEN o.order_status='CANCELLED' THEN 'RELEASE' ELSE 'CONSUME' END,ri.quantity,DATEADD(minute,30,o.created_at),NULL,NULL,N'FG-DEMO inventory completion',NULL,NULL FROM dbo.Orders o JOIN dbo.InventoryReservation r ON r.order_id=o.order_id JOIN dbo.InventoryReservationItem ri ON ri.reservation_id=r.reservation_id
+    WHERE o.order_code LIKE 'FG-DEMO-ORDER-%' AND o.order_status NOT IN ('PENDING','CONFIRMED') AND NOT EXISTS (SELECT 1 FROM dbo.InventoryTransaction t WHERE t.order_id=o.order_id AND t.inventory_item_id=ri.inventory_item_id AND t.transaction_type=CASE WHEN o.order_status='CANCELLED' THEN 'RELEASE' ELSE 'CONSUME' END);
 
     INSERT dbo.PaymentAttempt(order_id,provider,provider_reference,checkout_url,amount,status,lease_token,created_at,updated_at)
     SELECT o.order_id,'PAYOS',CONCAT('FG-DEMO-PAY-',RIGHT(o.order_code,3)),CONCAT('https://pay.payos.vn/web/',o.order_code),o.final_amount,CASE WHEN o.payment_status='PAID' THEN 'PAID' WHEN o.order_status='CANCELLED' THEN 'CANCELLED' ELSE 'READY' END,NULL,o.created_at,@Now

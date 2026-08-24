@@ -279,7 +279,7 @@ test('product detail renders review summary distribution list and pagination', a
   await expect(page.locator('.image-sale')).toHaveText('-20%');
   const size = page.getByRole('button', { name: /Tiêu chuẩn/ });
   await expect(size).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText('Còn 20 phần', { exact: true })).toBeVisible();
+  await expect(page.getByText('Còn hàng, sẵn sàng giao nóng', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Thêm vào giỏ/ })).toBeEnabled();
   await expect(page.getByRole('button', { name: /Mua ngay/ })).toBeEnabled();
   await expect(page.getByText('Dự kiến 30 phút', { exact: true })).toBeVisible();

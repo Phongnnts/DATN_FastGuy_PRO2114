@@ -53,7 +53,7 @@ test('seven indexable routes carry robots description and canonical', () => {
 });
 
 test('breadcrumb meta covers account, admin detail, and staff operations pages', () => {
-  assert.equal((router.match(/breadcrumb:/g) || []).length, 21);
+  assert.equal((router.match(/breadcrumb:/g) || []).length, 25);
   assert.match(router, /name: 'StaffProfile',[\s\S]*?breadcrumb: \[\{ label: 'Vận hành', to: '\/staff' \}, \{ label: 'Hồ sơ' \}\]/);
   assert.match(router, /name: 'ShipperProfile',[\s\S]*?breadcrumb: \[\{ label: 'Giao hàng', to: '\/shipper' \}, \{ label: 'Hồ sơ' \}\]/);
   const productEditor = router.slice(
@@ -64,6 +64,9 @@ test('breadcrumb meta covers account, admin detail, and staff operations pages',
   assert.match(router, /{ label: 'Đơn hàng', to: '\/admin\/orders' \},\s*{ label: 'Chi tiết' }/);
   assert.match(router, /{ label: 'Đơn hàng', to: '\/admin\/orders' \},\s*{ label: 'Hoàn tiền' }/);
   assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' \},\s*{ label: 'Sổ tồn kho' }/);
+  assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' }, { label: 'Phiếu nhập' }/);
+  assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' }, { label: 'Kiểm kê' }/);
+  assert.match(router, /{ label: 'Tồn kho', to: '\/admin\/inventory' }, { label: 'Báo cáo giá trị' }/);
 });
 
 test('AppBreadcrumbs renders meta.breadcrumb with aria contract and no title fallback', () => {
@@ -85,6 +88,7 @@ test('admin catalog and inventory surfaces label variants as sizes', () => {
   for (const page of [products, inventory, ledger]) {
     assert.doesNotMatch(page, />Biến thể</);
     assert.doesNotMatch(page, /data-label="Biến thể"/);
-    assert.match(page, /Kích cỡ/);
   }
+  assert.match(products, /Kích cỡ/);
+  assert.match(inventory, /Kích cỡ/);
 });

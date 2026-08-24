@@ -11,6 +11,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.InventoryAvailabilityService;
 import utils.ApiResponse;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -29,14 +30,20 @@ public class ProductServlet extends HttpServlet {
     private ProductDAO productDAO = new ProductDAO();
     private ProductModifierDAO modifierDAO = new ProductModifierDAO();
     private ReviewDAO reviewDAO = new ReviewDAO();
+    private InventoryAvailabilityService inventoryAvailability = new InventoryAvailabilityService();
     private static final ObjectMapper mapper = new ObjectMapper();
 
     public ProductServlet() {}
 
     ProductServlet(ProductDAO productDAO, ProductModifierDAO modifierDAO, ReviewDAO reviewDAO) {
+        this(productDAO, modifierDAO, reviewDAO, new InventoryAvailabilityService());
+    }
+
+    ProductServlet(ProductDAO productDAO, ProductModifierDAO modifierDAO, ReviewDAO reviewDAO, InventoryAvailabilityService inventoryAvailability) {
         this.productDAO = productDAO;
         this.modifierDAO = modifierDAO;
         this.reviewDAO = reviewDAO;
+        this.inventoryAvailability = inventoryAvailability;
     }
 
     @Override
@@ -180,7 +187,7 @@ public class ProductServlet extends HttpServlet {
         }
     }
 
-    private Map<String, Object> toVariantMap(ProductVariant v) {
+    private Map<String, Object> toVariantMap(ProductVariant v, Map<Integer, Map<String, Object>> availability) {
         Map<String, Object> m = new HashMap<>();
         m.put("variantId", v.getVariantId());
         m.put("variantName", v.getVariantName());
@@ -190,6 +197,7 @@ public class ProductServlet extends HttpServlet {
         m.put("quantityAvailable", v.getQuantityAvailable());
         m.put("isDefault", v.getIsDefault() != null ? v.getIsDefault() : false);
         m.put("status", v.getStatus());
+        m.putAll(availability.get(v.getVariantId()));
         return m;
     }
 
@@ -212,7 +220,9 @@ public class ProductServlet extends HttpServlet {
         List<Integer> groupIds = groups.values().stream().flatMap(List::stream).map(ProductModifierGroup::getModifierGroupId).collect(Collectors.toList());
         Map<Integer, List<ProductModifierOption>> options = modifierDAO.optionsByGroupIds(groupIds);
         Map<Integer, ReviewDAO.ProductReviewSummary> ratings = reviewDAO.summariesByProductIds(ids);
-        return products.stream().map(p -> toMap(p, sold.getOrDefault(p.getProductId(), 0L), flags.getOrDefault(p.getProductId(), 0), defaults.get(p.getProductId()), variants.getOrDefault(p.getProductId(), List.of()), groups.getOrDefault(p.getProductId(), List.of()), options, ratings.get(p.getProductId()))).collect(Collectors.toList());
+        List<Integer> variantIds = variants.values().stream().flatMap(List::stream).map(ProductVariant::getVariantId).toList();
+        Map<Integer, Map<String, Object>> availability = inventoryAvailability.publicAvailability(variantIds);
+        return products.stream().map(p -> toMap(p, sold.getOrDefault(p.getProductId(), 0L), flags.getOrDefault(p.getProductId(), 0), defaults.get(p.getProductId()), variants.getOrDefault(p.getProductId(), List.of()), groups.getOrDefault(p.getProductId(), List.of()), options, ratings.get(p.getProductId()), availability)).collect(Collectors.toList());
     }
 
     static void setBestSeller(List<Map<String, Object>> products, boolean bestSeller) {
@@ -225,16 +235,17 @@ public class ProductServlet extends HttpServlet {
 
     private Map<String, Object> toMap(Product p, long soldCount, int flags, ProductVariant defaultVariant,
             List<ProductVariant> variants, List<ProductModifierGroup> groups,
-            Map<Integer, List<ProductModifierOption>> options, ReviewDAO.ProductReviewSummary rating) {
+            Map<Integer, List<ProductModifierOption>> options, ReviewDAO.ProductReviewSummary rating,
+            Map<Integer, Map<String, Object>> availability) {
         Map<String, Object> m = new HashMap<>();
-        boolean hasStock = variants.stream().anyMatch(v -> "AVAILABLE".equals(v.getStatus())
-                && (v.getQuantityAvailable() == null || v.getQuantityAvailable() > 0));
+        boolean hasStock = variants.stream().map(v -> availability.get(v.getVariantId())).filter(java.util.Objects::nonNull)
+                .map(a -> a.get("availabilityStatus")).anyMatch(List.of("IN_STOCK", "LOW_STOCK", "UNTRACKED")::contains);
         m.put("productId", p.getProductId());
         m.put("name", p.getName());
         m.put("description", p.getDescription() != null ? p.getDescription() : "");
         m.put("basePrice", p.getBasePrice());
         m.put("price", defaultVariant != null ? defaultVariant.getPrice() : p.getBasePrice());
-        m.put("defaultVariant", defaultVariant != null ? toVariantMap(defaultVariant) : null);
+        m.put("defaultVariant", defaultVariant != null ? toVariantMap(defaultVariant, availability) : null);
         m.put("imageUrl", p.getImageUrl() != null ? p.getImageUrl() : "");
         m.put("categoryId", p.getCategory().getCategoryId());
         m.put("categoryName", p.getCategory().getName());
@@ -258,7 +269,7 @@ public class ProductServlet extends HttpServlet {
         m.put("isNew", Boolean.TRUE.equals(p.getIsNew()));
         m.put("spiceLevel", p.getSpiceLevel());
         m.put("bestSeller", false);
-        m.put("variants", variants.stream().map(this::toVariantMap).collect(Collectors.toList()));
+        m.put("variants", variants.stream().map(v -> toVariantMap(v, availability)).collect(Collectors.toList()));
         m.put("modifierGroups", groups.stream().map(group -> toGroupMap(group, options.getOrDefault(group.getModifierGroupId(), List.of()))).collect(Collectors.toList()));
         return m;
     }

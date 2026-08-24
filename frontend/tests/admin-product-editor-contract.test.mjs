@@ -247,7 +247,7 @@ test('variant section drafts without IDs and persists via existing endpoints', (
   assert.match(productVariantsSection, /adminApi\.deleteVariant/);
   assert.match(productVariantsSection, /validateVariant/);
   assert.match(productVariantsSection, /variantPayload/);
-  assert.match(productVariantsSection, /quantityAvailable \?\? ''/);
+  assert.doesNotMatch(productVariantsSection, /quantityAvailable/);
   assert.match(productVariantsSection, /originalPrice/);
   assert.match(productVariantsSection, /sku/);
   assert.match(productVariantsSection, /isDefault/);
@@ -443,7 +443,7 @@ test('router migrates legacy edit query to edit route without navigation loop', 
   assert.match(router, /next\(\{ name: 'AdminProducts' \}\)/);
 });
 
-test('inventory edit link uses named edit route', () => {
-  assert.match(inventoryPage, /router\.push\(\{ name: 'AdminProductEdit', params: \{ id: row\.productId \} \}\)/);
+test('inventory overview drops legacy product edit shortcut', () => {
   assert.doesNotMatch(inventoryPage, /products\?edit=/);
+  assert.doesNotMatch(inventoryPage, /AdminProductEdit/);
 });

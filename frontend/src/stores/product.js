@@ -122,6 +122,16 @@ export const useProductStore = defineStore('product', () => {
     }
   }
 
+  async function refreshAvailability() {
+    try {
+      const productsData = await productApi.getAll();
+      allProducts.value = listFrom(productsData).map(mapProduct);
+      fetched.value = true;
+    } catch {
+      return;
+    }
+  }
+
   async function fetchById(id) {
     currentProduct.value = null;
     const local = allProducts.value.find((p) => p.productId === Number(id));
@@ -181,5 +191,6 @@ export const useProductStore = defineStore('product', () => {
     fetchCatalog,
     fetchFeatured,
     init,
+    refreshAvailability,
   };
 });
