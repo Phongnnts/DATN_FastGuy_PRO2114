@@ -63,7 +63,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div>
+  <div class="shift-sections">
     <div class="page-header"><h1><i class="bi bi-calendar-week"></i> Ca làm của tôi</h1></div>
     <ShiftStatus role="SHIPPER" />
 
@@ -103,7 +103,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.card { margin-bottom: 14px; }
+.shift-sections { display:grid; gap:14px; }.card { margin-bottom: 0; }
 .card h2 { margin-bottom: 10px; font-size: 15px; }
 .shift-card { display: grid; gap: 12px; padding: 14px; background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius); }
 .shift-card + .shift-card { margin-top: 10px; }
@@ -124,4 +124,5 @@ onBeforeUnmount(() => {
   .shift-card.compact { grid-template-columns: 1fr auto; }
   .shift-main { justify-content: flex-start; gap: 24px; }
 }
+@media(min-width:900px) { .shift-sections { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }.shift-sections>.page-header,.shift-sections>.shift-command,.shift-sections>.state { grid-column:1/-1; }.shift-sections>.card:last-of-type { grid-column:1/-1; } }
 </style>

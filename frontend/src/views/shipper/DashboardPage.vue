@@ -37,9 +37,10 @@ onUnmounted(() => { stopped = true; clearInterval(timer); store.invalidateListRe
     <ShiftStatus role="SHIPPER" />
     <div v-if="store.dashboardLoading || store.listLoading" class="state">Đang tải...</div>
     <div v-if="store.dashboardError || store.listError" class="state error" role="alert"><p>{{ store.dashboardError || store.listError }}</p><button class="btn btn-outline btn-sm" @click="retry">Thử lại</button></div>
+    <div class="operations-grid">
     <section class="next-task" aria-labelledby="next-task-title">
-      <div class="section-heading"><div><span class="eyebrow">Ưu tiên</span><h2 id="next-task-title">Việc tiếp theo</h2></div><i class="bi bi-arrow-up-right" aria-hidden="true"></i></div>
-      <router-link v-if="nextOrder" :to="`/shipper/orders/${nextOrder.id}`" class="next-order-card next-order">
+      <div class="section-heading"><div><span class="eyebrow">Ưu tiên</span><h2 id="next-task-title">Việc tiếp theo</h2></div><router-link class="shift-shortcut" to="/shipper/shifts">Xem ca làm</router-link></div>
+      <router-link v-if="nextOrder" :to="`/shipper/orders/${nextOrder.id}`" class="next-order-card next-order priority-order">
         <div class="order-main"><span class="order-status">{{ nextOrder.status === 'PICKED_UP' ? 'Đang giao' : 'Chờ lấy hàng' }}</span><strong>{{ nextOrder.orderCode }}</strong><span class="order-address">{{ nextOrder.customerAddress }}</span></div>
         <div class="order-action"><strong>{{ formatPrice(nextOrder.total) }}</strong><span>{{ nextOrder.status === 'PICKED_UP' ? 'Tiếp tục giao' : 'Đi lấy hàng' }}</span></div>
       </router-link>
@@ -55,11 +56,12 @@ onUnmounted(() => { stopped = true; clearInterval(timer); store.invalidateListRe
         <div class="mini-stat cod-stat"><strong>{{ formatPrice(dashboard?.todayCodCollected || 0) }}</strong><span>COD hôm nay</span></div>
       </div>
     </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard { display:flex; flex-direction:column; gap:14px; }
+.dashboard { display:flex; flex-direction:column; gap:18px; }
 .dashboard-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; padding:4px 2px; }
 h1,h2 { margin:0; color:var(--text-dark); }
 h1 { font-size:26px; letter-spacing:-.04em; }
@@ -71,8 +73,8 @@ h2 { font-size:16px; }
 .active-count span { margin-top:5px; color:var(--text-mid); font-size:11px; }
 .next-task { display:flex; flex-direction:column; gap:9px; }
 .section-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 2px; }
-.section-heading i { color:var(--primary); }
-.next-order { display:flex; align-items:stretch; justify-content:space-between; gap:16px; min-height:132px; padding:18px; overflow:hidden; background:linear-gradient(145deg,#20150f,#4b291a); border:1px solid #68402c; border-radius:var(--radius-lg); box-shadow:0 10px 24px rgba(43,25,16,.16); color:#fff; text-decoration:none; }
+.section-heading i { color:var(--primary); }.shift-shortcut{display:inline-flex;align-items:center;min-height:44px;color:var(--primary);font-size:12px;font-weight:750;text-decoration:none}
+.operations-grid { display:grid; gap:18px; }.next-order { display:flex; align-items:stretch; justify-content:space-between; gap:16px; min-height:156px; padding:20px; overflow:hidden; background:linear-gradient(145deg,#172033,#29364a); border:1px solid #3b4a61; border-radius:16px; box-shadow:0 14px 30px rgba(23,32,51,.18); color:#fff; text-decoration:none; }
 .order-main,.order-action { display:flex; flex-direction:column; }
 .order-main { min-width:0; }
 .order-status { align-self:flex-start; padding:4px 8px; border-radius:var(--radius-full); background:rgba(255,255,255,.12); color:#fde8d8; font-size:10px; font-weight:700; text-transform:uppercase; }
@@ -100,4 +102,5 @@ h2 { font-size:16px; }
   .next-order { flex-direction:column; min-height:0; }
   .order-action { flex-direction:row; align-items:center; text-align:left; }
 }
+@media(min-width:900px) { .operations-grid { grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr); align-items:start; }.shipper-stats { grid-template-columns:repeat(2,1fr); }.cod-stat { grid-column:1 / -1; }.next-order { min-height:220px; } }
 </style>

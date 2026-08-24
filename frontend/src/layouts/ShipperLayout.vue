@@ -13,7 +13,7 @@ const chipLabel = computed(() => shiftState.value === 'CHECKED_IN' ? 'Tuyến đ
 
 let shiftSequence = 0;
 
-const navItems = [
+const desktopNavItems = [
   { path: '/shipper', name: 'Trang chủ', icon: 'bi-house-door' },
   { path: '/shipper/orders', name: 'Đơn giao', icon: 'bi-bicycle' },
   { path: '/shipper/history', name: 'Lịch sử', icon: 'bi-clock-history' },
@@ -21,6 +21,7 @@ const navItems = [
   { path: '/shipper/cash', name: 'COD', icon: 'bi-cash-coin' },
   { path: '/shipper/profile', name: 'Hồ sơ', icon: 'bi-person-circle' },
 ];
+const mobileNavItems = desktopNavItems.filter(item => item.path !== '/shipper/shifts');
 
 function activeClass(path) {
   if (path === '/shipper/orders' && route.path.startsWith('/shipper/orders/')) return 'active';
@@ -54,6 +55,17 @@ function logout() {
 <template>
   <div class="shipper-layout fg-shell fg-shell-shipper">
     <a class="skip-link" href="#shipper-main">Bỏ qua đến nội dung chính</a>
+    <aside class="shipper-sidebar">
+      <div class="sidebar-brand"><span>Fast<span class="accent">Guy</span></span><small>FIELD COMMAND</small></div>
+      <div class="sidebar-shift"><span class="status-dot" :class="{ active: checkedIn }"></span><div><strong>{{ chipLabel }}</strong><small>Trạng thái vận hành</small></div></div>
+      <nav class="sidebar-nav" aria-label="Điều hướng Shipper desktop">
+        <router-link v-for="item in desktopNavItems" :key="item.path" :to="item.path" class="sidebar-nav-item" :class="activeClass(item.path)" :aria-current="activeClass(item.path) ? 'page' : undefined">
+          <i :class="`bi ${item.icon}`" aria-hidden="true"></i><span>{{ item.name }}</span>
+        </router-link>
+      </nav>
+      <button class="sidebar-logout" @click="logout"><i class="bi bi-arrow-right-from-bracket" aria-hidden="true"></i><span>Đăng xuất</span></button>
+    </aside>
+    <div class="shipper-workspace">
     <header class="shipper-header">
       <div class="shipper-brand">
         <span>Fast<span class="accent">Guy</span></span>
@@ -85,18 +97,20 @@ function logout() {
       </div>
       <router-view v-if="shiftState !== 'UNKNOWN' || $route.name === 'ShipperShifts' || $route.name === 'ShipperOrderHistory' || $route.name === 'ShipperCash' || $route.name === 'ShipperProfile'" aria-live="polite" role="region" />
     </main>
-    <nav class="shipper-nav" aria-label="Điều hướng Shipper">
+    <nav class="shipper-bottom-nav" aria-label="Điều hướng Shipper">
       <router-link
-        v-for="item in navItems"
+        v-for="item in mobileNavItems"
         :key="item.path"
         :to="item.path"
         class="shipper-nav-item"
         :class="activeClass(item.path)"
+        :aria-current="activeClass(item.path) ? 'page' : undefined"
       >
-        <i :class="item.icon"></i>
+        <i :class="`bi ${item.icon}`" aria-hidden="true"></i>
         <span>{{ item.name }}</span>
       </router-link>
     </nav>
+    </div>
   </div>
 </template>
 
@@ -116,13 +130,11 @@ function logout() {
 }
 .skip-link:focus { transform: translateY(0); }
 .shipper-layout {
-  display: flex;
-  flex-direction: column;
   min-height: 100dvh;
-  max-width: 480px;
-  margin: 0 auto;
-  background: var(--bg);
+  background:#f3f5f7;
 }
+.shipper-workspace { display:flex; flex-direction:column; min-height:100dvh; max-width:480px; margin:0 auto; background:#f3f5f7; }
+.shipper-sidebar { display:none; }
 .shipper-header {
   display: flex;
   align-items: center;
@@ -175,7 +187,7 @@ function logout() {
   transition: all var(--transition-fast);
 }
 .icon-btn:hover { background: var(--surface); color: var(--text-dark); }
-.logout-btn { display:inline-flex; align-items:center; gap:5px; min-height:34px; padding:0 8px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:12px; font-weight:650; }
+.logout-btn { display:inline-flex; align-items:center; gap:5px; min-height:44px; padding:0 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:12px; font-weight:650; }
 .logout-btn:hover { border-color:var(--red-active); color:var(--red-active); }
 .shipper-main {
   flex: 1;
@@ -183,7 +195,7 @@ function logout() {
   padding-bottom: calc(84px + env(safe-area-inset-bottom));
   overflow-y: auto;
 }
-.shipper-nav {
+.shipper-bottom-nav {
   display: flex;
   background: #fff;
   border-top: 1px solid var(--border-light);
@@ -219,6 +231,25 @@ function logout() {
 .no-shift-banner i { font-size:28px; flex-shrink:0; }
 .no-shift-banner strong { display:block; margin-bottom:2px; }
 .no-shift-banner p { margin:0; font-size:13px; opacity:.8; }
+@media (min-width: 900px) {
+  .shipper-layout { display:grid; grid-template-columns:248px minmax(0,1fr); }
+  .shipper-sidebar { position:sticky; top:0; display:flex; flex-direction:column; min-height:100dvh; height:100dvh; padding:28px 18px 20px; background:#172033; color:#fff; }
+  .sidebar-brand { display:flex; flex-direction:column; padding:0 10px 24px; font-size:24px; font-weight:850; letter-spacing:-.04em; }
+  .sidebar-brand small { margin-top:4px; color:#94a3b8; font-size:9px; letter-spacing:.18em; }
+  .sidebar-shift { display:flex; align-items:center; gap:10px; padding:13px; border:1px solid #334155; border-radius:12px; background:#1e293b; }
+  .sidebar-shift strong,.sidebar-shift small { display:block; }.sidebar-shift strong { font-size:12px; }.sidebar-shift small { margin-top:2px; color:#94a3b8; font-size:10px; }
+  .status-dot { width:9px; height:9px; border-radius:50%; background:#f59e0b; box-shadow:0 0 0 4px rgba(245,158,11,.12); }.status-dot.active { background:#22c55e; box-shadow:0 0 0 4px rgba(34,197,94,.12); }
+  .sidebar-nav { display:grid; gap:5px; margin-top:24px; }
+  .sidebar-nav-item,.sidebar-logout { display:flex; align-items:center; gap:12px; min-height:44px; padding:0 13px; border:0; border-radius:10px; color:#aeb9c9; background:transparent; text-decoration:none; font:inherit; font-size:13px; font-weight:650; cursor:pointer; }
+  .sidebar-nav-item i,.sidebar-logout i { width:20px; font-size:17px; text-align:center; }
+  .sidebar-nav-item:hover,.sidebar-nav-item.active { background:#263348; color:#fff; }.sidebar-nav-item.active { box-shadow:inset 3px 0 #ef4444; }
+  .sidebar-logout { margin-top:auto; width:100%; color:#fca5a5; }.sidebar-logout:hover { background:#3b2630; color:#fff; }
+  .shipper-workspace { max-width:none; margin:0; min-width:0; }
+  .shipper-header { padding:0 32px; height:68px; }
+  .shipper-brand > span:first-child,.role-badge { display:none; }
+  .shipper-main { width:100%; max-width:1280px; margin:0 auto; padding:28px 32px 40px; overflow:visible; }
+  .shipper-bottom-nav { display:none; }
+}
 @media(max-width:360px) {
   .shipper-header { padding:0 10px; }
   .shipper-brand { gap:6px; font-size:16px; }

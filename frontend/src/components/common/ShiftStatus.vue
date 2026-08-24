@@ -63,7 +63,7 @@ onUnmounted(() => clearInterval(clockTimer));
 </script>
 
 <template>
-  <section class="shift-card">
+  <section class="shift-card shift-command">
     <div class="shift-heading">
       <div>
         <span class="shift-kicker">Ca làm hôm nay</span>
@@ -88,12 +88,13 @@ onUnmounted(() => clearInterval(clockTimer));
 </template>
 
 <style scoped>
-.shift-card { background: #fff; border: 1px solid var(--border-light); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+.shift-card { background: #fff; border: 1px solid var(--border-light); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow:0 5px 16px rgba(23,32,51,.05); }
 .shift-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
 .shift-kicker { display: block; color: var(--text-mid); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 3px; }
 .shift-state { background: #fef3c7; border-radius: var(--radius-full); color: #92400e; font-size: 11px; font-weight: 700; padding: 4px 8px; white-space: nowrap; }
 .shift-state.active { background: #dcfce7; color: #166534; }
 .shift-note { color: var(--text-mid); font-size: 13px; margin: 8px 0; }
 .error { color: var(--red-active); }
+.shift-card .btn { min-height:44px; padding-inline:16px; }.shift-command:has(.shift-state.active){border-color:#bbf7d0;background:linear-gradient(135deg,#fff,#f0fdf4)}
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
