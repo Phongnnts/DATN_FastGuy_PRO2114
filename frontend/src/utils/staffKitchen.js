@@ -45,6 +45,7 @@ export function validDispatchSelections(selections, shippers) {
   return Object.fromEntries(Object.entries(selections).filter(([, shipperId]) => availableIds.has(String(shipperId))));
 }
 
-export function acceptsDispatchRequest({ requestGeneration, latestGeneration, stopped }) {
-  return !stopped && requestGeneration === latestGeneration;
+export function acceptsDispatchRequest({ requestGeneration, latestGeneration, requestFilter, activeFilter, stopped = false }) {
+  return !stopped && requestGeneration === latestGeneration
+    && (requestFilter == null || requestFilter === activeFilter);
 }

@@ -14,7 +14,7 @@ test('staff dispatch and kitchen routes remain discoverable', () => {
   assert.match(router, /path: 'kitchen'[\s\S]*redirect: \{ name: 'StaffOrders' \}/);
   assert.match(layout, /Bếp · Đơn hàng/);
   assert.match(layout, /Điều phối giao hàng/);
-  assert.match(dispatch, /fetchReadyOrders/);
+  assert.match(dispatch, /fetchDispatchOrders/);
   assert.match(dispatch, /getAvailableShippers/);
   assert.match(dispatch, /assignShipper/);
 });
@@ -43,7 +43,7 @@ test('dispatch keeps independent lanes safe while polling workload', () => {
   assert.match(dispatch, /order\.customerPhone/);
   assert.match(dispatch, /order\.shippingAddress/);
   assert.match(dispatch, /formatPrice\(order\.total\)/);
-  assert.match(dispatch, /waitingDuration\(order\.createdAt\)/);
+  assert.match(dispatch, /waitingDuration\(order\.readyAt \|\| order\.createdAt\)/);
 });
 
 test('frontend order contracts use canonical fields and safe compatibility fallbacks', () => {

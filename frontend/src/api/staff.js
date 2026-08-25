@@ -16,6 +16,9 @@ export default {
   getReadyOrders(params) {
     return client.get('/staff/orders/ready', { params });
   },
+  getDispatchOrders(filter) {
+    return client.get('/staff/orders/dispatch', { params: { filter } });
+  },
   getDeliveryFailedOrders(params) {
     return client.get('/staff/orders/delivery-failures', { params });
   },
