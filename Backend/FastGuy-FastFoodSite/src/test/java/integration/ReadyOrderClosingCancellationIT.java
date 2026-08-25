@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -18,8 +20,12 @@ import org.junit.jupiter.api.Test;
 
 import jakarta.persistence.EntityManager;
 import dao.OrdersDAO;
+import entity.Orders;
+import entity.User;
+import entity.WorkShift;
 import service.OrderScheduler;
 import service.OrderTransitionService;
+import service.StaffOrderService;
 import utils.DatabaseUtil;
 
 class ReadyOrderClosingCancellationIT {
@@ -93,6 +99,8 @@ class ReadyOrderClosingCancellationIT {
             String database = (String) em.createNativeQuery("SELECT DB_NAME()").getSingleResult();
             assertTrue(database.endsWith("_Test"), "Integration mutations require a *_Test database");
             seed(em);
+            assertTrue(new StaffOrderService().getAvailableShipperShifts().stream()
+                    .anyMatch(shift -> shift.getUser().getUserId() == shipperId), () -> shiftDiagnostic(em));
             int orderId = orderIds.get(0);
             CountDownLatch start = new CountDownLatch(1);
             Future<OrderTransitionService.MutationResult> assignment = executor.submit(() -> {
@@ -151,10 +159,18 @@ class ReadyOrderClosingCancellationIT {
         updateConfig(em, "business_open_time", "08:00");
         updateConfig(em, "business_close_time", "22:00");
         String token = Long.toString(System.nanoTime());
-        shipperId = insertedId(em, "INSERT INTO Users(role_name,phone,password_hash,full_name,status) OUTPUT INSERTED.user_id VALUES ('SHIPPER',:phone,'test',N'Task 4','ACTIVE')", "task4-shipper-" + token);
-        staffId = insertedId(em, "INSERT INTO Users(role_name,phone,password_hash,full_name,status) OUTPUT INSERTED.user_id VALUES ('STAFF',:phone,'test',N'Task 4 Staff','ACTIVE')", "task4-staff-" + token);
-        em.createNativeQuery("INSERT INTO WorkShift(user_id,shift_date,start_time,end_time,check_in_at,status) VALUES (:userId,CAST(SYSDATETIME() AS date),'00:00','23:59',SYSDATETIME(),'CHECKED_IN')")
-                .setParameter("userId", shipperId).executeUpdate();
+        String phoneSuffix = token.substring(Math.max(0, token.length() - 9));
+        shipperId = insertUser(em, "SHIPPER", "8" + phoneSuffix, "shipper-" + token + "@test.local", "Task 4");
+        staffId = insertUser(em, "STAFF", "9" + phoneSuffix, "staff-" + token + "@test.local", "Task 4 Staff");
+        LocalDateTime businessNow = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        WorkShift shift = new WorkShift();
+        shift.setUser(em.getReference(User.class, shipperId));
+        shift.setShiftDate(businessNow.toLocalDate());
+        shift.setStartTime(businessNow.minusHours(1).toLocalTime());
+        shift.setEndTime(businessNow.plusHours(1).toLocalTime());
+        shift.setCheckInAt(businessNow.minusMinutes(1));
+        shift.setStatus("CHECKED_IN");
+        em.persist(shift);
         couponId = insertedId(em, "INSERT INTO Coupon(code,type,value,min_order,max_uses,used_count,is_active,is_public) OUTPUT INSERTED.coupon_id VALUES (:value,'FIXED',1,0,1,1,1,0)", "TASK4-" + token);
         inventoryItemId = insertedId(em, "INSERT INTO InventoryItem(name,item_type,base_unit,inventory_code,on_hand_quantity,reserved_quantity,minimum_quantity,active) OUTPUT INSERTED.inventory_item_id VALUES (N'Task 4','INGREDIENT','PIECE',:value,10,1,0,1)", "TASK4-" + token);
         orderIds.add(insertOrder(em, token + "-ready", "READY", null));
@@ -174,14 +190,46 @@ class ReadyOrderClosingCancellationIT {
     }
 
     private int insertOrder(EntityManager em, String code, String status, Integer shipperId) {
-        return ((Number) em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,final_amount,payment_method,payment_status,order_status,shipper_id,ready_at,created_at) OUTPUT INSERTED.order_id VALUES (:code,N'Task 4','000',N'Test',1,1,'BANK_TRANSFER','PAID',:status,:shipperId,DATEADD(DAY,-1,SYSDATETIME()),DATEADD(DAY,-1,SYSDATETIME()))")
-                .setParameter("code", code).setParameter("status", status).setParameter("shipperId", shipperId)
-                .getSingleResult()).intValue();
+        Orders order = new Orders();
+        order.setOrderCode(code);
+        order.setCustomerName("Task 4");
+        order.setCustomerPhone("000");
+        order.setCustomerAddress("Test");
+        order.setTotalAmount(BigDecimal.ONE);
+        order.setShippingFee(BigDecimal.ZERO);
+        order.setServiceFee(BigDecimal.ZERO);
+        order.setDiscountAmount(BigDecimal.ZERO);
+        order.setFinalAmount(BigDecimal.ONE);
+        order.setPaymentMethod("BANK_TRANSFER");
+        order.setPaymentStatus("PAID");
+        order.setOrderStatus(status);
+        if (shipperId != null) {
+            order.setShipper(em.getReference(User.class, shipperId));
+            order.setAssignedAt(LocalDateTime.now().minusDays(1));
+        }
+        order.setReadyAt(LocalDateTime.now().minusDays(1));
+        order.setCreatedAt(LocalDateTime.now().minusDays(1));
+        em.persist(order);
+        em.flush();
+        return order.getOrderId();
     }
 
     private int insertedId(EntityManager em, String sql, String value) {
         return ((Number) em.createNativeQuery(sql).setParameter(sql.contains(":phone") ? "phone" : "value", value)
                 .getSingleResult()).intValue();
+    }
+
+    private int insertUser(EntityManager em, String role, String phone, String email, String name) {
+        User user = new User();
+        user.setRole(role);
+        user.setPhone(phone);
+        user.setEmail(email);
+        user.setPasswordHash("test");
+        user.setFullName(name);
+        user.setStatus("ACTIVE");
+        em.persist(user);
+        em.flush();
+        return user.getUserId();
     }
 
     private String config(EntityManager em, String key) {
@@ -197,6 +245,12 @@ class ReadyOrderClosingCancellationIT {
     private String reservationStatus(EntityManager em, int orderId) {
         return (String) em.createNativeQuery("SELECT status FROM InventoryReservation WHERE order_id = :id")
                 .setParameter("id", orderId).getSingleResult();
+    }
+
+    private String shiftDiagnostic(EntityManager em) {
+        Object[] row = (Object[]) em.createNativeQuery("SELECT u.role_name,u.status,ws.shift_date,ws.start_time,ws.end_time,ws.check_in_at,ws.check_out_at,ws.status FROM WorkShift ws JOIN Users u ON u.user_id=ws.user_id WHERE ws.user_id=:id")
+                .setParameter("id", shipperId).getSingleResult();
+        return "Shipper shift unavailable: " + java.util.Arrays.toString(row);
     }
 
     private Object redemptionOrderId(EntityManager em) {
@@ -249,9 +303,27 @@ class ReadyOrderClosingCancellationIT {
             if (originalOpen != null) updateConfig(em, "business_open_time", originalOpen);
             if (originalClose != null) updateConfig(em, "business_close_time", originalClose);
             em.getTransaction().commit();
+            long remaining = remainingRows(em);
+            if (remaining != 0) throw new IllegalStateException("Integration cleanup left " + remaining + " tracked rows");
+            System.out.println("ReadyOrderClosingCancellationIT cleanup verified: 0 tracked rows");
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;
         }
+    }
+
+    private long remainingRows(EntityManager em) {
+        long remaining = 0;
+        if (!orderIds.isEmpty()) remaining += ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM Orders WHERE order_id IN (:ids)")
+                .setParameter("ids", orderIds).getSingleResult()).longValue();
+        if (couponId != null) remaining += ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM Coupon WHERE coupon_id = :id")
+                .setParameter("id", couponId).getSingleResult()).longValue();
+        if (inventoryItemId != null) remaining += ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM InventoryItem WHERE inventory_item_id = :id")
+                .setParameter("id", inventoryItemId).getSingleResult()).longValue();
+        if (shipperId != null) remaining += ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM Users WHERE user_id = :id")
+                .setParameter("id", shipperId).getSingleResult()).longValue();
+        if (staffId != null) remaining += ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM Users WHERE user_id = :id")
+                .setParameter("id", staffId).getSingleResult()).longValue();
+        return remaining;
     }
 }
