@@ -68,8 +68,20 @@ public class OrderScheduler {
     }
 
     private static void runCancellationTick() {
-        cancelUnpaidOrders();
-        INSTANCE.cancelReadyOrdersAfterClosing();
+        runCancellationTick(OrderScheduler::cancelUnpaidOrders, INSTANCE::cancelReadyOrdersAfterClosing);
+    }
+
+    static void runCancellationTick(Runnable unpaidPhase, Runnable closingPhase) {
+        runPhase(unpaidPhase);
+        runPhase(closingPhase);
+    }
+
+    private static void runPhase(Runnable phase) {
+        try {
+            phase.run();
+        } catch (RuntimeException e) {
+            e.printStackTrace();
+        }
     }
 
     public void cancelReadyOrdersAfterClosing() {

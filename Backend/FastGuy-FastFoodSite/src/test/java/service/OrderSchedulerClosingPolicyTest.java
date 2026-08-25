@@ -67,6 +67,37 @@ class OrderSchedulerClosingPolicyTest {
     }
 
     @Test
+    void closingPhaseFailureDoesNotEscapeOrSuppressLaterTicks() {
+        List<String> phases = new ArrayList<>();
+        Runnable unpaid = () -> phases.add("unpaid");
+        Runnable closing = new Runnable() {
+            int attempts;
+
+            @Override
+            public void run() {
+                phases.add("closing");
+                if (attempts++ == 0) throw new IllegalStateException("transient closing failure");
+            }
+        };
+
+        OrderScheduler.runCancellationTick(unpaid, closing);
+        OrderScheduler.runCancellationTick(unpaid, closing);
+
+        assertEquals(List.of("unpaid", "closing", "unpaid", "closing"), phases);
+    }
+
+    @Test
+    void unpaidPhaseFailureDoesNotBlockClosingPhase() {
+        List<String> phases = new ArrayList<>();
+
+        OrderScheduler.runCancellationTick(
+                () -> { phases.add("unpaid"); throw new IllegalStateException("transient unpaid failure"); },
+                () -> phases.add("closing"));
+
+        assertEquals(List.of("unpaid", "closing"), phases);
+    }
+
+    @Test
     void atomicCancellationPredicateRechecksEveryBindingCondition() {
         Orders order = order(1, "READY", NOW.toLocalDate().atTime(10, 0));
         assertTrue(OrderTransitionService.canAutoCancelAfterClosing(order, NOW,
