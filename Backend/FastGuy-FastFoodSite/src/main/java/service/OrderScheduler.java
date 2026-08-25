@@ -20,14 +20,14 @@ public class OrderScheduler {
     private static final OrdersDAO ordersDAO = new OrdersDAO();
     private static final OrderService orderService = new OrderService();
     private static final OrderScheduler INSTANCE = new OrderScheduler(ordersDAO, new StoreConfigService(),
-            new OrderTransitionService(), LocalDateTime::now);
+            new OrderTransitionService(), WorkShiftService::businessNow);
     private final OrdersDAO closingOrdersDAO;
     private final StoreConfigService configService;
     private final OrderTransitionService transitionService;
     private final Supplier<LocalDateTime> clock;
 
     public OrderScheduler() {
-        this(ordersDAO, new StoreConfigService(), new OrderTransitionService(), LocalDateTime::now);
+        this(ordersDAO, new StoreConfigService(), new OrderTransitionService(), WorkShiftService::businessNow);
     }
 
     OrderScheduler(OrdersDAO closingOrdersDAO, StoreConfigService configService,
@@ -87,7 +87,11 @@ public class OrderScheduler {
     public void cancelReadyOrdersAfterClosing() {
         LocalDateTime now = clock.get();
         Optional<BusinessHours> hours = parseBusinessHours(configService.getAll());
-        if (hours.isEmpty() || hours.get().open().equals(hours.get().close())) return;
+        if (hours.isEmpty()) {
+            System.err.println("OrderScheduler closing cancellation skipped: missing or invalid business hours");
+            return;
+        }
+        if (hours.get().open().equals(hours.get().close())) return;
         for (Orders order : closingCandidates(closingOrdersDAO.findReadyWithoutShipperForClosing(), now,
                 hours.get().open(), hours.get().close())) {
             try {

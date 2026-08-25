@@ -52,9 +52,9 @@ test('dispatch keyboard target is calculated synchronously', () => {
 
 test('dispatch tabs expose exact labels, counts, roving focus, and current-filter polling', () => {
   assert.match(page, /const activeFilter = ref\('PRIORITY'\)/);
-  assert.match(page, /label: 'Priority'/);
-  assert.match(page, /label: 'New'/);
-  assert.match(page, /label: 'Review'/);
+  assert.match(page, /filter: 'PRIORITY', label: 'Ưu tiên'/);
+  assert.match(page, /filter: 'NEW', label: 'Đơn mới'/);
+  assert.match(page, /filter: 'REVIEW', label: 'Xem lại'/);
   assert.match(page, /role="tablist"/);
   assert.match(page, /role="tab"/);
   assert.match(page, /:aria-selected="activeFilter === tab\.filter"/);
@@ -72,6 +72,14 @@ test('dispatch tabs expose exact labels, counts, roving focus, and current-filte
   assert.doesNotMatch(page, /ordersInFlight/);
   assert.match(page, /min-height:\s*44px/);
   assert.match(page, /\.refresh-control\{[^}]*min-height:44px/);
+});
+
+test('dispatch renders Vietnamese badge labels instead of machine enums', () => {
+  assert.match(page, /REVIEW[^\r\n]+Cần xem lại/);
+  assert.match(page, /NEW[^\r\n]+Mới/);
+  assert.match(page, /minutesUntilClose != null && order\.minutesUntilClose <= 30[^\r\n]+Sắp đóng cửa/);
+  assert.match(page, /PRIORITY[^\r\n]+Chờ lâu/);
+  assert.match(page, /\.map\(\(order\) => \(\{ \.\.\.order, classification: classificationLabel\(order\) \}\)\)/);
 });
 
 test('dispatch keeps assignment READY-only and renders Review incident action', () => {

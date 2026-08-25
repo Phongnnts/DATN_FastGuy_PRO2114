@@ -284,3 +284,14 @@ Expected: all scenarios PASS, no retained-data mutation, no console errors.
 
 Run: `git diff --check` and inspect `git diff --stat`.
 Expected: no migration, no dependency, no unrelated files, no whitespace errors.
+
+#### Final Fix Evidence (2026-08-26)
+
+- Runtime gate: `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; required Orders columns `8/8`; business hours parseable.
+- TDD RED: production scheduler clock failed by seven hours under UTC JVM default; Vietnamese label/source assertions failed; executable harness safety/restoration tests failed before implementation.
+- Focused GREEN: scheduler `7/7`; dispatch/harness `11/11`.
+- Full backend: `441/441`; frontend: `578/578`; OpenAPI contract: `11/11`; Vite build passed; OpenAPI valid with three pre-existing availability-schema warnings.
+- Disposable integration: `ReadyOrderClosingCancellationIT` `2/2`; cleanup `0 tracked rows`.
+- Real backend Playwright: desktop `1/1`, mobile `1/1`; critical requests and console assertions passed. Fixture cleanup reported `0` for Orders, Users, WorkShift, Cart, CartItem, InventoryItem, InventoryTransaction, OrderStatusHistory, CouponRedemption, InventoryReservation and InventoryReservationItem; ShippingConfig restored.
+- Post-run audit: listeners `0`, runtime processes `0`, Tomcat11 `Stopped`, E2E Orders `0`, E2E Users `0`; executable injected-failure environment restoration self-test passed.
+- N+1 remains deferred per final review ledger; no N+1 change included.

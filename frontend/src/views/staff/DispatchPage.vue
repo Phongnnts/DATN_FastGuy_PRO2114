@@ -9,9 +9,9 @@ import { acceptsDispatchRequest, dispatchTabTarget, sortAvailableShippers, valid
 const staffStore = useStaffStore();
 const toast = useToast();
 const tabs = [
-  { filter: 'PRIORITY', label: 'Priority', countKey: 'priority' },
-  { filter: 'NEW', label: 'New', countKey: 'new' },
-  { filter: 'REVIEW', label: 'Review', countKey: 'review' },
+  { filter: 'PRIORITY', label: 'Ưu tiên', countKey: 'priority' },
+  { filter: 'NEW', label: 'Đơn mới', countKey: 'new' },
+  { filter: 'REVIEW', label: 'Xem lại', countKey: 'review' },
 ];
 const activeFilter = ref('PRIORITY');
 const tabElements = ref([]);
@@ -26,7 +26,9 @@ let stopped = false;
 let pollTimer = null;
 
 const canAssign = computed(() => activeFilter.value !== 'REVIEW');
-const readyOrders = computed(() => staffStore.dispatchItems.filter((order) => !canAssign.value || !order.shipperId));
+const readyOrders = computed(() => staffStore.dispatchItems
+  .filter((order) => !canAssign.value || !order.shipperId)
+  .map((order) => ({ ...order, classification: classificationLabel(order) })));
 const dispatchCounts = computed(() => staffStore.dispatchCounts);
 const ordersLoading = computed(() => staffStore.dispatchLoading);
 const ordersError = computed(() => staffStore.dispatchError);
@@ -80,6 +82,14 @@ function handleTabKeydown(event, index) {
   selections.value = {};
   tabElements.value[nextIndex]?.focus();
   void loadOrders(tabs[nextIndex].filter);
+}
+
+function classificationLabel(order) {
+  if (order.classification === 'REVIEW') return 'Cần xem lại';
+  if (order.classification === 'NEW') return 'Mới';
+  if (order.classification === 'PRIORITY' && order.minutesUntilClose != null && order.minutesUntilClose <= 30) return 'Sắp đóng cửa';
+  if (order.classification === 'PRIORITY') return 'Chờ lâu';
+  return '';
 }
 
 async function assign(order) {

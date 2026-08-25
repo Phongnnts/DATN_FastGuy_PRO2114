@@ -81,7 +81,7 @@ class StaffDispatchBrowserFixtureIT {
         insertOrder(em, prefix + "NEW-OLDER", "READY", now.minusMinutes(3), now.minusMinutes(3), null, null, null);
         insertOrder(em, prefix + "REVIEW", "DELIVERY_FAILED", now.minusHours(2), now.minusHours(2), shipper,
                 now.minusMinutes(10), null);
-        Orders cancel = insertOrder(em, prefix + "CANCEL", "READY", now.minusDays(1), now.minusDays(1), null, null, null);
+        Orders cancel = insertOrder(em, prefix + "CANCEL", "PENDING", now, now, null, null, null);
         insertReservation(em, cancel, runId);
         em.getTransaction().commit();
         var counts = new StaffOrderService().getDispatchOrders("PRIORITY").counts();
@@ -107,9 +107,14 @@ class StaffDispatchBrowserFixtureIT {
     }
 
     private void runScheduler(EntityManager em, String runId) {
-        assertEquals(1L, orderCount(em, prefix(runId) + "CANCEL", "READY"));
+        assertEquals(1L, orderCount(em, prefix(runId) + "CANCEL", "PENDING"));
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
         em.getTransaction().begin();
+        em.createNativeQuery("UPDATE Orders SET order_status='READY',created_at=:createdAt,ready_at=:readyAt WHERE order_code=:code")
+                .setParameter("createdAt", now.minusDays(1))
+                .setParameter("readyAt", now.minusDays(1))
+                .setParameter("code", prefix(runId) + "CANCEL")
+                .executeUpdate();
         updateConfig(em, "business_close_time", now.minusMinutes(1).toLocalTime().withSecond(0).withNano(0).toString());
         em.getTransaction().commit();
         new OrderScheduler().cancelReadyOrdersAfterClosing();

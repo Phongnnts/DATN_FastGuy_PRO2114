@@ -3,7 +3,8 @@ param(
     [string]$TempRoot = 'C:\Users\NamPhong\AppData\Local\Temp\opencode\fastguy-staff-e2e',
     [int]$BackendPort = 18080,
     [int]$ShutdownPort = 18005,
-    [int]$FrontendPort = 15174
+    [int]$FrontendPort = 15174,
+    [switch]$SafetySelfTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,6 +15,51 @@ $catalinaBase = Join-Path $TempRoot 'tomcat-base'
 $backendProcess = $null
 $primaryFailure = $null
 $secondaryFailures = [System.Collections.Generic.List[string]]::new()
+$mutatedEnvironmentNames = @(
+    'JWT_SECRET', 'CATALINA_HOME', 'CATALINA_BASE',
+    'FASTGUY_E2E_DB_NAME', 'FASTGUY_E2E_STAFF_PASSWORD', 'FASTGUY_E2E_BACKEND_DIR',
+    'FASTGUY_E2E_MAVEN_HOME', 'FASTGUY_E2E_RUN_ID', 'FASTGUY_E2E_STAFF_EMAIL',
+    'PLAYWRIGHT_API_TARGET', 'PLAYWRIGHT_BASE_URL'
+)
+$processEnvironment = [Environment]::GetEnvironmentVariables('Process')
+$environmentSnapshot = @{}
+foreach ($name in $mutatedEnvironmentNames) {
+    $environmentSnapshot[$name] = @{
+        Exists = $processEnvironment.Contains($name)
+        Value = [Environment]::GetEnvironmentVariable($name, 'Process')
+    }
+}
+
+function Assert-SafeTempRoot([string]$Path) {
+    $target = [IO.Path]::GetFullPath($Path).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $approvedRoots = @(
+        'C:\Users\NamPhong\AppData\Local\Temp\opencode',
+        (Join-Path ([IO.Path]::GetTempPath()) 'opencode')
+    ) | ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) } | Select-Object -Unique
+    foreach ($approvedRoot in $approvedRoots) {
+        $approvedPrefix = $approvedRoot + [IO.Path]::DirectorySeparatorChar
+        if ($target.StartsWith($approvedPrefix, [StringComparison]::OrdinalIgnoreCase)) { return $target }
+    }
+    throw 'TempRoot must be strictly below approved temp root'
+}
+
+function Restore-ProcessEnvironment {
+    foreach ($name in $mutatedEnvironmentNames) {
+        $snapshot = $environmentSnapshot[$name]
+        if ($snapshot.Exists) { [Environment]::SetEnvironmentVariable($name, $snapshot.Value, 'Process') }
+        else { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
+    }
+}
+
+function Test-EnvironmentRestored {
+    $current = [Environment]::GetEnvironmentVariables('Process')
+    foreach ($name in $mutatedEnvironmentNames) {
+        $snapshot = $environmentSnapshot[$name]
+        if ($current.Contains($name) -ne $snapshot.Exists) { return $false }
+        if ($snapshot.Exists -and [Environment]::GetEnvironmentVariable($name, 'Process') -cne $snapshot.Value) { return $false }
+    }
+    return $true
+}
 
 function New-RandomSecret([int]$Bytes) {
     $buffer = New-Object byte[] $Bytes
@@ -43,6 +89,24 @@ function Wait-FastGuy([string]$Url, [int]$Seconds) {
     throw "Timed out waiting for $Url"
 }
 
+$TempRoot = Assert-SafeTempRoot $TempRoot
+$catalinaBase = Join-Path $TempRoot 'tomcat-base'
+if ($SafetySelfTest) {
+    try {
+        foreach ($name in $mutatedEnvironmentNames) {
+            [Environment]::SetEnvironmentVariable($name, "self-test-$name", 'Process')
+        }
+        throw 'Expected safety self-test failure'
+    } catch {
+        if ($_.Exception.Message -ne 'Expected safety self-test failure') { throw }
+    } finally {
+        Restore-ProcessEnvironment
+    }
+    if (-not (Test-EnvironmentRestored)) { throw 'Environment restoration self-test failed' }
+    Write-Output 'Environment restoration self-test passed'
+    exit 0
+}
+
 if ($env:FASTGUY_DISPOSABLE_DB -ne 'true') { throw 'FASTGUY_DISPOSABLE_DB=true required' }
 foreach ($name in 'DB_URL','DB_USER','DB_PASSWORD') {
     if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "$name required" }
@@ -54,13 +118,13 @@ foreach ($port in $BackendPort,$ShutdownPort,$FrontendPort) {
     if (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) { throw "Harness port $port occupied before startup" }
 }
 
-$env:FASTGUY_E2E_DB_NAME = 'FastGuyDB_Inventory054_Test'
-$env:FASTGUY_E2E_STAFF_PASSWORD = New-RandomSecret 24
-$env:FASTGUY_E2E_BACKEND_DIR = $backend
-$env:FASTGUY_E2E_MAVEN_HOME = Split-Path (Split-Path (Get-Command mvn.cmd).Source -Parent) -Parent
-$env:JWT_SECRET = New-RandomSecret 48
-
 try {
+    $env:FASTGUY_E2E_DB_NAME = 'FastGuyDB_Inventory054_Test'
+    $env:FASTGUY_E2E_STAFF_PASSWORD = New-RandomSecret 24
+    $env:FASTGUY_E2E_BACKEND_DIR = $backend
+    $env:FASTGUY_E2E_MAVEN_HOME = Split-Path (Split-Path (Get-Command mvn.cmd).Source -Parent) -Parent
+    $env:JWT_SECRET = New-RandomSecret 48
+
     if (Test-Path -LiteralPath $TempRoot) { Remove-Item -LiteralPath $TempRoot -Recurse -Force }
     New-Item -ItemType Directory -Path (Join-Path $catalinaBase 'conf') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $TomcatHome 'conf\web.xml') -Destination (Join-Path $catalinaBase 'conf\web.xml')
@@ -123,8 +187,7 @@ try {
     try { if ($backendProcess -and -not $backendProcess.HasExited) { Stop-Process -Id $backendProcess.Id -Force; $backendProcess.WaitForExit(10000) | Out-Null } } catch { $secondaryFailures.Add("backend stop: $($_.Exception.Message)") }
     try { Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($catalinaBase) } | ForEach-Object { taskkill.exe /PID $_.ProcessId /T /F | Out-Null }; Start-Sleep -Milliseconds 500 } catch { $secondaryFailures.Add("process cleanup: $($_.Exception.Message)") }
     foreach ($port in $BackendPort,$ShutdownPort,$FrontendPort) { try { if (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) { throw "Harness port $port still listening" } } catch { $secondaryFailures.Add($_.Exception.Message) } }
-    Remove-Item Env:FASTGUY_E2E_STAFF_PASSWORD -ErrorAction SilentlyContinue
-    Remove-Item Env:JWT_SECRET -ErrorAction SilentlyContinue
+    Restore-ProcessEnvironment
     try { if ((Get-Service -Name Tomcat11).Status -ne 'Stopped') { throw 'Tomcat11 Windows service state changed unexpectedly' } } catch { $secondaryFailures.Add($_.Exception.Message) }
 }
 if ($secondaryFailures.Count) { [Console]::Error.WriteLine("Secondary cleanup failures:`n" + ($secondaryFailures -join "`n")) }

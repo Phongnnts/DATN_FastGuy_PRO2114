@@ -4,11 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
@@ -64,6 +67,27 @@ class OrderSchedulerClosingPolicyTest {
 
         assertEquals(1, config.reads);
         assertEquals(List.of(1, 2), transitions.attempted);
+    }
+
+    @Test
+    void productionSchedulerUsesBusinessClockWhenJvmTimezoneDiffers() throws Exception {
+        TimeZone original = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            OrderScheduler scheduler = new OrderScheduler();
+            Field clockField = OrderScheduler.class.getDeclaredField("clock");
+            clockField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Supplier<LocalDateTime> clock = (Supplier<LocalDateTime>) clockField.get(scheduler);
+
+            LocalDateTime expected = WorkShiftService.businessNow();
+            LocalDateTime actual = clock.get();
+
+            assertTrue(Math.abs(java.time.Duration.between(expected, actual).toSeconds()) <= 1,
+                    () -> "Expected business time near " + expected + " but got " + actual);
+        } finally {
+            TimeZone.setDefault(original);
+        }
     }
 
     @Test

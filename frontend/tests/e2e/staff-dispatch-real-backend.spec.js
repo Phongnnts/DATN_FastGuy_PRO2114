@@ -55,9 +55,9 @@ test('real backend Staff dispatch flow', async ({ page }, testInfo) => {
   await page.goto('/staff/dispatch');
 
   const tabs = page.getByRole('tablist', { name: 'Bộ lọc điều phối' });
-  await expect(tabs.getByRole('tab', { name: 'Priority 2' })).toBeVisible();
-  await expect(tabs.getByRole('tab', { name: 'New 2' })).toBeVisible();
-  await expect(tabs.getByRole('tab', { name: 'Review 1' })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'Ưu tiên 2' })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'Đơn mới 2' })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'Xem lại 1' })).toBeVisible();
   const priorityCode = `E2E-${runId}-PRIORITY-OLD`;
   const conflictCode = `E2E-${runId}-PRIORITY-RACE`;
   const newestCode = `E2E-${runId}-NEW-RECENT`;
@@ -65,6 +65,7 @@ test('real backend Staff dispatch flow', async ({ page }, testInfo) => {
   const reviewCode = `E2E-${runId}-REVIEW`;
   const cancelCode = `E2E-${runId}-CANCEL`;
   await expect(page.getByRole('link', { name: priorityCode })).toBeVisible();
+  await expect(page.getByRole('row', { name: new RegExp(priorityCode) }).getByText('Chờ lâu', { exact: true })).toBeVisible();
   const priorityLinks = await page.getByRole('tabpanel').locator('a.order-link').allTextContents();
   expect(priorityLinks.slice(0, 2)).toEqual([priorityCode, conflictCode]);
 
@@ -74,7 +75,7 @@ test('real backend Staff dispatch flow', async ({ page }, testInfo) => {
   const assignmentPath = new URL(await page.getByRole('link', { name: priorityCode }).getAttribute('href'), 'http://e2e').pathname.replace('/staff/orders/', '/api/staff/orders/') + '/assign-shipper';
   await page.getByRole('row', { name: new RegExp(priorityCode) }).getByRole('button', { name: 'Gán shipper' }).click();
   await expect(page.getByRole('link', { name: priorityCode })).toHaveCount(0);
-  await expect(tabs.getByRole('tab', { name: 'Priority 1' })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'Ưu tiên 1' })).toBeVisible();
 
   const conflictSelect = page.getByLabel(`Chọn shipper cho ${conflictCode}`);
   await conflictSelect.selectOption(shipperValue);
@@ -93,14 +94,16 @@ test('real backend Staff dispatch flow', async ({ page }, testInfo) => {
   await expect(page.getByText('Đơn hàng đã được cập nhật. Vui lòng thử lại.', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: conflictCode })).toHaveCount(0);
   expect(await page.evaluate(() => window.__conflictSelectionReset)).toBe(true);
-  await expect(tabs.getByRole('tab', { name: 'Priority 0' })).toBeVisible();
+  await expect(tabs.getByRole('tab', { name: 'Ưu tiên 0' })).toBeVisible();
   expect(evidence.requests.filter(request => request.method === 'GET' && request.path === '/api/staff/orders/dispatch?filter=PRIORITY').length).toBe(priorityLoadsBeforeConflict + 1);
 
-  await tabs.getByRole('tab', { name: 'New 2' }).click();
+  await tabs.getByRole('tab', { name: 'Đơn mới 2' }).click();
   await expect(page.getByRole('link', { name: newestCode })).toBeVisible();
+  await expect(page.getByRole('row', { name: new RegExp(newestCode) }).getByText('Mới', { exact: true })).toBeVisible();
   const newLinks = await page.getByRole('tabpanel').locator('a.order-link').allTextContents();
   expect(newLinks.slice(0, 2)).toEqual([newestCode, olderNewCode]);
-  await tabs.getByRole('tab', { name: 'Review 1' }).click();
+  await tabs.getByRole('tab', { name: 'Xem lại 1' }).click();
+  await expect(page.getByRole('row', { name: new RegExp(reviewCode) }).getByText('Cần xem lại', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   const reviewUrl = new URL(await page.getByRole('link', { name: reviewCode }).getAttribute('href'), 'http://e2e').pathname;
   const reviewApiPath = reviewUrl.replace('/staff/orders/', '/api/staff/orders/');
