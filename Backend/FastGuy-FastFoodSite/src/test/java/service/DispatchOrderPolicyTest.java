@@ -2,6 +2,7 @@ package service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -86,6 +87,50 @@ class DispatchOrderPolicyTest {
         assertEquals(List.of(4, 2), recent.items().stream().map(item -> item.order().getOrderId()).toList());
         StaffOrderService.DispatchResult review = service.getDispatchOrders("REVIEW");
         assertEquals(List.of(8, 9), review.items().stream().map(item -> item.order().getOrderId()).toList());
+    }
+
+    @Test
+    void rejectsMissingOrInvalidBusinessTimesInsteadOfGuessingAlwaysOpen() {
+        OrdersDAO dao = candidates(List.of());
+
+        for (Map<String, String> config : List.of(
+                Map.of(StoreConfigService.OPEN_TIME, "08:00"),
+                Map.of(StoreConfigService.CLOSE_TIME, "22:00"),
+                Map.of(StoreConfigService.OPEN_TIME, "invalid", StoreConfigService.CLOSE_TIME, "22:00"))) {
+            StaffOrderService service = service(dao, config, LocalDateTime.of(2026, 8, 25, 12, 0));
+            assertThrows(IllegalArgumentException.class, () -> service.getDispatchOrders("PRIORITY"));
+        }
+    }
+
+    @Test
+    void classifiesAlwaysOpenReadyOrdersWithNullClosingMinutes() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 25, 12, 0);
+        Orders old = ready(1, now.minusMinutes(16), now.minusHours(1));
+        Orders recent = ready(2, now.minusMinutes(5), now.minusHours(1));
+        StaffOrderService service = service(candidates(List.of(recent, old)),
+                Map.of(StoreConfigService.OPEN_TIME, "00:00", StoreConfigService.CLOSE_TIME, "00:00"), now);
+
+        StaffOrderService.DispatchResult priority = service.getDispatchOrders("PRIORITY");
+        StaffOrderService.DispatchResult newest = service.getDispatchOrders("NEW");
+
+        assertEquals(Map.of("priority", 1L, "new", 1L, "review", 0L), priority.counts());
+        assertEquals(List.of(1), priority.items().stream().map(item -> item.order().getOrderId()).toList());
+        assertNull(priority.items().get(0).minutesUntilClose());
+        assertEquals(List.of(2), newest.items().stream().map(item -> item.order().getOrderId()).toList());
+        assertNull(newest.items().get(0).minutesUntilClose());
+    }
+
+    private OrdersDAO candidates(List<Orders> orders) {
+        return new OrdersDAO() {
+            @Override public List<Orders> findDispatchCandidates() { return orders; }
+        };
+    }
+
+    private StaffOrderService service(OrdersDAO dao, Map<String, String> values, LocalDateTime now) {
+        StoreConfigService config = new StoreConfigService() {
+            @Override public Map<String, String> getAll() { return values; }
+        };
+        return new StaffOrderService(dao, config, policy, () -> now);
     }
 
     private Orders ready(LocalDateTime readyAt, LocalDateTime createdAt) {

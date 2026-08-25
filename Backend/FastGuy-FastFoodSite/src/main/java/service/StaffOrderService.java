@@ -12,6 +12,7 @@ import utils.DatabaseUtil;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -57,8 +58,18 @@ public class StaffOrderService {
     public DispatchResult getDispatchOrders(String filter) {
         LocalDateTime now = businessNow.get();
         Map<String, String> config = storeConfigService.getAll();
-        LocalTime open = LocalTime.parse(config.getOrDefault(StoreConfigService.OPEN_TIME, "00:00"));
-        LocalTime close = LocalTime.parse(config.getOrDefault(StoreConfigService.CLOSE_TIME, "00:00"));
+        String openValue = config.get(StoreConfigService.OPEN_TIME);
+        String closeValue = config.get(StoreConfigService.CLOSE_TIME);
+        if (openValue == null || openValue.isBlank() || closeValue == null || closeValue.isBlank())
+            throw new IllegalArgumentException("Missing business hours config");
+        LocalTime open;
+        LocalTime close;
+        try {
+            open = LocalTime.parse(openValue);
+            close = LocalTime.parse(closeValue);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Invalid business hours config", e);
+        }
         List<DispatchItem> priority = new ArrayList<>();
         List<DispatchItem> recent = new ArrayList<>();
         List<DispatchItem> review = new ArrayList<>();

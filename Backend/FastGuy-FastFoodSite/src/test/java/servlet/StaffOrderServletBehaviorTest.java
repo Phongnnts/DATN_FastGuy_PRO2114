@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -22,6 +23,7 @@ import dao.OrderItemDAO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.StaffOrderService;
+import service.StaffShiftAccessService;
 import utils.JsonUtil;
 
 class StaffOrderServletBehaviorTest {
@@ -58,19 +60,59 @@ class StaffOrderServletBehaviorTest {
         assertEquals(1, body.path("counts").path("new").asInt());
         assertEquals(1, body.path("counts").path("review").asInt());
         JsonNode item = body.path("items").get(0);
-        for (String field : List.of("customerAddress", "readyAt", "classification", "minutesUntilClose",
+        Set<String> expectedKeys = Set.of("orderId", "orderCode", "userId", "customerName", "customerPhone",
+                "customerAddress", "status", "orderStatus", "itemCount", "items", "totalAmount", "shippingFee",
+                "serviceFee", "discountAmount", "paymentMethod", "paymentStatus", "finalAmount", "refundAmount",
+                "refundedAt", "shipperId", "shipperName", "assignedAt", "updatedAt", "endedAt", "createdAt",
                 "deliveryAttemptCount", "deliveryAttemptLimit", "deliveryFailureCode", "failureNote",
-                "deliveryFailedAt", "retryScheduledAt", "returnedToStoreAt")) assertTrue(item.has(field), field);
+                "deliveryFailedAt", "retryScheduledAt", "returnedToStoreAt", "readyAt", "classification",
+                "minutesUntilClose");
+        Set<String> actualKeys = new java.util.HashSet<>();
+        item.fieldNames().forEachRemaining(actualKeys::add);
+        assertEquals(expectedKeys, actualKeys);
         assertEquals("PRIORITY", item.path("classification").asText());
         assertEquals("2026-08-25T21:10:00", item.path("readyAt").asText());
         assertEquals(30, item.path("minutesUntilClose").asLong());
-        assertFalse(item.has("data"));
+        for (String field : List.of("userId", "customerName", "customerPhone", "totalAmount", "shippingFee",
+                "serviceFee", "discountAmount", "paymentMethod", "paymentStatus", "finalAmount", "refundAmount",
+                "refundedAt", "shipperId", "shipperName", "assignedAt", "updatedAt", "endedAt", "createdAt",
+                "deliveryFailureCode", "failureNote", "deliveryFailedAt", "retryScheduledAt", "returnedToStoreAt"))
+            assertTrue(item.path(field).isNull(), field);
+        for (String field : List.of("orderId", "itemCount", "deliveryAttemptCount", "deliveryAttemptLimit", "minutesUntilClose"))
+            assertTrue(item.path(field).isIntegralNumber(), field);
+        for (String field : List.of("orderCode", "customerAddress", "status", "orderStatus", "readyAt", "classification"))
+            assertTrue(item.path(field).isTextual(), field);
+        assertTrue(item.path("items").isArray());
     }
 
     @Test
     void dispatchStillRequiresCheckedInShift() {
         assertTrue(StaffOrderServlet.requiresCheckedInShift("GET", "/dispatch"));
         assertFalse(StaffOrderServlet.hasRouteAccess("GET", "/dispatch", true, false));
+    }
+
+    @Test
+    void uncheckedStaffRequestReturnsForbiddenWithoutDispatchLookup() throws Exception {
+        TestStaffOrderServlet servlet = servlet();
+        servlet.access.checkedIn = false;
+        ResponseCapture capture = new ResponseCapture();
+
+        servlet.get(request("PRIORITY"), response(capture));
+
+        assertEquals(403, capture.status);
+        assertEquals(0, servlet.service.calls);
+    }
+
+    @Test
+    void invalidBusinessConfigReturnsBadRequest() throws Exception {
+        TestStaffOrderServlet servlet = servlet();
+        servlet.service.configFailure = true;
+        ResponseCapture capture = new ResponseCapture();
+
+        servlet.get(request("PRIORITY"), response(capture));
+
+        assertEquals(400, capture.status);
+        assertEquals(1, servlet.service.calls);
     }
 
     private TestStaffOrderServlet servlet() throws Exception {
@@ -80,6 +122,8 @@ class StaffOrderServletBehaviorTest {
         set(servlet, "orderItemDAO", new OrderItemDAO() {
             @Override public List<entity.OrderItem> findByOrderId(int orderId) { return List.of(); }
         });
+        servlet.access = new StubStaffShiftAccessService();
+        set(servlet, "staffShiftAccessService", servlet.access);
         return servlet;
     }
 
@@ -117,15 +161,23 @@ class StaffOrderServletBehaviorTest {
 
     private static class TestStaffOrderServlet extends StaffOrderServlet {
         private StubStaffOrderService service;
+        private StubStaffShiftAccessService access;
         @Override protected int getStaffId(HttpServletRequest req, HttpServletResponse resp) { return 7; }
-        @Override protected boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int staffId) { return true; }
         private void get(HttpServletRequest req, HttpServletResponse resp) throws Exception { doGet(req, resp); }
+    }
+
+    private static class StubStaffShiftAccessService extends StaffShiftAccessService {
+        private boolean checkedIn = true;
+        @Override public boolean hasValidStaffIdentity(int userId) { return true; }
+        @Override public boolean hasCheckedInShift(int userId) { return checkedIn; }
     }
 
     private static class StubStaffOrderService extends StaffOrderService {
         private int calls;
+        private boolean configFailure;
         @Override public DispatchResult getDispatchOrders(String filter) {
             calls++;
+            if (configFailure) throw new IllegalArgumentException("Missing business hours config");
             Orders order = new Orders();
             order.setOrderId(11);
             order.setOrderCode("FG-0011");
