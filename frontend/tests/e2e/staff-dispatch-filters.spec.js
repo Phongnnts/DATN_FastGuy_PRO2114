@@ -94,6 +94,7 @@ test('mocked UI E2E presents dispatch filters, ordering, navigation and responsi
     await expect(menuToggle).toBeVisible();
     expect((await sidebar.boundingBox()).x).toBeLessThan(0);
     await menuToggle.click();
+    await expect(menuToggle).toHaveAttribute('aria-expanded', 'true');
     await expect.poll(async () => (await sidebar.boundingBox()).x).toBe(0);
     await expect(page.locator('tbody tr')).toHaveCSS('display', 'grid');
     const overlay = page.getByRole('button', { name: 'Đóng menu nhân viên' });
@@ -106,6 +107,7 @@ test('mocked UI E2E presents dispatch filters, ordering, navigation and responsi
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.getByRole('link', { name: 'FG-REVIEW' }).click();
+  await expect(page).toHaveURL('/staff/orders/303');
   await expect(page.getByRole('heading', { name: 'Đơn hàng FG-REVIEW' })).toBeVisible();
 
   expectStaffShellResponses(evidence.responses);
