@@ -103,6 +103,10 @@ public class OrderTransitionService {
         return !Set.of("ASSIGNED", "PICKED_UP", "RETURNED_TO_STORE").contains(toStatus);
     }
 
+    static boolean canAssignOrder(String actorRole, Integer actorUserId, String expectedStatus, boolean checkedInStaff) {
+        return "STAFF".equals(actorRole) && actorUserId != null && "READY".equals(expectedStatus) && checkedInStaff;
+    }
+
     public Set<String> getAllowedActions(String currentStatus, String role, String paymentStatus) {
         if (currentStatus == null) return Set.of();
         Set<String> next = new HashSet<>(TRANSITIONS.getOrDefault(currentStatus, Set.of()));
@@ -145,6 +149,7 @@ public class OrderTransitionService {
     public MutationResult transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
                                      Integer assignedShipperId, java.math.BigDecimal collectedAmount, String expectedStatus) {
         if ((!canUseGenericTransition(toStatus) && !"ASSIGNED".equals(toStatus)) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
+        if ("ASSIGNED".equals(toStatus) && !canAssignOrder(actorRole, actorUserId, expectedStatus, true)) return MutationResult.INVALID;
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -157,6 +162,10 @@ public class OrderTransitionService {
             if ("SHIPPER".equals(actorRole) && (order.getShipper() == null || actorUserId == null
                     || order.getShipper().getUserId() != actorUserId || !requireCheckedInShipper(em, actorUserId))) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if ("ASSIGNED".equals(toStatus)) {
+                if (!canAssignOrder(actorRole, actorUserId, expectedStatus, requireCheckedInStaff(em, actorUserId))) {
+                    em.getTransaction().rollback();
+                    return MutationResult.INVALID;
+                }
                 User shipper = assignedShipperId == null ? null : em.find(User.class, assignedShipperId);
                 if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || order.getShipper() != null) {
                     em.getTransaction().rollback();

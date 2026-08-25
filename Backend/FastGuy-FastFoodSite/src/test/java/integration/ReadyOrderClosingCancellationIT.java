@@ -163,14 +163,8 @@ class ReadyOrderClosingCancellationIT {
         shipperId = insertUser(em, "SHIPPER", "8" + phoneSuffix, "shipper-" + token + "@test.local", "Task 4");
         staffId = insertUser(em, "STAFF", "9" + phoneSuffix, "staff-" + token + "@test.local", "Task 4 Staff");
         LocalDateTime businessNow = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
-        WorkShift shift = new WorkShift();
-        shift.setUser(em.getReference(User.class, shipperId));
-        shift.setShiftDate(businessNow.toLocalDate());
-        shift.setStartTime(businessNow.minusHours(1).toLocalTime());
-        shift.setEndTime(businessNow.plusHours(1).toLocalTime());
-        shift.setCheckInAt(businessNow.minusMinutes(1));
-        shift.setStatus("CHECKED_IN");
-        em.persist(shift);
+        insertShift(em, shipperId, businessNow);
+        insertShift(em, staffId, businessNow);
         couponId = insertedId(em, "INSERT INTO Coupon(code,type,value,min_order,max_uses,used_count,is_active,is_public) OUTPUT INSERTED.coupon_id VALUES (:value,'FIXED',1,0,1,1,1,0)", "TASK4-" + token);
         inventoryItemId = insertedId(em, "INSERT INTO InventoryItem(name,item_type,base_unit,inventory_code,on_hand_quantity,reserved_quantity,minimum_quantity,active) OUTPUT INSERTED.inventory_item_id VALUES (N'Task 4','INGREDIENT','PIECE',:value,10,1,0,1)", "TASK4-" + token);
         orderIds.add(insertOrder(em, token + "-ready", "READY", null));
@@ -187,6 +181,17 @@ class ReadyOrderClosingCancellationIT {
                 .setParameter("couponId", couponId).setParameter("userId", shipperId)
                 .setParameter("orderId", orderIds.get(0)).executeUpdate();
         em.getTransaction().commit();
+    }
+
+    private void insertShift(EntityManager em, int userId, LocalDateTime businessNow) {
+        WorkShift shift = new WorkShift();
+        shift.setUser(em.getReference(User.class, userId));
+        shift.setShiftDate(businessNow.toLocalDate());
+        shift.setStartTime(businessNow.minusHours(1).toLocalTime());
+        shift.setEndTime(businessNow.plusHours(1).toLocalTime());
+        shift.setCheckInAt(businessNow.minusMinutes(1));
+        shift.setStatus("CHECKED_IN");
+        em.persist(shift);
     }
 
     private int insertOrder(EntityManager em, String code, String status, Integer shipperId) {
@@ -299,7 +304,10 @@ class ReadyOrderClosingCancellationIT {
                 em.createNativeQuery("DELETE FROM WorkShift WHERE user_id = :id").setParameter("id", shipperId).executeUpdate();
                 em.createNativeQuery("DELETE FROM Users WHERE user_id = :id").setParameter("id", shipperId).executeUpdate();
             }
-            if (staffId != null) em.createNativeQuery("DELETE FROM Users WHERE user_id = :id").setParameter("id", staffId).executeUpdate();
+            if (staffId != null) {
+                em.createNativeQuery("DELETE FROM WorkShift WHERE user_id = :id").setParameter("id", staffId).executeUpdate();
+                em.createNativeQuery("DELETE FROM Users WHERE user_id = :id").setParameter("id", staffId).executeUpdate();
+            }
             if (originalOpen != null) updateConfig(em, "business_open_time", originalOpen);
             if (originalClose != null) updateConfig(em, "business_close_time", originalClose);
             em.getTransaction().commit();

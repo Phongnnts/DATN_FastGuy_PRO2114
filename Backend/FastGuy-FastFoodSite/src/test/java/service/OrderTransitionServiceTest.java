@@ -80,6 +80,18 @@ class OrderTransitionServiceTest {
     }
 
     @Test
+    void assignmentRequiresCheckedInStaffIdentityAndExactReadyExpectation() {
+        for (String role : new String[] { "SHIPPER", "CUSTOMER", "SYSTEM", "ADMIN" }) {
+            assertFalse(OrderTransitionService.canAssignOrder(role, 7, "READY", true));
+        }
+        assertFalse(OrderTransitionService.canAssignOrder("STAFF", null, "READY", true));
+        assertFalse(OrderTransitionService.canAssignOrder("STAFF", 7, null, true));
+        assertFalse(OrderTransitionService.canAssignOrder("STAFF", 7, "ASSIGNED", true));
+        assertFalse(OrderTransitionService.canAssignOrder("STAFF", 7, "READY", false));
+        assertTrue(OrderTransitionService.canAssignOrder("STAFF", 7, "READY", true));
+    }
+
+    @Test
     void deliveryFailureSupportsRetryOrTerminalStoreReturn() {
         OrderTransitionService service = new OrderTransitionService();
         assertTrue(service.canTransition("PICKED_UP", "DELIVERY_FAILED"));
