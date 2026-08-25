@@ -115,6 +115,22 @@ class StaffOrderServletBehaviorTest {
         assertEquals(1, servlet.service.calls);
     }
 
+    @Test
+    void preservesRequiredNullableDispatchFieldsAsJsonNull() throws Exception {
+        TestStaffOrderServlet servlet = servlet();
+        servlet.service.nullableOrder = true;
+        ResponseCapture capture = new ResponseCapture();
+
+        servlet.get(request("PRIORITY"), response(capture));
+
+        JsonNode item = JsonUtil.getMapper().readTree(capture.body.toString()).path("items").get(0);
+        for (String field : List.of("orderCode", "customerName", "customerPhone", "customerAddress",
+                "status", "orderStatus", "readyAt")) {
+            assertTrue(item.has(field), field);
+            assertTrue(item.path(field).isNull(), field);
+        }
+    }
+
     private TestStaffOrderServlet servlet() throws Exception {
         TestStaffOrderServlet servlet = new TestStaffOrderServlet();
         servlet.service = new StubStaffOrderService();
@@ -175,15 +191,18 @@ class StaffOrderServletBehaviorTest {
     private static class StubStaffOrderService extends StaffOrderService {
         private int calls;
         private boolean configFailure;
+        private boolean nullableOrder;
         @Override public DispatchResult getDispatchOrders(String filter) {
             calls++;
             if (configFailure) throw new IllegalArgumentException("Missing business hours config");
             Orders order = new Orders();
             order.setOrderId(11);
-            order.setOrderCode("FG-0011");
-            order.setOrderStatus("READY");
-            order.setCustomerAddress("11 Test Street");
-            order.setReadyAt(LocalDateTime.of(2026, 8, 25, 21, 10));
+            if (!nullableOrder) {
+                order.setOrderCode("FG-0011");
+                order.setOrderStatus("READY");
+                order.setCustomerAddress("11 Test Street");
+                order.setReadyAt(LocalDateTime.of(2026, 8, 25, 21, 10));
+            }
             return new DispatchResult(List.of(new DispatchItem(order, "PRIORITY", 30L)),
                     Map.of("priority", 2L, "new", 1L, "review", 1L),
                     LocalDateTime.of(2026, 8, 25, 21, 30), LocalTime.of(8, 0), LocalTime.of(22, 0));
