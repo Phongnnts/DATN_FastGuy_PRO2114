@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { staffApi } from '@/api';
-import { acceptsDispatchRequest, kitchenItemCount, staffOrderDiscount, staffOrderItemTotal } from '@/utils/staffKitchen';
+import { createDispatchRequestGate, kitchenItemCount, staffOrderDiscount, staffOrderItemTotal } from '@/utils/staffKitchen';
 
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
@@ -16,8 +16,8 @@ export const useStaffStore = defineStore('staff', () => {
   const dispatchLoading = ref(false);
   const dispatchError = ref('');
   let fetchVersion = 0;
-  let dispatchGeneration = 0;
   let dispatchFilter = 'PRIORITY';
+  const dispatchRequestGate = createDispatchRequestGate(dispatchFilter);
 
   function mapOrder(o) {
     return {
@@ -113,16 +113,15 @@ export const useStaffStore = defineStore('staff', () => {
   }
 
   async function fetchDispatchOrders(filter) {
-    const requestGeneration = ++dispatchGeneration;
+    const request = dispatchRequestGate.begin(filter);
     const filterChanged = filter !== dispatchFilter;
     dispatchFilter = filter;
-    const activeFilter = dispatchFilter;
     if (filterChanged) dispatchItems.value = [];
     dispatchLoading.value = true;
     dispatchError.value = '';
     try {
       const data = await staffApi.getDispatchOrders(filter);
-      if (!acceptsDispatchRequest({ requestGeneration, latestGeneration: dispatchGeneration, requestFilter: filter, activeFilter })) return dispatchItems.value;
+      if (!dispatchRequestGate.accepts(request)) return dispatchItems.value;
       dispatchItems.value = Array.isArray(data?.items) ? data.items.map(mapOrderListItem) : [];
       dispatchCounts.value = {
         priority: Number(data?.counts?.priority ?? 0),
@@ -131,17 +130,17 @@ export const useStaffStore = defineStore('staff', () => {
       };
       return dispatchItems.value;
     } catch (e) {
-      if (acceptsDispatchRequest({ requestGeneration, latestGeneration: dispatchGeneration, requestFilter: filter, activeFilter: dispatchFilter })) {
+      if (dispatchRequestGate.accepts(request)) {
         dispatchError.value = e.message || 'Không thể tải danh sách điều phối';
       }
       throw e;
     } finally {
-      if (requestGeneration === dispatchGeneration) dispatchLoading.value = false;
+      if (dispatchRequestGate.accepts(request)) dispatchLoading.value = false;
     }
   }
 
   function invalidateDispatch() {
-    dispatchGeneration += 1;
+    dispatchRequestGate.invalidate();
     dispatchLoading.value = false;
   }
 

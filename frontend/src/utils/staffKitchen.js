@@ -45,7 +45,31 @@ export function validDispatchSelections(selections, shippers) {
   return Object.fromEntries(Object.entries(selections).filter(([, shipperId]) => availableIds.has(String(shipperId))));
 }
 
-export function acceptsDispatchRequest({ requestGeneration, latestGeneration, requestFilter, activeFilter, stopped = false }) {
-  return !stopped && requestGeneration === latestGeneration
-    && (requestFilter == null || requestFilter === activeFilter);
+export function createDispatchRequestGate(initialFilter) {
+  let generation = 0;
+  let activeFilter = initialFilter;
+  return {
+    begin(filter) {
+      activeFilter = filter;
+      return { generation: ++generation, filter };
+    },
+    accepts(request) {
+      return request.generation === generation && request.filter === activeFilter;
+    },
+    invalidate() {
+      generation += 1;
+    },
+  };
+}
+
+export function dispatchTabTarget(currentIndex, key, tabCount) {
+  if (key === 'Home') return 0;
+  if (key === 'End') return tabCount - 1;
+  if (key === 'ArrowRight') return (currentIndex + 1) % tabCount;
+  if (key === 'ArrowLeft') return (currentIndex - 1 + tabCount) % tabCount;
+  return currentIndex;
+}
+
+export function acceptsDispatchRequest({ requestGeneration, latestGeneration, stopped = false }) {
+  return !stopped && requestGeneration === latestGeneration;
 }
