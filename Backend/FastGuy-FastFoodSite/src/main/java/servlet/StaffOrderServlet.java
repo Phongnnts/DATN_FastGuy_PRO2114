@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,7 +177,7 @@ public class StaffOrderServlet extends HttpServlet {
         return validIdentity && (!requiresCheckedInShift(method, pathInfo) || checkedIn);
     }
 
-    private boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int staffId) throws IOException {
+    protected boolean requireCheckedInShift(HttpServletRequest req, HttpServletResponse resp, int staffId) throws IOException {
         boolean validIdentity = staffShiftAccessService.hasValidStaffIdentity(staffId);
         if (!validIdentity) {
             ApiResponse.error(resp, "Forbidden", 403);
@@ -186,7 +188,7 @@ public class StaffOrderServlet extends HttpServlet {
         return false;
     }
 
-    private int getStaffId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected int getStaffId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             ApiResponse.error(resp, "Missing token", 401);
@@ -209,6 +211,23 @@ public class StaffOrderServlet extends HttpServlet {
 
         try {
             String path = req.getPathInfo();
+
+            if ("/dispatch".equals(path)) {
+                String filter = req.getParameter("filter");
+                if (filter == null || !List.of("PRIORITY", "NEW", "REVIEW").contains(filter)) {
+                    ApiResponse.error(resp, "Invalid dispatch filter", 400);
+                    return;
+                }
+                StaffOrderService.DispatchResult dispatch = staffOrderService.getDispatchOrders(filter);
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("items", dispatch.items().stream().map(this::toDispatchItem).toList());
+                result.put("counts", dispatch.counts());
+                result.put("serverTime", format(dispatch.serverTime()));
+                result.put("openTime", dispatch.openTime().toString());
+                result.put("closeTime", dispatch.closeTime().toString());
+                mapper.writeValue(resp.getWriter(), result);
+                return;
+            }
 
             if ("/shippers".equals(path)) {
                 List<entity.WorkShift> shifts = staffOrderService.getAvailableShipperShifts();
@@ -459,6 +478,28 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
         m.put("returnedToStoreAt", o.getReturnedToStoreAt() != null ? o.getReturnedToStoreAt().toString() : null);
         return m;
+    }
+
+    private Map<String, Object> toDispatchItem(StaffOrderService.DispatchItem item) {
+        Orders order = item.order();
+        Map<String, Object> result = toFailureQueueItem(order, toListItem(order));
+        result.put("customerAddress", order.getCustomerAddress());
+        result.put("refundedAt", format(order.getRefundedAt()));
+        result.put("assignedAt", format(order.getAssignedAt()));
+        result.put("updatedAt", format(order.getUpdatedAt()));
+        result.put("endedAt", format(order.getDeliveredAt() != null ? order.getDeliveredAt() : order.getCancelledAt()));
+        result.put("createdAt", format(order.getCreatedAt()));
+        result.put("deliveryFailedAt", format(order.getDeliveryFailedAt()));
+        result.put("retryScheduledAt", format(order.getRetryScheduledAt()));
+        result.put("returnedToStoreAt", format(order.getReturnedToStoreAt()));
+        result.put("readyAt", format(order.getReadyAt()));
+        result.put("classification", item.classification());
+        result.put("minutesUntilClose", item.minutesUntilClose());
+        return result;
+    }
+
+    private static String format(LocalDateTime value) {
+        return value == null ? null : value.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 
     private Map<String, Object> toListItem(Orders o) {

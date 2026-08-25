@@ -97,6 +97,21 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findDispatchCandidates() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE (o.orderStatus = 'READY' AND o.shipper IS NULL) "
+                            + "OR o.orderStatus = 'DELIVERY_FAILED' "
+                            + "ORDER BY CASE WHEN o.orderStatus = 'READY' THEN 0 ELSE 1 END, "
+                            + "COALESCE(o.readyAt, o.deliveryFailedAt, o.createdAt) ASC, o.orderId ASC",
+                    Orders.class)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Orders> findPendingRefunds() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
