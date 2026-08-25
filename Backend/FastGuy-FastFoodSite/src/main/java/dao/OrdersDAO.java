@@ -112,6 +112,17 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findReadyWithoutShipperForClosing() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery(
+                    "SELECT o FROM Orders o WHERE o.orderStatus = 'READY' AND o.shipper IS NULL AND o.createdAt IS NOT NULL ORDER BY o.createdAt ASC, o.orderId ASC",
+                    Orders.class).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Orders> findPendingRefunds() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
