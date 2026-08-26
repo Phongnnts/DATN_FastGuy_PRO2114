@@ -303,3 +303,13 @@ Expected: no migration, no dependency, no unrelated files, no whitespace errors.
 - Full regression: backend `441/441`; frontend `581/581`; Vite production build passed.
 - Real disposable backend E2E: `BLOCKED` before startup because `DB_URL`, `DB_USER`, and `DB_PASSWORD` were absent from Process and User environments. No credential or database target was inferred; desktop/mobile were not rerun.
 - Harness cleanup policy now revalidates immediately before every recursive temp deletion and before runtime creation. Reparse-point cleanup rejection is recorded as a secondary failure without replacing the primary failure.
+
+#### Wall-Clock-Independent Fixture Fix Evidence (2026-08-26)
+
+- Root cause reproduced at `13:59 Asia/Ho_Chi_Minh`: fixed `18:00`/`06:00` hours made active READY orders belong to an operating window already closed at `06:00`.
+- TDD RED: pure fixture timeline cases at `00:05`, `05:59`, `13:59`, `23:55` failed at `05:59` (`Priority=4`) and `13:59` (`Priority=0`). GREEN passed `4/4`: each case classifies `2 Priority`, `2 New`; the independent cancellation candidate closes before `now`.
+- Fixture now derives distinct hours from business time (`open=now-2h`, `close=now+2h`) and seeds the cancellation candidate two days earlier. Scheduler no longer changes the shared close hour, so active orders remain valid while only the candidate is overdue.
+- Full regression: backend `445/445`; frontend `581/581`; Vite production build passed. Focused real-harness/policy tests passed within the frontend suite.
+- Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; critical API, console and page-error assertions passed.
+- One intermediate desktop verification failed after an unnecessary all-day shift change redirected login to `/staff/shifts`; fixture cleanup still reported all tracked rows `0` and ShippingConfig restored. That unrelated shift change was removed before the passing rerun.
+- Final cleanup: Orders, Users, WorkShift, Cart, CartItem, InventoryItem, InventoryTransaction, OrderStatusHistory, CouponRedemption, InventoryReservation and InventoryReservationItem all `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.

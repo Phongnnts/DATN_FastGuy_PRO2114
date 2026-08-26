@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -66,12 +67,13 @@ class StaffDispatchBrowserFixtureIT {
         em.getTransaction().begin();
         String originalOpen = config(em, "business_open_time");
         String originalClose = config(em, "business_close_time");
-        updateConfig(em, "business_open_time", "18:00");
-        updateConfig(em, "business_close_time", "06:00");
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE).withNano(0);
+        FixtureTimeline timeline = timeline(now);
+        updateConfig(em, "business_open_time", timeline.open().toString());
+        updateConfig(em, "business_close_time", timeline.close().toString());
         String password = requiredEnv("FASTGUY_E2E_STAFF_PASSWORD");
         User staff = insertUser(em, "STAFF", "staff-" + runId + "@test.local", "7" + digits(runId), "E2E Staff", password);
         User shipper = insertUser(em, "SHIPPER", "shipper-" + runId + "@test.local", "8" + digits(runId), "E2E Shipper", password);
-        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE).withNano(0);
         insertShift(em, staff, now);
         insertShift(em, shipper, now);
         insertOrder(em, prefix + "PRIORITY-OLD", "READY", now.minusMinutes(45), now.minusMinutes(45), null, null,
@@ -81,7 +83,8 @@ class StaffDispatchBrowserFixtureIT {
         insertOrder(em, prefix + "NEW-OLDER", "READY", now.minusMinutes(3), now.minusMinutes(3), null, null, null);
         insertOrder(em, prefix + "REVIEW", "DELIVERY_FAILED", now.minusHours(2), now.minusHours(2), shipper,
                 now.minusMinutes(10), null);
-        Orders cancel = insertOrder(em, prefix + "CANCEL", "PENDING", now, now, null, null, null);
+        Orders cancel = insertOrder(em, prefix + "CANCEL", "PENDING", timeline.cancellationCreatedAt(),
+                timeline.cancellationCreatedAt(), null, null, null);
         insertReservation(em, cancel, runId);
         em.getTransaction().commit();
         var counts = new StaffOrderService().getDispatchOrders("PRIORITY").counts();
@@ -92,6 +95,13 @@ class StaffDispatchBrowserFixtureIT {
         assertEquals(1L, counts.get("review"), "Seed must expose one Review order");
         System.out.println("Staff dispatch browser seed complete: " + runId);
     }
+
+    static FixtureTimeline timeline(LocalDateTime now) {
+        return new FixtureTimeline(now.minusHours(2).toLocalTime().withSecond(0).withNano(0),
+                now.plusHours(2).toLocalTime().withSecond(0).withNano(0), now.minusDays(2));
+    }
+
+    record FixtureTimeline(LocalTime open, LocalTime close, LocalDateTime cancellationCreatedAt) {}
 
     private void createAssignmentConflict(EntityManager em, String runId) {
         String prefix = prefix(runId);
@@ -108,20 +118,16 @@ class StaffDispatchBrowserFixtureIT {
 
     private void runScheduler(EntityManager em, String runId) {
         assertEquals(1L, orderCount(em, prefix(runId) + "CANCEL", "PENDING"));
-        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+        FixtureTimeline timeline = timeline(LocalDateTime.now(BUSINESS_ZONE));
         em.getTransaction().begin();
         em.createNativeQuery("UPDATE Orders SET order_status='READY',created_at=:createdAt,ready_at=:readyAt WHERE order_code=:code")
-                .setParameter("createdAt", now.minusDays(1))
-                .setParameter("readyAt", now.minusDays(1))
+                .setParameter("createdAt", timeline.cancellationCreatedAt())
+                .setParameter("readyAt", timeline.cancellationCreatedAt())
                 .setParameter("code", prefix(runId) + "CANCEL")
                 .executeUpdate();
-        updateConfig(em, "business_close_time", now.minusMinutes(1).toLocalTime().withSecond(0).withNano(0).toString());
         em.getTransaction().commit();
         new OrderScheduler().cancelReadyOrdersAfterClosing();
         assertEquals(1L, orderCount(em, prefix(runId) + "CANCEL", "CANCELLED"));
-        em.getTransaction().begin();
-        updateConfig(em, "business_close_time", "06:00");
-        em.getTransaction().commit();
         System.out.println("Staff dispatch browser scheduler complete: " + runId);
     }
 
