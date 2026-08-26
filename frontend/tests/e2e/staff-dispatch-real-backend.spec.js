@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
+import { hasPostConflictPriorityReload } from './staff-dispatch-request-evidence.js';
 
 const runId = process.env.FASTGUY_E2E_RUN_ID;
 const staffEmail = process.env.FASTGUY_E2E_STAFF_EMAIL;
@@ -13,6 +14,17 @@ function collectEvidence(page) {
   const errors = [];
   const expectedConflictDiagnostics = [];
   const requests = [];
+  const events = [];
+  const requestIds = new WeakMap();
+  let nextRequestId = 0;
+  let sequence = 0;
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (!url.pathname.startsWith('/api/')) return;
+    const id = ++nextRequestId;
+    requestIds.set(request, id);
+    events.push({ id, sequence: ++sequence, timestamp: Date.now(), phase: 'request', method: request.method(), path: `${url.pathname}${url.search}` });
+  });
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => {
     if (message.type() !== 'error') return;
@@ -24,9 +36,10 @@ function collectEvidence(page) {
     if (url.pathname.startsWith('/api/')) {
       const request = response.request();
       requests.push({ method: request.method(), path: `${url.pathname}${url.search}`, body: request.method() === 'PUT' ? request.postDataJSON() : null, status: response.status() });
+      events.push({ id: requestIds.get(request), sequence: ++sequence, timestamp: Date.now(), phase: 'response', method: request.method(), path: `${url.pathname}${url.search}`, status: response.status() });
     }
   });
-  return { errors, expectedConflictDiagnostics, requests };
+  return { errors, expectedConflictDiagnostics, requests, events };
 }
 
 function runFixture(action) {
@@ -46,6 +59,7 @@ function runFixture(action) {
 }
 
 test('real backend Staff dispatch flow', async ({ page }, testInfo) => {
+  test.slow();
   const evidence = collectEvidence(page);
   await page.goto('/');
   await page.getByPlaceholder('your@email.com').fill(staffEmail);
@@ -80,7 +94,6 @@ test('real backend Staff dispatch flow', async ({ page }, testInfo) => {
   const conflictSelect = page.getByLabel(`Chọn shipper cho ${conflictCode}`);
   await conflictSelect.selectOption(shipperValue);
   const conflictPath = new URL(await page.getByRole('link', { name: conflictCode }).getAttribute('href'), 'http://e2e').pathname.replace('/staff/orders/', '/api/staff/orders/') + '/assign-shipper';
-  const priorityLoadsBeforeConflict = evidence.requests.filter(request => request.method === 'GET' && request.path === '/api/staff/orders/dispatch?filter=PRIORITY').length;
   await conflictSelect.evaluate(select => {
     window.__conflictSelectionReset = false;
     const observe = () => {
@@ -95,7 +108,7 @@ test('real backend Staff dispatch flow', async ({ page }, testInfo) => {
   await expect(page.getByRole('link', { name: conflictCode })).toHaveCount(0);
   expect(await page.evaluate(() => window.__conflictSelectionReset)).toBe(true);
   await expect(tabs.getByRole('tab', { name: 'Ưu tiên 0' })).toBeVisible();
-  expect(evidence.requests.filter(request => request.method === 'GET' && request.path === '/api/staff/orders/dispatch?filter=PRIORITY').length).toBe(priorityLoadsBeforeConflict + 1);
+  expect(hasPostConflictPriorityReload(evidence.events, conflictPath)).toBe(true);
 
   await tabs.getByRole('tab', { name: 'Đơn mới 2' }).click();
   await expect(page.getByRole('link', { name: newestCode })).toBeVisible();

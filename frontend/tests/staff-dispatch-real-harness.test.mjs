@@ -121,4 +121,7 @@ test('real E2E assertions retain exact request contracts', () => {
   assert.doesNotMatch(spec, /\.test\(request\.path\)/);
   assert.doesNotMatch(spec, /shell:\s*true/);
   assert.match(spec, /org\.codehaus\.plexus\.classworlds\.launcher\.Launcher/);
+  assert.match(spec, /hasPostConflictPriorityReload\(evidence\.events, conflictPath\)/);
+  assert.doesNotMatch(spec, /priorityLoadsBeforeConflict/);
+  assert.match(spec, /test\.slow\(\)/);
 });

@@ -329,3 +329,12 @@ Expected: no migration, no dependency, no unrelated files, no whitespace errors.
 - Focused boundary suite passed `9/9`: five Staff/shipper boundaries through the production helper plus four unchanged order classification/cancellation cases. Full backend passed `450/450`; frontend passed `581/581`; Vite production build passed.
 - Disposable target verified on every attempt as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`. Real desktop E2E was blocked three times by the unrelated exact request-count assertion: expected `3` Priority loads, observed `4` because the 30-second poll completed alongside the conflict refresh; visible conflict state reached `Ưu tiên 0`. Mobile did not run because the harness stops after desktop failure.
 - Every failed run cleanup reported all tracked fixture tables `0` and ShippingConfig restored. Final audit: ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
+
+#### Poll-Safe Conflict Reload Evidence (2026-08-26)
+
+- TDD RED: the old count model rejected a valid extra polling GET and accepted a lone pre-conflict GET as recovery. Pure executable cases failed `0/2` before the ordered predicate.
+- Browser evidence now records exact API request starts and response completions with monotonic sequence and timestamps. Conflict proof requires the exact assignment PUT `409`, then a distinct exact `GET /api/staff/orders/dispatch?filter=PRIORITY` started after the PUT response and completed with `200`; total GET count is unrestricted. Selection reset, conflict message and final `Ưu tiên 0` assertions remain.
+- Focused evidence/harness tests passed `9/9`; frontend full passed `583/583`; Vite production build passed. No production code changed.
+- Two initial desktop attempts passed the ordered conflict proof but exceeded the global 60-second budget during later synchronous Maven fixture work. The real-backend test now uses Playwright `test.slow()`; no wait or behavior assertion changed.
+- Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; exact API, console and page-error assertions passed.
+- Final cleanup: all tracked fixture tables `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
