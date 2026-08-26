@@ -47,6 +47,14 @@ class ShipperAssignmentPolicyTest {
     }
 
     @Test
+    void detailedTransitionAllowsAssignmentWhileSimpleTransitionDoesNot() {
+        assertFalse(OrderTransitionService.canUseGenericTransition("ASSIGNED"));
+        assertTrue(OrderTransitionService.canUseDetailedTransition("ASSIGNED"));
+        assertTrue(OrderTransitionService.canUseDetailedTransition("PICKED_UP"));
+        assertFalse(OrderTransitionService.canUseDetailedTransition("RETURNED_TO_STORE"));
+    }
+
+    @Test
     void workloadQueryRequiresCurrentShiftStart() throws IOException {
         String dao = Files.readString(Path.of("src/main/java/dao/OrdersDAO.java"));
         String service = Files.readString(Path.of("src/main/java/service/StaffOrderService.java"));

@@ -6,9 +6,11 @@ description: Use when inspecting SQL Server schema/data or changing SQL, migrati
 # Database Safety
 
 - Confirm `@@SERVERNAME`, `DB_NAME()`, state, compatibility level, and relevant catalog objects first.
-- SQL Server MCP is read-only. Use an account limited to `SELECT` and `VIEW DEFINITION`.
-- Never execute DML, DDL, or stored procedures through MCP.
+- Confirm the exact database identity before every MCP write.
+- MCP may execute DML and DDL only when `DB_NAME() = 'DemoDatabase'` and the user has approved the requested operation.
+- `FastGuyDB` and every database not explicitly allowlisted remain read-only; use an account limited to `SELECT` and `VIEW DEFINITION` there.
+- Stored procedures remain disabled through MCP.
 - Compare runtime schema with canonical SQL, migrations, constraints, indexes, and JPA mappings.
 - Never run `database/init.sql` against retained data.
-- All writes follow `sqlserver-migrations`; require a disposable target or explicit retained-data approval and recovery plan.
-- Stop on target mismatch, missing recovery evidence, destructive SQL, or validator failure.
+- Writes outside `DemoDatabase` follow `sqlserver-migrations`; require a disposable target or explicit retained-data approval and recovery plan.
+- Stop on target mismatch, missing approval, missing recovery evidence, destructive SQL outside `DemoDatabase`, or validator failure.

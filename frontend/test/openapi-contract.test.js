@@ -147,6 +147,16 @@ test('OpenAPI contract extends existing admin product read and mutation paths', 
   assert.doesNotMatch(contract, /^    AdminCombo/m);
 });
 
+test('OpenAPI restricts guest checkout to PayOS bank transfer and contracts payment verification', async () => {
+  const contract = await readFile(contractUrl, 'utf8');
+  assert.match(contract, /^  \/orders\/guest-checkout:$/m);
+  assert.match(contract, /^      operationId: createGuestOrder$/m);
+  assert.match(contract, /^  \/orders\/guest-payment-status:$/m);
+  assert.match(contract, /^      operationId: getGuestPaymentStatus$/m);
+  const request = schemaSection(contract, 'GuestCheckoutRequest', 'GuestCheckoutResponse');
+  assert.match(request, /paymentMethod:\s+type: string\s+const: BANK_TRANSFER/s);
+});
+
 
 test('OpenAPI contracts the exact admin order-detail serializer and review fields', async () => {
   const contract = await readFile(contractUrl, 'utf8');

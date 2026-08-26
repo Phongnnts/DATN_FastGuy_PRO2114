@@ -310,6 +310,7 @@ async function saveRefund() {
         <div class="modal-body">
           <div class="refund-order-info">
             <div><span>Khách hàng</span><strong>{{ refundOrder.customerName || 'Khách' }}</strong></div>
+            <div><span>Số điện thoại</span><a v-if="refundOrder.customerPhone" :href="`tel:${refundOrder.customerPhone}`">{{ refundOrder.customerPhone || '—' }}</a><strong v-else>—</strong></div>
             <div><span>Giá trị đơn</span><strong>{{ formatPrice(refundOrder.finalAmount) }}</strong></div>
             <div><span>Thanh toán</span><strong>{{ refundOrder.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }} · {{ refundOrder.paymentStatus }}</strong></div>
             <div><span>Trạng thái</span><strong>Chờ hoàn thủ công · Tiền chưa được xác nhận đã hoàn</strong></div>

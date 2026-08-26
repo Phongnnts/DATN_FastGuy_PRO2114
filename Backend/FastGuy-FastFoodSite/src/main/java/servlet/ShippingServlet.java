@@ -27,7 +27,7 @@ public class ShippingServlet extends HttpServlet {
             return;
         }
 
-        switch (path) {
+        try { switch (path) {
             case "/provinces": {
                 ApiResponse.ok(resp, shippingService.getProvinces());
                 break;
@@ -54,6 +54,10 @@ public class ShippingServlet extends HttpServlet {
             }
             default:
                 ApiResponse.error(resp, "Not found", 404);
+        }} catch (NumberFormatException e) {
+            ApiResponse.error(resp, "Mã khu vực không hợp lệ", 400);
+        } catch (IllegalStateException e) {
+            ApiResponse.error(resp, "Dịch vụ GHN chưa được cấu hình hoặc tạm không khả dụng", 502);
         }
     }
 

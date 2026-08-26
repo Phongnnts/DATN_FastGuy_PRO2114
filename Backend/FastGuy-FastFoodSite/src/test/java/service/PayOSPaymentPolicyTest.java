@@ -14,6 +14,14 @@ import entity.Orders;
 
 class PayOSPaymentPolicyTest {
     @Test
+    void guestReturnUrlCarriesOneTimeProof() {
+        String url = PayOSService.returnUrl("http://localhost:5173", 12, "GST-12", "proof value");
+        assertTrue(url.contains("orderId=12"));
+        assertTrue(url.contains("orderCode=GST-12"));
+        assertTrue(url.contains("token=proof+value") || url.contains("token=proof%20value"));
+        assertFalse(url.contains("token=null"));
+    }
+    @Test
     void latePaymentOnCancelledOrderRequestsRefund() {
         Orders order = new Orders();
         order.setOrderStatus("CANCELLED");
@@ -39,6 +47,14 @@ class PayOSPaymentPolicyTest {
                 Map.of("orderCode", 12, "amount", 45001, "paymentLinkId", "ref"), "ref", 12, 45000));
         assertFalse(PayOSPaymentService.matchesProviderResponse(
                 Map.of("orderCode", 12, "amount", 45000, "paymentLinkId", ""), "ref", 12, 45000));
+    }
+
+    @Test
+    void polledProviderResponseMayOmitEchoedPaymentLinkId() {
+        Map<String, Object> paid = Map.of("status", "PAID", "orderCode", 338, "amount", 26001, "paymentLinkId", "");
+        assertTrue(PayOSPaymentService.matchesPolledProviderResponse(paid, "stored-ref", "stored-ref", 338, 26001));
+        assertFalse(PayOSPaymentService.matchesPolledProviderResponse(paid, "stored-ref", "other", 338, 26001));
+        assertFalse(PayOSPaymentService.matchesPolledProviderResponse(paid, "stored-ref", "stored-ref", 339, 26001));
     }
 
     @Test

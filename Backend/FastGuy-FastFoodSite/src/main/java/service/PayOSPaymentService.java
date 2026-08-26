@@ -51,6 +51,14 @@ public class PayOSPaymentService {
                 && storedReference.equals(result.get("paymentLinkId"));
     }
 
+    static boolean matchesPolledProviderResponse(Map<String, Object> result, String orderReference,
+            String attemptReference, int orderId, long amount) {
+        return orderReference != null && !orderReference.isBlank()
+                && orderReference.equals(attemptReference)
+                && result.get("orderCode") instanceof Number code && code.intValue() == orderId
+                && result.get("amount") instanceof Number value && value.longValue() == amount;
+    }
+
     static boolean matchesWebhookPayment(String orderReference, long orderAmount, String attemptReference,
             long attemptAmount, String returnedReference) {
         return orderReference != null && !orderReference.isBlank()
@@ -205,10 +213,8 @@ public class PayOSPaymentService {
                 Orders locked = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
                 PaymentAttempt attempt = findAttempt(em, orderId);
                 long amount = locked.getFinalAmount().longValueExact();
-                if (attempt == null || attempt.getAmount() == null
-                        || !matchesProviderResponse(info, locked.getPayosPaymentLinkId(), orderId, amount)
-                        || !matchesWebhookPayment(locked.getPayosPaymentLinkId(), amount, attempt.getProviderReference(),
-                                attempt.getAmount().longValueExact(), String.valueOf(info.get("paymentLinkId")))) {
+                if (attempt == null || attempt.getAmount() == null || attempt.getAmount().longValueExact() != amount
+                        || !matchesPolledProviderResponse(info, locked.getPayosPaymentLinkId(), attempt.getProviderReference(), orderId, amount)) {
                     em.getTransaction().rollback();
                     return false;
                 }

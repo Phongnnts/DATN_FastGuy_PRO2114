@@ -39,6 +39,10 @@ public class OrderServlet extends HttpServlet {
         return authorized && "BANK_TRANSFER".equals(paymentMethod);
     }
 
+    static boolean isGuestPaymentAllowed(String paymentMethod) {
+        return "BANK_TRANSFER".equals(paymentMethod);
+    }
+
     private int getUserId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -199,6 +203,10 @@ public class OrderServlet extends HttpServlet {
         String phone = (String) body.get("phone");
         String deliveryNote = (String) body.get("deliveryNote");
         String paymentMethod = (String) body.get("paymentMethod");
+        if (!isGuestPaymentAllowed(paymentMethod)) {
+            ApiResponse.error(resp, "Khách vãng lai phải đăng ký hoặc đăng nhập để thanh toán COD", 400);
+            return;
+        }
         if ("BANK_TRANSFER".equals(paymentMethod) && !payOSPaymentService.isConfigured()) {
             ApiResponse.error(resp, "Phương thức thanh toán không khả dụng", 400);
             return;

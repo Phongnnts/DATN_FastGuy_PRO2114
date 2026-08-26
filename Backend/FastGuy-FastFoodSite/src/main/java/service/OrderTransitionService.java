@@ -91,6 +91,10 @@ public class OrderTransitionService {
         return !Set.of("ASSIGNED", "PICKED_UP", "RETURNED_TO_STORE").contains(toStatus);
     }
 
+    static boolean canUseDetailedTransition(String toStatus) {
+        return !"RETURNED_TO_STORE".equals(toStatus);
+    }
+
     public Set<String> getAllowedActions(String currentStatus, String role, String paymentStatus) {
         if (currentStatus == null) return Set.of();
         Set<String> next = new HashSet<>(TRANSITIONS.getOrDefault(currentStatus, Set.of()));
@@ -132,7 +136,7 @@ public class OrderTransitionService {
 
     public MutationResult transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
                                      Integer assignedShipperId, java.math.BigDecimal collectedAmount, String expectedStatus) {
-        if (!canUseGenericTransition(toStatus) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
+        if (!canUseDetailedTransition(toStatus) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();

@@ -8,17 +8,10 @@ Set `GITHUB_PERSONAL_ACCESS_TOKEN`, then change `github.enabled` to `true` in `o
 
 ## SQL Server MCP
 
-Use a dedicated login limited to `SELECT` and `VIEW DEFINITION`. Set these environment variables, then change `sqlserver.enabled` to `true`:
+The writable SQL Server MCP must target only `DemoDatabase`. Give its dedicated login DML/DDL permissions only inside that database; keep `FastGuyDB` read-only. Set these environment variables, then restart OpenCode:
 
-- `FASTGUY_DB_AUTHENTICATION_TYPE`
-- `FASTGUY_DB_SERVER`
-- `FASTGUY_DB_NAME`
-- `FASTGUY_DB_USER`
-- `FASTGUY_DB_PASSWORD`
-- `FASTGUY_DB_PORT`
-- `FASTGUY_DB_ENCRYPT`
-- `FASTGUY_DB_TRUST_SERVER_CERTIFICATE`
+- `FASTGUY_MSSQL_PASSWORD`
 
-`DB_ALLOW_MODIFICATIONS` and `DB_ALLOW_STORED_PROCEDURES` remain hard-disabled in the tracked config.
+The global `mssql` entry supplies `localhost:1433`, `DemoDatabase`, user `JavaDuAn`, encryption, and a 30-second timeout. Password stays in the environment. The tracked legacy `sqlserver` MCP remains disabled to avoid duplicate tools.
 
-Verify with `opencode mcp list`. Database writes never use MCP.
+Verify with `opencode mcp list`. Before every write, verify `DB_NAME() = 'DemoDatabase'`. Stored procedures remain prohibited.

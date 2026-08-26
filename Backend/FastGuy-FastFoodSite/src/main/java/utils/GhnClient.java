@@ -55,14 +55,15 @@ public class GhnClient {
         }
     }
 
-    private List<Map<String, Object>> extractDataList(Map<String, Object> response) {
+    static List<Map<String, Object>> extractDataList(int statusCode, Map<String, Object> response) {
+        if (statusCode < 200 || statusCode >= 300) throw new IllegalStateException(String.valueOf(response.getOrDefault("message", "GHN request failed")));
         if (response.containsKey("data")) {
             Object data = response.get("data");
             if (data instanceof List) {
                 return (List<Map<String, Object>>) data;
             }
         }
-        return new ArrayList<>();
+        throw new IllegalStateException(String.valueOf(response.getOrDefault("message", "GHN did not return a data list")));
     }
 
     public List<Map<String, Object>> getProvinces() {
@@ -72,10 +73,9 @@ public class GhnClient {
                     .build();
             HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
             Map<String, Object> body = parseResponse(res);
-            return extractDataList(body);
+            return extractDataList(res.statusCode(), body);
         } catch (Exception e) {
-            e.printStackTrace();
-            return new ArrayList<>();
+            throw e instanceof IllegalStateException state ? state : new IllegalStateException("Không thể tải tỉnh/thành từ GHN", e);
         }
     }
 
@@ -90,10 +90,9 @@ public class GhnClient {
                     .build();
             HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
             Map<String, Object> body = parseResponse(res);
-            return extractDataList(body);
+            return extractDataList(res.statusCode(), body);
         } catch (Exception e) {
-            e.printStackTrace();
-            return new ArrayList<>();
+            throw e instanceof IllegalStateException state ? state : new IllegalStateException("Không thể tải quận/huyện từ GHN", e);
         }
     }
 
@@ -108,10 +107,9 @@ public class GhnClient {
                     .build();
             HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
             Map<String, Object> body = parseResponse(res);
-            return extractDataList(body);
+            return extractDataList(res.statusCode(), body);
         } catch (Exception e) {
-            e.printStackTrace();
-            return new ArrayList<>();
+            throw e instanceof IllegalStateException state ? state : new IllegalStateException("Không thể tải phường/xã từ GHN", e);
         }
     }
 

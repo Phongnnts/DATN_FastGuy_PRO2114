@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 
 const form = ref({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
@@ -30,7 +31,7 @@ async function handleRegister() {
       phone: form.value.phone.trim(),
       password: form.value.password,
     });
-    router.push('/home');
+    router.push(typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : '/home');
   } catch (e) {
     error.value = e.message;
   } finally {

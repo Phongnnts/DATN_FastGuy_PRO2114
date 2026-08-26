@@ -27,10 +27,10 @@ Trước khi sửa:
 
 ## Database
 
-- Khi backend phụ thuộc dữ liệu, kiểm tra SQL Server catalog bằng công cụ read-only trước khi sửa.
+- Khi backend phụ thuộc dữ liệu, kiểm tra SQL Server catalog và xác nhận chính xác server/database trước khi sửa.
 - Đối chiếu runtime schema với `database/init.sql`, `database/DB_FastGuy.sql`, migration liên quan và JPA mapping.
 - Nếu chưa xác định đúng server/database hoặc không kết nối được, dừng ở source analysis và báo rõ; không tự suy luận schema.
-- Không dùng SQL Server MCP để ghi dữ liệu, chạy DDL hoặc stored procedure.
+- SQL Server MCP chỉ được ghi dữ liệu hoặc chạy DDL khi `DB_NAME() = 'DemoDatabase'` và người dùng đã phê duyệt thao tác; mọi database khác, gồm `FastGuyDB`, chỉ read-only. Không chạy stored procedure qua MCP.
 - Migration phải tuân thủ `.opencode/skills/database-safety/SKILL.md` và `database/migrations/RUNBOOK.md`; cần xác nhận riêng trước khi thực thi.
 
 ## API Contract

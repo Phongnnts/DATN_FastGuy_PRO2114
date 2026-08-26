@@ -15,7 +15,7 @@ const status = ref('loading');
 const orderId = ref(Number(route.query.orderId) || null);
 const orderCode = ref(String(route.query.orderCode || ''));
 const proofStorageKey = `guest-payment-proof:${orderCode.value}`;
-const returnProof = String(route.query.token || sessionStorage.getItem(proofStorageKey) || '');
+const returnProof = String(route.query.token || route.query.returnProof || sessionStorage.getItem(proofStorageKey) || '');
 let stopped = false;
 let timer = null;
 const wait = ms => new Promise(resolve => { timer = setTimeout(resolve, ms); });
@@ -37,10 +37,12 @@ async function checkStatus() {
   for (let attempt = 0; attempt < 12 && !stopped; attempt++) {
     try {
       const order = auth.isLoggedIn && orderId.value
-        ? await orderApi.getById(orderId.value)
+        ? await orderApi.getPaymentStatus(orderId.value)
         : await orderApi.getGuestPaymentStatus(orderCode.value, returnProof);
       if (order?.paymentStatus === 'PAID') {
         status.value = 'success';
+        window.__fastGuyPaymentWindow?.close();
+        window.__fastGuyPaymentWindow = null;
         clearReturnProof();
         cart.clear();
         timer = setTimeout(redirect, 2000);
@@ -64,7 +66,7 @@ function retry() {
 }
 
 onMounted(() => {
-  if (route.query.token) router.replace({ query: { ...route.query, token: undefined } });
+  if (route.query.token || route.query.returnProof) router.replace({ query: { ...route.query, token: undefined, returnProof: undefined } });
   checkStatus();
 });
 onBeforeUnmount(() => { stopped = true; clearTimeout(timer); });

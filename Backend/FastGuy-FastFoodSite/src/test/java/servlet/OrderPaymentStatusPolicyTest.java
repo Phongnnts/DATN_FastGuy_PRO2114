@@ -12,4 +12,11 @@ class OrderPaymentStatusPolicyTest {
         assertFalse(OrderServlet.shouldVerifyPaymentStatus(false, "BANK_TRANSFER"));
         assertFalse(OrderServlet.shouldVerifyPaymentStatus(true, "COD"));
     }
+
+    @Test
+    void guestCheckoutAllowsOnlyBankTransfer() {
+        assertTrue(OrderServlet.isGuestPaymentAllowed("BANK_TRANSFER"));
+        assertFalse(OrderServlet.isGuestPaymentAllowed("COD"));
+        assertFalse(OrderServlet.isGuestPaymentAllowed(null));
+    }
 }

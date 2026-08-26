@@ -8,6 +8,7 @@ import utils.AppConfig;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -40,7 +41,7 @@ public class PayOSService {
             payload.put("buyerName", order.getCustomerName());
             payload.put("buyerAddress", order.getCustomerAddress());
             payload.put("buyerPhone", order.getCustomerPhone());
-            String returnUrl = AppConfig.getAppWebUrl() + "/payment-return?orderId=" + order.getOrderId() + "&orderCode=" + order.getOrderCode();
+            String returnUrl = returnUrl(AppConfig.getAppWebUrl(), order.getOrderId(), order.getOrderCode(), guestReturnProof);
             payload.put("returnUrl", returnUrl);
             payload.put("cancelUrl", returnUrl);
             payload.put("expiredAt", Instant.now().plusSeconds(15 * 60).getEpochSecond());
@@ -76,6 +77,11 @@ public class PayOSService {
         } catch (Exception e) {
             return Map.of("error", "Không thể kết nối PayOS");
         }
+    }
+
+    static String returnUrl(String webUrl, int orderId, String orderCode, String guestReturnProof) {
+        String url = webUrl + "/payment-return?orderId=" + orderId + "&orderCode=" + URLEncoder.encode(orderCode, StandardCharsets.UTF_8);
+        return guestReturnProof == null || guestReturnProof.isBlank() ? url : url + "&token=" + URLEncoder.encode(guestReturnProof, StandardCharsets.UTF_8);
     }
 
     public boolean isValidWebhook(Map<String, Object> data, String receivedSignature) {

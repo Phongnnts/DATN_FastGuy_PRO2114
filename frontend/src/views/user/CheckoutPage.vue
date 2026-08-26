@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -12,6 +12,7 @@ import { createCouponController } from '@/utils/checkoutCoupon';
 import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
 import { useToast } from '@/stores/toast';
+import { loadAddressHierarchy } from '@/utils/checkoutAddress';
 
 const toast = useToast();
 
@@ -31,7 +32,7 @@ const useNewAddress = ref(false);
 const phone = ref('');
 const recipientName = ref('');
 const street = ref('');
-const paymentMethod = ref('COD');
+const paymentMethod = ref(isGuest.value ? 'BANK_TRANSFER' : 'COD');
 const availablePaymentMethods = ref(['COD', 'BANK_TRANSFER']);
 const paymentAvailability = ref({
   COD: { enabled: true },
@@ -83,8 +84,10 @@ const shippingFee = ref(null);
 const feeLoading = ref(false);
 const expectedDelivery = ref('');
 const createdOrderId = ref(null);
-let pendingDistrictId = null;
-let pendingWardCode = null;
+const codAccountDialog = ref(false);
+const codDialogTrigger = ref(null);
+let addressSelectionGeneration = 0;
+let applyingSavedAddress = false;
 
 const serviceFee = computed(() => Number(storeConfig.value?.serviceFee) || 0);
 const total = computed(() => Math.max(0, cart.subtotal + (shippingFee.value || 0) + serviceFee.value - couponDiscount.value));
@@ -101,7 +104,7 @@ onMounted(async () => {
   } catch {
     paymentAvailability.value.BANK_TRANSFER = { enabled: false, reason: 'PayOS tạm không khả dụng' };
   }
-  if (!isPaymentEnabled(paymentMethod.value)) paymentMethod.value = 'COD';
+  if (!isPaymentEnabled(paymentMethod.value) && !isGuest.value) paymentMethod.value = 'COD';
   try {
     storeConfig.value = await storeApi.getConfig();
   } catch {
@@ -123,7 +126,7 @@ onMounted(async () => {
       const addrData = await userApi.getAddresses();
       savedAddresses.value = addrData || [];
       const defaultAddr = savedAddresses.value.find(a => a.isDefault);
-      if (defaultAddr) selectAddress(defaultAddr);
+      if (defaultAddr) await selectAddress(defaultAddr);
       await loadClaimedCoupons();
     }
   } catch {
@@ -135,6 +138,8 @@ onMounted(async () => {
 });
 
 watch(selectedProvince, async (id) => {
+  if (applyingSavedAddress) return;
+  const generation = ++addressSelectionGeneration;
   districts.value = [];
   wards.value = [];
   selectedDistrict.value = null;
@@ -147,16 +152,15 @@ watch(selectedProvince, async (id) => {
       id: d.DistrictID || d.district_id || d.districtId,
       name: d.DistrictName || d.district_name || d.districtName,
     }));
-    if (pendingDistrictId && districts.value.some(d => d.id === pendingDistrictId)) {
-      selectedDistrict.value = pendingDistrictId;
-    }
-    pendingDistrictId = null;
+    if (generation !== addressSelectionGeneration) return;
   } catch {
-    districts.value = [];
+    if (generation === addressSelectionGeneration) districts.value = [];
   }
 });
 
 watch(selectedDistrict, async (id) => {
+  if (applyingSavedAddress) return;
+  const generation = ++addressSelectionGeneration;
   wards.value = [];
   selectedWard.value = null;
   shippingFee.value = null;
@@ -167,17 +171,13 @@ watch(selectedDistrict, async (id) => {
       code: w.WardCode || w.ward_code || w.wardCode,
       name: w.WardName || w.ward_name || w.wardName,
     }));
-    if (pendingWardCode && wards.value.some(w => w.code === pendingWardCode)) {
-      selectedWard.value = pendingWardCode;
-    }
-    pendingWardCode = null;
+    if (generation !== addressSelectionGeneration) return;
   } catch {
-    wards.value = [];
-    pendingWardCode = null;
+    if (generation === addressSelectionGeneration) wards.value = [];
   }
 });
 
-async function calculateShipping(code = selectedWard.value) {
+async function calculateShipping(code = selectedWard.value, generation = addressSelectionGeneration) {
   shippingFee.value = null;
   shippingError.value = '';
   if (!code || !selectedDistrict.value) return;
@@ -193,27 +193,52 @@ async function calculateShipping(code = selectedWard.value) {
     });
     const feeResp = Number(result.fee);
     if (!Number.isFinite(feeResp) || feeResp < 0) throw new Error('GHN không trả về phí giao hàng hợp lệ');
+    if (generation !== addressSelectionGeneration) return;
     shippingFee.value = feeResp;
     if (result.expectedDeliveryTime) expectedDelivery.value = result.expectedDeliveryTime;
   } catch {
+    if (generation !== addressSelectionGeneration) return;
     shippingFee.value = null;
     shippingError.value = 'Dịch vụ giao hàng chưa được cấu hình hoặc tạm không khả dụng. Vui lòng thử lại sau.';
   } finally {
-    feeLoading.value = false;
+    if (generation === addressSelectionGeneration) feeLoading.value = false;
   }
 }
 
-watch(selectedWard, calculateShipping);
+watch(selectedWard, code => { if (!applyingSavedAddress) calculateShipping(code); });
 
-function selectAddress(addr) {
+async function selectAddress(addr) {
   selectedAddressId.value = addr.addressId;
   useNewAddress.value = !addr.ghnDistrictId || !addr.ghnWardCode;
   street.value = addr.street || '';
   phone.value = addr.phone || '';
   recipientName.value = addr.recipientName || '';
-  pendingDistrictId = addr.ghnDistrictId || null;
-  pendingWardCode = addr.ghnWardCode || null;
-  selectedProvince.value = addr.ghnProvinceId || null;
+  if (!useNewAddress.value) await applySavedAddress(addr);
+}
+
+async function applySavedAddress(addr) {
+  const generation = ++addressSelectionGeneration;
+  applyingSavedAddress = true;
+  shippingFee.value = null;
+  shippingError.value = '';
+  try {
+    const hierarchy = await loadAddressHierarchy(addr, shippingApi);
+    if (generation !== addressSelectionGeneration) return;
+    selectedProvince.value = hierarchy.provinceId;
+    districts.value = hierarchy.districts;
+    wards.value = hierarchy.wards;
+    selectedDistrict.value = hierarchy.selectedDistrict;
+    selectedWard.value = hierarchy.selectedWard;
+    await nextTick();
+    applyingSavedAddress = false;
+    await calculateShipping(hierarchy.selectedWard, generation);
+  } catch {
+    if (generation !== addressSelectionGeneration) return;
+    useNewAddress.value = true;
+    shippingError.value = 'Địa chỉ đã lưu không còn khớp dữ liệu GHN. Vui lòng chọn lại địa chỉ giao hàng.';
+  } finally {
+    if (generation === addressSelectionGeneration) applyingSavedAddress = false;
+  }
 }
 
 function useManualEntry() {
@@ -222,7 +247,7 @@ function useManualEntry() {
   street.value = '';
   phone.value = '';
   recipientName.value = '';
-  pendingWardCode = null;
+  addressSelectionGeneration += 1;
 }
 
 function returnToSavedAddresses() {
@@ -257,13 +282,44 @@ function canPlaceOrder() {
 }
 
 function isPaymentEnabled(key) {
+  if (isGuest.value && key === 'COD') return false;
   return paymentAvailability.value[key]?.enabled === true;
 }
 
-function selectPaymentMethod(key) {
+async function selectPaymentMethod(key, event) {
+  if (isGuest.value && key === 'COD') {
+    codDialogTrigger.value = event?.currentTarget || document.activeElement;
+    codAccountDialog.value = true;
+    document.body.style.overflow = 'hidden';
+    await nextTick();
+    document.querySelector('.cod-account-dialog .btn-primary')?.focus();
+    return;
+  }
   if (!isPaymentEnabled(key)) return;
   paymentMethod.value = key;
 }
+
+function closeCodAccountDialog() {
+  codAccountDialog.value = false;
+  document.body.style.overflow = '';
+  nextTick(() => codDialogTrigger.value?.focus());
+}
+
+function goToAccount(name) {
+  closeCodAccountDialog();
+  router.push({ name, query: { redirect: '/checkout' } });
+}
+
+function handleCodDialogKeydown(event) {
+  if (event.key === 'Escape') { event.preventDefault(); closeCodAccountDialog(); return; }
+  if (event.key !== 'Tab') return;
+  const buttons = [...event.currentTarget.querySelectorAll('button:not([disabled])')];
+  if (!buttons.length) return;
+  if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons.at(-1).focus(); }
+  else if (!event.shiftKey && document.activeElement === buttons.at(-1)) { event.preventDefault(); buttons[0].focus(); }
+}
+
+onBeforeUnmount(() => { addressSelectionGeneration += 1; document.body.style.overflow = ''; });
 
 async function loadClaimedCoupons() {
   claimedCouponsLoading.value = true;
@@ -338,6 +394,7 @@ async function placeOrder() {
   if (!canPlaceOrder()) return toast.error('Vui lòng điền đầy đủ thông tin giao hàng');
   const fullAddress = getFullAddress();
   if (!fullAddress) return toast.error('Vui lòng nhập địa chỉ');
+  let paymentWindow = paymentMethod.value === 'BANK_TRANSFER' ? window.open('', '_blank') : null;
   submitting.value = true;
   try {
     if (isGuest.value) {
@@ -364,6 +421,7 @@ async function placeOrder() {
       };
       const result = await orderApi.guestCheckout(payload, idempotencyKeyFor(payload));
       if (result.paymentRetryable) {
+        paymentWindow?.close();
         toast.error(`Đơn ${result.orderCode} đã được tạo. Bấm đặt hàng lại để thử tạo liên kết thanh toán.`);
         return;
       }
@@ -371,7 +429,10 @@ async function placeOrder() {
       cart.clear();
       if (result.checkoutUrl) {
         if (result.returnProof) sessionStorage.setItem(`guest-payment-proof:${result.orderCode}`, result.returnProof);
-        window.location.assign(result.checkoutUrl);
+        if (!paymentWindow) { window.location.assign(result.checkoutUrl); return; }
+        paymentWindow.location.href = result.checkoutUrl;
+        window.__fastGuyPaymentWindow = paymentWindow;
+        router.push({ name: 'PaymentReturn', query: { orderId: result.orderId, orderCode: result.orderCode, returnProof: result.returnProof } });
         return;
       }
       sessionStorage.setItem(`order-success:${result.orderCode}`, '1');
@@ -401,17 +462,22 @@ async function placeOrder() {
     const result = await orderStore.createOrder(payload, idempotencyKeyFor(payload));
     createdOrderId.value = result.id;
     if (result.paymentRetryable) {
+      paymentWindow?.close();
       toast.error(`Đơn ${result.orderCode} đã được tạo. Bấm đặt hàng lại để thử tạo liên kết thanh toán.`);
       return;
     }
     clearIdempotencyKey();
     cart.clear();
     if (result.checkoutUrl) {
-      window.location.assign(result.checkoutUrl);
+      if (!paymentWindow) { window.location.assign(result.checkoutUrl); return; }
+      paymentWindow.location.href = result.checkoutUrl;
+      window.__fastGuyPaymentWindow = paymentWindow;
+      router.push({ name: 'PaymentReturn', query: { orderId: createdOrderId.value, orderCode: result.orderCode } });
       return;
     }
     router.push({ name: 'OrderSuccess', query: { orderId: createdOrderId.value, orderCode: result.orderCode } });
   } catch (e) {
+    paymentWindow?.close();
     if (e?.status === 409) {
       clearIdempotencyKey();
       if (!isGuest.value) await cart.fetchCart();
@@ -533,12 +599,12 @@ async function placeOrder() {
                class="payment-option"
                :class="{ selected: paymentMethod === key, disabled: !isPaymentEnabled(key) }"
                role="radio"
-                :tabindex="paymentMethod === key && isPaymentEnabled(key) ? 0 : -1"
+                :tabindex="isGuest && key === 'COD' ? 0 : paymentMethod === key && isPaymentEnabled(key) ? 0 : -1"
                 :aria-checked="paymentMethod === key"
-                :aria-disabled="!isPaymentEnabled(key)"
-                @click="selectPaymentMethod(key)"
-                @keydown.space.prevent="selectPaymentMethod(key)"
-                @keydown.enter="selectPaymentMethod(key)"
+                :aria-disabled="!isPaymentEnabled(key) && !(isGuest && key === 'COD')"
+                 @click="selectPaymentMethod(key, $event)"
+                 @keydown.space.prevent="selectPaymentMethod(key, $event)"
+                 @keydown.enter="selectPaymentMethod(key, $event)"
             >
               <i
                 :class="
@@ -714,6 +780,13 @@ async function placeOrder() {
       <h3>Giỏ hàng trống</h3>
       <router-link to="/menu" class="btn btn-primary">Mua sắm ngay</router-link>
     </div>
+    </div>
+    <div v-if="codAccountDialog" class="dialog-overlay" @click.self="closeCodAccountDialog">
+      <section class="cod-account-dialog" role="dialog" aria-modal="true" aria-labelledby="cod-account-title" aria-describedby="cod-account-message" tabindex="-1" @keydown="handleCodDialogKeydown">
+        <h2 id="cod-account-title">COD chỉ dành cho khách có tài khoản</h2>
+        <p id="cod-account-message">Vui lòng đăng ký hoặc đăng nhập để thanh toán khi nhận hàng. Khách vãng lai có thể thanh toán bằng QR PayOS.</p>
+        <div class="dialog-actions"><button type="button" class="btn btn-primary" @click="goToAccount('Login')">Đăng nhập</button><button type="button" class="btn btn-outline" @click="goToAccount('Register')">Đăng ký</button><button type="button" class="btn btn-outline" @click="closeCodAccountDialog">Đóng</button></div>
+      </section>
     </div>
   </div>
 </template>
@@ -1144,6 +1217,13 @@ async function placeOrder() {
 @media (max-width: 768px) { .checkout-stepper { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 14px 8px; }.checkout-stepper .step { white-space: normal; text-align: center; font-size: 10px; }.checkout-stepper .step-line { display: none; }.checkout-layout { grid-template-columns: 1fr; }.checkout-sidebar .card { position: static; }.checkout-page { padding-top: 16px; } }
 @media (max-width: 380px) { .coupon-input-group { flex-direction: column; }.coupon-btn { width: 100%; } }
 @media (max-width: 768px) { .checkout-actions { position: sticky; bottom: 0; z-index: 5; margin: 0 -12px -12px; padding: 12px; background: #fff; border-top: 1px solid var(--border); }.checkout-actions .btn { flex: 1; } }
+</style>
+
+<style scoped>
+.dialog-overlay{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:16px;background:rgba(25,18,14,.55)}
+.cod-account-dialog{width:min(460px,100%);padding:26px;border-radius:20px;background:#fff;box-shadow:0 24px 70px rgba(20,12,8,.24)}
+.cod-account-dialog h2{margin:0 0 10px;font-size:21px}.cod-account-dialog p{color:var(--text-mid);line-height:1.6}
+.dialog-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.dialog-actions .btn{min-height:44px}
 </style>
 
 <style scoped>

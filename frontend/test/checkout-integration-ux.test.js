@@ -61,15 +61,44 @@ test('PayOS transfer always renders disabled with reason when unavailable', () =
   assert.match(checkout, /availablePaymentMethods = ref\(\['COD', 'BANK_TRANSFER'\]\)/);
   assert.match(checkout, /paymentAvailability/);
   assert.match(checkout, /function isPaymentEnabled\(key\)/);
-  assert.match(checkout, /:aria-disabled="!isPaymentEnabled\(key\)"/);
+  assert.match(checkout, /:aria-disabled="!isPaymentEnabled\(key\) && !\(isGuest && key === 'COD'\)"/);
   assert.match(checkout, /paymentAvailability\[key\]\?\.reason/);
 });
 
+test('guest checkout defaults to PayOS and gates COD behind account modal', () => {
+  assert.match(checkout, /paymentMethod = ref\(isGuest\.value \? 'BANK_TRANSFER' : 'COD'\)/);
+  assert.match(checkout, /if \(isGuest\.value && key === 'COD'\)/);
+  assert.match(checkout, /codAccountDialog/);
+  assert.match(checkout, /router\.push\(\{ name, query: \{ redirect: '\/checkout' \} \}\)/);
+  assert.match(checkout, /goToAccount\('Login'\)/);
+  assert.match(checkout, /goToAccount\('Register'\)/);
+});
+
+test('payment return verifies PayOS through payment status endpoint for authenticated orders', () => {
+  assert.match(paymentReturn, /orderApi\.getPaymentStatus\(orderId\.value\)/);
+  assert.doesNotMatch(paymentReturn, /orderApi\.getById\(orderId\.value\)/);
+});
+
+test('checkout keeps the website polling while PayOS opens separately', () => {
+  assert.match(checkout, /paymentWindow = paymentMethod\.value === 'BANK_TRANSFER' \? window\.open\('', '_blank'\) : null/);
+  assert.match(checkout, /paymentWindow\.location\.href = result\.checkoutUrl/);
+  assert.match(checkout, /window\.__fastGuyPaymentWindow = paymentWindow/);
+  assert.match(checkout, /name: 'PaymentReturn'/);
+  assert.match(checkout, /returnProof: result\.returnProof/);
+  assert.match(paymentReturn, /window\.__fastGuyPaymentWindow\?\.close\(\)/);
+});
+
+test('saved address selection reloads GHN hierarchy and fee without relying on province watcher', () => {
+  assert.match(checkout, /applySavedAddress\(addr\)/);
+  assert.match(checkout, /loadAddressHierarchy/);
+  assert.match(checkout, /addressSelectionGeneration/);
+});
+
 test('disabled payment cannot be selected or submitted from stale state', () => {
-  assert.match(checkout, /function selectPaymentMethod\(key\)/);
+  assert.match(checkout, /function selectPaymentMethod\(key, event\)/);
   assert.match(checkout, /if \(!isPaymentEnabled\(key\)\) return;/);
   assert.match(checkout, /if \(!isPaymentEnabled\(paymentMethod\.value\)\)/);
-  assert.match(checkout, /@click="selectPaymentMethod\(key\)"/);
+  assert.match(checkout, /@click="selectPaymentMethod\(key, \$event\)"/);
 });
 
 test('manual coupon form is available to guest and user while wallet remains user-only', () => {

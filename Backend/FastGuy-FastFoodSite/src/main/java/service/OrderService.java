@@ -186,9 +186,7 @@ public class OrderService {
                 throw new IllegalArgumentException("Thông tin đặt hàng không hợp lệ");
             }
             if (!isValidPhone(phone) || !isValidAddress(address)) throw new IllegalArgumentException("Thông tin giao hàng không hợp lệ");
-            if (!"COD".equals(paymentMethod) && !"BANK_TRANSFER".equals(paymentMethod)) {
-                throw new IllegalArgumentException("Phương thức thanh toán không hợp lệ");
-            }
+            if (!"BANK_TRANSFER".equals(paymentMethod)) throw new IllegalArgumentException("Khách vãng lai phải đăng ký hoặc đăng nhập để thanh toán COD");
             Map<Integer, Integer> quantities = new HashMap<>();
             Map<Integer, Integer> productIds = new HashMap<>();
             Map<Integer, Integer> productQuantities = new HashMap<>();
