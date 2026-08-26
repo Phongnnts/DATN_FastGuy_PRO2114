@@ -313,3 +313,11 @@ Expected: no migration, no dependency, no unrelated files, no whitespace errors.
 - Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; critical API, console and page-error assertions passed.
 - One intermediate desktop verification failed after an unnecessary all-day shift change redirected login to `/staff/shifts`; fixture cleanup still reported all tracked rows `0` and ShippingConfig restored. That unrelated shift change was removed before the passing rerun.
 - Final cleanup: Orders, Users, WorkShift, Cart, CartItem, InventoryItem, InventoryTransaction, OrderStatusHistory, CouponRedemption, InventoryReservation and InventoryReservationItem all `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
+
+#### Midnight-Safe Shift Fixture Evidence (2026-08-26)
+
+- TDD RED: fixture Staff/shipper shifts checked through production `WorkShiftService.isValidCheckedInShift` passed at `00:05`, `05:59`, `13:59` but failed at `23:55`; wrapped `endTime=00:55` was treated as already expired.
+- Production semantics also make `23:59 + 15m` wrap to `00:14`. The test-only fixture now clamps late shifts to `endTime=23:44`, whose production grace reaches `23:59`, and clamps early starts to `00:00`; normal times retain the one-hour window.
+- Focused boundary suite passed `8/8`: four Staff/shipper validity cases plus four unchanged order classification/cancellation cases. Full backend passed `449/449`; frontend passed `581/581`; Vite production build passed.
+- Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; critical API, console and page-error assertions passed.
+- Final cleanup: all tracked fixture tables `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.

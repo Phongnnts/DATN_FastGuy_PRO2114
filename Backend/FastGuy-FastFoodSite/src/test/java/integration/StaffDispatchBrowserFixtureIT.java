@@ -213,10 +213,17 @@ class StaffDispatchBrowserFixtureIT {
     }
 
     private void insertShift(EntityManager em, User user, LocalDateTime now) {
+        em.persist(shift(user, now));
+    }
+
+    static WorkShift shift(User user, LocalDateTime now) {
         WorkShift shift = new WorkShift();
-        shift.setUser(user); shift.setShiftDate(now.toLocalDate()); shift.setStartTime(now.minusHours(1).toLocalTime());
-        shift.setEndTime(now.plusHours(1).toLocalTime()); shift.setCheckInAt(now.minusMinutes(1)); shift.setStatus("CHECKED_IN");
-        em.persist(shift);
+        LocalTime time = now.toLocalTime();
+        shift.setUser(user); shift.setShiftDate(now.toLocalDate());
+        shift.setStartTime(time.isBefore(LocalTime.of(1, 0)) ? LocalTime.MIN : time.minusHours(1));
+        shift.setEndTime(time.isAfter(LocalTime.of(22, 44)) ? LocalTime.of(23, 44) : time.plusHours(1));
+        shift.setCheckInAt(now.minusMinutes(1)); shift.setStatus("CHECKED_IN");
+        return shift;
     }
 
     private Orders insertOrder(EntityManager em, String code, String status, LocalDateTime createdAt, LocalDateTime readyAt,
