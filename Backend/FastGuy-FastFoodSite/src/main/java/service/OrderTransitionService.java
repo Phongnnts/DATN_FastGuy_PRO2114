@@ -11,7 +11,9 @@ import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.*;
+import java.util.function.Predicate;
 
 public class OrderTransitionService {
     private final InventoryReservationService inventoryReservationService = new InventoryReservationService();
@@ -50,31 +52,41 @@ public class OrderTransitionService {
 
     public CancellationResult cancel(int orderId, Integer expectedUserId, String expectedPaymentStatus,
                                      boolean pendingOnly, String actorRole, Integer actorUserId, String reason) {
+        return cancel(orderId, order -> canCancel(order, expectedUserId, expectedPaymentStatus, pendingOnly, actorRole),
+                actorRole, actorUserId, reason, LocalDateTime.now());
+    }
+
+    public CancellationResult cancelReadyIfUnassignedAfterClosing(int orderId, LocalDateTime now,
+                                                                   LocalTime open, LocalTime close) {
+        return cancel(orderId, order -> canAutoCancelAfterClosing(order, now, open, close), "SYSTEM", null,
+                "Quá giờ đóng cửa chưa được điều phối", now);
+    }
+
+    static boolean canAutoCancelAfterClosing(Orders order, LocalDateTime now, LocalTime open, LocalTime close) {
+        if (order == null || now == null || !"READY".equals(order.getOrderStatus()) || order.getShipper() != null) {
+            return false;
+        }
+        LocalDateTime closing = new DispatchOrderPolicy().closingAt(order.getCreatedAt(), open, close);
+        return closing != null && !closing.isAfter(now);
+    }
+
+    private CancellationResult cancel(int orderId, Predicate<Orders> precondition, String actorRole,
+                                      Integer actorUserId, String reason, LocalDateTime now) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (!canCancel(order, expectedUserId, expectedPaymentStatus, pendingOnly, actorRole)) {
+            if (!precondition.test(order)) {
                 em.getTransaction().rollback();
                 return null;
             }
             String from = order.getOrderStatus();
             String orderCode = order.getOrderCode();
             Integer orderUserId = order.getUser() == null ? null : order.getUser().getUserId();
-            if (!inventoryReservationService.cancel(em, order)) {
+            if (!applyCancellation(em, order, actorRole, actorUserId, reason, now)) {
                 em.getTransaction().rollback();
                 return null;
             }
-            releaseCoupon(em, orderId);
-            order.setOrderStatus("CANCELLED");
-            order.setCancelledAt(LocalDateTime.now());
-            order.setCancelledBy("USER".equals(actorRole) ? "CUSTOMER" : actorRole);
-            if ("PAID".equals(order.getPaymentStatus())) order.setRefundStatus("PENDING");
-            if (reason != null && !reason.isBlank()) order.setFailureReason(reason);
-            User actor = actorUserId == null ? null : em.find(User.class, actorUserId);
-            if (actor != null && ("STAFF".equals(actorRole) || "ADMIN".equals(actorRole))) order.setStaff(actor);
-            em.persist(new OrderStatusHistory(orderId, actorUserId, actorRole, from, "CANCELLED",
-                    reason != null ? reason : "Hủy đơn", LocalDateTime.now()));
             em.getTransaction().commit();
             return new CancellationResult(orderCode, orderUserId);
         } catch (RuntimeException e) {
@@ -93,6 +105,10 @@ public class OrderTransitionService {
 
     static boolean canUseDetailedTransition(String toStatus) {
         return !"RETURNED_TO_STORE".equals(toStatus);
+    }
+
+    static boolean canAssignOrder(String actorRole, Integer actorUserId, String expectedStatus, boolean checkedInStaff) {
+        return "STAFF".equals(actorRole) && actorUserId != null && "READY".equals(expectedStatus) && checkedInStaff;
     }
 
     public Set<String> getAllowedActions(String currentStatus, String role, String paymentStatus) {
@@ -137,6 +153,8 @@ public class OrderTransitionService {
     public MutationResult transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
                                      Integer assignedShipperId, java.math.BigDecimal collectedAmount, String expectedStatus) {
         if (!canUseDetailedTransition(toStatus) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
+        if (!canUseDetailedTransition(toStatus) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
+        if ("ASSIGNED".equals(toStatus) && !canAssignOrder(actorRole, actorUserId, expectedStatus, true)) return MutationResult.INVALID;
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -149,6 +167,10 @@ public class OrderTransitionService {
             if ("SHIPPER".equals(actorRole) && (order.getShipper() == null || actorUserId == null
                     || order.getShipper().getUserId() != actorUserId || !requireCheckedInShipper(em, actorUserId))) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if ("ASSIGNED".equals(toStatus)) {
+                if (!canAssignOrder(actorRole, actorUserId, expectedStatus, requireCheckedInStaff(em, actorUserId))) {
+                    em.getTransaction().rollback();
+                    return MutationResult.INVALID;
+                }
                 User shipper = assignedShipperId == null ? null : em.find(User.class, assignedShipperId);
                 if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || order.getShipper() != null) {
                     em.getTransaction().rollback();
@@ -184,22 +206,21 @@ public class OrderTransitionService {
             else if ("PICKED_UP".equals(toStatus)) order.setPickedUpAt(LocalDateTime.now());
             else if ("DELIVERED".equals(toStatus)) order.setDeliveredAt(LocalDateTime.now());
             else if ("CANCELLED".equals(toStatus)) {
-                if (!inventoryReservationService.cancel(em, order)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
-                releaseCoupon(em, orderId);
-                order.setCancelledAt(LocalDateTime.now());
-                order.setCancelledBy("USER".equals(actorRole) ? "CUSTOMER" : actorRole);
-                if ("PAID".equals(order.getPaymentStatus())) order.setRefundStatus("PENDING");
-                if (note != null && !note.isBlank()) order.setFailureReason(note);
+                if (!applyCancellation(em, order, actorRole, actorUserId, note, LocalDateTime.now())) {
+                    em.getTransaction().rollback(); return MutationResult.INVALID;
+                }
             }
 
-            order.setOrderStatus(toStatus);
+            if (!"CANCELLED".equals(toStatus)) order.setOrderStatus(toStatus);
             User actor = actorUserId == null ? null : em.find(User.class, actorUserId);
             if (actor != null) {
                 if ("STAFF".equals(actorRole)) order.setStaff(actor);
                 else if ("SHIPPER".equals(actorRole)) order.setShipper(actor);
             }
 
-            em.persist(new OrderStatusHistory(orderId, actorUserId, actorRole, from, toStatus, note, LocalDateTime.now()));
+            if (!"CANCELLED".equals(toStatus)) {
+                em.persist(new OrderStatusHistory(orderId, actorUserId, actorRole, from, toStatus, note, LocalDateTime.now()));
+            }
             if ("DELIVERED".equals(toStatus)) new LoyaltyService().awardForDelivery(em, order);
             em.getTransaction().commit();
             return MutationResult.SUCCESS;
@@ -398,6 +419,23 @@ public class OrderTransitionService {
         if (coupon != null && coupon.getUsedCount() > 0) coupon.setUsedCount(coupon.getUsedCount() - 1);
         redemption.setUsedAt(null);
         redemption.setOrderId(null);
+    }
+
+    private boolean applyCancellation(EntityManager em, Orders order, String actorRole, Integer actorUserId,
+                                      String reason, LocalDateTime now) {
+        if (!inventoryReservationService.cancel(em, order)) return false;
+        String from = order.getOrderStatus();
+        releaseCoupon(em, order.getOrderId());
+        order.setOrderStatus("CANCELLED");
+        order.setCancelledAt(now);
+        order.setCancelledBy("USER".equals(actorRole) ? "CUSTOMER" : actorRole);
+        if ("PAID".equals(order.getPaymentStatus())) order.setRefundStatus("PENDING");
+        if (reason != null && !reason.isBlank()) order.setFailureReason(reason);
+        User actor = actorUserId == null ? null : em.find(User.class, actorUserId);
+        if (actor != null && ("STAFF".equals(actorRole) || "ADMIN".equals(actorRole))) order.setStaff(actor);
+        em.persist(new OrderStatusHistory(order.getOrderId(), actorUserId, actorRole, from, "CANCELLED",
+                reason != null ? reason : "Hủy đơn", now));
+        return true;
     }
 
 }

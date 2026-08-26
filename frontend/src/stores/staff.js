@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { staffApi } from '@/api';
-import { kitchenItemCount, staffOrderDiscount, staffOrderItemTotal } from '@/utils/staffKitchen';
+import { createDispatchRequestGate, kitchenItemCount, staffOrderDiscount, staffOrderItemTotal } from '@/utils/staffKitchen';
 
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
@@ -11,7 +11,13 @@ export const useStaffStore = defineStore('staff', () => {
   const historySize = ref(20);
   const loading = ref(false);
   const error = ref('');
+  const dispatchItems = ref([]);
+  const dispatchCounts = ref({ priority: 0, new: 0, review: 0 });
+  const dispatchLoading = ref(false);
+  const dispatchError = ref('');
   let fetchVersion = 0;
+  let dispatchFilter = 'PRIORITY';
+  const dispatchRequestGate = createDispatchRequestGate(dispatchFilter);
 
   function mapOrder(o) {
     return {
@@ -100,7 +106,42 @@ export const useStaffStore = defineStore('staff', () => {
         deliveryAttemptCount: Number(o.deliveryAttemptCount || 0),
         deliveryAttemptLimit: Number(o.deliveryAttemptLimit || 0),
         retryScheduledAt: o.retryScheduledAt || null,
+        readyAt: o.readyAt || null,
+        classification: o.classification,
+        minutesUntilClose: o.minutesUntilClose ?? null,
       };
+  }
+
+  async function fetchDispatchOrders(filter) {
+    const request = dispatchRequestGate.begin(filter);
+    const filterChanged = filter !== dispatchFilter;
+    dispatchFilter = filter;
+    if (filterChanged) dispatchItems.value = [];
+    dispatchLoading.value = true;
+    dispatchError.value = '';
+    try {
+      const data = await staffApi.getDispatchOrders(filter);
+      if (!dispatchRequestGate.accepts(request)) return dispatchItems.value;
+      dispatchItems.value = Array.isArray(data?.items) ? data.items.map(mapOrderListItem) : [];
+      dispatchCounts.value = {
+        priority: Number(data?.counts?.priority ?? 0),
+        new: Number(data?.counts?.new ?? 0),
+        review: Number(data?.counts?.review ?? 0),
+      };
+      return dispatchItems.value;
+    } catch (e) {
+      if (dispatchRequestGate.accepts(request)) {
+        dispatchError.value = e.message || 'Không thể tải danh sách điều phối';
+      }
+      throw e;
+    } finally {
+      if (dispatchRequestGate.accepts(request)) dispatchLoading.value = false;
+    }
+  }
+
+  function invalidateDispatch() {
+    dispatchRequestGate.invalidate();
+    dispatchLoading.value = false;
   }
 
   async function fetchDashboard() {
@@ -275,12 +316,18 @@ export const useStaffStore = defineStore('staff', () => {
     historySize,
     loading,
     error,
+    dispatchItems,
+    dispatchCounts,
+    dispatchLoading,
+    dispatchError,
     fetchDashboard,
     fetchKitchenOrders,
     fetchOrders,
     fetchConfirmedOrders,
     fetchPreparingOrders,
     fetchReadyOrders,
+    fetchDispatchOrders,
+    invalidateDispatch,
     fetchHistory,
     fetchOrderById,
     updateOrderStatus,

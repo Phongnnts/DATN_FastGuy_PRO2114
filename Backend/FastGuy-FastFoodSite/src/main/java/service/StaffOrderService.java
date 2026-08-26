@@ -11,15 +11,33 @@ import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class StaffOrderService {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private UserDAO userDAO = new UserDAO();
     private OrderTransitionService transitionService = new OrderTransitionService();
+    private StoreConfigService storeConfigService = new StoreConfigService();
+    private DispatchOrderPolicy dispatchPolicy = new DispatchOrderPolicy();
+    private Supplier<LocalDateTime> businessNow = WorkShiftService::businessNow;
+
+    StaffOrderService(OrdersDAO ordersDAO, StoreConfigService storeConfigService,
+                      DispatchOrderPolicy dispatchPolicy, Supplier<LocalDateTime> businessNow) {
+        this.ordersDAO = ordersDAO;
+        this.storeConfigService = storeConfigService;
+        this.dispatchPolicy = dispatchPolicy;
+        this.businessNow = businessNow;
+    }
+
+    public StaffOrderService() {}
 
     public List<Orders> getPendingOrders() {
         return ordersDAO.findByStatus("PENDING");
@@ -36,6 +54,62 @@ public class StaffOrderService {
     public List<Orders> getReadyOrders() {
         return ordersDAO.findByStatus("READY");
     }
+
+    public DispatchResult getDispatchOrders(String filter) {
+        LocalDateTime now = businessNow.get();
+        Map<String, String> config = storeConfigService.getAll();
+        String openValue = config.get(StoreConfigService.OPEN_TIME);
+        String closeValue = config.get(StoreConfigService.CLOSE_TIME);
+        if (openValue == null || openValue.isBlank() || closeValue == null || closeValue.isBlank())
+            throw new IllegalArgumentException("Missing business hours config");
+        LocalTime open;
+        LocalTime close;
+        try {
+            open = LocalTime.parse(openValue);
+            close = LocalTime.parse(closeValue);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Invalid business hours config", e);
+        }
+        List<DispatchItem> priority = new ArrayList<>();
+        List<DispatchItem> recent = new ArrayList<>();
+        List<DispatchItem> review = new ArrayList<>();
+
+        for (Orders order : ordersDAO.findDispatchCandidates()) {
+            String classification = dispatchPolicy.classify(order, now, open, close);
+            if ("REVIEW".equals(classification)) {
+                review.add(new DispatchItem(order, classification, null));
+            } else if (classification != null) {
+                Long minutes = dispatchPolicy.minutesUntilClose(order, now, open, close);
+                if (dispatchPolicy.isPriority(order, now, dispatchPolicy.closingAt(order.getCreatedAt(), open, close)))
+                    priority.add(new DispatchItem(order, "PRIORITY", minutes));
+                if (dispatchPolicy.isNew(order, now)) recent.add(new DispatchItem(order, "NEW", minutes));
+            }
+        }
+
+        priority.sort(Comparator.comparing(DispatchItem::minutesUntilClose, Comparator.nullsLast(Long::compareTo))
+                .thenComparing(item -> item.order().getReadyAt(), Comparator.nullsLast(LocalDateTime::compareTo))
+                .thenComparingInt(item -> item.order().getOrderId()));
+        recent.sort(Comparator.comparing((DispatchItem item) -> item.order().getReadyAt(), Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing((DispatchItem item) -> item.order().getOrderId(), Comparator.reverseOrder()));
+        review.sort(Comparator.comparing((DispatchItem item) -> item.order().getDeliveryFailedAt(), Comparator.nullsLast(LocalDateTime::compareTo))
+                .thenComparingInt(item -> item.order().getOrderId()));
+
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("priority", (long) priority.size());
+        counts.put("new", (long) recent.size());
+        counts.put("review", (long) review.size());
+        List<DispatchItem> items = switch (filter) {
+            case "PRIORITY" -> priority;
+            case "NEW" -> recent;
+            case "REVIEW" -> review;
+            default -> throw new IllegalArgumentException("Invalid dispatch filter");
+        };
+        return new DispatchResult(items, counts, now, open, close);
+    }
+
+    public record DispatchItem(Orders order, String classification, Long minutesUntilClose) {}
+    public record DispatchResult(List<DispatchItem> items, Map<String, Long> counts,
+                                 LocalDateTime serverTime, LocalTime openTime, LocalTime closeTime) {}
 
     public Orders getOrderDetail(int orderId) {
         return ordersDAO.findById(orderId);

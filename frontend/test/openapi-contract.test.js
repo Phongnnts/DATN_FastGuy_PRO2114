@@ -1,12 +1,63 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import test from 'node:test';
 
 const contractUrl = new URL('../../openapi/fastguy.yaml', import.meta.url);
+const execFileAsync = promisify(execFile);
 
 function schemaSection(contract, name, nextName) {
   return contract.slice(contract.indexOf(`    ${name}:`), contract.indexOf(`    ${nextName}:`));
 }
+
+test('OpenAPI contracts Staff dispatch filters and classifications', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const paths = contract.paths;
+  const operation = paths['/staff/orders/dispatch']?.get;
+  const filter = operation?.parameters.find((parameter) => parameter.name === 'filter');
+  const dispatchOrder = contract.components.schemas.StaffDispatchOrder;
+  const dispatchCounts = contract.components.schemas.StaffDispatchCounts;
+  const dispatchResponse = contract.components.schemas.StaffDispatchResponse;
+  const orderFields = [
+    'orderId', 'orderCode', 'userId', 'customerName', 'customerPhone', 'customerAddress', 'status', 'orderStatus', 'itemCount', 'items',
+    'totalAmount', 'shippingFee', 'serviceFee', 'discountAmount', 'paymentMethod', 'paymentStatus', 'finalAmount',
+    'refundAmount', 'refundedAt', 'shipperId', 'shipperName', 'assignedAt', 'updatedAt', 'endedAt', 'createdAt',
+    'deliveryAttemptCount', 'deliveryAttemptLimit', 'deliveryFailureCode', 'failureNote', 'deliveryFailedAt',
+    'retryScheduledAt', 'returnedToStoreAt', 'readyAt', 'classification', 'minutesUntilClose',
+  ];
+
+  assert.ok(operation);
+  assert.equal(filter.in, 'query');
+  assert.equal(filter.required, true);
+  assert.deepEqual(filter.schema.enum, ['PRIORITY', 'NEW', 'REVIEW']);
+  assert.equal(operation.responses['200'].content['application/json'].schema.$ref, '#/components/schemas/StaffDispatchResponse');
+  for (const status of ['400', '401', '403']) {
+    assert.equal(operation.responses[status].$ref, `#/components/responses/${status === '400' ? 'BadRequest' : status === '401' ? 'Unauthorized' : 'Forbidden'}`);
+  }
+  assert.equal(dispatchOrder.additionalProperties, false);
+  assert.deepEqual(dispatchOrder.required, orderFields);
+  assert.deepEqual(Object.keys(dispatchOrder.properties), orderFields);
+  assert.deepEqual(dispatchOrder.properties.classification.enum, ['PRIORITY', 'NEW', 'REVIEW']);
+  assert.deepEqual(dispatchOrder.properties.readyAt.type, ['string', 'null']);
+  assert.deepEqual(dispatchOrder.properties.minutesUntilClose.type, ['integer', 'null']);
+  assert.deepEqual(dispatchCounts.required, ['priority', 'new', 'review']);
+  assert.deepEqual(Object.keys(dispatchCounts.properties), ['priority', 'new', 'review']);
+  assert.deepEqual(dispatchResponse.required, ['items', 'counts', 'serverTime', 'openTime', 'closeTime']);
+  assert.deepEqual(Object.keys(dispatchResponse.properties), ['items', 'counts', 'serverTime', 'openTime', 'closeTime']);
+  assert.equal(dispatchResponse.properties.items.items.$ref, '#/components/schemas/StaffDispatchOrder');
+  assert.equal(dispatchResponse.properties.counts.$ref, '#/components/schemas/StaffDispatchCounts');
+  const refs = [];
+  JSON.stringify(contract, (key, value) => {
+    if (key === '$ref') refs.push(value);
+    return value;
+  });
+  assert.ok(refs.length > 0);
+  assert.ok(refs.every((ref) => ref.startsWith('#/')));
+});
 
 test('OpenAPI contracts current-shift shipper listing and assignment', async () => {
   const contract = await readFile(contractUrl, 'utf8');

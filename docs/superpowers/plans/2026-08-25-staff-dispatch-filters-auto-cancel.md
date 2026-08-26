@@ -284,3 +284,57 @@ Expected: all scenarios PASS, no retained-data mutation, no console errors.
 
 Run: `git diff --check` and inspect `git diff --stat`.
 Expected: no migration, no dependency, no unrelated files, no whitespace errors.
+
+#### Final Fix Evidence (2026-08-26)
+
+- Runtime gate: `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; required Orders columns `8/8`; business hours parseable.
+- TDD RED: production scheduler clock failed by seven hours under UTC JVM default; Vietnamese label/source assertions failed; executable harness safety/restoration tests failed before implementation.
+- Focused GREEN: scheduler `7/7`; dispatch/harness `11/11`.
+- Full backend: `441/441`; frontend: `578/578`; OpenAPI contract: `11/11`; Vite build passed; OpenAPI valid with three pre-existing availability-schema warnings.
+- Disposable integration: `ReadyOrderClosingCancellationIT` `2/2`; cleanup `0 tracked rows`.
+- Real backend Playwright: desktop `1/1`, mobile `1/1`; critical requests and console assertions passed. Fixture cleanup reported `0` for Orders, Users, WorkShift, Cart, CartItem, InventoryItem, InventoryTransaction, OrderStatusHistory, CouponRedemption, InventoryReservation and InventoryReservationItem; ShippingConfig restored.
+- Post-run audit: listeners `0`, runtime processes `0`, Tomcat11 `Stopped`, E2E Orders `0`, E2E Users `0`; executable injected-failure environment restoration self-test passed.
+- N+1 remains deferred per final review ledger; no N+1 change included.
+
+#### Harness Reparse-Point Safety Fix Evidence (2026-08-26)
+
+- TDD RED: executable Windows junction tests accepted both target and intermediate-ancestor junctions; the recursive removal path returned success.
+- Focused GREEN: `node --test tests/staff-dispatch-real-harness.test.mjs` passed `7/7`; normal nonexistent/existing children accepted; both junction placements rejected; external victim markers survived; junctions removed with non-traversing `cmd /c rmdir` cleanup.
+- Full regression: backend `441/441`; frontend `581/581`; Vite production build passed.
+- Real disposable backend E2E: `BLOCKED` before startup because `DB_URL`, `DB_USER`, and `DB_PASSWORD` were absent from Process and User environments. No credential or database target was inferred; desktop/mobile were not rerun.
+- Harness cleanup policy now revalidates immediately before every recursive temp deletion and before runtime creation. Reparse-point cleanup rejection is recorded as a secondary failure without replacing the primary failure.
+
+#### Wall-Clock-Independent Fixture Fix Evidence (2026-08-26)
+
+- Root cause reproduced at `13:59 Asia/Ho_Chi_Minh`: fixed `18:00`/`06:00` hours made active READY orders belong to an operating window already closed at `06:00`.
+- TDD RED: pure fixture timeline cases at `00:05`, `05:59`, `13:59`, `23:55` failed at `05:59` (`Priority=4`) and `13:59` (`Priority=0`). GREEN passed `4/4`: each case classifies `2 Priority`, `2 New`; the independent cancellation candidate closes before `now`.
+- Fixture now derives distinct hours from business time (`open=now-2h`, `close=now+2h`) and seeds the cancellation candidate two days earlier. Scheduler no longer changes the shared close hour, so active orders remain valid while only the candidate is overdue.
+- Full regression: backend `445/445`; frontend `581/581`; Vite production build passed. Focused real-harness/policy tests passed within the frontend suite.
+- Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; critical API, console and page-error assertions passed.
+- One intermediate desktop verification failed after an unnecessary all-day shift change redirected login to `/staff/shifts`; fixture cleanup still reported all tracked rows `0` and ShippingConfig restored. That unrelated shift change was removed before the passing rerun.
+- Final cleanup: Orders, Users, WorkShift, Cart, CartItem, InventoryItem, InventoryTransaction, OrderStatusHistory, CouponRedemption, InventoryReservation and InventoryReservationItem all `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
+
+#### Midnight-Safe Shift Fixture Evidence (2026-08-26)
+
+- TDD RED: fixture Staff/shipper shifts checked through production `WorkShiftService.isValidCheckedInShift` passed at `00:05`, `05:59`, `13:59` but failed at `23:55`; wrapped `endTime=00:55` was treated as already expired.
+- Production semantics also make `23:59 + 15m` wrap to `00:14`. The test-only fixture now clamps late shifts to `endTime=23:44`, whose production grace reaches `23:59`, and clamps early starts to `00:00`; normal times retain the one-hour window.
+- Focused boundary suite passed `8/8`: four Staff/shipper validity cases plus four unchanged order classification/cancellation cases. Full backend passed `449/449`; frontend passed `581/581`; Vite production build passed.
+- Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; critical API, console and page-error assertions passed.
+- Final cleanup: all tracked fixture tables `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
+
+#### End-Of-Day Nanosecond Fixture Evidence (2026-08-26)
+
+- TDD RED: production `WorkShiftService.isValidCheckedInShift` rejected the fixture Staff shift at `23:59:59.999999999`; `endTime=23:44` plus the 15-minute grace ended at `23:59:00`.
+- A representable test-only value exists: `LocalTime.MAX.minusMinutes(15)` is `23:44:59.999999999`, and production `plusMinutes(15)` reaches exactly `LocalTime.MAX` without wrap. No production behavior changed.
+- Focused boundary suite passed `9/9`: five Staff/shipper boundaries through the production helper plus four unchanged order classification/cancellation cases. Full backend passed `450/450`; frontend passed `581/581`; Vite production build passed.
+- Disposable target verified on every attempt as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`. Real desktop E2E was blocked three times by the unrelated exact request-count assertion: expected `3` Priority loads, observed `4` because the 30-second poll completed alongside the conflict refresh; visible conflict state reached `Ưu tiên 0`. Mobile did not run because the harness stops after desktop failure.
+- Every failed run cleanup reported all tracked fixture tables `0` and ShippingConfig restored. Final audit: ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
+
+#### Poll-Safe Conflict Reload Evidence (2026-08-26)
+
+- TDD RED: the old count model rejected a valid extra polling GET and accepted a lone pre-conflict GET as recovery. Pure executable cases failed `0/2` before the ordered predicate.
+- Browser evidence now records exact API request starts and response completions with monotonic sequence and timestamps. Conflict proof requires the exact assignment PUT `409`, then a distinct exact `GET /api/staff/orders/dispatch?filter=PRIORITY` started after the PUT response and completed with `200`; total GET count is unrestricted. Selection reset, conflict message and final `Ưu tiên 0` assertions remain.
+- Focused evidence/harness tests passed `9/9`; frontend full passed `583/583`; Vite production build passed. No production code changed.
+- Two initial desktop attempts passed the ordered conflict proof but exceeded the global 60-second budget during later synchronous Maven fixture work. The real-backend test now uses Playwright `test.slow()`; no wait or behavior assertion changed.
+- Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; exact API, console and page-error assertions passed.
+- Final cleanup: all tracked fixture tables `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
