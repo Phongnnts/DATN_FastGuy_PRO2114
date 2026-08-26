@@ -38,7 +38,7 @@ class StaffDispatchBrowserFixtureTimelineTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = { "00:05", "05:59", "13:59", "23:55" })
+    @ValueSource(strings = { "00:05", "05:59", "13:59", "23:55", "23:59:59.999999999" })
     void staffAndShipperShiftsRemainValidAtClockBoundaries(String wallTime) throws Exception {
         LocalDateTime now = LocalDate.of(2026, 8, 26).atTime(LocalTime.parse(wallTime));
         Method productionHelper = WorkShiftService.class.getDeclaredMethod("isValidCheckedInShift", WorkShift.class, LocalDateTime.class);

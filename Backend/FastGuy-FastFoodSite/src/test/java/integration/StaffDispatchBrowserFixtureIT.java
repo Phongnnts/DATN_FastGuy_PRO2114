@@ -221,7 +221,7 @@ class StaffDispatchBrowserFixtureIT {
         LocalTime time = now.toLocalTime();
         shift.setUser(user); shift.setShiftDate(now.toLocalDate());
         shift.setStartTime(time.isBefore(LocalTime.of(1, 0)) ? LocalTime.MIN : time.minusHours(1));
-        shift.setEndTime(time.isAfter(LocalTime.of(22, 44)) ? LocalTime.of(23, 44) : time.plusHours(1));
+        shift.setEndTime(time.isAfter(LocalTime.of(22, 44)) ? LocalTime.MAX.minusMinutes(15) : time.plusHours(1));
         shift.setCheckInAt(now.minusMinutes(1)); shift.setStatus("CHECKED_IN");
         return shift;
     }

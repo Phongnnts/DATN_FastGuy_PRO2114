@@ -321,3 +321,11 @@ Expected: no migration, no dependency, no unrelated files, no whitespace errors.
 - Focused boundary suite passed `8/8`: four Staff/shipper validity cases plus four unchanged order classification/cancellation cases. Full backend passed `449/449`; frontend passed `581/581`; Vite production build passed.
 - Real backend Playwright target verified as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`; desktop `1/1`, mobile `1/1`; critical API, console and page-error assertions passed.
 - Final cleanup: all tracked fixture tables `0`; ShippingConfig restored; ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
+
+#### End-Of-Day Nanosecond Fixture Evidence (2026-08-26)
+
+- TDD RED: production `WorkShiftService.isValidCheckedInShift` rejected the fixture Staff shift at `23:59:59.999999999`; `endTime=23:44` plus the 15-minute grace ended at `23:59:00`.
+- A representable test-only value exists: `LocalTime.MAX.minusMinutes(15)` is `23:44:59.999999999`, and production `plusMinutes(15)` reaches exactly `LocalTime.MAX` without wrap. No production behavior changed.
+- Focused boundary suite passed `9/9`: five Staff/shipper boundaries through the production helper plus four unchanged order classification/cancellation cases. Full backend passed `450/450`; frontend passed `581/581`; Vite production build passed.
+- Disposable target verified on every attempt as `DuckJo/FastGuyDB_Inventory054_Test`, `ONLINE`, compatibility `160`. Real desktop E2E was blocked three times by the unrelated exact request-count assertion: expected `3` Priority loads, observed `4` because the 30-second poll completed alongside the conflict refresh; visible conflict state reached `Ưu tiên 0`. Mobile did not run because the harness stops after desktop failure.
+- Every failed run cleanup reported all tracked fixture tables `0` and ShippingConfig restored. Final audit: ports `18080/18005/15174` listeners `0`; harness Java/cmd processes `0`; Tomcat11 `Stopped`; temp root absent; harness environment variables unset; restoration self-test passed.
