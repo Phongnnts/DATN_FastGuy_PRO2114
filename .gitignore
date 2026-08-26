@@ -54,3 +54,14 @@ frontend/playwright-report/
 frontend/test-results/
 frontend/blob-report/
 frontend/.auth/
+
+# Keep the GitHub root limited to application source
+/.opencode/
+/.codegraph/
+/.playwright-mcp/
+/.superpowers/
+/docs/
+/openapi/
+/scripts/
+/*.md
+/*.png
