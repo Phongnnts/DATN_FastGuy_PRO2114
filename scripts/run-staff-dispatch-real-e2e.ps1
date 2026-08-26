@@ -38,7 +38,21 @@ function Assert-SafeTempRoot([string]$Path) {
     ) | ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) } | Select-Object -Unique
     foreach ($approvedRoot in $approvedRoots) {
         $approvedPrefix = $approvedRoot + [IO.Path]::DirectorySeparatorChar
-        if ($target.StartsWith($approvedPrefix, [StringComparison]::OrdinalIgnoreCase)) { return $target }
+        if ($target.StartsWith($approvedPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            $current = $approvedRoot
+            $components = @($approvedRoot) + @($target.Substring($approvedPrefix.Length).Split(@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar), [StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object {
+                $current = Join-Path $current $_
+                $current
+            })
+            foreach ($component in $components) {
+                try { $item = Get-Item -LiteralPath $component -Force -ErrorAction Stop }
+                catch [System.Management.Automation.ItemNotFoundException] { break }
+                if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    throw "TempRoot path contains a reparse point: $component"
+                }
+            }
+            return $target
+        }
     }
     throw 'TempRoot must be strictly below approved temp root'
 }
@@ -125,7 +139,11 @@ try {
     $env:FASTGUY_E2E_MAVEN_HOME = Split-Path (Split-Path (Get-Command mvn.cmd).Source -Parent) -Parent
     $env:JWT_SECRET = New-RandomSecret 48
 
-    if (Test-Path -LiteralPath $TempRoot) { Remove-Item -LiteralPath $TempRoot -Recurse -Force }
+    if (Test-Path -LiteralPath $TempRoot) {
+        $TempRoot = Assert-SafeTempRoot $TempRoot
+        Remove-Item -LiteralPath $TempRoot -Recurse -Force
+    }
+    $TempRoot = Assert-SafeTempRoot $TempRoot
     New-Item -ItemType Directory -Path (Join-Path $catalinaBase 'conf') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $TomcatHome 'conf\web.xml') -Destination (Join-Path $catalinaBase 'conf\web.xml')
     foreach ($directory in 'logs','temp','webapps','work') {
@@ -187,6 +205,12 @@ try {
     try { if ($backendProcess -and -not $backendProcess.HasExited) { Stop-Process -Id $backendProcess.Id -Force; $backendProcess.WaitForExit(10000) | Out-Null } } catch { $secondaryFailures.Add("backend stop: $($_.Exception.Message)") }
     try { Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($catalinaBase) } | ForEach-Object { taskkill.exe /PID $_.ProcessId /T /F | Out-Null }; Start-Sleep -Milliseconds 500 } catch { $secondaryFailures.Add("process cleanup: $($_.Exception.Message)") }
     foreach ($port in $BackendPort,$ShutdownPort,$FrontendPort) { try { if (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) { throw "Harness port $port still listening" } } catch { $secondaryFailures.Add($_.Exception.Message) } }
+    try {
+        if (Test-Path -LiteralPath $TempRoot) {
+            $TempRoot = Assert-SafeTempRoot $TempRoot
+            Remove-Item -LiteralPath $TempRoot -Recurse -Force
+        }
+    } catch { $secondaryFailures.Add("temp cleanup: $($_.Exception.Message)") }
     Restore-ProcessEnvironment
     try { if ((Get-Service -Name Tomcat11).Status -ne 'Stopped') { throw 'Tomcat11 Windows service state changed unexpectedly' } } catch { $secondaryFailures.Add($_.Exception.Message) }
 }

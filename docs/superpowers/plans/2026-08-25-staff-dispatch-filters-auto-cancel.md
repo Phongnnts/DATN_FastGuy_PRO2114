@@ -295,3 +295,11 @@ Expected: no migration, no dependency, no unrelated files, no whitespace errors.
 - Real backend Playwright: desktop `1/1`, mobile `1/1`; critical requests and console assertions passed. Fixture cleanup reported `0` for Orders, Users, WorkShift, Cart, CartItem, InventoryItem, InventoryTransaction, OrderStatusHistory, CouponRedemption, InventoryReservation and InventoryReservationItem; ShippingConfig restored.
 - Post-run audit: listeners `0`, runtime processes `0`, Tomcat11 `Stopped`, E2E Orders `0`, E2E Users `0`; executable injected-failure environment restoration self-test passed.
 - N+1 remains deferred per final review ledger; no N+1 change included.
+
+#### Harness Reparse-Point Safety Fix Evidence (2026-08-26)
+
+- TDD RED: executable Windows junction tests accepted both target and intermediate-ancestor junctions; the recursive removal path returned success.
+- Focused GREEN: `node --test tests/staff-dispatch-real-harness.test.mjs` passed `7/7`; normal nonexistent/existing children accepted; both junction placements rejected; external victim markers survived; junctions removed with non-traversing `cmd /c rmdir` cleanup.
+- Full regression: backend `441/441`; frontend `581/581`; Vite production build passed.
+- Real disposable backend E2E: `BLOCKED` before startup because `DB_URL`, `DB_USER`, and `DB_PASSWORD` were absent from Process and User environments. No credential or database target was inferred; desktop/mobile were not rerun.
+- Harness cleanup policy now revalidates immediately before every recursive temp deletion and before runtime creation. Reparse-point cleanup rejection is recorded as a secondary failure without replacing the primary failure.

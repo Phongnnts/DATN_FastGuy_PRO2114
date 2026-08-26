@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -8,6 +8,27 @@ import test from 'node:test';
 const root = new URL('../../', import.meta.url);
 const script = readFileSync(new URL('scripts/run-staff-dispatch-real-e2e.ps1', root), 'utf8');
 const spec = readFileSync(new URL('frontend/tests/e2e/staff-dispatch-real-backend.spec.js', root), 'utf8');
+const scriptPath = new URL('../../scripts/run-staff-dispatch-real-e2e.ps1', import.meta.url).pathname.slice(1);
+
+function runSafetyPathTest(target) {
+  const command = String.raw`
+    param($Harness, $Target)
+    $tokens = $null; $errors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile($Harness, [ref]$tokens, [ref]$errors)
+    $function = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-SafeTempRoot' }, $true)
+    . ([scriptblock]::Create($function.Extent.Text))
+    $safeTarget = Assert-SafeTempRoot $Target
+    if (Test-Path -LiteralPath $safeTarget) { Remove-Item -LiteralPath $safeTarget -Recurse -Force }
+  `;
+  return spawnSync('powershell.exe', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `& { ${command} }`, scriptPath, target,
+  ], { encoding: 'utf8' });
+}
+
+function removeJunction(path) {
+  const result = spawnSync('cmd.exe', ['/d', '/c', 'rmdir', path], { encoding: 'utf8' });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+}
 
 test('real E2E harness isolates listeners and process execution', () => {
   assert.match(script, /Get-NetTCPConnection[^\r\n]+LocalPort[^\r\n]+before startup/);
@@ -18,6 +39,8 @@ test('real E2E harness isolates listeners and process execution', () => {
   assert.match(script, /primaryFailure/);
   assert.match(script, /GetFullPath/);
   assert.match(script, /approvedRoot/);
+  assert.match(script, /FileAttributes\]::ReparsePoint/);
+  assert.ok((script.match(/Assert-SafeTempRoot \$TempRoot/g) || []).length >= 4);
   assert.match(script, /environmentSnapshot/);
   assert.match(script, /SetEnvironmentVariable\(\$name, \$snapshot\.Value/);
 });
@@ -27,7 +50,6 @@ test('real E2E safety self-test rejects an external TempRoot without deleting it
   const marker = join(external, 'keep.txt');
   writeFileSync(marker, 'keep');
   try {
-    const scriptPath = new URL('../../scripts/run-staff-dispatch-real-e2e.ps1', import.meta.url).pathname.slice(1);
     const workspace = new URL('../../', import.meta.url).pathname.slice(1).replace(/\/$/, '');
     for (const target of ['C:\\', workspace, join(tmpdir(), 'opencode'), external]) {
       const result = spawnSync('powershell.exe', [
@@ -42,6 +64,44 @@ test('real E2E safety self-test rejects an external TempRoot without deleting it
     rmSync(external, { recursive: true, force: true });
   }
 });
+
+test('safe TempRoot accepts normal nonexistent and existing children', () => {
+  const approved = join(tmpdir(), 'opencode');
+  mkdirSync(approved, { recursive: true });
+  for (const target of [
+    join(approved, `fastguy-safe-missing-${process.pid}`),
+    mkdtempSync(join(approved, 'fastguy-safe-existing-')),
+  ]) {
+    const result = runSafetyPathTest(target);
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  }
+});
+
+for (const placement of ['target', 'intermediate ancestor']) {
+  test(`safe TempRoot rejects a junction at ${placement} without deleting its victim`, () => {
+    const approved = join(tmpdir(), 'opencode');
+    const testRoot = mkdtempSync(join(approved, 'fastguy-junction-test-'));
+    const victim = mkdtempSync(join(tmpdir(), 'fastguy-junction-victim-'));
+    const victimTarget = placement === 'target' ? victim : join(victim, 'child');
+    mkdirSync(victimTarget, { recursive: true });
+    const marker = join(victimTarget, 'keep.txt');
+    const junction = join(testRoot, 'redirect');
+    writeFileSync(marker, 'keep');
+    const linked = spawnSync('cmd.exe', ['/d', '/c', 'mklink', '/J', junction, victim], { encoding: 'utf8' });
+    assert.equal(linked.status, 0, `${linked.stdout}\n${linked.stderr}`);
+    const target = placement === 'target' ? junction : join(junction, 'child');
+    try {
+      const result = runSafetyPathTest(target);
+      assert.equal(readFileSync(marker, 'utf8'), 'keep');
+      assert.notEqual(result.status, 0, `accepted junction at ${placement}`);
+      assert.match(`${result.stdout}\n${result.stderr}`, /reparse point/i);
+    } finally {
+      removeJunction(junction);
+      rmSync(testRoot, { recursive: true, force: true });
+      rmSync(victim, { recursive: true, force: true });
+    }
+  });
+}
 
 test('real E2E safety self-test restores exact set and unset environment values', () => {
   const approved = join(tmpdir(), 'opencode', `fastguy-harness-self-test-${process.pid}`);
