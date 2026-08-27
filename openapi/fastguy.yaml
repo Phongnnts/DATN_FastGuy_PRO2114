@@ -1,0 +1,3322 @@
+openapi: 3.1.0
+info:
+  title: FastGuy API
+  version: 1.0.0
+  description: Contract-first coverage for FastGuy endpoints as they change.
+  license:
+    name: Proprietary
+servers:
+  - url: /api
+paths:
+  /cart:
+    get:
+      operationId: getCart
+      summary: Get the authenticated user's cart
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Current cart, content: { application/json: { schema: { $ref: '#/components/schemas/CartResponse' } } } }
+    post:
+      operationId: addCartItem
+      summary: Add an item to the authenticated user's cart
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AddCartItemRequest' } } } }
+      responses:
+        '201': { description: Item added }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    put:
+      operationId: updateCartItemQuantity
+      summary: Update a cart item quantity
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateCartItemRequest' } } } }
+      responses:
+        '200': { description: Item updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /cart/{cartItemId}:
+    delete:
+      operationId: removeCartItem
+      summary: Remove a cart item
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: cartItemId, in: path, required: true, schema: { type: integer, minimum: 1 } }]
+      responses:
+        '200': { description: Item removed }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /orders/guest-checkout:
+    post:
+      operationId: createGuestOrder
+      summary: Create a guest order paid only through PayOS bank transfer
+      security: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GuestCheckoutRequest' }
+      responses:
+        '201':
+          description: Guest order created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestCheckoutResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /orders/guest-payment-status:
+    get:
+      operationId: getGuestPaymentStatus
+      summary: Verify a guest PayOS payment using its return proof
+      security: []
+      parameters:
+        - { name: orderCode, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: token, in: query, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200':
+          description: Verified guest payment status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GuestPaymentStatusResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /orders/{orderId}/payment-status:
+    get:
+      operationId: getOrderPaymentStatus
+      summary: Verify an authenticated PayOS payment
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      responses:
+        '200':
+          description: Verified payment status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentStatusResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      summary: Get operational and financial overview
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin dashboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/reports/full:
+    get:
+      operationId: getAdminFullReport
+      summary: Get operational cohort and financial event report
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 6m, 1y]
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Reconciled report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFullReportResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /staff/orders/shippers:
+    get:
+      operationId: listAvailableShippers
+      summary: List active shippers currently checked into an active shift
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Available shippers with workload from their current shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailableShipperListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /staff/orders/dispatch:
+    get:
+      operationId: listStaffDispatchOrders
+      summary: List Staff dispatch orders by server classification
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [PRIORITY, NEW, REVIEW]
+      responses:
+        '200':
+          description: Classified Staff dispatch orders and counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffDispatchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /staff/orders/{orderId}/assign-shipper:
+    put:
+      operationId: assignOrderShipper
+      summary: Assign a ready order to a shipper in an active checked-in shift
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignShipperRequest'
+      responses:
+        '200':
+          description: Shipper assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignShipperResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          description: Selected shipper is no longer in an active checked-in shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /staff/orders/ownership-count:
+    get:
+      operationId: getStaffOwnershipCount
+      summary: Count active orders owned by the authenticated Staff member's current shift
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Current shift active ownership count for checkout precheck
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffOwnershipCountResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /staff/orders/handover:
+    get:
+      operationId: listStaffHandoverOrders
+      summary: List active Staff-controlled orders requiring handover to the current shift
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Handover queue ordered by oldest relevant status time
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffHandoverListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /staff/orders/{orderId}/handover:
+    put:
+      operationId: claimStaffOrderHandover
+      summary: Claim an active Staff-controlled order for the authenticated Staff member's current shift
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClaimStaffHandoverRequest' }
+      responses:
+        '200':
+          description: Ownership claimed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClaimStaffHandoverResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /shifts/{shiftId}/check-out:
+    post:
+      operationId: checkOutShift
+      summary: Check out after every active Staff order ownership has been handed over
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: shiftId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Shift checked out
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShiftMutationResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Active Staff order ownership must be handed over first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShiftCheckoutConflictResponse' }
+  /categories:
+
+    get:
+      operationId: listCategories
+      summary: List active menu categories
+      security: []
+      responses:
+        '200':
+          description: Active categories ordered by configured sort order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+  /products:
+    get:
+      operationId: listProducts
+      summary: List public products with review summaries
+      security: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: categoryId
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: minPrice
+          in: query
+          schema: { type: number, minimum: 0 }
+        - name: maxPrice
+          in: query
+          schema: { type: number, minimum: 0 }
+        - name: availability
+          in: query
+          schema: { type: string, enum: [ALL, AVAILABLE, OUT_OF_STOCK, OUTSIDE_HOURS] }
+        - name: productType
+          in: query
+          schema: { type: string, enum: [SIMPLE, VARIANT, CUSTOMIZABLE] }
+        - name: discounted
+          in: query
+          schema: { type: boolean }
+        - name: sold
+          in: query
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: sort
+          in: query
+          schema: { type: string, default: default, enum: [default, name, name-desc, newest, price-asc, price-desc, best-selling, discount-desc] }
+        - name: page
+          in: query
+          description: Zero-based page index. page and size are both required when either is supplied.
+          schema: { type: integer, minimum: 0 }
+        - name: size
+          in: query
+          description: Page size. page and size are both required when either is supplied.
+          schema: { type: integer, minimum: 1, maximum: 48 }
+      responses:
+        '200':
+          description: Unpaged array when page and size are omitted; page envelope when both are supplied
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ProductListResponse'
+                  - $ref: '#/components/schemas/ProductPageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /products/{productId}:
+    get:
+      operationId: getProduct
+      summary: Get a public product with its review summary
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Public product detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /homepage:
+    get:
+      operationId: getHomepage
+      summary: Get curated homepage content
+      security: []
+      responses:
+        '200':
+          description: Homepage best sellers and public featured reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HomepageResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /auth/profile:
+    get:
+      operationId: getProfile
+      summary: Get the authenticated profile for any role
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateProfile
+      summary: Update the authenticated profile including avatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      summary: List users for administration
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAdminUser
+      summary: Create a user including an optional avatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreateRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/users/{userId}:
+    get:
+      operationId: getAdminUser
+      summary: Get a user for administration
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAdminUser
+      summary: Update a user including replacing or removing the avatar
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserUpdateRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: deleteAdminUser
+      summary: Delete an unused user account
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /reviews/order/{orderId}:
+    get:
+      operationId: getReviewByOrder
+      summary: Get the authenticated customer's review state for an order
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Customer review state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewByOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /reviews:
+    post:
+      operationId: createReview
+      summary: Submit an order review with optional explicit homepage consent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCreateRequest'
+      responses:
+        '200':
+          description: Review submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Product was already reviewed for this order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /reviews/product/{productId}:
+    get:
+      operationId: getReviewsByProduct
+      summary: Get public paginated reviews and rating aggregates for a product
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: Public product reviews
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductReviewPageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/categories:
+    get:
+      operationId: listAdminCategories
+      summary: List categories for administration
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAdminCategory
+      summary: Create a menu category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/categories/{categoryId}:
+    put:
+      operationId: updateAdminCategory
+      summary: Update a menu category
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdateRequest'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      operationId: deleteAdminCategory
+      summary: Delete an unused menu category
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CategoryId'
+      responses:
+        '200':
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/products:
+    get:
+      operationId: listAdminProducts
+      summary: List admin product details
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createAdminProduct
+      summary: Create an admin product
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProductCreateRequest'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/products/{productId}:
+    get:
+      operationId: getAdminProduct
+      summary: Get an admin product detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Admin product detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+
+      operationId: updateAdminProduct
+      summary: Update homepage product metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProductUpdateRequest'
+      responses:
+        '200':
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: hideAdminProduct
+      summary: Hide a product from sale without deleting history
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product hidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/products/{productId}/restore:
+    put:
+      operationId: restoreAdminProduct
+      summary: Restore a hidden product to sale
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/products/{productId}/permanent:
+    delete:
+      operationId: permanentlyDeleteAdminProduct
+      summary: Permanently delete a product only when no user data references it
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product permanently deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/orders/{orderId}:
+    get:
+      operationId: getAdminOrderDetail
+      summary: Get private admin order detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Private admin order detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/orders/{orderId}/featured-review:
+    put:
+      operationId: updateFeaturedReview
+      summary: Toggle the order review's homepage visibility
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeaturedReviewUpdateRequest'
+      responses:
+        '200':
+          description: Featured review state updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeaturedReviewMutationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Review is not eligible for homepage publication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /admin/inventory/items:
+    get:
+      operationId: listInventoryItems
+      summary: List inventory items
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Inventory items, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      operationId: createInventoryItem
+      summary: Create an inventory item
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemRequest' } } } }
+      responses:
+        '201': { description: Inventory item created, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/items/{itemId}:
+    parameters:
+      - { name: itemId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getInventoryItem
+      summary: Get an inventory item
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Inventory item, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateInventoryItem
+      summary: Update an inventory item
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemRequest' } } } }
+      responses:
+        '200': { description: Inventory item updated, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Immutable base unit, recipe reference, or mapped finished-good invariant conflict', content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
+  /admin/inventory/transactions/adjustments:
+    post:
+      operationId: adjustInventory
+      summary: Record an inventory adjustment
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryAdjustmentRequest' } } } }
+      responses:
+        '200': { description: Adjustment recorded, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: Stale quantity, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
+  /admin/inventory/transactions:
+    get:
+      operationId: listInventoryTransactions
+      summary: List inventory transactions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: inventoryItemId, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: orderId, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: transactionType, in: query, schema: { type: string, enum: [RECEIPT, RESERVE, RELEASE, CONSUME, ADJUSTMENT, WASTE, RETURN] } }
+        - { name: fromDate, in: query, schema: { type: string, format: date } }
+        - { name: toDate, in: query, schema: { type: string, format: date } }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Inventory ledger page, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryTransactionPageResponse' } } } }
+  /admin/inventory/receipts:
+    get:
+      operationId: listGoodsReceipts
+      summary: List goods receipts
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Goods receipts, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptListResponse' } } } }
+    post:
+      operationId: createGoodsReceipt
+      summary: Create a draft goods receipt
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptRequest' } } } }
+      responses:
+        '201': { description: Draft receipt created, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /admin/inventory/receipts/{receiptId}:
+    parameters:
+      - { name: receiptId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getGoodsReceipt
+      summary: Get a goods receipt
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Goods receipt, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateGoodsReceipt
+      summary: Update a draft goods receipt
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptRequest' } } } }
+      responses:
+        '200': { description: Draft receipt updated, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteGoodsReceipt
+      summary: Delete a draft goods receipt
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Draft receipt deleted }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/receipts/{receiptId}/approve:
+    parameters:
+      - { name: receiptId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    post:
+      operationId: approveGoodsReceipt
+      summary: Approve a goods receipt
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Receipt approved, content: { application/json: { schema: { $ref: '#/components/schemas/GoodsReceiptResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/stock-counts:
+    get:
+      operationId: listStockCounts
+      summary: List stock counts
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Stock counts, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountListResponse' } } } }
+    post:
+      operationId: createStockCount
+      summary: Create a draft stock count
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountCreateRequest' } } } }
+      responses:
+        '201': { description: Draft count created, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+  /admin/inventory/stock-counts/{stockCountId}:
+    parameters:
+      - { name: stockCountId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getStockCount
+      summary: Get a stock count
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Stock count, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+    put:
+      operationId: updateStockCount
+      summary: Update a draft stock count
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountUpdateRequest' } } } }
+      responses:
+        '200': { description: Draft count updated, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/stock-counts/{stockCountId}/approve:
+    parameters:
+      - { name: stockCountId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    post:
+      operationId: approveStockCount
+      summary: Approve a stock count
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Count approved, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/reports/summary:
+    get:
+      operationId: getInventoryCostSummary
+      summary: Get inventory cost summary
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Inventory cost summary, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryCostSummaryResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/reports/item-loss:
+    get:
+      operationId: getInventoryItemLoss
+      summary: Get waste and stock-count loss by inventory item
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Item loss report, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemLossResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/reports/menu-cost:
+    get:
+      operationId: getInventoryMenuCost
+      summary: Get current recipe cost by menu variant
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Menu recipe cost report, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryMenuCostResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/inventory/reports/menu-performance:
+    get:
+      operationId: getMenuPerformanceReport
+      summary: Get delivered menu revenue, cost, and gross profit
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Menu performance report, content: { application/json: { schema: { $ref: '#/components/schemas/MenuPerformanceResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/product-variants/{variantId}/recipe:
+    parameters:
+      - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getVariantRecipe
+      summary: Get a variant recipe
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Variant recipe, content: { application/json: { schema: { $ref: '#/components/schemas/RecipeResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: replaceVariantRecipe
+      summary: Replace a variant recipe
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecipeRequest' } } } }
+      responses:
+        '200': { description: Replaced recipe, content: { application/json: { schema: { $ref: '#/components/schemas/RecipeResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/product-variants/{variantId}/inventory-settings:
+    parameters:
+      - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getVariantInventorySettings
+      summary: Get variant inventory settings
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Variant inventory settings, content: { application/json: { schema: { $ref: '#/components/schemas/InventorySettingsResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    put:
+      operationId: updateVariantInventorySettings
+      summary: Update variant inventory settings
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventorySettingsRequest' } } } }
+      responses:
+        '200': { description: Updated variant inventory settings, content: { application/json: { schema: { $ref: '#/components/schemas/InventorySettingsResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/product-variants/{variantId}/inventory-capacity:
+    get:
+      operationId: getVariantInventoryCapacity
+      summary: Get recipe capacity and cost snapshot
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Variant inventory capacity, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryCapacityResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/product-variants/{variantId}/availability:
+    get:
+      operationId: getVariantInventoryAvailability
+      summary: Get variant inventory availability
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: variantId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Derived customer-safe availability, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryAvailability' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    CategoryId:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Administrator access required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    InventoryMode:
+      type: string
+      enum: [INGREDIENT, FINISHED_GOOD, UNTRACKED, SUSPENDED]
+    BaseUnit:
+      type: string
+      enum: [G, ML, PIECE]
+    InventoryCountFrequency:
+      type: string
+      enum: [DAILY, WEEKLY]
+    Money:
+      type: number
+      format: decimal
+      minimum: 0
+      maximum: 999999999999999.9999
+      multipleOf: 0.0001
+    InventoryItemQuantity:
+      type: number
+      format: decimal
+      minimum: 0
+      maximum: 999999999999999.9999
+      multipleOf: 0.0001
+    InventoryItem:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, inventoryCode, name, itemType, baseUnit, onHandQuantity, reservedQuantity, availableQuantity, minimumQuantity, countFrequency, averageUnitCost, active, createdAt, updatedAt]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        inventoryCode: { type: string, minLength: 1, maxLength: 30 }
+        name: { type: string, minLength: 1, maxLength: 150 }
+        itemType: { type: string, enum: [INGREDIENT, FINISHED_GOOD] }
+        baseUnit: { $ref: '#/components/schemas/BaseUnit' }
+        onHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reservedQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        availableQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        minimumQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        countFrequency: { $ref: '#/components/schemas/InventoryCountFrequency' }
+        averageUnitCost: { $ref: '#/components/schemas/Money' }
+        lastCountedAt: { type: [string, 'null'] }
+        active: { type: boolean }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    InventoryItemResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventoryItem' }
+    InventoryItemListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/InventoryItem' } }
+    InventoryItemRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryCode, name, itemType, baseUnit, minimumQuantity, countFrequency, active]
+      properties:
+        inventoryCode: { type: string, pattern: '^[A-Z0-9-]{1,30}$' }
+        name: { type: string, minLength: 1, maxLength: 150 }
+        itemType: { type: string, enum: [INGREDIENT, FINISHED_GOOD] }
+        baseUnit: { $ref: '#/components/schemas/BaseUnit' }
+        minimumQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        countFrequency: { $ref: '#/components/schemas/InventoryCountFrequency' }
+        active: { type: boolean }
+    RecipeItem:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, quantity]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        quantity:
+          allOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }]
+          exclusiveMinimum: 0
+    Recipe:
+      type: object
+      additionalProperties: false
+      required: [recipeId, variantId, yieldQuantity, active, items, createdAt, updatedAt]
+      properties:
+        recipeId: { type: integer, minimum: 1 }
+        variantId: { type: integer, minimum: 1 }
+        yieldQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        active: { type: boolean }
+        items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RecipeItem' } }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    RecipeResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/Recipe' }
+    RecipeRequest:
+      type: object
+      additionalProperties: false
+      required: [yieldQuantity, active, items, expectedUpdatedAt]
+      properties:
+        yieldQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        active: { type: boolean }
+        items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/RecipeItem' } }
+        expectedUpdatedAt: { type: [string, 'null'] }
+    InventorySettings:
+      type: object
+      additionalProperties: false
+      required: [variantId, inventoryMode, updatedAt]
+      properties:
+        variantId: { type: integer, minimum: 1 }
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        updatedAt: { type: string }
+    InventorySettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryMode, expectedUpdatedAt]
+      properties:
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        expectedUpdatedAt: { type: string }
+    InventorySettingsResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventorySettings' }
+    InventoryCapacityIngredient:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, name, baseUnit, onHandQuantity, reservedQuantity, availableQuantity, requiredPerServing, availableServings, averageUnitCost, costPerServing, costAvailable, limiting, active]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        name: { type: string }
+        baseUnit: { $ref: '#/components/schemas/BaseUnit' }
+        onHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reservedQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        availableQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        requiredPerServing: { type: number, format: decimal, exclusiveMinimum: 0 }
+        availableServings: { type: integer, minimum: 0 }
+        averageUnitCost:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          description: Zero means cost is missing for capacity calculations.
+        costPerServing: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        costAvailable: { type: boolean }
+        limiting: { type: boolean }
+        active: { type: boolean }
+    MissingCostItem:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, name]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        name: { type: string }
+    InventoryCapacity:
+      type: object
+      additionalProperties: false
+      required: [variantId, inventoryMode, availableServings, limitingInventoryItemId, calculatedAt, variantPrice, ingredients, costStatus, recipeCostPerServing, foodCostPercent, missingCostItemCount, missingCostItems]
+      properties:
+        variantId: { type: integer, minimum: 1 }
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        availableServings: { oneOf: [{ type: integer, minimum: 0 }, { type: 'null' }] }
+        limitingInventoryItemId: { oneOf: [{ type: integer, minimum: 1 }, { type: 'null' }] }
+        calculatedAt: { type: string, format: date-time }
+        variantPrice: { $ref: '#/components/schemas/Money' }
+        ingredients: { type: array, items: { $ref: '#/components/schemas/InventoryCapacityIngredient' } }
+        costStatus: { type: string, enum: [COMPLETE, INCOMPLETE, NOT_APPLICABLE] }
+        recipeCostPerServing: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        foodCostPercent: { oneOf: [{ type: number, format: decimal, minimum: 0 }, { type: 'null' }] }
+        missingCostItemCount: { type: integer, minimum: 0 }
+        missingCostItems: { type: array, items: { $ref: '#/components/schemas/MissingCostItem' } }
+    InventoryCapacityResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventoryCapacity' }
+    InventoryAdjustmentRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, quantity, expectedOnHandQuantity, reason]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        quantity:
+          anyOf:
+            - { type: number, format: decimal, minimum: -999999999999999.9999, maximum: -0.0001, multipleOf: 0.0001 }
+            - { type: number, format: decimal, minimum: 0.0001, maximum: 999999999999999.9999, multipleOf: 0.0001 }
+        expectedOnHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reason: { type: string, minLength: 1, maxLength: 100 }
+        note: { type: [string, 'null'], maxLength: 500 }
+    InventoryTransaction:
+      type: object
+      additionalProperties: false
+      required: [inventoryTransactionId, transactionType, quantity, quantityBefore, quantityAfter, createdAt]
+      properties:
+        inventoryTransactionId: { type: integer, minimum: 1 }
+        inventoryItemId: { type: [integer, 'null'], minimum: 1 }
+        orderId: { type: [integer, 'null'], minimum: 1 }
+        transactionType: { type: string, enum: [RECEIPT, RESERVE, RELEASE, CONSUME, ADJUSTMENT, WASTE, RETURN] }
+        quantity: { type: number, format: decimal, minimum: -999999999999999.9999, maximum: 999999999999999.9999, multipleOf: 0.0001 }
+        quantityBefore: { oneOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }, { type: 'null' }] }
+        quantityAfter: { oneOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }, { type: 'null' }] }
+        referenceType: { type: [string, 'null'] }
+        referenceId: { type: [string, 'null'] }
+        reason: { type: [string, 'null'] }
+        note: { type: [string, 'null'] }
+        createdBy: { type: [integer, 'null'], minimum: 1 }
+        unitCostSnapshot: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        totalCost: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        goodsReceiptId: { type: [integer, 'null'], minimum: 1 }
+        stockCountId: { type: [integer, 'null'], minimum: 1 }
+        createdAt: { type: string }
+    GoodsReceiptItemRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, purchaseQuantity, purchaseUnit, conversionFactor, purchaseUnitPrice]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        purchaseQuantity:
+          allOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }]
+          exclusiveMinimum: 0
+        purchaseUnit: { type: string, minLength: 1, maxLength: 30 }
+        conversionFactor:
+          allOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }]
+          exclusiveMinimum: 0
+        purchaseUnitPrice:
+          allOf: [{ $ref: '#/components/schemas/Money' }]
+          exclusiveMinimum: 0
+    GoodsReceiptRequest:
+      type: object
+      additionalProperties: false
+      required: [receivedAt, items]
+      properties:
+        supplierName: { type: [string, 'null'], maxLength: 150 }
+        invoiceNumber: { type: [string, 'null'], maxLength: 100 }
+        receivedAt: { type: string }
+        items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/GoodsReceiptItemRequest' } }
+    GoodsReceipt:
+      type: object
+      additionalProperties: false
+      required: [goodsReceiptId, supplierName, invoiceNumber, receivedAt, status, items, createdAt, approvedAt]
+      properties:
+        goodsReceiptId: { type: integer, minimum: 1 }
+        supplierName: { type: string }
+        invoiceNumber: { type: [string, 'null'] }
+        receivedAt: { type: string }
+        status: { type: string, enum: [DRAFT, APPROVED] }
+        items: { type: array, items: { $ref: '#/components/schemas/GoodsReceiptLine' } }
+        createdAt: { type: string }
+        approvedAt: { type: [string, 'null'] }
+    GoodsReceiptLine:
+      type: object
+      additionalProperties: false
+      required: [goodsReceiptItemId, inventoryItemId, purchaseQuantity, purchaseUnit, conversionFactor, baseQuantity, purchaseUnitPrice, lineTotal, averageCostBefore, averageCostAfter]
+      properties:
+        goodsReceiptItemId: { type: integer, minimum: 1 }
+        inventoryItemId: { type: integer, minimum: 1 }
+        purchaseQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        purchaseUnit: { type: string, minLength: 1, maxLength: 30 }
+        conversionFactor: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        baseQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        purchaseUnitPrice: { $ref: '#/components/schemas/Money' }
+        lineTotal: { $ref: '#/components/schemas/Money' }
+        averageCostBefore: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        averageCostAfter: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+    GoodsReceiptResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/GoodsReceipt' } }
+    GoodsReceiptListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { type: array, items: { $ref: '#/components/schemas/GoodsReceipt' } } }
+    StockCountCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [countDate, frequency]
+      properties: { countDate: { type: string, format: date }, frequency: { $ref: '#/components/schemas/InventoryCountFrequency' } }
+    StockCountItemRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, theoreticalQuantity, actualQuantity]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        theoreticalQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        actualQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reasonCode: { type: [string, 'null'], maxLength: 50 }
+        note: { type: [string, 'null'], maxLength: 500 }
+    StockCountUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: { items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/StockCountItemRequest' } } }
+    StockCount:
+      type: object
+      additionalProperties: false
+      required: [stockCountId, countDate, frequency, status, items, createdAt, approvedAt]
+      properties:
+        stockCountId: { type: integer, minimum: 1 }
+        countDate: { type: string, format: date }
+        frequency: { $ref: '#/components/schemas/InventoryCountFrequency' }
+        status: { type: string, enum: [DRAFT, APPROVED] }
+        items: { type: array, items: { $ref: '#/components/schemas/StockCountLine' } }
+        createdAt: { type: string }
+        approvedAt: { type: [string, 'null'] }
+    StockCountLine:
+      type: object
+      additionalProperties: false
+      required: [stockCountItemId, inventoryItemId, theoreticalQuantity, actualQuantity, varianceQuantity, unitCostSnapshot, varianceCost, reasonCode, note]
+      properties:
+        stockCountItemId: { type: integer, minimum: 1 }
+        inventoryItemId: { type: integer, minimum: 1 }
+        theoreticalQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        actualQuantity: { oneOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }, { type: 'null' }] }
+        varianceQuantity: { type: [number, 'null'], format: decimal, minimum: -999999999999999.9999, maximum: 999999999999999.9999, multipleOf: 0.0001 }
+        unitCostSnapshot: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        varianceCost: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        reasonCode: { type: [string, 'null'], maxLength: 50 }
+        note: { type: [string, 'null'], maxLength: 500 }
+    StockCountResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/StockCount' } }
+    StockCountListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { type: array, items: { $ref: '#/components/schemas/StockCount' } } }
+    InventoryCostSummary:
+      type: object
+      additionalProperties: false
+      required: [purchaseCost, consumptionCost, wasteCost, stockCountLossCost, stockCountGainCost, totalLossCost, endingInventoryValue, lossRate]
+      properties:
+        purchaseCost: { $ref: '#/components/schemas/Money' }
+        consumptionCost: { $ref: '#/components/schemas/Money' }
+        wasteCost: { $ref: '#/components/schemas/Money' }
+        stockCountLossCost: { $ref: '#/components/schemas/Money' }
+        stockCountGainCost: { $ref: '#/components/schemas/Money' }
+        totalLossCost: { $ref: '#/components/schemas/Money' }
+        endingInventoryValue: { $ref: '#/components/schemas/Money' }
+        lossRate: { type: number, minimum: 0 }
+    InventoryCostSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/InventoryCostSummary' } }
+    InventoryItemLoss:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, inventoryCode, name, wasteQuantity, wasteCost, stockCountLossQuantity, stockCountLossCost, totalLossCost]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        inventoryCode: { type: string, minLength: 1, maxLength: 30 }
+        name: { type: string, minLength: 1, maxLength: 150 }
+        wasteQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        wasteCost: { $ref: '#/components/schemas/Money' }
+        stockCountLossQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        stockCountLossCost: { $ref: '#/components/schemas/Money' }
+        totalLossCost: { $ref: '#/components/schemas/Money' }
+    InventoryItemLossResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/InventoryItemLoss' } }
+    InventoryMenuCost:
+      type: object
+      additionalProperties: false
+      required: [variantId, variantName, sku, yieldQuantity, recipeCost, costPerServing]
+      properties:
+        variantId: { type: integer, minimum: 1 }
+        variantName: { type: [string, 'null'] }
+        sku: { type: [string, 'null'] }
+        yieldQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        recipeCost: { $ref: '#/components/schemas/Money' }
+        costPerServing: { $ref: '#/components/schemas/Money' }
+    InventoryMenuCostResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/InventoryMenuCost' } }
+    MenuPerformanceItem:
+      type: object
+      additionalProperties: false
+      required: [variantId, productName, variantName, quantitySold, grossRevenue, allocatedDiscount, netRevenue, cost, costComplete, grossProfit, foodCostPercent, grossMarginPercent]
+      properties:
+        variantId: { type: [integer, 'null'], minimum: 1 }
+        productName: { type: string }
+        variantName: { type: [string, 'null'] }
+        quantitySold: { type: integer, minimum: 0 }
+        grossRevenue: { $ref: '#/components/schemas/Money' }
+        allocatedDiscount: { $ref: '#/components/schemas/Money' }
+        netRevenue: { $ref: '#/components/schemas/Money' }
+        cost: { $ref: '#/components/schemas/Money' }
+        costComplete: { type: boolean }
+        grossProfit: { $ref: '#/components/schemas/Money' }
+        foodCostPercent: { type: number, minimum: 0 }
+        grossMarginPercent: { type: number }
+    MenuPerformance:
+      type: object
+      additionalProperties: false
+      required: [grossRevenue, allocatedDiscount, netRevenue, cost, costComplete, missingCostItemCount, grossProfit, foodCostPercent, grossMarginPercent, items]
+      properties:
+        grossRevenue: { $ref: '#/components/schemas/Money' }
+        allocatedDiscount: { $ref: '#/components/schemas/Money' }
+        netRevenue: { $ref: '#/components/schemas/Money' }
+        cost: { $ref: '#/components/schemas/Money' }
+        costComplete: { type: boolean }
+        missingCostItemCount: { type: integer, minimum: 0 }
+        grossProfit: { $ref: '#/components/schemas/Money' }
+        foodCostPercent: { type: number, minimum: 0 }
+        grossMarginPercent: { type: number }
+        items: { type: array, items: { $ref: '#/components/schemas/MenuPerformanceItem' } }
+    MenuPerformanceResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/MenuPerformance' } }
+    InventoryTransactionPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/InventoryTransaction' } }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalItems: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    InventoryTransactionPageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventoryTransactionPage' }
+    InventoryAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties:
+        availabilityStatus: { type: string, enum: [IN_STOCK, LOW_STOCK, OUT_OF_STOCK, UNTRACKED, SUSPENDED] }
+        remainingServings: { type: integer, minimum: 1 }
+    AddCartItemRequest:
+      type: object
+      additionalProperties: false
+      required: [productId, variantId, quantity, modifierOptionIds]
+      properties:
+        productId: { type: integer, minimum: 1 }
+        variantId: { type: integer, minimum: 1 }
+        quantity: { type: integer, minimum: 1, maximum: 20 }
+        modifierOptionIds: { type: array, uniqueItems: true, items: { type: integer, minimum: 1 } }
+    UpdateCartItemRequest:
+      type: object
+      additionalProperties: false
+      required: [cartItemId, quantity]
+      properties:
+        cartItemId: { type: integer, minimum: 1 }
+        quantity: { type: integer, minimum: 0, maximum: 20 }
+    CartItemData:
+      type: object
+      additionalProperties: false
+      required: [cartItemId, productId, variantId, productName, variantName, imageUrl, quantity, unitPrice, quantityAvailable, inventoryMode, remainingServings, variantStatus, productStatus, modifiers]
+      properties:
+        cartItemId: { type: integer, minimum: 1 }
+        productId: { type: integer, minimum: 1 }
+        variantId: { type: [integer, 'null'], minimum: 1 }
+        productName: { type: string }
+        variantName: { type: string }
+        imageUrl: { type: [string, 'null'] }
+        quantity: { type: integer, minimum: 1 }
+        unitPrice: { $ref: '#/components/schemas/Money' }
+        quantityAvailable: { type: [integer, 'null'], minimum: 0 }
+        inventoryMode: { type: [string, 'null'], enum: [INGREDIENT, FINISHED_GOOD, UNTRACKED, SUSPENDED, null] }
+        remainingServings: { type: [integer, 'null'], minimum: 0 }
+        variantStatus: { type: string }
+        productStatus: { type: string }
+        modifiers: { type: array, items: { type: object, additionalProperties: true } }
+    CartData:
+      type: object
+      additionalProperties: false
+      required: [cartId, items]
+      properties:
+        cartId: { type: integer, minimum: 1 }
+        items: { type: array, items: { $ref: '#/components/schemas/CartItemData' } }
+    CartResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties: { status: { type: string, const: success }, data: { $ref: '#/components/schemas/CartData' } }
+    InventoryConflict:
+      type: object
+      additionalProperties: false
+      required: [status, message, currentOnHandQuantity]
+      properties:
+        status: { type: string, const: error }
+        message: { type: string }
+        currentOnHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+    AvailableShipper:
+      type: object
+      additionalProperties: false
+      required: [id, fullName, phone, activeOrderCount]
+      properties:
+        id: { type: integer, minimum: 1 }
+        fullName: { type: string }
+        phone: { type: [string, 'null'] }
+        activeOrderCount: { type: integer, minimum: 0 }
+    AvailableShipperListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AvailableShipper' }
+    StaffDispatchOrder:
+      type: object
+      additionalProperties: false
+      required: [orderId, orderCode, userId, customerName, customerPhone, customerAddress, status, orderStatus, itemCount, items, totalAmount, shippingFee, serviceFee, discountAmount, paymentMethod, paymentStatus, finalAmount, refundAmount, refundedAt, shipperId, shipperName, assignedAt, updatedAt, endedAt, createdAt, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailureCode, failureNote, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, readyAt, classification, minutesUntilClose]
+      properties:
+        orderId: { type: integer, minimum: 1 }
+        orderCode: { type: [string, 'null'] }
+        userId: { type: [integer, 'null'], minimum: 1 }
+        customerName: { type: [string, 'null'] }
+        customerPhone: { type: [string, 'null'] }
+        customerAddress: { type: [string, 'null'] }
+        status: { type: [string, 'null'] }
+        orderStatus: { type: [string, 'null'] }
+        itemCount: { type: integer, minimum: 0 }
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [productId, variantId, productName, variantName, quantity, unitPrice, totalPrice, imageUrl, modifiers]
+            properties:
+              productId: { type: [integer, 'null'], minimum: 1 }
+              variantId: { type: [integer, 'null'], minimum: 1 }
+              productName: { type: [string, 'null'] }
+              variantName: { type: string }
+              quantity: { type: integer, minimum: 1 }
+              unitPrice: { type: [number, 'null'] }
+              totalPrice: { type: [number, 'null'] }
+              imageUrl: { type: string }
+              modifiers: { type: array, items: { type: object, additionalProperties: true } }
+        totalAmount: { type: [number, 'null'] }
+        shippingFee: { type: [number, 'null'] }
+        serviceFee: { type: [number, 'null'] }
+        discountAmount: { type: [number, 'null'] }
+        paymentMethod: { type: [string, 'null'] }
+        paymentStatus: { type: [string, 'null'] }
+        finalAmount: { type: [number, 'null'] }
+        refundAmount: { type: [number, 'null'] }
+        refundedAt: { type: [string, 'null'] }
+        shipperId: { type: [integer, 'null'], minimum: 1 }
+        shipperName: { type: [string, 'null'] }
+        assignedAt: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        updatedAt: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        endedAt: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        createdAt: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        deliveryAttemptCount: { type: integer, minimum: 0 }
+        deliveryAttemptLimit: { type: integer, minimum: 0 }
+        deliveryFailureCode: { type: [string, 'null'] }
+        failureNote: { type: [string, 'null'] }
+        deliveryFailedAt: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        retryScheduledAt: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        returnedToStoreAt: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        readyAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        classification:
+          type: string
+          enum: [PRIORITY, NEW, REVIEW]
+        minutesUntilClose:
+          type: [integer, 'null']
+    StaffDispatchCounts:
+      type: object
+      additionalProperties: false
+      required: [priority, new, review]
+      properties:
+        priority: { type: integer, minimum: 0 }
+        new: { type: integer, minimum: 0 }
+        review: { type: integer, minimum: 0 }
+    StaffDispatchResponse:
+      type: object
+      additionalProperties: false
+      required: [items, counts, serverTime, openTime, closeTime]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/StaffDispatchOrder' }
+        counts: { $ref: '#/components/schemas/StaffDispatchCounts' }
+        serverTime:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        openTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+        closeTime:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+    StaffOwnershipCountData:
+      type: object
+      additionalProperties: false
+      required: [activeOwnershipCount]
+      properties:
+        activeOwnershipCount: { type: integer, minimum: 0 }
+    StaffOwnershipCountResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/StaffOwnershipCountData' }
+    StaffHandoverOrder:
+      type: object
+      additionalProperties: false
+      required: [orderId, orderCode, status, customerName, itemCount, waitingSince, staffShiftId, ownerShiftLabel, handoverRequired]
+      properties:
+        orderId: { type: integer, minimum: 1 }
+        orderCode: { type: [string, 'null'] }
+        status: { type: string, enum: [CONFIRMED, PREPARING, READY, DELIVERY_FAILED] }
+        customerName: { type: [string, 'null'] }
+        itemCount: { type: integer, minimum: 0 }
+        waitingSince: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
+        staffShiftId: { type: [integer, 'null'], minimum: 1 }
+        ownerShiftLabel: { type: [string, 'null'] }
+        handoverRequired: { type: boolean, const: true }
+    StaffHandoverListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/StaffHandoverOrder' }
+    ClaimStaffHandoverRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, expectedOwnerShiftId]
+      properties:
+        expectedStatus: { type: string, enum: [CONFIRMED, PREPARING, READY, DELIVERY_FAILED] }
+        expectedOwnerShiftId: { type: [integer, 'null'], minimum: 1 }
+    ClaimStaffHandoverResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status: { type: string, const: success }
+        data: { type: 'null' }
+        message: { type: string, const: Handover claimed }
+    ShiftCheckoutConflictData:
+      type: object
+      additionalProperties: false
+      required: [activeOwnershipCount]
+      properties:
+        activeOwnershipCount: { type: integer, minimum: 1 }
+    ShiftCheckoutConflictResponse:
+      type: object
+      additionalProperties: false
+      required: [status, message, data]
+      properties:
+        status: { type: string, const: error }
+        message: { type: string, const: Active order ownership must be handed over before check-out }
+        data: { $ref: '#/components/schemas/ShiftCheckoutConflictData' }
+    ShiftMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data:
+          type: object
+          additionalProperties: true
+    AssignShipperRequest:
+      type: object
+      additionalProperties: false
+      required: [shipperId, expectedStatus]
+      properties:
+        shipperId: { type: integer, minimum: 1 }
+        expectedStatus: { type: string, const: READY }
+    AssignShipperResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status: { type: string, const: success }
+        data: { type: 'null' }
+        message: { type: string, const: Shipper assigned }
+    AdminDashboardData:
+      type: object
+      additionalProperties: true
+      required: [customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, pendingCodCount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount]
+      properties:
+        customerCount: { type: integer, minimum: 0 }
+        activeProductCount: { type: integer, minimum: 0 }
+        ordersByStatus:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        operationalOrderCount: { type: integer, minimum: 0 }
+        operationalCompletedCount: { type: integer, minimum: 0 }
+        completionRate: { type: number, minimum: 0, maximum: 100 }
+        totalRevenue: { type: number, minimum: 0 }
+        revenueToday: { type: number, minimum: 0 }
+        ordersToday: { type: integer, minimum: 0 }
+        pendingCodAmount: { type: number, minimum: 0 }
+        pendingCodCount: { type: integer, minimum: 0 }
+        lowStockThreshold: { type: integer, minimum: 1 }
+        outOfStockSkuCount: { type: integer, minimum: 0 }
+        lowStockSkuCount: { type: integer, minimum: 0 }
+    AdminDashboardResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/AdminDashboardData' }
+    AdminFullReportData:
+      type: object
+      additionalProperties: true
+      required: [itemRevenue, shippingRevenue, serviceFeeRevenue, discountTotal, grossRevenue, refundTotal, netCashRevenue, operationalOrderCount, operationalCompletedCount, completionRate, revenueByHour, performanceByWeekday, refundTrend, exceptionReasons, monthlyFinancialTrend]
+      properties:
+        itemRevenue: { type: number, minimum: 0 }
+        shippingRevenue: { type: number, minimum: 0 }
+        serviceFeeRevenue: { type: number, minimum: 0 }
+        discountTotal: { type: number, minimum: 0 }
+        grossRevenue: { type: number, minimum: 0 }
+        refundTotal: { type: number, minimum: 0 }
+        netCashRevenue: { type: number }
+        operationalOrderCount: { type: integer, minimum: 0 }
+        operationalCompletedCount: { type: integer, minimum: 0 }
+        completionRate: { type: number, minimum: 0, maximum: 100 }
+        monthlyFinancialTrend:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [year, month, grossRevenue, refundTotal, netCashRevenue]
+            properties:
+              year: { type: integer, minimum: 2000 }
+              month: { type: integer, minimum: 1, maximum: 12 }
+              grossRevenue: { type: number, minimum: 0 }
+              refundTotal: { type: number, minimum: 0 }
+              netCashRevenue: { type: number }
+        revenueByHour:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [hour, orders, revenue]
+            properties:
+              hour: { type: integer, minimum: 0, maximum: 23 }
+              orders: { type: integer, minimum: 0 }
+              revenue: { type: number, minimum: 0 }
+        performanceByWeekday:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [weekday, orders, completed, completionRate]
+            properties:
+              weekday: { type: integer, minimum: 1, maximum: 7 }
+              orders: { type: integer, minimum: 0 }
+              completed: { type: integer, minimum: 0 }
+              completionRate: { type: number, minimum: 0, maximum: 100 }
+        refundTrend:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [date, count, amount]
+            properties:
+              date: { type: string, format: date }
+              count: { type: integer, minimum: 0 }
+              amount: { type: number, minimum: 0 }
+        exceptionReasons:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [reason, count]
+            properties:
+              reason: { type: string }
+              count: { type: integer, minimum: 0 }
+    AdminFullReportResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/AdminFullReportData' }
+    UserProfile:
+      type: object
+      additionalProperties: false
+      required: [userId, fullName, email, phone, avatarUrl, role, status, loyaltyPoints, createdAt]
+      properties:
+        userId:
+          type: integer
+          minimum: 1
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+        role:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        loyaltyPoints:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: [string, 'null']
+    UserProfileUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [fullName, email, phone, avatarUrl]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: string
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+    UserProfileResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/UserProfile'
+        message:
+          type: string
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required: [userId, fullName, email, phone, avatarUrl, roleName, status, loyaltyPoints]
+      properties:
+        userId:
+          type: integer
+          minimum: 1
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: [string, 'null']
+          format: email
+        phone:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+        roleName:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        loyaltyPoints:
+          type: integer
+          minimum: 0
+    AdminUserCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [fullName, email, password, roleName]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: [string, 'null']
+        password:
+          type: string
+          minLength: 6
+          maxLength: 72
+        roleName:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+    AdminUserUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: [string, 'null']
+        password:
+          type: string
+          minLength: 6
+          maxLength: 72
+        roleName:
+          type: string
+          enum: [USER, STAFF, SHIPPER, ADMIN]
+        avatarUrl:
+          type: [string, 'null']
+          format: uri
+          pattern: '^https://'
+          maxLength: 500
+    AdminUserResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminUser'
+        message:
+          type: string
+    AdminUserListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+    Category:
+      type: object
+      additionalProperties: false
+      required: [categoryId, name, description, imageUrl, sortOrder, productCount]
+      properties:
+        categoryId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        imageUrl:
+          type: string
+          maxLength: 1000
+        sortOrder:
+          type: integer
+        productCount:
+          type: integer
+          format: int64
+          minimum: 0
+    CategoryCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        imageUrl:
+          type: string
+          maxLength: 1000
+          pattern: '^(|https://.+)$'
+    CategoryUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        imageUrl:
+          type: string
+          maxLength: 1000
+          pattern: '^(|https://.+)$'
+    CategoryResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/Category'
+        message:
+          type: string
+    GuestCheckoutRequest:
+      type: object
+      additionalProperties: true
+      required: [customerName, phone, address, paymentMethod, items, ghnProvinceId, ghnDistrictId, ghnWardCode]
+      properties:
+        customerName: { type: string, minLength: 2 }
+        phone: { type: string, minLength: 10 }
+        address: { type: string, minLength: 5 }
+        paymentMethod:
+          type: string
+          const: BANK_TRANSFER
+        items: { type: array, minItems: 1, items: { type: object } }
+        ghnProvinceId: { type: integer, minimum: 1 }
+        ghnDistrictId: { type: integer, minimum: 1 }
+        ghnWardCode: { type: string, minLength: 1 }
+    GuestCheckoutResponse:
+      type: object
+      additionalProperties: true
+      required: [status, data]
+      properties:
+        status: { const: success }
+        data: { type: object }
+    GuestPaymentStatusResponse:
+      type: object
+      additionalProperties: true
+      required: [status, data]
+      properties:
+        status: { const: success }
+        data: { type: object }
+    PaymentStatusResponse:
+      type: object
+      additionalProperties: true
+      required: [status, data]
+      properties:
+        status: { const: success }
+        data: { type: object }
+    SuccessResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: success
+        data: {}
+        message:
+          type: string
+    CategoryListResponse:
+
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    HomepageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/HomepageData'
+    HomepageData:
+      type: object
+      additionalProperties: false
+      required: [bestSellers, featuredReviews]
+      properties:
+        bestSellers:
+          type: array
+          maxItems: 6
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        featuredReviews:
+          type: array
+          maxItems: 3
+          items:
+            $ref: '#/components/schemas/FeaturedReview'
+    ProductSummary:
+      type: object
+      additionalProperties: false
+      required: &ProductSummaryRequired [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups]
+      properties: &ProductSummaryProperties
+        productId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        basePrice:
+          type: number
+          minimum: 0
+        price:
+          type: number
+          minimum: 0
+        defaultVariant:
+          oneOf:
+            - $ref: '#/components/schemas/ProductVariantSummary'
+            - type: 'null'
+        imageUrl:
+          type: string
+        categoryId:
+          type: integer
+          minimum: 1
+        categoryName:
+          type: string
+          minLength: 1
+        originalPrice:
+          type: [number, 'null']
+          minimum: 0
+        discountPercent:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 100
+        soldCount:
+          type: integer
+          format: int64
+          minimum: 0
+        hasVariants:
+          type: boolean
+        hasModifiers:
+          type: boolean
+        productType:
+          type: string
+          enum: [SIMPLE, VARIANT, CUSTOMIZABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        isAvailableNow:
+          type: boolean
+        inStock:
+          type: boolean
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+        bestSeller:
+          type: boolean
+        averageRating:
+          type: number
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          type: integer
+          minimum: 0
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVariantSummary'
+        modifierGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModifierGroupSummary'
+    ProductListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+    ProductPageData:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 48
+        totalItems:
+          type: integer
+          format: int64
+          minimum: 0
+        totalPages:
+          type: integer
+          format: int64
+          minimum: 0
+    ProductPageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ProductPageData'
+    ProductDetail:
+      type: object
+      additionalProperties: false
+      required: [productId, name, description, basePrice, price, defaultVariant, imageUrl, categoryId, categoryName, originalPrice, discountPercent, soldCount, hasVariants, hasModifiers, productType, availableFrom, availableTo, isAvailableNow, inStock, isNew, spiceLevel, bestSeller, averageRating, reviewCount, variants, modifierGroups, galleryImages ]
+      properties:
+        <<: *ProductSummaryProperties
+        galleryImages:
+          type: array
+          items:
+            type: string
+    ProductDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ProductDetail'
+    ProductVariantSummary:
+      type: object
+      additionalProperties: false
+      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, isDefault, status, availabilityStatus]
+      properties:
+        variantId:
+          type: integer
+          minimum: 1
+        variantName:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        originalPrice:
+          type: [number, 'null']
+          minimum: 0
+        sku:
+          type: [string, 'null']
+        quantityAvailable:
+          type: [integer, 'null']
+          minimum: 0
+        isDefault:
+          type: boolean
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE, INACTIVE]
+        availabilityStatus:
+          type: string
+          enum: [IN_STOCK, LOW_STOCK, OUT_OF_STOCK, UNTRACKED, SUSPENDED]
+        remainingServings:
+          type: integer
+          minimum: 1
+      oneOf:
+        - $ref: '#/components/schemas/InStockAvailability'
+        - $ref: '#/components/schemas/LowStockAvailability'
+        - $ref: '#/components/schemas/OutOfStockAvailability'
+        - $ref: '#/components/schemas/UntrackedAvailability'
+        - $ref: '#/components/schemas/SuspendedAvailability'
+      discriminator:
+        propertyName: availabilityStatus
+        mapping:
+          IN_STOCK: '#/components/schemas/InStockAvailability'
+          LOW_STOCK: '#/components/schemas/LowStockAvailability'
+          OUT_OF_STOCK: '#/components/schemas/OutOfStockAvailability'
+          UNTRACKED: '#/components/schemas/UntrackedAvailability'
+          SUSPENDED: '#/components/schemas/SuspendedAvailability'
+    InStockAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus, remainingServings]
+      properties:
+        availabilityStatus: { const: IN_STOCK }
+        remainingServings: { type: integer, minimum: 4 }
+    LowStockAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus, remainingServings]
+      properties:
+        availabilityStatus: { const: LOW_STOCK }
+        remainingServings: { type: integer, minimum: 1, maximum: 3 }
+    OutOfStockAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties: { availabilityStatus: { const: OUT_OF_STOCK } }
+      not: { required: [remainingServings] }
+    UntrackedAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties: { availabilityStatus: { const: UNTRACKED } }
+      not: { required: [remainingServings] }
+    SuspendedAvailability:
+      type: object
+      additionalProperties: false
+      required: [availabilityStatus]
+      properties: { availabilityStatus: { const: SUSPENDED } }
+      not: { required: [remainingServings] }
+    ModifierGroupSummary:
+      type: object
+      additionalProperties: false
+      required: [modifierGroupId, name, minSelections, maxSelections, isActive, options]
+      properties:
+        modifierGroupId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        minSelections:
+          type: integer
+          minimum: 0
+        maxSelections:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModifierOptionSummary'
+    ModifierOptionSummary:
+      type: object
+      additionalProperties: false
+      required: [modifierOptionId, name, price, isActive]
+      properties:
+        modifierOptionId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        isActive:
+          type: boolean
+    FeaturedReview:
+      type: object
+      additionalProperties: false
+      required: [reviewId, rating, comment, userName, avatarUrl, createdAt]
+      properties:
+        reviewId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        userName:
+          type: string
+        avatarUrl:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?$'
+    AdminVariantDetail:
+      type: object
+      additionalProperties: false
+      required: [variantId, variantName, price, originalPrice, sku, quantityAvailable, inventoryMode, isDefault, status, updatedAt]
+      properties:
+        variantId:
+          type: integer
+          minimum: 1
+        variantName:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        originalPrice:
+          type: [number, 'null']
+          minimum: 0
+        sku:
+          type: [string, 'null']
+        quantityAvailable:
+          type: [integer, 'null']
+          minimum: 0
+        inventoryMode: { $ref: '#/components/schemas/InventoryMode' }
+        updatedAt: { type: string }
+        isDefault:
+          type: boolean
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+    AdminModifierOptionDetail:
+      type: object
+      additionalProperties: false
+      required: [modifierOptionId, name, price, isActive]
+      properties:
+        modifierOptionId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        isActive:
+          type: boolean
+    AdminModifierGroupDetail:
+      type: object
+      additionalProperties: false
+      required: [modifierGroupId, name, minSelections, maxSelections, isActive, options]
+      properties:
+        modifierGroupId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        minSelections:
+          type: integer
+          minimum: 0
+        maxSelections:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminModifierOptionDetail'
+    AdminProductDetail:
+      type: object
+      additionalProperties: false
+      required: [productId, name, categoryId, categoryName, basePrice, imageUrl, description, status, availableFrom, availableTo, isNew, spiceLevel, galleryImages, variants, modifierGroups, discountPrice, rating, reviewCount, inStock, featured]
+      properties:
+        productId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+        categoryId:
+          type: integer
+          minimum: 1
+        categoryName:
+          type: string
+        basePrice:
+          type: number
+          minimum: 0
+        imageUrl:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+        galleryImages:
+          type: array
+          items:
+            type: string
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminVariantDetail'
+        modifierGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminModifierGroupDetail'
+        discountPrice:
+          type: 'null'
+        rating:
+          type: integer
+          const: 0
+        reviewCount:
+          type: integer
+          const: 0
+        inStock:
+          type: boolean
+        featured:
+          type: boolean
+    AdminProductDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminProductDetail'
+    AdminProductListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminProductDetail'
+    AdminProductCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [categoryId, name, basePrice, isNew, spiceLevel]
+      properties:
+        categoryId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: [string, 'null']
+        basePrice:
+          type: number
+          minimum: 0
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        imageUrl:
+          type: [string, 'null']
+        galleryImages:
+          type: array
+          items:
+            type: string
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+    AdminProductUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        categoryId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: [string, 'null']
+        basePrice:
+          type: number
+          minimum: 0
+        status:
+          type: string
+          enum: [AVAILABLE, UNAVAILABLE]
+        availableFrom:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        availableTo:
+          type: [string, 'null']
+          pattern: '^\d{2}:\d{2}(:\d{2})?$'
+        imageUrl:
+          type: [string, 'null']
+        galleryImages:
+          type: array
+          items:
+            type: string
+        isNew:
+          type: boolean
+        spiceLevel:
+          type: integer
+          minimum: 0
+          maximum: 3
+    ReviewCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [orderId, productId, rating]
+      properties:
+        orderId:
+          type: integer
+          minimum: 1
+        productId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        homepageConsent:
+          type: boolean
+          default: false
+    CustomerReviewItem:
+      type: object
+      additionalProperties: false
+      required: [reviewId, productId, rating, comment, createdAt]
+      properties:
+        reviewId:
+          type: integer
+          minimum: 1
+        productId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        createdAt:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?$'
+    PublicReviewItem:
+      type: object
+      additionalProperties: false
+      required: [reviewId, productId, rating, comment, userName, createdAt]
+      properties:
+        reviewId:
+          type: integer
+          minimum: 1
+        productId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        userName:
+          type: string
+          minLength: 1
+        createdAt:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?$'
+    RatingDistribution:
+      description: Counts for ratings 1 through 5. The sum of all five counts equals reviewCount and total; all counts are 0 when there are no reviews.
+      type: object
+      additionalProperties: false
+      required: ['1', '2', '3', '4', '5']
+      properties:
+        '1': { type: integer, minimum: 0 }
+        '2': { type: integer, minimum: 0 }
+        '3': { type: integer, minimum: 0 }
+        '4': { type: integer, minimum: 0 }
+        '5': { type: integer, minimum: 0 }
+    ProductReviewPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size, averageRating, reviewCount, ratingDistribution]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicReviewItem'
+        total:
+          description: Total number of reviews for the product across all pages. total equals reviewCount.
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        size:
+          type: integer
+          minimum: 1
+          maximum: 50
+        averageRating:
+          description: Rounded to one decimal place. When there are no reviews, averageRating is 0.0.
+          type: number
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          description: Total number of reviews for the product. reviewCount equals total and is 0 when there are no reviews.
+          type: integer
+          minimum: 0
+        ratingDistribution:
+          $ref: '#/components/schemas/RatingDistribution'
+    ProductReviewPageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ProductReviewPage'
+    ReviewByOrderData:
+      type: object
+      additionalProperties: false
+      required: [orderId, reviews]
+      properties:
+        orderId:
+          type: integer
+          minimum: 1
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerReviewItem'
+    ReviewByOrderResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/ReviewByOrderData'
+    ReviewCreateResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/CustomerReviewItem'
+        message:
+          type: string
+          const: Reviewed
+    FeaturedReviewUpdateRequest:
+
+      type: object
+      additionalProperties: false
+      required: [featured]
+      properties:
+        featured:
+          type: boolean
+    AdminOrderReview:
+      type: object
+      additionalProperties: false
+      required: [reviewId, rating, comment, createdAt, updatedAt, userName, avatarUrl, orderId, featured, homepageConsent, featureEligible, featureIneligibilityReason]
+      properties:
+        reviewId:
+          type: integer
+          minimum: 1
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: [string, 'null']
+          maxLength: 1000
+        createdAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        updatedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        userName:
+          type: [string, 'null']
+        avatarUrl:
+          type: [string, 'null']
+        orderId:
+          type: [integer, 'null']
+          minimum: 1
+        featured:
+          type: boolean
+        homepageConsent:
+          type: boolean
+        featureEligible:
+          type: boolean
+        featureIneligibilityReason:
+          type: [string, 'null']
+          enum: [MISSING_HOMEPAGE_CONSENT, MISSING_COMMENT, INACTIVE_USER, MISSING_USER_NAME, MISSING_CREATED_AT, null]
+    AdminOrderItem:
+      type: object
+      additionalProperties: false
+      required: [productName, variantName, quantity, unitPrice, totalPrice, imageUrl]
+      properties:
+        productName:
+          type: [string, 'null']
+        variantName:
+          type: string
+        quantity:
+          type: integer
+          minimum: 0
+        unitPrice:
+          type: [number, 'null']
+        totalPrice:
+          type: [number, 'null']
+        imageUrl:
+          type: string
+    AdminOrderPayment:
+      type: object
+      additionalProperties: false
+      required: [provider, providerReference, attemptStatus, attemptAmount, attemptUpdatedAt]
+      properties:
+        provider:
+          type: [string, 'null']
+        providerReference:
+          type: [string, 'null']
+        attemptStatus:
+          type: [string, 'null']
+        attemptAmount:
+          type: [number, 'null']
+        attemptUpdatedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+    AdminOrderStatusHistory:
+      type: object
+      additionalProperties: false
+      required: [historyId, orderId, actorUserId, actorRole, fromStatus, toStatus, status, note, time]
+      properties:
+        historyId:
+          type: integer
+          minimum: 0
+        orderId:
+          type: integer
+          minimum: 1
+        actorUserId:
+          type: [integer, 'null']
+        actorRole:
+          type: [string, 'null']
+        fromStatus:
+          type: [string, 'null']
+        toStatus:
+          type: [string, 'null']
+        status:
+          type: [string, 'null']
+        note:
+          type: string
+        time:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+    AdminOrderDetail:
+      type: object
+      additionalProperties: false
+      required: [orderId, orderCode, status, customerName, customerPhone, customerAddress, totalAmount, shippingFee, serviceFee, finalAmount, discountAmount, paymentMethod, paymentStatus, deliveryNote, cancelledBy, failureNote, failureReason, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundNote, refundedAt, createdAt, confirmedAt, cancelledAt, deliveredAt, staffName, shipperName, internalNote, review, payment, items, statusHistory]
+      properties:
+        orderId:
+          type: integer
+          minimum: 1
+        orderCode:
+          type: [string, 'null']
+        status:
+          type: [string, 'null']
+        customerName:
+          type: [string, 'null']
+        customerPhone:
+          type: [string, 'null']
+        customerAddress:
+          type: [string, 'null']
+        totalAmount:
+          type: [number, 'null']
+        shippingFee:
+          type: [number, 'null']
+        serviceFee:
+          type: [number, 'null']
+        finalAmount:
+          type: [number, 'null']
+        discountAmount:
+          type: number
+        paymentMethod:
+          type: [string, 'null']
+        paymentStatus:
+          type: [string, 'null']
+        deliveryNote:
+          type: [string, 'null']
+        cancelledBy:
+          type: [string, 'null']
+        failureNote:
+          type: [string, 'null']
+        failureReason:
+          type: [string, 'null']
+        deliveryFailureCode:
+          type: [string, 'null']
+        deliveryAttemptCount:
+          type: integer
+          minimum: 0
+        deliveryAttemptLimit:
+          type: integer
+          minimum: 0
+        deliveryFailedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        retryScheduledAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        returnedToStoreAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        refundStatus:
+          type: [string, 'null']
+        refundAmount:
+          type: [number, 'null']
+        refundNote:
+          type: [string, 'null']
+        refundedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        createdAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        confirmedAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        cancelledAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        deliveredAt:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+        staffName:
+          type: [string, 'null']
+        shipperName:
+          type: [string, 'null']
+        internalNote:
+          type: [string, 'null']
+        review:
+          oneOf:
+            - $ref: '#/components/schemas/AdminOrderReview'
+            - type: 'null'
+        payment:
+          oneOf:
+            - $ref: '#/components/schemas/AdminOrderPayment'
+            - type: 'null'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminOrderItem'
+        statusHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminOrderStatusHistory'
+    AdminOrderDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminOrderDetail'
+    AdminFeaturedReviewMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data, message]
+      properties:
+        status:
+          type: string
+          const: success
+        data:
+          $ref: '#/components/schemas/AdminOrderReview'
+        message:
+          type: string
+          const: Featured review updated
+    AdminMutationResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: success
+        data: {}
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: string
+          const: error
+        message:
+          type: string
+        data: {}
