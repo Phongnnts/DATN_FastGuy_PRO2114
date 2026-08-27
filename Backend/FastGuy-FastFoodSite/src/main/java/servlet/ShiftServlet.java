@@ -51,6 +51,10 @@ public class ShiftServlet extends HttpServlet {
             ApiResponse.ok(resp, workShiftService.check(Integer.parseInt(parts[1]), userId, "check-in".equals(parts[2])));
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid shift ID", 400);
+        } catch (WorkShiftService.ActiveOwnershipConflict e) {
+            Map<String, Object> details = new java.util.HashMap<>();
+            details.put("activeOwnershipCount", e.getActiveOwnershipCount());
+            ApiResponse.error(resp, e.getMessage(), 409, details);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         }

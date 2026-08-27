@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { shiftApi } from '@/api';
+import { shiftApi, staffApi } from '@/api';
 import { toLocalDateKey, parseShiftEndDatetime } from '@/api/shift';
 
 const shifts = ref([]);
+const activeOwnershipCount = ref(0);
 const loading = ref(true);
 const savingShiftId = ref(null);
 const error = ref('');
@@ -36,8 +37,9 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const data = await shiftApi.getMine();
+    const [data, ownership] = await Promise.all([shiftApi.getMine(), staffApi.getOwnershipCount()]);
     shifts.value = Array.isArray(data) ? data : [];
+    activeOwnershipCount.value = Number(ownership?.activeOwnershipCount || 0);
   } catch (e) { error.value = e.message; }
   finally { loading.value = false; }
 }
@@ -55,14 +57,19 @@ async function checkIn(shift) {
 }
 
 async function checkOut(shift) {
-  if (savingShiftId.value !== null || !isCheckedIn(shift) || isCheckedOut(shift) || !canCheckOut(shift)) return;
+  if (savingShiftId.value !== null || !isCheckedIn(shift) || isCheckedOut(shift) || !canCheckOut(shift) || activeOwnershipCount.value > 0) return;
   savingShiftId.value = shift.shiftId;
   try {
     const updated = await shiftApi.checkOut(shift.shiftId);
     const idx = shifts.value.findIndex(s => s.shiftId === updated.shiftId);
     if (idx >= 0) shifts.value[idx] = updated;
     window.dispatchEvent(new Event('staff-shift-changed'));
-  } catch (e) { error.value = e.message; }
+  } catch (error) {
+    if (error.status === 409) {
+      activeOwnershipCount.value = Number(error.data?.activeOwnershipCount || 0);
+      error.value = `Không thể check-out: còn ${activeOwnershipCount.value} đơn đang thuộc ca này.`;
+    } else error.value = error.message;
+  }
   finally { savingShiftId.value = null; }
 }
 
@@ -81,9 +88,9 @@ onUnmounted(() => clearInterval(clockTimer));
     <div class="page-header"><h1><i class="bi bi-calendar-week"></i> Ca làm của tôi</h1></div>
 
     <div v-if="loading" style="text-align:center;padding:40px;color:var(--text-mid)">Đang tải...</div>
-    <div v-else-if="error" style="text-align:center;padding:40px;color:var(--red-active)">{{ error }}</div>
 
     <template v-else>
+      <div v-if="error" class="page-error" role="alert">{{ error }} <router-link v-if="activeOwnershipCount > 0" to="/staff/orders?tab=HANDOVER">Mở danh sách bàn giao</router-link></div>
       <section class="card" style="margin-bottom:16px" aria-labelledby="today-shifts-title">
         <h3 id="today-shifts-title">Ca hôm nay</h3>
         <div v-if="todayShifts.length" class="today-shifts">
@@ -99,11 +106,15 @@ onUnmounted(() => clearInterval(clockTimer));
               Check-in: {{ shift.checkInAt }}
               <span v-if="shift.checkOutAt"> · Check-out: {{ shift.checkOutAt }}</span>
             </div>
+            <div v-if="isCheckedIn(shift) && !isCheckedOut(shift) && activeOwnershipCount > 0" class="ownership-warning" role="alert">
+              Còn {{ activeOwnershipCount }} đơn cần bàn giao trước khi check-out.
+              <router-link to="/staff/orders?tab=HANDOVER">Mở danh sách bàn giao</router-link>
+            </div>
             <div class="shift-actions" aria-live="polite">
               <button v-if="!isCheckedIn(shift)" type="button" class="btn btn-primary" :disabled="savingShiftId !== null" @click="checkIn(shift)">
                 <i class="bi bi-box-arrow-in-right" aria-hidden="true"></i> {{ isSaving(shift) ? 'Đang xử lý...' : 'Check-in' }}
               </button>
-              <button v-else-if="!isCheckedOut(shift)" type="button" class="btn btn-outline" :disabled="savingShiftId !== null || !canCheckOut(shift)" @click="checkOut(shift)">
+              <button v-else-if="!isCheckedOut(shift)" type="button" class="btn btn-outline" :disabled="savingShiftId !== null || !canCheckOut(shift) || activeOwnershipCount > 0" @click="checkOut(shift)">
                 <i class="bi bi-box-arrow-right" aria-hidden="true"></i> {{ isSaving(shift) ? 'Đang xử lý...' : canCheckOut(shift) ? 'Check-out' : `Có thể check-out từ ${time(shift.endTime)}` }}
               </button>
               <span v-else class="shift-done"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Đã hoàn thành ca</span>
@@ -152,6 +163,8 @@ onUnmounted(() => clearInterval(clockTimer));
 
 <style scoped>
 .card h3 { margin-bottom: 12px; font-size: 15px; }
+.page-error { margin-bottom: 16px; padding: 12px; border-radius: var(--radius-sm); background: #fef2f2; color: #b91c1c; }
+.page-error a { margin-left: 6px; font-weight: 700; }
 .today-shifts { display: grid; gap: 12px; }
 .today-shift { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--teal-light); }
 .shift-detail { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -164,5 +177,7 @@ onUnmounted(() => clearInterval(clockTimer));
 .shift-check { font-size: 13px; color: var(--text-mid); margin-bottom: 12px; }
 .shift-actions { display: flex; gap: 8px; align-items: center; }
 .shift-done { color: #166534; font-size: 14px; font-weight: 600; }
+.ownership-warning { margin-bottom: 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: #fff7ed; color: #9a3412; font-size: 13px; }
+.ownership-warning a { display: inline-block; min-height: 44px; margin-left: 6px; font-weight: 700; line-height: 44px; }
 .shift-badge { display: inline-block; padding: 2px 8px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600; }
 </style>

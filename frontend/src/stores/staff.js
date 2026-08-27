@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { staffApi } from '@/api';
 import { createDispatchRequestGate, kitchenItemCount, staffOrderDiscount, staffOrderItemTotal } from '@/utils/staffKitchen';
+import { createPerKeyRequestGate } from '@/utils/staffHandover';
 
 export const useStaffStore = defineStore('staff', () => {
   const dashboard = ref(null);
@@ -15,9 +16,15 @@ export const useStaffStore = defineStore('staff', () => {
   const dispatchCounts = ref({ priority: 0, new: 0, review: 0 });
   const dispatchLoading = ref(false);
   const dispatchError = ref('');
+  const handoverItems = ref([]);
+  const handoverLoading = ref(false);
+  const handoverError = ref('');
+  const kitchenQueues = ref({});
+  let handoverRequestGeneration = 0;
   let fetchVersion = 0;
   let dispatchFilter = 'PRIORITY';
   const dispatchRequestGate = createDispatchRequestGate(dispatchFilter);
+  const kitchenRequestGate = createPerKeyRequestGate();
 
   function mapOrder(o) {
     return {
@@ -108,11 +115,48 @@ export const useStaffStore = defineStore('staff', () => {
         retryScheduledAt: o.retryScheduledAt || null,
         readyAt: o.readyAt || null,
         classification: o.classification,
-        minutesUntilClose: o.minutesUntilClose ?? null,
-      };
-  }
+         minutesUntilClose: o.minutesUntilClose ?? null,
+         staffShiftId: o.staffShiftId ?? null,
+         ownerShiftLabel: o.ownerShiftLabel ?? null,
+         handoverRequired: Boolean(o.handoverRequired),
+         waitingSince: o.waitingSince ?? null,
+       };
+   }
 
-  async function fetchDispatchOrders(filter) {
+   async function fetchHandoverOrders() {
+     const generation = ++handoverRequestGeneration;
+     handoverLoading.value = true;
+     handoverError.value = '';
+     try {
+       const data = await staffApi.getHandoverOrders();
+       if (generation !== handoverRequestGeneration) return handoverItems.value;
+       handoverItems.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+       return handoverItems.value;
+     } catch (error) {
+       if (generation === handoverRequestGeneration) handoverError.value = error.message || 'Không thể tải danh sách bàn giao';
+       throw error;
+     } finally {
+       if (generation === handoverRequestGeneration) handoverLoading.value = false;
+     }
+   }
+
+   async function claimHandover(orderId) {
+     const order = handoverItems.value.find((item) => item.id === orderId);
+     if (!order) return;
+     handoverRequestGeneration += 1;
+     handoverLoading.value = false;
+     try {
+       await staffApi.claimHandover(orderId, order.status, order.staffShiftId);
+       handoverItems.value = handoverItems.value.filter((item) => item.id !== orderId);
+       await fetchKitchenOrders(order.status);
+     } catch (error) {
+       if (error.status === 409) await fetchHandoverOrders();
+       throw error;
+     }
+   }
+
+   async function fetchDispatchOrders(filter) {
+
     const request = dispatchRequestGate.begin(filter);
     const filterChanged = filter !== dispatchFilter;
     dispatchFilter = filter;
@@ -160,6 +204,7 @@ export const useStaffStore = defineStore('staff', () => {
   }
 
   async function fetchKitchenOrders(tab) {
+    const request = kitchenRequestGate.begin(tab);
     const requests = {
       PENDING: staffApi.getOrders,
       CONFIRMED: staffApi.getConfirmedOrders,
@@ -168,7 +213,10 @@ export const useStaffStore = defineStore('staff', () => {
        DELIVERY_FAILED: staffApi.getDeliveryFailedOrders,
     };
     const data = await requests[tab]();
-    return Array.isArray(data) ? data.map(mapOrderListItem) : [];
+    const mapped = Array.isArray(data) ? data.map(mapOrderListItem) : [];
+    if (!kitchenRequestGate.accepts(request)) return kitchenQueues.value[tab] || [];
+    kitchenQueues.value = { ...kitchenQueues.value, [tab]: mapped };
+    return mapped;
   }
 
   async function fetchOrders() {
@@ -318,9 +366,16 @@ export const useStaffStore = defineStore('staff', () => {
     error,
     dispatchItems,
     dispatchCounts,
-    dispatchLoading,
-    dispatchError,
-    fetchDashboard,
+     dispatchLoading,
+     dispatchError,
+     handoverItems,
+     handoverLoading,
+     handoverError,
+     kitchenQueues,
+     fetchDashboard,
+     fetchHandoverOrders,
+     claimHandover,
+
     fetchKitchenOrders,
     fetchOrders,
     fetchConfirmedOrders,

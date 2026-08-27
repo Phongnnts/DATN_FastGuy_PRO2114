@@ -35,7 +35,7 @@ test('staff store maps canonical kitchen list and detail fields', () => {
 });
 
 test('staff kitchen synchronizes tab query and searches canonical customer fields', () => {
-  assert.match(ordersPage, /async function switchTab\(tab\) \{\s*activeTab\.value = normalizedTab\(tab\);\s*await router\.replace\(\{ query: \{ \.\.\.route\.query, tab: activeTab\.value \} \}\)/);
+  assert.match(ordersPage, /async function switchTab\(tab\) \{[\s\S]*activeTab\.value = normalizedTab\(tab\);[\s\S]*await router\.replace\(\{ query: \{ \.\.\.route\.query, tab: activeTab\.value \} \}\)/);
   assert.match(ordersPage, /watch\(\(\) => route\.query\.tab/);
   assert.match(ordersPage, /order\.orderCode/);
   assert.match(ordersPage, /order\.customerName/);

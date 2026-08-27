@@ -177,6 +177,8 @@ function logout() {
 .no-shift-banner strong { display:block; margin-bottom:2px; }
 .no-shift-banner p { margin:0; font-size:13px; opacity:.8; }
 @media (max-width: 768px) {
+  .main-content { min-width: 0; width: 100%; }
+  .staff-view > * { min-width: 0; max-width: 100%; }
   .mobile-toggle-sidebar { display: flex; }
   .sidebar-overlay {
     display: block;

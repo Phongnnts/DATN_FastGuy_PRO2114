@@ -43,16 +43,37 @@ public class StaffOrderService {
         return ordersDAO.findByStatus("PENDING");
     }
 
-    public List<Orders> getConfirmedOrders() {
-        return ordersDAO.findByStatus("CONFIRMED");
+    public List<Orders> getConfirmedOrders(int staffId) { return getOwnedOrders("CONFIRMED", staffId); }
+
+    public List<Orders> getPreparingOrders(int staffId) { return getOwnedOrders("PREPARING", staffId); }
+
+    public List<Orders> getReadyOrders(int staffId) { return getOwnedOrders("READY", staffId); }
+
+    public List<Orders> getDeliveryFailureQueue(int staffId) { return getOwnedOrders("DELIVERY_FAILED", staffId); }
+
+    private List<Orders> getOwnedOrders(String status, int staffId) {
+        WorkShift shift = new WorkShiftService().currentCheckedInShift(staffId);
+        return shift == null ? List.of() : ordersDAO.findByStatusAndStaffShift(status, shift.getShiftId());
     }
 
-    public List<Orders> getPreparingOrders() {
-        return ordersDAO.findByStatus("PREPARING");
+    public List<Orders> getHandoverOrders(int staffId) {
+        WorkShift shift = new WorkShiftService().currentCheckedInShift(staffId);
+        return shift == null ? List.of() : ordersDAO.findHandoverEligible(shift.getShiftId());
     }
 
-    public List<Orders> getReadyOrders() {
-        return ordersDAO.findByStatus("READY");
+    public long getActiveOwnershipCount(int staffId) {
+        WorkShift shift = new WorkShiftService().currentCheckedInShift(staffId);
+        if (shift == null) return 0;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return ordersDAO.countActiveOwnership(em, shift.getShiftId());
+        } finally {
+            em.close();
+        }
+    }
+
+    public OrderTransitionService.MutationResult claimHandover(int orderId, int staffId, String expectedStatus, Integer expectedOwnerShiftId) {
+        return transitionService.claimHandover(orderId, staffId, expectedStatus, expectedOwnerShiftId);
     }
 
     public DispatchResult getDispatchOrders(String filter) {

@@ -13,6 +13,7 @@ import entity.Orders;
 import entity.User;
 import entity.Product;
 import entity.ProductVariant;
+import entity.WorkShift;
 
 class OrdersDAOTest {
 
@@ -78,6 +79,15 @@ class OrdersDAOTest {
         o.setCancelledAt(null);
         assertEquals(now, o.getConfirmedAt());
         assertEquals(now.plusMinutes(30), o.getDeliveredAt());
+    }
+
+    @Test
+    void orderMapsStaffShiftOwnership() {
+        Orders order = new Orders();
+        WorkShift shift = new WorkShift();
+        shift.setShiftId(42);
+        order.setStaffShift(shift);
+        assertEquals(42, order.getStaffShift().getShiftId());
     }
 
     @Test

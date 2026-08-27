@@ -188,6 +188,10 @@ public class WorkShiftService {
             } else {
                 if (!"CHECKED_IN".equals(shift.getStatus()) || shift.getCheckInAt() == null || shift.getCheckOutAt() != null) throw new IllegalArgumentException("Cannot check out");
                 if (!canCheckOut(shift, now)) throw new IllegalArgumentException("Check-out is only allowed from shift end time");
+                if ("STAFF".equals(shift.getUser().getRole())) {
+                    long activeOwnershipCount = new dao.OrdersDAO().countActiveOwnership(em, shiftId);
+                    if (activeOwnershipCount > 0) throw new ActiveOwnershipConflict(activeOwnershipCount);
+                }
                 shift.setCheckOutAt(now);
                 shift.setStatus("CHECKED_OUT");
             }
@@ -199,6 +203,12 @@ public class WorkShiftService {
         } finally {
             em.close();
         }
+    }
+
+    public static class ActiveOwnershipConflict extends RuntimeException {
+        private final long activeOwnershipCount;
+        public ActiveOwnershipConflict(long activeOwnershipCount) { super("Active order ownership must be handed over before check-out"); this.activeOwnershipCount = activeOwnershipCount; }
+        public long getActiveOwnershipCount() { return activeOwnershipCount; }
     }
 
     private void lockShiftUser(EntityManager em, Map<String, Object> data) {

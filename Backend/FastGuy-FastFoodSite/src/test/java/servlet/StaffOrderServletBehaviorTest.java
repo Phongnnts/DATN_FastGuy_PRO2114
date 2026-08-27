@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.BufferedReader;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
@@ -66,7 +68,7 @@ class StaffOrderServletBehaviorTest {
                 "refundedAt", "shipperId", "shipperName", "assignedAt", "updatedAt", "endedAt", "createdAt",
                 "deliveryAttemptCount", "deliveryAttemptLimit", "deliveryFailureCode", "failureNote",
                 "deliveryFailedAt", "retryScheduledAt", "returnedToStoreAt", "readyAt", "classification",
-                "minutesUntilClose");
+                "minutesUntilClose", "staffShiftId", "ownerShiftLabel", "handoverRequired");
         Set<String> actualKeys = new java.util.HashSet<>();
         item.fieldNames().forEachRemaining(actualKeys::add);
         assertEquals(expectedKeys, actualKeys);
@@ -116,6 +118,49 @@ class StaffOrderServletBehaviorTest {
     }
 
     @Test
+    void ownershipCountGetSerializesCurrentShiftCount() throws Exception {
+        TestStaffOrderServlet servlet = servlet();
+        ResponseCapture capture = new ResponseCapture();
+
+        servlet.get(request("GET", "/ownership-count", null), response(capture));
+
+        JsonNode body = JsonUtil.getMapper().readTree(capture.body.toString());
+        assertEquals(200, capture.status);
+        assertEquals("success", body.path("status").asText());
+        assertEquals(3, body.path("data").path("activeOwnershipCount").asLong());
+        assertEquals(7, servlet.service.ownershipStaffId);
+    }
+
+    @Test
+    void handoverGetSerializesOwnershipContract() throws Exception {
+        TestStaffOrderServlet servlet = servlet();
+        ResponseCapture capture = new ResponseCapture();
+        servlet.get(request("GET", "/handover", null), response(capture));
+        JsonNode item = JsonUtil.getMapper().readTree(capture.body.toString()).path("data").get(0);
+        for (String field : List.of("orderId", "orderCode", "status", "customerName", "itemCount", "waitingSince", "staffShiftId", "ownerShiftLabel", "handoverRequired")) assertTrue(item.has(field), field);
+        assertTrue(item.path("staffShiftId").isNull());
+        assertTrue(item.path("handoverRequired").asBoolean());
+    }
+
+    @Test
+    void handoverPayloadRejectsUnknownFractionalAndNonpositiveOwner() {
+        assertTrue(StaffOrderServlet.validateHandoverPayload(Map.of("expectedStatus", "READY", "expectedOwnerShiftId", 2, "extra", true)) == null);
+        assertTrue(StaffOrderServlet.validateHandoverPayload(Map.of("expectedStatus", "READY", "expectedOwnerShiftId", 2.5)) == null);
+        assertTrue(StaffOrderServlet.validateHandoverPayload(Map.of("expectedStatus", "READY", "expectedOwnerShiftId", 0)) == null);
+    }
+
+    @Test
+    void handoverPutPassesExpectedNullableOwner() throws Exception {
+        TestStaffOrderServlet servlet = servlet();
+        ResponseCapture capture = new ResponseCapture();
+        servlet.put(request("PUT", "/11/handover", "{\"expectedStatus\":\"PREPARING\",\"expectedOwnerShiftId\":null}"), response(capture));
+        assertEquals(200, capture.status);
+        assertEquals("Handover claimed", JsonUtil.getMapper().readTree(capture.body.toString()).path("message").asText());
+        assertEquals("PREPARING", servlet.service.expectedStatus);
+        assertTrue(servlet.service.expectedOwnerShiftId == null);
+    }
+
+    @Test
     void preservesRequiredNullableDispatchFieldsAsJsonNull() throws Exception {
         TestStaffOrderServlet servlet = servlet();
         servlet.service.nullableOrder = true;
@@ -137,6 +182,7 @@ class StaffOrderServletBehaviorTest {
         set(servlet, "staffOrderService", servlet.service);
         set(servlet, "orderItemDAO", new OrderItemDAO() {
             @Override public List<entity.OrderItem> findByOrderId(int orderId) { return List.of(); }
+            @Override public Map<Integer, Integer> countItemsByOrderIds(List<Integer> orderIds) { return Map.of(11, 0); }
         });
         servlet.access = new StubStaffShiftAccessService();
         set(servlet, "staffShiftAccessService", servlet.access);
@@ -144,11 +190,20 @@ class StaffOrderServletBehaviorTest {
     }
 
     private HttpServletRequest request(String filter) {
+        return request("GET", "/dispatch", null, filter);
+    }
+
+    private HttpServletRequest request(String methodName, String path, String body) {
+        return request(methodName, path, body, null);
+    }
+
+    private HttpServletRequest request(String methodName, String path, String body, String filter) {
         return (HttpServletRequest) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] { HttpServletRequest.class },
                 (proxy, method, args) -> switch (method.getName()) {
-                    case "getPathInfo" -> "/dispatch";
+                    case "getPathInfo" -> path;
                     case "getParameter" -> "filter".equals(args[0]) ? filter : null;
-                    case "getMethod" -> "GET";
+                    case "getMethod" -> methodName;
+                    case "getReader" -> new BufferedReader(new StringReader(body == null ? "" : body));
                     default -> defaultValue(method.getReturnType());
                 });
     }
@@ -180,6 +235,7 @@ class StaffOrderServletBehaviorTest {
         private StubStaffShiftAccessService access;
         @Override protected int getStaffId(HttpServletRequest req, HttpServletResponse resp) { return 7; }
         private void get(HttpServletRequest req, HttpServletResponse resp) throws Exception { doGet(req, resp); }
+        private void put(HttpServletRequest req, HttpServletResponse resp) throws Exception { doPut(req, resp); }
     }
 
     private static class StubStaffShiftAccessService extends StaffShiftAccessService {
@@ -192,6 +248,19 @@ class StaffOrderServletBehaviorTest {
         private int calls;
         private boolean configFailure;
         private boolean nullableOrder;
+        private String expectedStatus;
+        private Integer expectedOwnerShiftId;
+        private int ownershipStaffId;
+        @Override public long getActiveOwnershipCount(int staffId) { ownershipStaffId = staffId; return 3; }
+        @Override public List<Orders> getHandoverOrders(int staffId) {
+            Orders order = new Orders(); order.setOrderId(11); order.setOrderCode("FG-0011"); order.setOrderStatus("PREPARING");
+            order.setCustomerName("Test"); order.setCreatedAt(LocalDateTime.of(2026, 8, 25, 20, 0));
+            return List.of(order);
+        }
+        @Override public service.OrderTransitionService.MutationResult claimHandover(int orderId, int staffId, String expectedStatus, Integer expectedOwnerShiftId) {
+            this.expectedStatus = expectedStatus; this.expectedOwnerShiftId = expectedOwnerShiftId;
+            return service.OrderTransitionService.MutationResult.SUCCESS;
+        }
         @Override public DispatchResult getDispatchOrders(String filter) {
             calls++;
             if (configFailure) throw new IllegalArgumentException("Missing business hours config");

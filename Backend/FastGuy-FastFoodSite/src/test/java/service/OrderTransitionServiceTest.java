@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import entity.Orders;
 import entity.User;
+import entity.WorkShift;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
 class OrderTransitionServiceTest {
@@ -89,6 +91,102 @@ class OrderTransitionServiceTest {
         assertFalse(OrderTransitionService.canAssignOrder("STAFF", 7, "ASSIGNED", true));
         assertFalse(OrderTransitionService.canAssignOrder("STAFF", 7, "READY", false));
         assertTrue(OrderTransitionService.canAssignOrder("STAFF", 7, "READY", true));
+    }
+
+    @Test
+    void ownershipLifecycleSetsPreservesAndClearsShift() {
+        WorkShift shift = new WorkShift();
+        Orders order = new Orders();
+        OrderTransitionService.applyStaffShiftOwnership(order, "CONFIRMED", shift);
+        assertTrue(order.getStaffShift() == shift);
+        OrderTransitionService.applyStaffShiftOwnership(order, "PREPARING", null);
+        assertTrue(order.getStaffShift() == shift);
+        OrderTransitionService.applyStaffShiftOwnership(order, "ASSIGNED", null);
+        assertTrue(order.getStaffShift() == null);
+        order.setStaffShift(shift);
+        OrderTransitionService.applyStaffShiftOwnership(order, "DELIVERY_FAILED", null);
+        assertTrue(order.getStaffShift() == null);
+    }
+
+    @Test
+    void claimRequiresEligibleStatusDifferentOwnerAndExpectedValues() {
+        WorkShift current = new WorkShift(); current.setShiftId(9);
+        WorkShift other = new WorkShift(); other.setShiftId(8);
+        Orders order = new Orders(); order.setOrderStatus("PREPARING"); order.setStaffShift(other);
+        assertTrue(OrderTransitionService.canClaimHandover(order, current, "PREPARING", 8));
+        assertFalse(OrderTransitionService.canClaimHandover(order, current, "READY", 8));
+        assertFalse(OrderTransitionService.canClaimHandover(order, current, "PREPARING", null));
+        order.setStaffShift(current);
+        assertFalse(OrderTransitionService.canClaimHandover(order, current, "PREPARING", 9));
+    }
+
+    @Test
+    void adminConfirmationSucceedsWithoutAssigningStaffShiftWhileStaffRequiresShift() {
+        Orders adminOrder = new Orders(); adminOrder.setOrderStatus("PENDING");
+        assertTrue(OrderTransitionService.canActorConfirm("ADMIN", null));
+        OrderTransitionService.applyActorOwnership(adminOrder, "CONFIRMED", "ADMIN", null);
+        assertTrue(adminOrder.getStaffShift() == null);
+        assertFalse(OrderTransitionService.canActorConfirm("STAFF", null));
+        WorkShift shift = new WorkShift(); shift.setShiftId(9);
+        assertTrue(OrderTransitionService.canActorConfirm("STAFF", shift));
+    }
+
+    @Test
+    void staffMutationRequiresCurrentShiftOwnershipExceptConfirmation() {
+        WorkShift current = new WorkShift(); current.setShiftId(9);
+        WorkShift other = new WorkShift(); other.setShiftId(8);
+        Orders order = new Orders(); order.setOrderStatus("CONFIRMED"); order.setStaffShift(other);
+        assertFalse(OrderTransitionService.canStaffMutateOwnedOrder(order, current, "PREPARING"));
+        order.setStaffShift(current);
+        assertTrue(OrderTransitionService.canStaffMutateOwnedOrder(order, current, "PREPARING"));
+        order.setOrderStatus("PENDING"); order.setStaffShift(null);
+        assertTrue(OrderTransitionService.canStaffMutateOwnedOrder(order, current, "CONFIRMED"));
+    }
+
+    @Test
+    void deliveryFailureRecoveryRequiresActingShiftOwnership() {
+        WorkShift current = new WorkShift(); current.setShiftId(9);
+        WorkShift other = new WorkShift(); other.setShiftId(8);
+        Orders order = new Orders(); order.setOrderStatus("DELIVERY_FAILED"); order.setStaffShift(other);
+        assertFalse(OrderTransitionService.isOwnedBy(order, current));
+        order.setStaffShift(current);
+        assertTrue(OrderTransitionService.isOwnedBy(order, current));
+    }
+
+    @Test
+    void retryAssignmentSetsAssignedAt() {
+        Orders order = new Orders();
+        User shipper = new User();
+        OrderTransitionService.assignRetryShipper(order, shipper, LocalDateTime.of(2026, 8, 27, 16, 0));
+        assertTrue(order.getShipper() == shipper);
+        assertTrue(order.getAssignedAt() != null);
+    }
+
+    @Test
+    void immediateRetryClearsStaffShift() {
+        Orders order = ownedDeliveryFailure();
+        OrderTransitionService.clearOwnershipAfterRecovery(order, "PICKED_UP");
+        assertTrue(order.getStaffShift() == null);
+    }
+
+    @Test
+    void scheduledRetryStartClearsStaffShift() {
+        Orders order = ownedDeliveryFailure();
+        OrderTransitionService.clearOwnershipAfterRecovery(order, "PICKED_UP");
+        assertTrue(order.getStaffShift() == null);
+    }
+
+    @Test
+    void returnToStoreClearsStaffShift() {
+        Orders order = ownedDeliveryFailure();
+        OrderTransitionService.clearOwnershipAfterRecovery(order, "RETURNED_TO_STORE");
+        assertTrue(order.getStaffShift() == null);
+    }
+
+    private Orders ownedDeliveryFailure() {
+        WorkShift shift = new WorkShift(); shift.setShiftId(9);
+        Orders order = new Orders(); order.setOrderStatus("DELIVERY_FAILED"); order.setStaffShift(shift);
+        return order;
     }
 
     @Test

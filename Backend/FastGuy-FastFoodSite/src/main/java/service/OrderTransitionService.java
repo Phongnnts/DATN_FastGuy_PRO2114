@@ -158,12 +158,15 @@ public class OrderTransitionService {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            WorkShift currentStaffShift = "STAFF".equals(actorRole) && actorUserId != null ? currentActiveShift(em, em.find(User.class, actorUserId), "STAFF") : null;
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+
             if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (expectedStatus != null && !matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
 
             String from = order.getOrderStatus();
             if (!canTransition(from, toStatus)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if ("STAFF".equals(actorRole) && !canStaffMutateOwnedOrder(order, currentStaffShift, toStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
             if ("SHIPPER".equals(actorRole) && (order.getShipper() == null || actorUserId == null
                     || order.getShipper().getUserId() != actorUserId || !requireCheckedInShipper(em, actorUserId))) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if ("ASSIGNED".equals(toStatus)) {
@@ -211,6 +214,8 @@ public class OrderTransitionService {
                 }
             }
 
+            if ("CONFIRMED".equals(toStatus) && !canActorConfirm(actorRole, currentStaffShift)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            applyActorOwnership(order, toStatus, actorRole, currentStaffShift);
             if (!"CANCELLED".equals(toStatus)) order.setOrderStatus(toStatus);
             User actor = actorUserId == null ? null : em.find(User.class, actorUserId);
             if (actor != null) {
@@ -264,19 +269,21 @@ public class OrderTransitionService {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            WorkShift staffShift = currentActiveShift(em, em.find(User.class, staffId), "STAFF");
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
             if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
             User shipper = em.find(User.class, shipperId);
-            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !requireCheckedInStaff(em, staffId)
+            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !isOwnedBy(order, staffShift)
                     || shipper == null || !"SHIPPER".equals(shipper.getRole()) || !requireCheckedInShipper(em, shipperId)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (!DeliveryFailurePolicy.canRetry(order.getDeliveryAttemptCount(), order.getDeliveryAttemptLimit())
                     || !validRetrySchedule(em, retryMode, scheduledAt)) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
-            order.setShipper(shipper);
+            assignRetryShipper(order, shipper, LocalDateTime.now());
             order.setStaff(em.find(User.class, staffId));
             order.setRetryScheduledAt(scheduledAt);
             String to = "IMMEDIATE".equals(retryMode) ? "PICKED_UP" : "DELIVERY_FAILED";
             order.setOrderStatus(to);
+            clearOwnershipAfterRecovery(order, to);
             if ("PICKED_UP".equals(to)) order.setPickedUpAt(LocalDateTime.now());
             em.persist(new OrderStatusHistory(orderId, staffId, "STAFF", "DELIVERY_FAILED", to, normalizedNote, LocalDateTime.now()));
             em.getTransaction().commit();
@@ -291,14 +298,16 @@ public class OrderTransitionService {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            WorkShift staffShift = currentActiveShift(em, em.find(User.class, staffId), "STAFF");
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
             if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
             WorkShift shipperShift = currentActiveShift(em, order.getShipper(), "SHIPPER");
-            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !requireCheckedInStaff(em, staffId)
+            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !isOwnedBy(order, staffShift)
                     || !canStartScheduledRetry(order, shipperShift, WorkShiftService.businessNow())) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (order.getRetryScheduledAt() == null || order.getRetryScheduledAt().isAfter(WorkShiftService.businessNow())) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
             order.setOrderStatus("PICKED_UP");
+            clearOwnershipAfterRecovery(order, "PICKED_UP");
             order.setPickedUpAt(LocalDateTime.now());
             order.setRetryScheduledAt(null);
             em.persist(new OrderStatusHistory(orderId, staffId, "STAFF", "DELIVERY_FAILED", "PICKED_UP", "Bắt đầu giao lại theo lịch", LocalDateTime.now()));
@@ -316,13 +325,15 @@ public class OrderTransitionService {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
+            WorkShift staffShift = currentActiveShift(em, em.find(User.class, staffId), "STAFF");
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
             if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
-            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !requireCheckedInStaff(em, staffId)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !isOwnedBy(order, staffShift)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             inventoryReservationService.cancel(em, order);
             releaseCoupon(em, orderId);
             order.setOrderStatus("RETURNED_TO_STORE");
+            clearOwnershipAfterRecovery(order, "RETURNED_TO_STORE");
             order.setReturnedToStoreAt(LocalDateTime.now());
             order.setRetryScheduledAt(null);
             order.setStaff(em.find(User.class, staffId));
@@ -358,11 +369,74 @@ public class OrderTransitionService {
         } finally { em.close(); }
     }
 
+    static void assignRetryShipper(Orders order, User shipper, LocalDateTime assignedAt) {
+        order.setShipper(shipper);
+        order.setAssignedAt(assignedAt);
+    }
+
+    static void clearOwnershipAfterRecovery(Orders order, String toStatus) {
+        if ("PICKED_UP".equals(toStatus) || "RETURNED_TO_STORE".equals(toStatus)) order.setStaffShift(null);
+    }
+
+    static boolean isOwnedBy(Orders order, WorkShift shift) {
+        return order != null && shift != null && order.getStaffShift() != null && order.getStaffShift().getShiftId() == shift.getShiftId();
+    }
+
+    static boolean canStaffMutateOwnedOrder(Orders order, WorkShift currentShift, String toStatus) {
+        return order != null && currentShift != null && ("PENDING".equals(order.getOrderStatus()) && "CONFIRMED".equals(toStatus) || isOwnedBy(order, currentShift));
+    }
+
+    static boolean canActorConfirm(String actorRole, WorkShift currentStaffShift) {
+        return !"STAFF".equals(actorRole) || currentStaffShift != null;
+    }
+
+    static void applyActorOwnership(Orders order, String toStatus, String actorRole, WorkShift currentStaffShift) {
+        if ("STAFF".equals(actorRole)) applyStaffShiftOwnership(order, toStatus, currentStaffShift);
+    }
+
+    static void applyStaffShiftOwnership(Orders order, String toStatus, WorkShift currentShift) {
+        if ("CONFIRMED".equals(toStatus)) order.setStaffShift(currentShift);
+        else if (Set.of("ASSIGNED", "PICKED_UP", "DELIVERED", "CANCELLED", "RETURNED_TO_STORE", "DELIVERY_FAILED").contains(toStatus)) order.setStaffShift(null);
+    }
+
+    static boolean canClaimHandover(Orders order, WorkShift currentShift, String expectedStatus, Integer expectedOwnerShiftId) {
+        if (order == null || currentShift == null || !Set.of("CONFIRMED", "PREPARING", "READY", "DELIVERY_FAILED").contains(order.getOrderStatus())
+                || !Objects.equals(order.getOrderStatus(), expectedStatus)) return false;
+        Integer ownerId = order.getStaffShift() == null ? null : order.getStaffShift().getShiftId();
+        return Objects.equals(ownerId, expectedOwnerShiftId) && !Objects.equals(ownerId, currentShift.getShiftId());
+    }
+
+    public MutationResult claimHandover(int orderId, int staffId, String expectedStatus, Integer expectedOwnerShiftId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            User staff = em.find(User.class, staffId);
+            WorkShift receiving = currentActiveShift(em, staff, "STAFF");
+            if (receiving == null || !isCurrentActiveShift(receiving, staff, "STAFF", WorkShiftService.businessNow())) {
+                em.getTransaction().rollback();
+                return MutationResult.INVALID;
+            }
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.NOT_FOUND; }
+            if (!canClaimHandover(order, receiving, expectedStatus, expectedOwnerShiftId)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            String source = order.getStaffShift() == null ? "unowned" : String.valueOf(order.getStaffShift().getShiftId());
+            order.setStaffShift(receiving);
+            order.setStaff(staff);
+            em.persist(new OrderStatusHistory(orderId, staffId, "STAFF", order.getOrderStatus(), order.getOrderStatus(),
+                    "Handover from shift " + source + " to shift " + receiving.getShiftId() + " by Staff " + staffId, LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
+    }
+
     static boolean matchesExpectedStatus(Orders order, String expectedStatus) {
         return order != null && expectedStatus != null && expectedStatus.equals(order.getOrderStatus());
     }
 
-    public enum MutationResult { SUCCESS, CONFLICT, INVALID, UNPROCESSABLE }
+    public enum MutationResult { SUCCESS, CONFLICT, INVALID, UNPROCESSABLE, NOT_FOUND }
 
     private boolean requireCheckedInStaff(EntityManager em, int staffId) {
         User staff = em.find(User.class, staffId);

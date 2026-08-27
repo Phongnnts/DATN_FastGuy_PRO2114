@@ -59,6 +59,32 @@ test('OpenAPI contracts Staff dispatch filters and classifications', async () =>
   assert.ok(refs.every((ref) => ref.startsWith('#/')));
 });
 
+test('OpenAPI contracts Staff shift ownership, handover, and checkout conflict', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const list = contract.paths['/staff/orders/handover']?.get;
+  const claim = contract.paths['/staff/orders/{orderId}/handover']?.put;
+  const ownershipCount = contract.paths['/staff/orders/ownership-count']?.get;
+  const checkout = contract.paths['/shifts/{shiftId}/check-out']?.post;
+  const item = contract.components.schemas.StaffHandoverOrder;
+  const request = contract.components.schemas.ClaimStaffHandoverRequest;
+
+  assert.equal(list.operationId, 'listStaffHandoverOrders');
+  assert.equal(claim.operationId, 'claimStaffOrderHandover');
+  assert.equal(ownershipCount.operationId, 'getStaffOwnershipCount');
+  assert.equal(ownershipCount.responses['200'].content['application/json'].schema.$ref, '#/components/schemas/StaffOwnershipCountResponse');
+  assert.deepEqual(contract.components.schemas.StaffOwnershipCountData.required, ['activeOwnershipCount']);
+  assert.equal(contract.components.schemas.StaffOwnershipCountData.properties.activeOwnershipCount.minimum, 0);
+  assert.equal(checkout.responses['409'].content['application/json'].schema.$ref, '#/components/schemas/ShiftCheckoutConflictResponse');
+  assert.deepEqual(item.required, ['orderId', 'orderCode', 'status', 'customerName', 'itemCount', 'waitingSince', 'staffShiftId', 'ownerShiftLabel', 'handoverRequired']);
+  assert.deepEqual(item.properties.status.enum, ['CONFIRMED', 'PREPARING', 'READY', 'DELIVERY_FAILED']);
+  assert.deepEqual(item.properties.staffShiftId.type, ['integer', 'null']);
+  assert.deepEqual(item.properties.ownerShiftLabel.type, ['string', 'null']);
+  assert.deepEqual(request.required, ['expectedStatus', 'expectedOwnerShiftId']);
+  assert.deepEqual(request.properties.expectedOwnerShiftId.type, ['integer', 'null']);
+});
+
 test('OpenAPI contracts current-shift shipper listing and assignment', async () => {
   const contract = await readFile(contractUrl, 'utf8');
   assert.match(contract, /^  \/staff\/orders\/shippers:$/m);

@@ -85,6 +85,27 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findByStatusAndStaffShift(String status, int shiftId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT o FROM Orders o WHERE o.orderStatus = :status AND o.staffShift.shiftId = :shiftId ORDER BY o.createdAt ASC, o.orderId ASC", Orders.class)
+                    .setParameter("status", status).setParameter("shiftId", shiftId).getResultList();
+        } finally { em.close(); }
+    }
+
+    public List<Orders> findHandoverEligible(int shiftId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT o FROM Orders o WHERE o.orderStatus IN ('CONFIRMED','PREPARING','READY','DELIVERY_FAILED') AND (o.staffShift IS NULL OR o.staffShift.shiftId <> :shiftId) ORDER BY COALESCE(o.deliveryFailedAt, o.readyAt, o.confirmedAt, o.createdAt) ASC, o.orderId ASC", Orders.class)
+                    .setParameter("shiftId", shiftId).getResultList();
+        } finally { em.close(); }
+    }
+
+    public long countActiveOwnership(EntityManager em, int shiftId) {
+        return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.staffShift.shiftId = :shiftId AND o.orderStatus IN ('CONFIRMED','PREPARING','READY','DELIVERY_FAILED')", Long.class)
+                .setParameter("shiftId", shiftId).getSingleResult();
+    }
+
     public List<Orders> findDeliveryFailureQueue() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

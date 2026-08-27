@@ -16,6 +16,11 @@ import entity.WorkShift;
 
 class WorkShiftPolicyTest {
     @Test
+    void checkoutConflictUsesExactContractMessage() {
+        assertEquals("Active order ownership must be handed over before check-out", new WorkShiftService.ActiveOwnershipConflict(2).getMessage());
+    }
+
+    @Test
     void checkoutStartsAtShiftEnd() {
         LocalTime end = LocalTime.of(17, 0);
         assertFalse(WorkShiftService.canCheckOut(LocalTime.of(16, 59), end));

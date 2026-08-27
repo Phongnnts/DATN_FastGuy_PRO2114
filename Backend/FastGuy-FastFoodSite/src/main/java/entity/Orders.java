@@ -133,6 +133,10 @@ public class Orders {
     private User staff;
 
     @ManyToOne
+    @JoinColumn(name = "staff_shift_id")
+    private WorkShift staffShift;
+
+    @ManyToOne
     @JoinColumn(name = "shipper_id")
     private User shipper;
 
@@ -300,6 +304,8 @@ public class Orders {
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
     public User getStaff() { return staff; }
     public void setStaff(User staff) { this.staff = staff; }
+    public WorkShift getStaffShift() { return staffShift; }
+    public void setStaffShift(WorkShift staffShift) { this.staffShift = staffShift; }
     public User getShipper() { return shipper; }
     public void setShipper(User shipper) { this.shipper = shipper; }
     public LocalDateTime getAssignedAt() { return assignedAt; }

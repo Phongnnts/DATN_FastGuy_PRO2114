@@ -108,6 +108,7 @@ public class ShipperServlet extends HttpServlet {
             case SUCCESS -> 200;
             case CONFLICT -> 409;
             case UNPROCESSABLE -> 422;
+            case NOT_FOUND -> 404;
             case INVALID -> 400;
         };
     }

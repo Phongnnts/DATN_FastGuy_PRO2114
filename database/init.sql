@@ -243,6 +243,7 @@ CREATE TABLE dbo.Orders (
     guest_return_proof_hash varchar(64) NULL,
     order_status varchar(30) NOT NULL CONSTRAINT DF_Orders_Status DEFAULT 'PENDING',
     staff_id int NULL CONSTRAINT FK_Orders_Staff REFERENCES dbo.Users(user_id),
+    staff_shift_id int NULL,
     shipper_id int NULL CONSTRAINT FK_Orders_Shipper REFERENCES dbo.Users(user_id),
     assigned_at datetime2(0) NULL,
     confirmed_at datetime2(0) NULL,
@@ -512,6 +513,7 @@ CREATE TABLE dbo.CodSettlement (
 );
 CREATE INDEX IX_CodSettlement_StatusSubmittedAt ON dbo.CodSettlement(status, submitted_at DESC);
 CREATE INDEX IX_CodSettlement_ShipperSubmittedAt ON dbo.CodSettlement(shipper_id, submitted_at DESC);
+ALTER TABLE dbo.Orders WITH CHECK ADD CONSTRAINT FK_Orders_StaffShift FOREIGN KEY(staff_shift_id) REFERENCES dbo.WorkShift(shift_id);
 
 CREATE TABLE dbo.CouponRedemption (
     redemption_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_CouponRedemption PRIMARY KEY,
@@ -598,6 +600,7 @@ CREATE INDEX IX_CartItem_Product ON dbo.CartItem(product_id);
 CREATE INDEX IX_CartItem_Variant ON dbo.CartItem(variant_id);
 CREATE INDEX IX_Orders_User ON dbo.Orders(user_id);
 CREATE INDEX IX_Orders_Staff_Status ON dbo.Orders(staff_id, order_status);
+CREATE INDEX IX_Orders_StaffShift_Status ON dbo.Orders(staff_shift_id, order_status);
 CREATE INDEX IX_Orders_Shipper_Status ON dbo.Orders(shipper_id, order_status);
 CREATE INDEX IX_Orders_Status_Created ON dbo.Orders(order_status, created_at);
 CREATE INDEX IX_InventoryItem_ActiveType ON dbo.InventoryItem(active, item_type);
@@ -621,6 +624,14 @@ CREATE INDEX IX_Review_ProductCreatedAt ON dbo.Review(product_id, created_at DES
 CREATE INDEX IX_Review_FeaturedCreatedAt ON dbo.Review(is_featured, created_at DESC) WHERE is_featured = 1;
 CREATE INDEX IX_OrderStatusHistory_Order_Created ON dbo.OrderStatusHistory(order_id, created_at);
 CREATE INDEX IX_OrderStatusHistory_Actor ON dbo.OrderStatusHistory(actor_user_id);
+GO
+CREATE OR ALTER TRIGGER dbo.TR_Orders_AssignmentRoleGuard ON dbo.Orders AFTER INSERT, UPDATE AS
+BEGIN
+    SET NOCOUNT ON;
+    IF EXISTS (SELECT 1 FROM inserted i LEFT JOIN dbo.Users u ON u.user_id=i.staff_id WHERE i.staff_id IS NOT NULL AND (u.user_id IS NULL OR u.role_name NOT IN ('STAFF','ADMIN'))) THROW 51413, 'Orders.staff_id must reference STAFF or ADMIN.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i LEFT JOIN dbo.Users u ON u.user_id=i.shipper_id WHERE i.shipper_id IS NOT NULL AND (u.user_id IS NULL OR u.role_name<>'SHIPPER')) THROW 51414, 'Orders.shipper_id must reference SHIPPER.', 1;
+    IF EXISTS (SELECT 1 FROM inserted i LEFT JOIN dbo.WorkShift ws ON ws.shift_id=i.staff_shift_id LEFT JOIN dbo.Users u ON u.user_id=ws.user_id WHERE i.staff_shift_id IS NOT NULL AND (ws.shift_id IS NULL OR u.user_id IS NULL OR u.role_name<>'STAFF')) THROW 51420, 'Orders.staff_shift_id must reference a STAFF shift.', 1;
+END;
 GO
 
 SET NOCOUNT ON;

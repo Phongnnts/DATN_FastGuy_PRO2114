@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -82,12 +83,30 @@ public class StaffOrderServlet extends HttpServlet {
         return result;
     }
 
+    static Map<String, Object> validateHandoverPayload(Map<String, Object> body) {
+        if (body == null || !body.keySet().equals(Set.of("expectedStatus", "expectedOwnerShiftId"))
+                || !(body.get("expectedStatus") instanceof String status)
+                || !Set.of("CONFIRMED", "PREPARING", "READY", "DELIVERY_FAILED").contains(status)) return null;
+        Object rawOwner = body.get("expectedOwnerShiftId");
+        Integer owner = null;
+        if (rawOwner != null) {
+            try { owner = new java.math.BigDecimal(rawOwner.toString()).intValueExact(); }
+            catch (ArithmeticException | NumberFormatException e) { return null; }
+            if (owner < 1) return null;
+        }
+        Map<String, Object> result = new HashMap<>();
+        result.put("expectedStatus", status);
+        result.put("expectedOwnerShiftId", owner);
+        return result;
+    }
+
     private static int statusFor(OrderTransitionService.MutationResult result) {
         return switch (result) {
             case SUCCESS -> 200;
             case CONFLICT -> 409;
             case UNPROCESSABLE -> 422;
             case INVALID -> 400;
+            case NOT_FOUND -> 404;
         };
     }
 
@@ -248,20 +267,26 @@ public class StaffOrderServlet extends HttpServlet {
                 List<Orders> orders = staffOrderService.getPendingOrders();
                 List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
+            } else if (path.equals("/ownership-count")) {
+                ApiResponse.ok(resp, Map.of("activeOwnershipCount", staffOrderService.getActiveOwnershipCount(staffId)));
+            } else if (path.equals("/handover")) {
+                List<Orders> orders = staffOrderService.getHandoverOrders(staffId);
+                Map<Integer, Integer> itemCounts = orderItemDAO.countItemsByOrderIds(orders.stream().map(Orders::getOrderId).toList());
+                ApiResponse.ok(resp, orders.stream().map(o -> toHandoverItem(o, itemCounts.getOrDefault(o.getOrderId(), 0))).toList());
             } else if (path.equals("/confirmed")) {
-                List<Orders> orders = staffOrderService.getConfirmedOrders();
+                List<Orders> orders = staffOrderService.getConfirmedOrders(staffId);
                 List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
             } else if (path.equals("/preparing")) {
-                List<Orders> orders = staffOrderService.getPreparingOrders();
+                List<Orders> orders = staffOrderService.getPreparingOrders(staffId);
                 List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
             } else if (path.equals("/ready")) {
-                List<Orders> orders = staffOrderService.getReadyOrders();
+                List<Orders> orders = staffOrderService.getReadyOrders(staffId);
                 List<Map<String, Object>> result = orders.stream().map(o -> toListItem(o)).collect(Collectors.toList());
                 ApiResponse.ok(resp, result);
             } else if (path.equals("/delivery-failures")) {
-                ApiResponse.ok(resp, staffOrderService.getDeliveryFailureQueue().stream().map(o -> toFailureQueueItem(o, toListItem(o))).collect(Collectors.toList()));
+                ApiResponse.ok(resp, staffOrderService.getDeliveryFailureQueue(staffId).stream().map(o -> toFailureQueueItem(o, toListItem(o))).collect(Collectors.toList()));
             } else if (path.equals("/history")) {
                 HistoryFilter filter = getHistoryFilter(req);
                 List<Orders> orders = ordersDAO.findStaffHistory(filter.page(), filter.size(), filter.status(), filter.from(), filter.to(), filter.search());
@@ -360,6 +385,7 @@ public class StaffOrderServlet extends HttpServlet {
             case CONFLICT -> 409;
             case UNPROCESSABLE -> 422;
             case INVALID -> 400;
+            case NOT_FOUND -> 404;
         };
     }
 
@@ -390,7 +416,16 @@ public class StaffOrderServlet extends HttpServlet {
         }
         String action = parts[2];
 
-        if ("status".equals(action)) {
+        if ("handover".equals(action)) {
+            Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), Map.class);
+            Map<String, Object> payload = validateHandoverPayload(body);
+            if (payload == null) { ApiResponse.error(resp, "Invalid handover payload", 400); return; }
+            OrderTransitionService.MutationResult result = staffOrderService.claimHandover(orderId, staffId,
+                    (String) payload.get("expectedStatus"), (Integer) payload.get("expectedOwnerShiftId"));
+            int status = statusFor(result);
+            if (status == 200) ApiResponse.ok(resp, null, "Handover claimed");
+            else ApiResponse.error(resp, status == 409 ? CONFLICT_MESSAGE : status == 404 ? "Order not found" : "Cannot claim handover", status);
+        } else if ("status".equals(action)) {
             Map<String, Object> body = utils.JsonUtil.fromJson(req.getReader(), Map.class);
             if (body == null) {
                 ApiResponse.error(resp, "Invalid data", 400);
@@ -502,6 +537,20 @@ public class StaffOrderServlet extends HttpServlet {
         return value == null ? null : value.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 
+    private Map<String, Object> toHandoverItem(Orders o, int itemCount) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("orderId", o.getOrderId());
+        m.put("orderCode", o.getOrderCode());
+        m.put("status", o.getOrderStatus());
+        m.put("customerName", o.getCustomerName());
+        m.put("itemCount", itemCount);
+        m.put("waitingSince", format("DELIVERY_FAILED".equals(o.getOrderStatus()) ? o.getDeliveryFailedAt() : "READY".equals(o.getOrderStatus()) ? o.getReadyAt() : o.getConfirmedAt() != null ? o.getConfirmedAt() : o.getCreatedAt()));
+        m.put("staffShiftId", o.getStaffShift() == null ? null : o.getStaffShift().getShiftId());
+        m.put("ownerShiftLabel", o.getStaffShift() == null ? null : "Shift " + o.getStaffShift().getShiftId());
+        m.put("handoverRequired", true);
+        return m;
+    }
+
     private Map<String, Object> toListItem(Orders o) {
         Map<String, Object> m = new HashMap<>();
         m.put("orderId", o.getOrderId());
@@ -535,6 +584,10 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("finalAmount", o.getFinalAmount());
         m.put("refundAmount", o.getRefundAmount());
         m.put("refundedAt", o.getRefundedAt());
+        m.put("staffShiftId", o.getStaffShift() != null ? o.getStaffShift().getShiftId() : null);
+        m.put("ownerShiftLabel", o.getStaffShift() != null ? "Shift " + o.getStaffShift().getShiftId() : null);
+        String ownershipStatus = o.getOrderStatus();
+        m.put("handoverRequired", o.getStaffShift() == null && ("CONFIRMED".equals(ownershipStatus) || "PREPARING".equals(ownershipStatus) || "READY".equals(ownershipStatus) || "DELIVERY_FAILED".equals(ownershipStatus)));
         m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);
         m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
@@ -575,6 +628,10 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("deliveryFailedAt", o.getDeliveryFailedAt() != null ? o.getDeliveryFailedAt().toString() : null);
         m.put("retryScheduledAt", o.getRetryScheduledAt() != null ? o.getRetryScheduledAt().toString() : null);
         m.put("returnedToStoreAt", o.getReturnedToStoreAt() != null ? o.getReturnedToStoreAt().toString() : null);
+        m.put("staffShiftId", o.getStaffShift() != null ? o.getStaffShift().getShiftId() : null);
+        m.put("ownerShiftLabel", o.getStaffShift() != null ? "Shift " + o.getStaffShift().getShiftId() : null);
+        String ownershipStatus = o.getOrderStatus();
+        m.put("handoverRequired", o.getStaffShift() == null && ("CONFIRMED".equals(ownershipStatus) || "PREPARING".equals(ownershipStatus) || "READY".equals(ownershipStatus) || "DELIVERY_FAILED".equals(ownershipStatus)));
         m.put("shipperId", o.getShipper() != null ? o.getShipper().getUserId() : null);
         m.put("shipperName", o.getShipper() != null ? o.getShipper().getFullName() : null);
         m.put("assignedAt", o.getAssignedAt() != null ? o.getAssignedAt().toString() : null);
