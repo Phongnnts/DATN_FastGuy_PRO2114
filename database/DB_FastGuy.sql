@@ -20,6 +20,7 @@ CREATE TABLE dbo.SchemaMigrationHistory (
 );
 INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
     ('000_preflight_history', N'Canonical fresh schema baseline'),
+    ('042_login_bruteforce_lock', N'Canonical fresh schema baseline'),
     ('059_shift_schedule_order_timeout', N'Canonical fresh schema baseline'),
     ('060_operating_finance', N'Canonical fresh schema baseline');
 

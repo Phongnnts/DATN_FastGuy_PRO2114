@@ -32,6 +32,7 @@ CREATE TABLE dbo.SchemaMigrationHistory (
 );
 INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
     ('000_preflight_history', N'Canonical fresh schema baseline'),
+    ('042_login_bruteforce_lock', N'Canonical fresh schema baseline'),
     ('059_shift_schedule_order_timeout', N'Canonical fresh schema baseline'),
     ('060_operating_finance', N'Canonical fresh schema baseline');
 
@@ -129,6 +130,9 @@ CREATE TABLE dbo.Users (
     favorite_ids_json nvarchar(max) NOT NULL CONSTRAINT DF_Users_Favorites DEFAULT N'[]',
     created_at datetime2(0) NOT NULL CONSTRAINT DF_Users_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_Users_Updated DEFAULT GETDATE(),
+    failed_login_attempts int NOT NULL CONSTRAINT DF_Users_FailedLoginAttempts DEFAULT 0,
+    locked_until datetime2(0) NULL,
+    CONSTRAINT CK_Users_FailedLoginAttempts CHECK (failed_login_attempts >= 0),
     CONSTRAINT CK_Users_Role CHECK (role_name IN ('ADMIN', 'STAFF', 'SHIPPER', 'USER')),
     CONSTRAINT CK_Users_Status CHECK (status IN ('ACTIVE', 'INACTIVE', 'BLOCKED')),
     CONSTRAINT CK_Users_Loyalty CHECK (loyalty_points >= 0)

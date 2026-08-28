@@ -17,7 +17,10 @@ class CanonicalMigrationHistoryPolicyTest {
             String source = Files.readString(Path.of("../../database/" + file));
             String normalized = source.lines().map(line -> line.stripLeading()).reduce((a, b) -> a + "\n" + b).orElseThrow();
             assertTrue(normalized.contains(ddl), file + " exact history schema");
-            for (String id : new String[] { "000_preflight_history", "059_shift_schedule_order_timeout", "060_operating_finance" }) assertEquals(1, occurrences(source, "('" + id + "', N'Canonical fresh schema baseline')"), file + " " + id);
+            for (String id : new String[] { "000_preflight_history", "042_login_bruteforce_lock", "059_shift_schedule_order_timeout", "060_operating_finance" }) assertEquals(1, occurrences(source, "('" + id + "', N'Canonical fresh schema baseline')"), file + " " + id);
+            assertTrue(source.contains("failed_login_attempts int NOT NULL"), file + " failed_login_attempts");
+            assertTrue(source.contains("locked_until datetime2(0) NULL"), file + " locked_until");
+            assertTrue(source.contains("CK_Users_FailedLoginAttempts CHECK (failed_login_attempts >= 0)"), file + " login lock check");
         }
         String init = Files.readString(Path.of("../../database/init.sql"));
         assertTrue(init.contains("('SchemaMigrationHistory')"));
