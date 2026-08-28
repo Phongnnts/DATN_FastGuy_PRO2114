@@ -36,11 +36,17 @@ test('admin monitoring refreshes every 30 seconds and rejects stale generations'
   assert.match(adminPage, /role="alert"/);
 });
 
-test('staff weekly table preserves controls and exposes source plus automatic countdown', () => {
+test('staff split calendar selects assigned days and exposes day details', () => {
   assert.match(staffPage, /shiftApi\.getWeek\(weekStart\.value\)/);
-  assert.match(staffPage, /v-for="day in days"/);
-  assert.match(staffPage, /isToday/);
-  assert.match(staffPage, /isCurrent/);
+  assert.match(staffPage, /calendarDays/);
+  assert.match(staffPage, /selectedDateKey/);
+  assert.match(staffPage, /selectDay/);
+  assert.match(staffPage, /hasShifts/);
+  assert.match(staffPage, /class="calendar-day"/);
+  assert.match(staffPage, /:aria-pressed="selectedDateKey === day\.key"/);
+  assert.match(staffPage, /aria-label="Lịch tháng và chi tiết ca"/);
+  assert.match(staffPage, /Lịch trong ngày/);
+  assert.match(staffPage, /v-for="shift in selectedShifts"/);
   assert.match(staffPage, /MANUAL/);
   assert.match(staffPage, /AUTO/);
   assert.match(staffPage, /countdown/);
@@ -48,4 +54,5 @@ test('staff weekly table preserves controls and exposes source plus automatic co
   assert.match(staffPage, /shiftApi\.checkIn/);
   assert.match(staffPage, /shiftApi\.checkOut/);
   assert.match(staffPage, /aria-live="polite"/);
+  assert.match(staffPage, /@media\s*\(max-width:\s*900px\)/);
 });
