@@ -68,7 +68,8 @@ class StaffOrderServletBehaviorTest {
                 "refundedAt", "shipperId", "shipperName", "assignedAt", "updatedAt", "endedAt", "createdAt",
                 "deliveryAttemptCount", "deliveryAttemptLimit", "deliveryFailureCode", "failureNote",
                 "deliveryFailedAt", "retryScheduledAt", "returnedToStoreAt", "readyAt", "classification",
-                "minutesUntilClose", "staffShiftId", "ownerShiftLabel", "handoverRequired");
+                "minutesUntilClose", "staffShiftId", "ownerShiftLabel", "handoverRequired", "statusEnteredAt",
+                "expiresAt", "remainingSeconds", "timeoutPolicy", "ownerShiftCode");
         Set<String> actualKeys = new java.util.HashSet<>();
         item.fieldNames().forEachRemaining(actualKeys::add);
         assertEquals(expectedKeys, actualKeys);
@@ -91,6 +92,13 @@ class StaffOrderServletBehaviorTest {
     void dispatchStillRequiresCheckedInShift() {
         assertTrue(StaffOrderServlet.requiresCheckedInShift("GET", "/dispatch"));
         assertFalse(StaffOrderServlet.hasRouteAccess("GET", "/dispatch", true, false));
+    }
+
+    @Test
+    void ownershipCountRequiresActiveStaffButNotCheckedInShift() {
+        assertFalse(StaffOrderServlet.requiresCheckedInShift("GET", "/ownership-count"));
+        assertTrue(StaffOrderServlet.hasRouteAccess("GET", "/ownership-count", true, false));
+        assertFalse(StaffOrderServlet.hasRouteAccess("GET", "/ownership-count", false, false));
     }
 
     @Test
@@ -137,7 +145,7 @@ class StaffOrderServletBehaviorTest {
         ResponseCapture capture = new ResponseCapture();
         servlet.get(request("GET", "/handover", null), response(capture));
         JsonNode item = JsonUtil.getMapper().readTree(capture.body.toString()).path("data").get(0);
-        for (String field : List.of("orderId", "orderCode", "status", "customerName", "itemCount", "waitingSince", "staffShiftId", "ownerShiftLabel", "handoverRequired")) assertTrue(item.has(field), field);
+        for (String field : List.of("orderId", "orderCode", "status", "customerName", "itemCount", "waitingSince", "staffShiftId", "ownerShiftLabel", "ownerShiftCode", "handoverRequired")) assertTrue(item.has(field), field);
         assertTrue(item.path("staffShiftId").isNull());
         assertTrue(item.path("handoverRequired").asBoolean());
     }

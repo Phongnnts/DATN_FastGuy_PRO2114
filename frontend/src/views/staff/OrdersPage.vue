@@ -1,12 +1,14 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStaffStore } from '@/stores/staff';
+import { storeApi } from '@/api';
 import { formatPrice, formatDate } from '@/utils/format';
+import { createServerCountdown, formatRemaining } from '@/utils/staffTimeout';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import { acceptsKitchenRequest, matchesKitchenSearch, waitingDuration } from '@/utils/staffKitchen';
 import { DELIVERY_FAILURE_REASON_LABEL } from '@/utils/constants';
-import { focusAfterUnlock, handoverFocusTarget, nextTabIndex } from '@/utils/staffHandover';
+import { nextTabIndex } from '@/utils/staffHandover';
 
 const route = useRoute();
 const router = useRouter();
@@ -26,13 +28,11 @@ const tabs = [
   { key: 'PREPARING', label: 'Đang chế biến' },
   { key: 'READY', label: 'Sẵn sàng giao' },
   { key: 'DELIVERY_FAILED', label: 'Giao chưa thành công' },
-  { key: 'HANDOVER', label: 'Bàn giao' },
 ];
-const claimingOrderId = ref(null);
-const claimStatus = ref('');
 const tabButtons = ref([]);
-const claimButtons = ref([]);
-const handoverCount = computed(() => staffStore.handoverItems.length);
+const orderCutoffTime = ref('');
+const now = ref(Date.now());
+const refreshedAtZero = new Set();
 const staleErrors = ref(Object.fromEntries(tabs.map((tab) => [tab.key, ''])));
 const staleError = computed(() => staleErrors.value[activeTab.value]);
 
@@ -50,15 +50,14 @@ async function refresh({ silent = false } = {}) {
   const currentGeneration = ++requestGeneration;
   inFlight.value = true;
   try {
-    const nextRows = requestTab === 'HANDOVER'
-      ? await staffStore.fetchHandoverOrders()
-      : await staffStore.fetchKitchenOrders(requestTab);
+    const nextRows = await staffStore.fetchKitchenOrders(requestTab);
     if (!acceptsKitchenRequest({ requestGeneration: currentGeneration, latestGeneration: requestGeneration, requestTab, activeTab: activeTab.value })) return;
     staleErrors.value[requestTab] = '';
     rows.value = nextRows;
     loadedTab.value = requestTab;
     lastUpdated.value = new Date();
   } catch (error) {
+    if ([409, 410].includes(error.status)) queuedRefresh = { silent: true };
     if (acceptsKitchenRequest({ requestGeneration: currentGeneration, latestGeneration: requestGeneration, requestTab, activeTab: activeTab.value })) {
       staleErrors.value[requestTab] = error.message || 'Không thể tải danh sách đơn hàng';
       if (!silent) loadedTab.value = null;
@@ -83,7 +82,7 @@ function onTabKeydown(event, index) {
 
 async function switchTab(tab) {
   activeTab.value = normalizedTab(tab);
-  if (activeTab.value !== 'HANDOVER' && staffStore.kitchenQueues[activeTab.value]) {
+  if (staffStore.kitchenQueues[activeTab.value]) {
     rows.value = staffStore.kitchenQueues[activeTab.value];
     loadedTab.value = activeTab.value;
   }
@@ -93,11 +92,9 @@ async function switchTab(tab) {
 
 const filteredOrders = computed(() => {
   return rows.value
-    .filter((order) => activeTab.value === 'HANDOVER' || order.status === activeTab.value)
+    .filter((order) => order.status === activeTab.value)
     .filter((order) => matchesKitchenSearch(order, searchTerm.value))
-    .sort((a, b) => activeTab.value === 'HANDOVER'
-      ? new Date(a.waitingSince || 0) - new Date(b.waitingSince || 0)
-      : new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
 });
 
 function isOverdue(order) {
@@ -119,37 +116,8 @@ function goDetail(id) {
   router.push(`/staff/orders/${id}`);
 }
 
-async function claimHandover(order) {
-  if (claimingOrderId.value !== null) return;
-  claimingOrderId.value = order.id;
-  claimStatus.value = '';
-  const previousRows = filteredOrders.value;
-  const removedIndex = previousRows.findIndex((item) => item.id === order.id);
-  let focusTarget = null;
-  try {
-    await staffStore.claimHandover(order.id);
-    rows.value = rows.value.filter((item) => item.id !== order.id);
-    claimStatus.value = `${order.orderCode || 'Đơn hàng'} đã chuyển vào hàng đợi ${order.status}.`;
-    focusTarget = handoverFocusTarget(removedIndex, previousRows.length);
-  } catch (error) {
-    if (error.status === 409) {
-      rows.value = [...staffStore.handoverItems];
-      claimStatus.value = 'Đơn hàng đã thay đổi. Danh sách bàn giao đã được tải lại.';
-      const canonicalIndex = rows.value.findIndex((item) => item.id === order.id);
-      focusTarget = rows.value.length
-        ? { type: 'claim', index: canonicalIndex >= 0 ? canonicalIndex : Math.min(removedIndex, rows.value.length - 1) }
-        : { type: 'tab' };
-    } else claimStatus.value = error.message || 'Không thể nhận bàn giao';
-  } finally {
-    await focusAfterUnlock(
-      () => { claimingOrderId.value = null; },
-      nextTick,
-      () => {
-        if (focusTarget?.type === 'claim') claimButtons.value[focusTarget.index]?.focus();
-        else if (focusTarget?.type === 'tab') tabButtons.value[tabs.findIndex((tab) => tab.key === 'HANDOVER')]?.focus();
-      },
-    );
-  }
+function remaining(order) {
+  return createServerCountdown(order, new Date(order.receivedAt || now.value).getTime()).remaining(now.value);
 }
 
 watch(() => route.query.tab, async (value) => {
@@ -161,15 +129,14 @@ watch(() => route.query.tab, async (value) => {
 
 onMounted(async () => {
   activeTab.value = normalizedTab(route.query.tab);
-  if (activeTab.value !== 'HANDOVER') staffStore.fetchHandoverOrders().catch(() => {});
-  if (route.query.tab !== activeTab.value) {
-    await router.replace({ query: { ...route.query, tab: activeTab.value } });
-  }
+  if (route.query.tab !== activeTab.value) await router.replace({ query: { ...route.query, tab: activeTab.value } });
+  try { orderCutoffTime.value = (await storeApi.getConfig())?.orderCutoffTime || ''; } catch {}
   await refresh();
   refreshTimer = setInterval(() => {
-    refresh({ silent: true });
-    if (activeTab.value !== 'HANDOVER') staffStore.fetchHandoverOrders().catch(() => {});
-  }, 30000);
+    now.value = Date.now();
+    const expired = rows.value.find((order) => order.remainingSeconds != null && remaining(order) === 0 && !refreshedAtZero.has(order.id));
+    if (expired) { refreshedAtZero.add(expired.id); refresh({ silent: true }); }
+  }, 1000);
 });
 
 onUnmounted(() => clearInterval(refreshTimer));
@@ -180,7 +147,7 @@ onUnmounted(() => clearInterval(refreshTimer));
     <div class="page-header">
       <div>
         <h1>Quản lý đơn hàng</h1>
-        <p>Ưu tiên đơn theo thời gian tạo.</p>
+        <p>Ưu tiên đơn theo thời gian tạo.</p><p v-if="orderCutoffTime" class="cutoff-banner">Nhận đơn đến {{ orderCutoffTime }}.</p>
       </div>
       <label class="search-box">
         <span class="sr-only">Tìm mã đơn, tên hoặc số điện thoại khách hàng</span>
@@ -190,38 +157,33 @@ onUnmounted(() => clearInterval(refreshTimer));
     </div>
     <div class="card card-flat">
       <div class="tabs" role="tablist" aria-label="Trạng thái đơn hàng">
-        <button v-for="(tab, index) in tabs" :id="`kitchen-tab-${tab.key}`" :key="tab.key" :ref="(el) => { if (el) tabButtons[index] = el; }" class="tab" :class="{ active: activeTab === tab.key }" role="tab" :tabindex="activeTab === tab.key ? 0 : -1" :aria-controls="`kitchen-panel-${tab.key}`" :aria-selected="activeTab === tab.key" @keydown="onTabKeydown($event, index)" @click="switchTab(tab.key)">{{ tab.label }}<span v-if="tab.key === 'HANDOVER' && handoverCount" class="tab-count">{{ handoverCount }}</span></button>
+        <button v-for="(tab, index) in tabs" :id="`kitchen-tab-${tab.key}`" :key="tab.key" :ref="(el) => { if (el) tabButtons[index] = el; }" class="tab" :class="{ active: activeTab === tab.key }" role="tab" :tabindex="activeTab === tab.key ? 0 : -1" :aria-controls="`kitchen-panel-${tab.key}`" :aria-selected="activeTab === tab.key" @keydown="onTabKeydown($event, index)" @click="switchTab(tab.key)">{{ tab.label }}</button>
       </div>
       <section :id="`kitchen-panel-${activeTab}`" role="tabpanel" :aria-labelledby="`kitchen-tab-${activeTab}`">
-      <p class="sr-only" aria-live="polite">{{ claimStatus }}</p>
-      <div v-if="activeTab === 'HANDOVER' && staffStore.handoverError" class="stale-status" role="alert">
-        <span>{{ staffStore.handoverError }}</span>
-        <button class="btn btn-sm btn-outline" @click="refresh()">Thử lại</button>
-      </div>
-      <div v-else-if="staleError" class="stale-status" role="alert">
+      <div v-if="staleError" class="stale-status" role="alert">
         <span>Dữ liệu có thể đã cũ. {{ staleError }}</span>
         <button class="btn btn-sm btn-outline" @click="refresh()">Thử lại</button>
       </div>
       <p v-if="lastUpdated" class="updated-at" aria-live="polite">Cập nhật lúc {{ formatDate(lastUpdated) }}<span v-if="inFlight"> · Đang làm mới...</span></p>
-      <div v-if="(inFlight || staffStore.handoverLoading) && loadedTab !== activeTab" class="staff-state"><span class="spinner"></span> {{ activeTab === 'HANDOVER' ? 'Đang tải đơn cần bàn giao...' : 'Đang tải đơn hàng...' }}</div>
+      <div v-if="inFlight && loadedTab !== activeTab" class="staff-state"><span class="spinner"></span> Đang tải đơn hàng...</div>
       <div v-else-if="filteredOrders.length" class="table-wrapper">
         <table class="table">
-          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Sản phẩm</th><th v-if="activeTab !== 'HANDOVER'">Tổng tiền</th><th>Chờ</th><th>Trạng thái</th><th v-if="activeTab === 'HANDOVER'">Ca sở hữu</th><th></th></tr></thead>
+          <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Sản phẩm</th><th>Tổng tiền</th><th>Chờ</th><th>Hạn xử lý</th><th>Trạng thái</th><th></th></tr></thead>
           <tbody>
             <tr v-for="(order, index) in filteredOrders" :key="order.id" :class="{ overdue: isOverdue(order) }">
               <td data-label="Mã đơn"><router-link :to="`/staff/orders/${order.id}`" class="order-link">{{ order.orderCode }}</router-link></td>
               <td data-label="Khách hàng"><strong>{{ order.customerName || 'Khách vãng lai' }}</strong><a v-if="order.customerPhone" class="customer-phone" :href="`tel:${order.customerPhone}`">{{ order.customerPhone }}</a></td>
               <td data-label="Sản phẩm"><span>{{ order.itemCount }} món</span><small v-if="modifierSummary(order)" class="modifier-summary">{{ modifierSummary(order) }}</small><template v-if="order.status === 'DELIVERY_FAILED'"><small><strong>{{ DELIVERY_FAILURE_REASON_LABEL[order.deliveryFailureCode] || order.deliveryFailureCode }}</strong></small><small v-if="order.failureNote">{{ order.failureNote }}</small><small>{{ formatDate(order.deliveryFailedAt) }} · Lần {{ order.deliveryAttemptCount }} / {{ order.deliveryAttemptLimit }}</small><small v-if="order.retryScheduledAt">Lịch giao lại {{ formatDate(order.retryScheduledAt) }}</small></template></td>
-              <td v-if="activeTab !== 'HANDOVER'" data-label="Tổng tiền">{{ formatPrice(order.total) }}</td>
+              <td data-label="Tổng tiền">{{ formatPrice(order.total) }}</td>
               <td data-label="Chờ"><span :class="{ 'overdue-label': isOverdue(order) }"><i v-if="isOverdue(order)" class="bi bi-exclamation-triangle-fill"></i> {{ waitingDuration(order.waitingSince || order.createdAt) }}</span><small v-if="order.waitingSince || order.createdAt">{{ formatDate(order.waitingSince || order.createdAt) }}</small></td>
+              <td data-label="Hạn xử lý"><span v-if="order.remainingSeconds != null">{{ formatRemaining(remaining(order)) }}</span><small v-if="order.expiresAt">{{ formatDate(order.expiresAt) }}</small></td>
               <td data-label="Trạng thái"><OrderStatusBadge :status="order.status" /></td>
-              <td v-if="activeTab === 'HANDOVER'" data-label="Ca sở hữu">{{ order.ownerShiftLabel || 'Chưa có ca sở hữu' }}</td>
-              <td><button v-if="activeTab === 'HANDOVER'" :ref="(el) => { if (el) claimButtons[index] = el; }" class="btn btn-sm btn-primary claim-button" :disabled="claimingOrderId !== null" @click="claimHandover(order)">{{ claimingOrderId === order.id ? 'Đang nhận...' : 'Nhận bàn giao' }}</button><button v-else class="btn btn-sm btn-ghost" :aria-label="`Mở ${order.orderCode}`" @click="goDetail(order.id)"><i class="bi bi-chevron-right"></i></button></td>
+              <td><button class="btn btn-sm btn-ghost" :aria-label="`Mở ${order.orderCode}`" @click="goDetail(order.id)"><i class="bi bi-chevron-right"></i></button></td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div v-else-if="loadedTab === activeTab" class="empty-state"><i class="bi bi-receipt"></i><h3>{{ activeTab === 'HANDOVER' ? 'Không có đơn cần bàn giao' : 'Không có đơn trong hàng đợi' }}</h3><p>{{ activeTab === 'HANDOVER' ? 'Ca hiện tại đã nhận hết đơn cần tiếp quản.' : 'Đơn mới sẽ xuất hiện tại đây.' }}</p></div>
+      <div v-else-if="loadedTab === activeTab" class="empty-state"><i class="bi bi-receipt"></i><h3>Không có đơn trong hàng đợi</h3><p>Đơn mới sẽ xuất hiện tại đây.</p></div>
       </section>
     </div>
   </div>

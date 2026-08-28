@@ -106,6 +106,16 @@ public class OrdersDAO {
                 .setParameter("shiftId", shiftId).getSingleResult();
     }
 
+    public long countActiveOwnership(int shiftId) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try { return countActiveOwnership(em, shiftId); } finally { em.close(); }
+    }
+
+    public List<Orders> lockActiveOwnership(EntityManager em, int shiftId) {
+        return em.createQuery("SELECT o FROM Orders o WHERE o.staffShift.shiftId = :shiftId AND o.orderStatus IN ('CONFIRMED','PREPARING','READY','DELIVERY_FAILED') ORDER BY o.orderId", Orders.class)
+                .setParameter("shiftId", shiftId).setLockMode(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE).getResultList();
+    }
+
     public List<Orders> findDeliveryFailureQueue() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -139,6 +149,25 @@ public class OrdersDAO {
             return em.createQuery(
                     "SELECT o FROM Orders o WHERE o.orderStatus = 'READY' AND o.shipper IS NULL AND o.createdAt IS NOT NULL ORDER BY o.createdAt ASC, o.orderId ASC",
                     Orders.class).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findExpiryCandidates(LocalDateTime oldestStatusEnteredAt) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT o FROM Orders o WHERE o.orderStatus IN ('PENDING','CONFIRMED','PREPARING','READY') AND o.statusEnteredAt <= :oldest ORDER BY o.statusEnteredAt, o.orderId", Orders.class)
+                    .setParameter("oldest", oldestStatusEnteredAt).getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Orders> findCutoffCandidates() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT o FROM Orders o WHERE o.orderStatus IN ('PENDING','CONFIRMED','PREPARING','READY') ORDER BY o.statusEnteredAt, o.orderId", Orders.class).getResultList();
         } finally {
             em.close();
         }
@@ -549,6 +578,10 @@ public class OrdersDAO {
     }
 
     public double sumRevenueByDateRange(LocalDateTime start, LocalDateTime end) {
+        return sumRevenueDecimalByDateRange(start, end).doubleValue();
+    }
+
+    public BigDecimal sumRevenueDecimalByDateRange(LocalDateTime start, LocalDateTime end) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             BigDecimal result = em.createQuery(
@@ -557,7 +590,7 @@ public class OrdersDAO {
                     .setParameter("start", start)
                     .setParameter("end", end)
                     .getSingleResult();
-            return result != null ? result.doubleValue() : 0.0;
+            return result != null ? result : BigDecimal.ZERO;
         } finally {
             em.close();
         }
@@ -644,6 +677,10 @@ public class OrdersDAO {
     }
 
     public double sumRefundsInRange(LocalDateTime start, LocalDateTime end) {
+        return sumRefundsDecimalInRange(start, end).doubleValue();
+    }
+
+    public BigDecimal sumRefundsDecimalInRange(LocalDateTime start, LocalDateTime end) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             BigDecimal result = em.createQuery(
@@ -652,7 +689,7 @@ public class OrdersDAO {
                     .setParameter("start", start)
                     .setParameter("end", end)
                     .getSingleResult();
-            return result != null ? result.doubleValue() : 0.0;
+            return result != null ? result : BigDecimal.ZERO;
         } finally {
             em.close();
         }

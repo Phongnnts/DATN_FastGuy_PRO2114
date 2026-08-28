@@ -9,6 +9,8 @@ const root = new URL('../../', import.meta.url);
 const script = readFileSync(new URL('scripts/run-staff-dispatch-real-e2e.ps1', root), 'utf8');
 const spec = readFileSync(new URL('frontend/tests/e2e/staff-dispatch-real-backend.spec.js', root), 'utf8');
 const scriptPath = new URL('../../scripts/run-staff-dispatch-real-e2e.ps1', import.meta.url).pathname.slice(1);
+const operationsScript = readFileSync(new URL('scripts/run-operations-real-e2e.ps1', root), 'utf8');
+const operationsSpec = readFileSync(new URL('frontend/tests/e2e/operations-real-backend.spec.js', root), 'utf8');
 
 function runSafetyPathTest(target) {
   const command = String.raw`
@@ -112,6 +114,30 @@ test('real E2E safety self-test restores exact set and unset environment values'
   ], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stdout, /Environment restoration self-test passed/);
+});
+
+test('operations harness is disposable, target locked, desktop role scoped, and always cleans fixtures', () => {
+  assert.match(operationsScript, /FASTGUY_DISPOSABLE_DB -ne 'true'/);
+  assert.match(operationsScript, /FastGuyDB_Operations060_Test/);
+  assert.match(operationsScript, /DB_URL','DB_USER','DB_PASSWORD/);
+  assert.match(script, /New-RandomSecret/);
+  assert.match(script, /Invoke-Fixture 'cleanup'/);
+  assert.match(operationsScript, /-Operations -Project desktop-chrome/);
+  assert.match(operationsScript, /shipper-field-command\.spec\.js --project=desktop-chrome --project=mobile-chrome/);
+  assert.match(script, /if \(\$Operations\) \{ @\('desktop-chrome'\) \}/);
+});
+
+test('operations spec covers role matrix, API evidence, deterministic cutoff, and zero browser errors', () => {
+  for (const role of ['Admin', 'Staff', 'User', 'Guest']) assert.match(operationsSpec, new RegExp(`test\\('.*${role}`, 'i'));
+  assert.match(operationsSpec, /Lịch bảy ngày ba ca/);
+  assert.match(operationsSpec, /\/api\/admin\/shifts\/monitoring/);
+  assert.match(operationsSpec, /\/api\/admin\/operating-expenses/);
+  assert.match(operationsSpec, /\/api\/admin\/fixed-assets/);
+  assert.match(operationsSpec, /\/api\/admin\/reports\/operating-profit/);
+  assert.match(operationsSpec, /expiresAt/);
+  assert.match(operationsSpec, /Nhận đơn đến/);
+  assert.match(operationsSpec, /orderCutoffTime/);
+  assert.match(operationsSpec, /errors\)\.toEqual\(\[\]\)/);
 });
 
 test('real E2E assertions retain exact request contracts', () => {

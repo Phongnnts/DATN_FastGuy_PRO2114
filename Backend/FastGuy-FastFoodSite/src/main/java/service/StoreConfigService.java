@@ -17,6 +17,7 @@ public class StoreConfigService {
     public static final String SERVICE_FEE = "service_fee";
     public static final String LOW_STOCK_THRESHOLD = "low_stock_threshold";
     public static final int DEFAULT_LOW_STOCK_THRESHOLD = 5;
+    public static final LocalTime ORDER_CUTOFF_TIME = LocalTime.of(20, 45);
     public static final Set<String> GHN_KEYS = Set.of("ghn_from_district_id", "ghn_from_ward_code", "default_service_type_id", "default_weight", "default_length", "default_width", "default_height");
     private static final BigDecimal HUNDRED = new BigDecimal("100");
     private final Supplier<EntityManager> entityManagers;
@@ -56,6 +57,7 @@ public class StoreConfigService {
         result.put("isOpen", isOpen(openTime, closeTime, LocalTime.now()));
         result.put("openTime", openTime);
         result.put("closeTime", closeTime);
+        result.put("orderCutoffTime", ORDER_CUTOFF_TIME.toString());
         result.put("serviceFee", serviceFee);
         result.put("taxRate", parseFee(config.get("tax_rate")));
         result.put("deliveryFee", parseFee(config.get("delivery_fee")));
@@ -127,6 +129,10 @@ public class StoreConfigService {
         } finally {
             em.close();
         }
+    }
+
+    public static boolean acceptsCheckoutAt(LocalTime now) {
+        return now != null && now.isBefore(ORDER_CUTOFF_TIME);
     }
 
     public static boolean isOpen(String open, String close, LocalTime now) {

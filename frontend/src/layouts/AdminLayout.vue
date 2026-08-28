@@ -23,6 +23,8 @@ const sidebarLinks = [
   { label: 'Đối soát COD', path: '/admin/cod-settlements', icon: 'bi-cash-stack' },
   { label: 'Hoàn tiền', path: '/admin/refunds', icon: 'bi-arrow-return-left' },
   { label: 'Báo cáo', path: '/admin/reports', icon: 'bi-graph-up' },
+  { label: 'Chi phí vận hành', path: '/admin/operating-expenses', icon: 'bi-wallet2' },
+  { label: 'Tài sản cố định', path: '/admin/fixed-assets', icon: 'bi-building' },
    { label: 'Mã giảm giá', path: '/admin/coupons', icon: 'bi-ticket-perforated' },
    { label: 'Banner', path: '/admin/banners', icon: 'bi-images' },
    { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },

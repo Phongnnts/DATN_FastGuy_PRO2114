@@ -7,12 +7,14 @@ import { formatPrice } from '@/utils/format';
 Chart.register(...registerables);
 
 const data = ref({});
+const operatingProfit = ref(null);
 const activePreset = ref('6m');
 const customFrom = ref('');
 const customTo = ref('');
 const customActive = ref(false);
 const loading = ref(true);
-const error = ref('');
+const reportWarning = ref('');
+const financeWarning = ref('');
 const charts = {};
 let requestId = 0;
 
@@ -76,22 +78,23 @@ function exportCsv() {
   URL.revokeObjectURL(url);
 }
 
+function financeRange(params) {
+  if (params.startDate) return { fromDate: params.startDate, toDate: params.endDate };
+  const days = { '7d': 7, '30d': 30, '6m': 183, '1y': 365 }[params.period];
+  const to = new Date(); const from = new Date(); from.setDate(from.getDate() - days + 1);
+  return { fromDate: from.toLocaleDateString('en-CA'), toDate: to.toLocaleDateString('en-CA') };
+}
 async function load(params, activate) {
   const id = ++requestId;
   loading.value = true;
-  error.value = '';
-  try {
-    const result = await adminApi.getFullReport(params);
-    if (id !== requestId) return;
-    data.value = result || {};
-    activate();
-    await nextTick();
-    buildAllCharts();
-  } catch (e) {
-    if (id === requestId) error.value = e?.response?.data?.message || e.message || 'Không thể tải báo cáo.';
-  } finally {
-    if (id === requestId) loading.value = false;
-  }
+  reportWarning.value = ''; financeWarning.value = '';
+  const [reportResult, financeResult] = await Promise.allSettled([adminApi.getFullReport(params), adminApi.getOperatingProfitReport(financeRange(params))]);
+  if (id !== requestId) return;
+  if (reportResult.status === 'fulfilled') { data.value = reportResult.value || {}; activate(); await nextTick(); buildAllCharts(); }
+  else reportWarning.value = reportResult.reason?.response?.data?.message || reportResult.reason?.message || 'Không thể tải báo cáo kinh doanh.';
+  if (financeResult.status === 'fulfilled') operatingProfit.value = financeResult.value;
+  else financeWarning.value = financeResult.reason?.response?.data?.message || financeResult.reason?.message || 'Không thể tải báo cáo lợi nhuận hoạt động.';
+  loading.value = false;
 }
 function usePreset(period) { load({ period }, () => { activePreset.value = period; customActive.value = false; }); }
 function applyCustom() { if (!dateError.value) load({ startDate: customFrom.value, endDate: customTo.value }, () => { customActive.value = true; }); }
@@ -146,11 +149,13 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
       <div class="custom-dates"><label>Từ ngày<input v-model="customFrom" class="form-input" type="date" :max="customTo || today"></label><label>Đến ngày<input v-model="customTo" class="form-input" type="date" :min="customFrom || undefined" :max="today"></label><button class="btn btn-primary" :disabled="!!dateError || loading" @click="applyCustom">Áp dụng</button><p v-if="(customFrom || customTo) && dateError" role="alert">{{ dateError }}</p></div>
     </section>
 
-    <div v-if="error" class="error-banner" role="alert"><i class="bi bi-exclamation-circle"></i><span><strong>Không thể cập nhật báo cáo</strong>Dữ liệu gần nhất vẫn được giữ nguyên. {{ error }}</span><button class="btn btn-outline" @click="refresh">Thử lại</button></div>
+    <div v-if="reportWarning" class="error-banner" role="alert"><i class="bi bi-exclamation-circle"></i><span><strong>Không thể cập nhật báo cáo kinh doanh</strong>Dữ liệu gần nhất vẫn được giữ nguyên. {{ reportWarning }}</span><button class="btn btn-outline" @click="refresh">Thử lại</button></div>
+    <div v-if="financeWarning" class="error-banner" role="alert"><i class="bi bi-exclamation-circle"></i><span><strong>Không thể cập nhật báo cáo lợi nhuận</strong>Dữ liệu gần nhất vẫn được giữ nguyên. {{ financeWarning }}</span><button class="btn btn-outline" @click="refresh">Thử lại</button></div>
     <div v-if="loading && !Object.keys(data).length" class="loading-state"><span class="spinner"></span>Đang tải báo cáo...</div>
 
     <template v-if="Object.keys(data).length">
       <section class="stats" :aria-label="`Tổng quan ${periodLabel}`"><article class="orange"><i class="bi bi-basket"></i><div><small>Tiền món</small><strong>{{ formatPrice(data.itemRevenue || 0) }}</strong></div></article><article class="blue"><i class="bi bi-truck"></i><div><small>Phí giao hàng</small><strong>{{ formatPrice(data.shippingRevenue || 0) }}</strong></div></article><article class="red"><i class="bi bi-ticket-perforated"></i><div><small>Giảm giá</small><strong>{{ formatPrice(data.discountTotal || 0) }}</strong></div></article><article class="orange"><i class="bi bi-graph-up-arrow"></i><div><small>Doanh thu gộp</small><strong>{{ formatPrice(data.grossRevenue || 0) }}</strong></div></article><article class="red"><i class="bi bi-arrow-counterclockwise"></i><div><small>Đã hoàn tiền</small><strong>{{ formatPrice(data.refundTotal || 0) }}</strong><em class="sub">{{ Number(data.refundCount || 0).toLocaleString('vi-VN') }} đơn</em></div></article><article class="teal"><i class="bi bi-piggy-bank"></i><div><small>Dòng tiền ròng</small><strong>{{ formatPrice(data.netCashRevenue || 0) }}</strong></div></article><article class="green"><i class="bi bi-bag-check"></i><div><small>Đơn hoàn tất cùng cohort</small><strong>{{ Number(data.operationalCompletedCount || 0).toLocaleString('vi-VN') }}</strong></div></article><article class="violet"><i class="bi bi-check2-circle"></i><div><small>Tỷ lệ hoàn tất</small><strong>{{ completionRate }}%</strong></div></article></section>
+      <section v-if="operatingProfit" class="finance-kpis" aria-label="Báo cáo lợi nhuận hoạt động"><article v-for="item in [['Doanh thu thuần','netRevenue'],['COGS','cogs'],['Lợi nhuận gộp','grossProfit'],['Chi phí vận hành','operatingExpenses'],['Lợi nhuận trước khấu hao (mô phỏng)','profitBeforeDepreciation'],['Khấu hao','depreciation'],['Lợi nhuận hoạt động','operatingProfit']]" :key="item[1]"><small>{{ item[0] }}</small><strong>{{ !operatingProfit.costComplete && ['cogs','grossProfit','profitBeforeDepreciation','operatingProfit'].includes(item[1]) ? 'Chưa đầy đủ' : formatPrice(operatingProfit[item[1]]) }}</strong></article><p v-if="!operatingProfit.costComplete" role="status">Chưa đầy đủ giá vốn: {{ operatingProfit.missingCostItemCount }} dòng thiếu dữ liệu, không tính thành 0.</p><p class="finance-note">Số liệu mô phỏng quản trị sinh viên, không phải kế toán thuế.</p></section>
       <section class="summary"><i class="bi bi-lightbulb"></i><p><strong>Tóm tắt {{ periodLabel }}:</strong> {{ Number(data.operationalOrderCount || 0).toLocaleString('vi-VN') }} đơn phát sinh, {{ Number(data.operationalCompletedCount || 0).toLocaleString('vi-VN') }} đơn trong cùng cohort đã giao thành công.<span v-if="topProduct"> Sản phẩm dẫn đầu là <b>{{ topProduct.name }}</b> với {{ topProduct.sold }} sản phẩm.</span></p></section>
 
       <section class="charts-grid">
@@ -176,6 +181,7 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
 .filter-panel { align-items: end; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); display: flex; flex-wrap: wrap; gap: 22px; padding: 16px; }.filter-label,.custom-dates label { color: var(--text-mid); display: block; font-size: 11px; font-weight: 700; margin-bottom: 6px; }.presets { background: var(--surface); border-radius: 9px; display: flex; padding: 3px; }.presets button { border-radius: 7px; color: var(--text-mid); font-size: 12px; padding: 9px 13px; }.presets button.active { background: var(--white); box-shadow: var(--shadow-xs); color: var(--role-admin); font-weight: 700; }.custom-dates { align-items: end; display: flex; flex: 1; flex-wrap: wrap; gap: 9px; }.custom-dates label { margin: 0; }.custom-dates input { margin-top: 6px; width: 155px; }.custom-dates p { color: var(--red-active); flex-basis: 100%; font-size: 11px; margin: 0; }
 .error-banner { align-items: center; background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius); color: #b91c1c; display: flex; gap: 12px; padding: 13px 16px; }.error-banner > i { font-size: 22px; }.error-banner span { display: grid; flex: 1; font-size: 12px; }.loading-state { align-items: center; color: var(--text-mid); display: flex; gap: 10px; justify-content: center; min-height: 280px; }
 .stats { display: grid; gap: 14px; grid-template-columns: repeat(3,minmax(0,1fr)); }.stats article { align-items: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); display: flex; gap: 13px; padding: 18px; }.stats article > i { align-items: center; border-radius: 11px; display: flex; flex: 0 0 44px; font-size: 20px; height: 44px; justify-content: center; }.stats small { color: var(--text-mid); display: block; font-size: 11px; margin-bottom: 3px; }.stats strong { font-size: 19px; }.stats .sub { color: var(--text-mid); display: block; font-size: 11px; margin-top: 2px; }.stats .orange i { color: #c2410c; background: #ffedd5; }.stats .green i { color: #047857; background: #d1fae5; }.stats .blue i { color: #1d4ed8; background: #dbeafe; }.stats .violet i { color: #7c3aed; background: #ede9fe; }.stats .teal i { color: #0f766e; background: #ccfbf1; }.stats .red i { color: #b91c1c; background: #fee2e2; }
+.finance-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.finance-kpis article{display:grid;gap:5px;padding:16px;border:1px solid var(--border);border-radius:var(--radius);background:#fff}.finance-kpis small{color:var(--text-mid)}.finance-kpis>p{grid-column:1/-1;margin:0;padding:12px;border-radius:8px;background:#fff7ed;color:#9a3412}.finance-note{background:#f5f5f4!important;color:var(--text-mid)!important}
 .summary { align-items: center; background: #fff7ed; border: 1px solid #fed7aa; border-radius: var(--radius); color: #9a3412; display: flex; gap: 12px; padding: 13px 16px; }.summary > i { font-size: 20px; }.summary p { font-size: 13px; margin: 0; }
 .charts-grid { display: grid; gap: 16px; grid-template-columns:repeat(12,minmax(0,1fr)); }
 .chart-card { grid-column: span 6; }

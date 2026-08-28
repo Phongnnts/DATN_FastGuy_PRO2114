@@ -22,6 +22,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.DeliveryFailurePolicy;
+import service.OrderExpiryPolicy;
 import service.OrderTransitionService;
 import service.StaffOrderService;
 import service.StaffShiftAccessService;
@@ -330,8 +331,7 @@ public class StaffOrderServlet extends HttpServlet {
         } catch (IllegalArgumentException | DateTimeParseException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         } catch (Exception e) {
-            e.printStackTrace();
-            ApiResponse.error(resp, "Internal error: " + e.getMessage(), 500);
+            ApiResponse.error(resp, "Internal server error", 500);
         }
     }
 
@@ -530,11 +530,21 @@ public class StaffOrderServlet extends HttpServlet {
         result.put("readyAt", format(order.getReadyAt()));
         result.put("classification", item.classification());
         result.put("minutesUntilClose", item.minutesUntilClose());
+        putTimeoutMetadata(result, order);
         return result;
     }
 
     private static String format(LocalDateTime value) {
         return value == null ? null : value.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+    }
+
+    private static void putTimeoutMetadata(Map<String, Object> result, Orders order) {
+        OrderExpiryPolicy.Metadata metadata = OrderExpiryPolicy.metadata(order, LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
+        result.put("statusEnteredAt", format(metadata.statusEnteredAt()));
+        result.put("expiresAt", format(metadata.expiresAt()));
+        result.put("remainingSeconds", metadata.remainingSeconds());
+        result.put("timeoutPolicy", metadata.timeoutPolicy());
+        result.put("ownerShiftCode", order.getStaffShift() == null ? null : order.getStaffShift().getShiftCode());
     }
 
     private Map<String, Object> toHandoverItem(Orders o, int itemCount) {
@@ -547,6 +557,7 @@ public class StaffOrderServlet extends HttpServlet {
         m.put("waitingSince", format("DELIVERY_FAILED".equals(o.getOrderStatus()) ? o.getDeliveryFailedAt() : "READY".equals(o.getOrderStatus()) ? o.getReadyAt() : o.getConfirmedAt() != null ? o.getConfirmedAt() : o.getCreatedAt()));
         m.put("staffShiftId", o.getStaffShift() == null ? null : o.getStaffShift().getShiftId());
         m.put("ownerShiftLabel", o.getStaffShift() == null ? null : "Shift " + o.getStaffShift().getShiftId());
+        m.put("ownerShiftCode", o.getStaffShift() == null ? null : o.getStaffShift().getShiftCode());
         m.put("handoverRequired", true);
         return m;
     }

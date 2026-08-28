@@ -25,12 +25,6 @@ export default {
   getOwnershipCount() {
     return client.get('/staff/orders/ownership-count');
   },
-  getHandoverOrders() {
-    return client.get('/staff/orders/handover');
-  },
-  claimHandover(orderId, expectedStatus, expectedOwnerShiftId) {
-    return client.put(`/staff/orders/${orderId}/handover`, { expectedStatus, expectedOwnerShiftId });
-  },
   getOrderById(id) {
     return client.get(`/staff/orders/${id}`);
   },

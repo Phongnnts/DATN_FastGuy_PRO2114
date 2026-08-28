@@ -128,6 +128,9 @@ public class Orders {
     @Column(name = "order_status")
     private String orderStatus;
 
+    @Column(name = "status_entered_at")
+    private LocalDateTime statusEnteredAt;
+
     @ManyToOne
     @JoinColumn(name = "staff_id")
     private User staff;
@@ -222,7 +225,7 @@ public class Orders {
     private LocalDateTime updatedAt;
 
     @PrePersist
-    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); if (statusEnteredAt == null) statusEnteredAt = createdAt; updatedAt = LocalDateTime.now(); }
 
     @PreUpdate
     void preUpdate() { updatedAt = LocalDateTime.now(); }
@@ -302,6 +305,8 @@ public class Orders {
     public void setGuestReturnProofHash(String guestReturnProofHash) { this.guestReturnProofHash = guestReturnProofHash; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public LocalDateTime getStatusEnteredAt() { return statusEnteredAt; }
+    public void setStatusEnteredAt(LocalDateTime statusEnteredAt) { this.statusEnteredAt = statusEnteredAt; }
     public User getStaff() { return staff; }
     public void setStaff(User staff) { this.staff = staff; }
     public WorkShift getStaffShift() { return staffShift; }

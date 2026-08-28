@@ -36,6 +36,8 @@
         <class>entity.GoodsReceiptItem</class>
         <class>entity.StockCount</class>
         <class>entity.StockCountItem</class>
+        <class>entity.OperatingExpense</class>
+        <class>entity.FixedAsset</class>
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="com.microsoft.sqlserver.jdbc.SQLServerDriver"/>
             <property name="hibernate.dialect" value="org.hibernate.dialect.SQLServerDialect"/>

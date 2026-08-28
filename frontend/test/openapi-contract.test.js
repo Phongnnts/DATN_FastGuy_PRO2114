@@ -28,6 +28,7 @@ test('OpenAPI contracts Staff dispatch filters and classifications', async () =>
     'refundAmount', 'refundedAt', 'shipperId', 'shipperName', 'assignedAt', 'updatedAt', 'endedAt', 'createdAt',
     'deliveryAttemptCount', 'deliveryAttemptLimit', 'deliveryFailureCode', 'failureNote', 'deliveryFailedAt',
     'retryScheduledAt', 'returnedToStoreAt', 'readyAt', 'classification', 'minutesUntilClose',
+    'statusEnteredAt', 'expiresAt', 'remainingSeconds', 'timeoutPolicy', 'ownerShiftCode',
   ];
 
   assert.ok(operation);
@@ -77,7 +78,7 @@ test('OpenAPI contracts Staff shift ownership, handover, and checkout conflict',
   assert.deepEqual(contract.components.schemas.StaffOwnershipCountData.required, ['activeOwnershipCount']);
   assert.equal(contract.components.schemas.StaffOwnershipCountData.properties.activeOwnershipCount.minimum, 0);
   assert.equal(checkout.responses['409'].content['application/json'].schema.$ref, '#/components/schemas/ShiftCheckoutConflictResponse');
-  assert.deepEqual(item.required, ['orderId', 'orderCode', 'status', 'customerName', 'itemCount', 'waitingSince', 'staffShiftId', 'ownerShiftLabel', 'handoverRequired']);
+  assert.deepEqual(item.required, ['orderId', 'orderCode', 'status', 'customerName', 'itemCount', 'waitingSince', 'staffShiftId', 'ownerShiftLabel', 'ownerShiftCode', 'handoverRequired']);
   assert.deepEqual(item.properties.status.enum, ['CONFIRMED', 'PREPARING', 'READY', 'DELIVERY_FAILED']);
   assert.deepEqual(item.properties.staffShiftId.type, ['integer', 'null']);
   assert.deepEqual(item.properties.ownerShiftLabel.type, ['string', 'null']);
@@ -248,8 +249,8 @@ test('OpenAPI contracts the exact admin order-detail serializer and review field
   assert.match(contract, /^      operationId: getAdminOrderDetail$/m);
   const review = schemaSection(contract, 'AdminOrderReview', 'AdminOrderItem');
   const detail = schemaSection(contract, 'AdminOrderDetail', 'AdminOrderDetailResponse');
-  const detailFields = ['orderId', 'orderCode', 'status', 'customerName', 'customerPhone', 'customerAddress', 'totalAmount', 'shippingFee', 'serviceFee', 'finalAmount', 'discountAmount', 'paymentMethod', 'paymentStatus', 'deliveryNote', 'cancelledBy', 'failureNote', 'failureReason', 'deliveryFailureCode', 'deliveryAttemptCount', 'deliveryAttemptLimit', 'deliveryFailedAt', 'retryScheduledAt', 'returnedToStoreAt', 'refundStatus', 'refundAmount', 'refundNote', 'refundedAt', 'createdAt', 'confirmedAt', 'cancelledAt', 'deliveredAt', 'staffName', 'shipperName', 'internalNote', 'review', 'payment', 'items', 'statusHistory'];
-  for (const field of detailFields) assert.match(detail, new RegExp(`^        ${field}:$`, 'm'));
+  const detailFields = ['orderId', 'orderCode', 'status', 'customerName', 'customerPhone', 'customerAddress', 'totalAmount', 'shippingFee', 'serviceFee', 'finalAmount', 'discountAmount', 'paymentMethod', 'paymentStatus', 'deliveryNote', 'cancelledBy', 'failureNote', 'failureReason', 'deliveryFailureCode', 'deliveryAttemptCount', 'deliveryAttemptLimit', 'deliveryFailedAt', 'retryScheduledAt', 'returnedToStoreAt', 'refundStatus', 'refundAmount', 'refundNote', 'refundedAt', 'createdAt', 'confirmedAt', 'cancelledAt', 'deliveredAt', 'staffName', 'shipperName', 'internalNote', 'review', 'payment', 'items', 'statusHistory', 'statusEnteredAt', 'expiresAt', 'remainingSeconds', 'timeoutPolicy', 'ownerShiftCode'];
+  for (const field of detailFields) assert.match(detail, new RegExp(`^        ${field}:`, 'm'));
   assert.match(detail, /additionalProperties: false/);
   assert.deepEqual(detail.match(/required: \[([^\]]+)\]/)[1].split(', '), detailFields);
   for (const field of ['reviewId', 'rating', 'comment', 'createdAt', 'updatedAt', 'userName', 'avatarUrl', 'orderId', 'featured', 'homepageConsent', 'featureEligible', 'featureIneligibilityReason']) assert.match(review, new RegExp(`^        ${field}:$`, 'm'));
@@ -280,6 +281,102 @@ test('OpenAPI contracts review consent without exposing consent on the public ho
   assert.match(request, /homepageConsent:\s+type: boolean\s+default: false/s);
   assert.doesNotMatch(review, /homepageConsent/);
   assert.doesNotMatch(schemaSection(contract, 'FeaturedReview', 'AdminVariantDetail'), /homepageConsent/);
+});
+
+test('OpenAPI contracts weekly shifts, monitoring, cutoff, and order timeout metadata', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const schemas = contract.components.schemas;
+  const adminWeek = contract.paths['/admin/shifts/week'];
+  const publicWeek = contract.paths['/shifts/week']?.get;
+  const monitoring = contract.paths['/admin/shifts/monitoring']?.get;
+  const request = schemas.AdminShiftWeekUpdateRequest;
+  const orderFields = ['statusEnteredAt', 'expiresAt', 'remainingSeconds', 'timeoutPolicy'];
+
+  assert.deepEqual(schemas.ShiftCode.enum, ['MORNING', 'AFTERNOON', 'EVENING']);
+  assert.deepEqual(schemas.ShiftMutationSource.enum, ['MANUAL', 'AUTO']);
+  assert.equal(adminWeek.get.operationId, 'getAdminShiftWeek');
+  assert.equal(adminWeek.put.operationId, 'replaceAdminShiftWeek');
+  assert.equal(publicWeek.operationId, 'getShiftWeek');
+  assert.equal(monitoring.operationId, 'getAdminShiftMonitoring');
+  assert.ok(adminWeek.put.security?.[0]?.bearerAuth);
+  assert.equal(request.additionalProperties, false);
+  assert.deepEqual(request.required, ['weekStart', 'slots']);
+  assert.equal(request.properties.slots.maxItems, 21);
+  assert.equal(request.properties.slots.items.$ref, '#/components/schemas/AdminShiftWeekSlotRequest');
+  assert.equal(schemas.AdminShiftWeekSlotRequest.properties.role.const, 'STAFF');
+  assert.deepEqual(schemas.ShiftMonitoringState.enum, ['SCHEDULED', 'CHECK_IN_WINDOW', 'LATE', 'ACTIVE_MANUAL', 'ACTIVE_AUTO', 'CHECK_OUT_WINDOW', 'COMPLETED_MANUAL', 'COMPLETED_AUTO', 'MISSING_STAFF', 'MISSING_NEXT_SHIFT', 'ROLLOVER_BLOCKED']);
+  assert.deepEqual(schemas.ShiftAlertSeverity.enum, ['INFO', 'WARNING', 'CRITICAL']);
+  for (const schemaName of ['ShiftWeekItem', 'ShiftMonitoringItem']) {
+    for (const field of ['shiftCode', 'checkInSource', 'checkOutSource']) assert.ok(schemas[schemaName].required.includes(field));
+    assert.equal(schemas[schemaName].properties.shiftCode.$ref, '#/components/schemas/ShiftCode');
+  }
+  const publicConfigFields = ['isOpen', 'openTime', 'closeTime', 'orderCutoffTime', 'serviceFee', 'taxRate', 'deliveryFee', 'minOrderAmount', 'estimatedDeliveryMinutes', 'storeName', 'storePhone', 'storeAddress', 'storeLogo'];
+  assert.equal(schemas.PublicStoreConfig.additionalProperties, false);
+  assert.deepEqual(schemas.PublicStoreConfig.required, publicConfigFields);
+  assert.deepEqual(Object.keys(schemas.PublicStoreConfig.properties), publicConfigFields);
+  assert.equal(schemas.PublicStoreConfig.properties.orderCutoffTime.pattern, '^([01]\\d|2[0-3]):[0-5]\\d$');
+  for (const schemaName of ['StaffDispatchOrder', 'AdminOrderDetail']) {
+    for (const field of orderFields) {
+      assert.ok(schemas[schemaName].required.includes(field));
+      assert.ok(Object.hasOwn(schemas[schemaName].properties, field));
+    }
+    assert.ok(schemas[schemaName].required.includes('ownerShiftCode'));
+    assert.ok(Object.hasOwn(schemas[schemaName].properties, 'ownerShiftCode'));
+  }
+  assert.ok(schemas.StaffHandoverOrder.required.includes('ownerShiftCode'));
+  assert.equal(schemas.StaffHandoverOrder.properties.ownerShiftCode.$ref, '#/components/schemas/NullableShiftCode');
+  for (const operation of [adminWeek.get, adminWeek.put, publicWeek, monitoring]) {
+    for (const status of ['400', '401', '403']) {
+      if (operation.responses[status]) assert.ok(operation.responses[status].$ref.startsWith('#/components/responses/'));
+    }
+  }
+});
+
+test('OpenAPI contracts operating expenses, fixed assets, and operating profit', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const schemas = contract.components.schemas;
+  const expenses = contract.paths['/admin/operating-expenses'];
+  const expense = contract.paths['/admin/operating-expenses/{expenseId}'];
+  const assets = contract.paths['/admin/fixed-assets'];
+  const asset = contract.paths['/admin/fixed-assets/{assetId}'];
+  const retire = contract.paths['/admin/fixed-assets/{assetId}/retire']?.put;
+  const report = contract.paths['/admin/reports/operating-profit']?.get;
+
+  assert.deepEqual(Object.keys(expenses), ['get', 'post']);
+  assert.deepEqual(Object.keys(expense), ['parameters', 'get', 'put', 'delete']);
+  assert.deepEqual(Object.keys(assets), ['get', 'post']);
+  assert.deepEqual(Object.keys(asset), ['parameters', 'get', 'put']);
+  assert.equal(retire.operationId, 'retireFixedAsset');
+  assert.deepEqual(schemas.FixedAssetRetireRequest.required, ['expectedStatus']);
+  assert.equal(schemas.FixedAssetRetireRequest.properties.expectedStatus.const, 'ACTIVE');
+  assert.deepEqual(report.parameters.map(({ name }) => name), ['fromDate', 'toDate']);
+  assert.ok(report.parameters.every(({ required }) => required));
+  for (const operation of [expenses.get, expenses.post, expense.get, expense.put, expense.delete, assets.get, assets.post, asset.get, asset.put, retire, report]) {
+    assert.ok(operation.security?.[0]?.bearerAuth);
+    assert.ok(Object.values(operation.responses).every((response) => response.$ref?.startsWith('#/components/responses/') || response.content || response.description));
+  }
+  assert.deepEqual(schemas.OperatingExpenseCategory.enum, ['RENT', 'UTILITIES', 'SALARY', 'MARKETING', 'MAINTENANCE', 'OTHER']);
+  for (const name of ['OperatingExpense', 'OperatingExpenseRequest', 'FixedAsset', 'FixedAssetRequest', 'FixedAssetRetireRequest', 'OperatingProfitData']) assert.equal(schemas[name].additionalProperties, false);
+  assert.deepEqual(schemas.OperatingExpense.required, ['expenseId', 'expenseDate', 'category', 'description', 'amount', 'createdBy', 'createdByName', 'createdAt', 'updatedAt']);
+  assert.deepEqual(schemas.OperatingExpenseRequest.required, ['expenseDate', 'category', 'description', 'amount']);
+  assert.equal(schemas.OperatingExpenseRequest.properties.description.maxLength, 500);
+  assert.equal(schemas.OperatingExpenseRequest.properties.amount.exclusiveMinimum, 0);
+  assert.deepEqual(schemas.FixedAsset.required, ['assetId', 'assetName', 'acquisitionCost', 'salvageValue', 'depreciationStartDate', 'usefulLifeMonths', 'status', 'retiredAt', 'createdBy', 'createdByName', 'createdAt', 'updatedAt']);
+  assert.deepEqual(schemas.FixedAssetRequest.required, ['assetName', 'acquisitionCost', 'salvageValue', 'depreciationStartDate', 'usefulLifeMonths']);
+  assert.equal(schemas.FixedAssetRequest.properties.acquisitionCost.exclusiveMinimum, 0);
+  assert.equal(schemas.FixedAssetRequest.properties.salvageValue.minimum, 0);
+  assert.equal(schemas.FixedAssetRequest.properties.usefulLifeMonths.minimum, 1);
+  assert.deepEqual(schemas.FixedAssetStatus.enum, ['ACTIVE', 'RETIRED']);
+  assert.deepEqual(schemas.FixedAsset.properties.retiredAt.type, ['string', 'null']);
+  const reportFields = ['grossRevenue', 'refundTotal', 'netRevenue', 'cogs', 'grossProfit', 'operatingExpenses', 'profitBeforeDepreciation', 'depreciation', 'operatingProfit', 'costComplete', 'missingCostItemCount', 'fromDate', 'toDate'];
+  assert.deepEqual(schemas.OperatingProfitData.required, reportFields);
+  assert.deepEqual(Object.keys(schemas.OperatingProfitData.properties), reportFields);
+  for (const field of ['cogs', 'grossProfit', 'profitBeforeDepreciation', 'operatingProfit']) assert.ok(schemas.OperatingProfitData.properties[field].oneOf.some((item) => item.type === 'null'));
+  for (const name of ['OperatingExpense', 'FixedAsset']) assert.doesNotMatch(JSON.stringify(schemas[name]), /deletedBy|retiredBy|approvedBy/);
 });
 
 test('OpenAPI requires optimistic recipe and inventory settings versions', async () => {

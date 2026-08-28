@@ -23,7 +23,7 @@ import dao.OrdersDAO;
 import entity.Orders;
 import entity.User;
 import entity.WorkShift;
-import service.OrderScheduler;
+import service.OrderExpiryService;
 import service.OrderTransitionService;
 import service.StaffOrderService;
 import utils.DatabaseUtil;
@@ -50,7 +50,7 @@ class ReadyOrderClosingCancellationIT {
             assertTrue(new OrdersDAO().findReadyWithoutShipperForClosing().stream()
                     .noneMatch(order -> order.getOrderId() == orderIds.get(5)));
 
-            new OrderScheduler().cancelReadyOrdersAfterClosing();
+            new OrderExpiryService().cancelCutoffCandidates(java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).withHour(20).withMinute(45));
 
             em.clear();
             Object[] cancelled = (Object[]) em.createNativeQuery(

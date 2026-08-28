@@ -2,7 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStaffStore } from '@/stores/staff';
-import { staffApi } from '@/api';
+import { staffApi, storeApi } from '@/api';
+import { createServerCountdown, formatRemaining } from '@/utils/staffTimeout';
 import { formatDate as formatDateTime, formatPrice } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import OrderTimeline from '@/components/common/OrderTimeline.vue';
@@ -41,6 +42,10 @@ let previousFocus = null;
 let previousBodyOverflow = '';
 let stopped = false;
 let generation = 0;
+let countdownTimer = null;
+const now = ref(Date.now());
+const orderCutoffTime = ref('');
+const timeoutRemaining = computed(() => order.value?.remainingSeconds == null ? null : createServerCountdown(order.value, order.value.receivedAt).remaining(now.value));
 
 const allowedActions = computed(() => Array.isArray(order.value?.allowedActions) ? order.value.allowedActions : []);
 const pendingPayment = computed(() => order.value?.paymentMethod === 'BANK_TRANSFER' && order.value?.paymentStatus !== 'PAID');
@@ -97,7 +102,7 @@ async function updateStatus(status, reason = null) {
   } catch (error) {
     if (acceptsRequest(requestGeneration)) {
       toast.error(error.message || 'Không thể cập nhật trạng thái');
-      if (error.status === 409) {
+      if ([409, 410].includes(error.status)) {
         saving.value = false;
         await load({ silent: true });
       }
@@ -120,7 +125,7 @@ async function assignShipper() {
   } catch (error) {
     if (acceptsRequest(requestGeneration)) {
       toast.error(error.status === 422 ? 'Shipper không còn trong ca hoạt động' : error.message || 'Không thể gán shipper');
-      if (error.status === 409) {
+      if ([409, 410].includes(error.status)) {
         saving.value = false;
         closeAssignmentDialog();
         await load({ silent: true });
@@ -199,7 +204,7 @@ async function submitRecovery() {
     await load({ silent: true });
   } catch (error) {
     recoveryError.value = error.message || 'Không thể xử lý giao hàng';
-    if (error.status === 409) {
+    if ([409, 410].includes(error.status)) {
       saving.value = false;
       await load({ silent: true });
     }
@@ -209,7 +214,7 @@ async function startScheduledRetry() {
   if (saving.value) return;
   saving.value = true;
   try { await staffApi.startScheduledRetry(order.value.id, order.value.status); await load({ silent: true }); }
-  catch (error) { toast.error(error.message || 'Không thể bắt đầu giao lại'); if (error.status === 409) { saving.value = false; await load({ silent: true }); } }
+  catch (error) { toast.error(error.message || 'Không thể bắt đầu giao lại'); if ([409, 410].includes(error.status)) { saving.value = false; await load({ silent: true }); } }
   finally { saving.value = false; }
 }
 async function openCancelModal(event) {
@@ -247,11 +252,20 @@ async function saveInternalNote() {
   }
 }
 function printInvoice() { window.print(); }
-onMounted(() => { loading.value = false; load(); });
+onMounted(async () => {
+  loading.value = false;
+  try { orderCutoffTime.value = (await storeApi.getConfig())?.orderCutoffTime || ''; } catch {}
+  await load();
+  countdownTimer = setInterval(async () => {
+    now.value = Date.now();
+    if (timeoutRemaining.value === 0) { clearInterval(countdownTimer); await load({ silent: true }); }
+  }, 1000);
+});
 onBeforeUnmount(() => {
   stopped = true;
   generation += 1;
   document.body.style.overflow = previousBodyOverflow;
+  if (countdownTimer) clearInterval(countdownTimer);
 });
 </script>
 
@@ -259,7 +273,7 @@ onBeforeUnmount(() => {
   <div v-if="loading" class="staff-state"><span class="spinner"></span> Đang tải đơn hàng...</div>
   <div v-else-if="loadError && !order" class="staff-state staff-error"><span>{{ loadError }}</span><button class="btn btn-sm btn-outline" @click="load">Thử lại</button></div>
   <div v-else-if="order">
-    <div class="page-header"><div class="title-wrap"><h1>Đơn hàng {{ order.orderCode }}</h1><OrderStatusBadge :status="order.status" /></div><button class="btn btn-sm btn-outline no-print" @click="printInvoice"><i class="bi bi-printer"></i> In hóa đơn</button></div>
+    <div class="page-header"><div><div class="title-wrap"><h1>Đơn hàng {{ order.orderCode }}</h1><OrderStatusBadge :status="order.status" /></div><p v-if="orderCutoffTime" class="cutoff-banner">Nhận đơn đến {{ orderCutoffTime }}.</p><p v-if="timeoutRemaining != null" aria-live="polite">Hạn xử lý: {{ formatRemaining(timeoutRemaining) }}<span v-if="order.expiresAt"> · {{ formatDateTime(order.expiresAt) }}</span></p></div><button class="btn btn-sm btn-outline no-print" @click="printInvoice"><i class="bi bi-printer"></i> In hóa đơn</button></div>
     <div v-if="loadError" class="inline-error" role="alert">{{ loadError }} <button class="btn btn-sm btn-outline" @click="load({ silent: true })">Thử lại</button></div>
     <div class="grid-2"><section class="card"><h3>Thông tin đơn hàng</h3><div class="info-row"><span>Khách hàng</span><strong>{{ order.customerName }}</strong></div><div class="info-row"><span>Điện thoại</span><strong><a v-if="order.customerPhone" :href="`tel:${order.customerPhone}`">{{ order.customerPhone }}</a><span v-else>Không có</span></strong></div><div class="info-row"><span>Địa chỉ</span><strong>{{ order.shippingAddress }}</strong></div><div class="info-row"><span>Phương thức</span><strong>{{ order.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }}</strong></div><div class="info-row"><span>Thanh toán</span><strong :class="{ paid: order.paymentStatus === 'PAID' }">{{ order.paymentStatus === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán' }}</strong></div><div class="info-row"><span>Ghi chú giao hàng</span><strong>{{ order.note || 'Không có' }}</strong></div><div class="info-row"><span>Hoàn tiền</span><strong>{{ order.refundStatus || 'Không có' }}{{ order.refundAmount ? ` · ${formatPrice(order.refundAmount)}` : '' }}{{ order.refundedAt ? ` · ${formatDateTime(order.refundedAt)}` : '' }}{{ order.refundNote ? ` · ${order.refundNote}` : '' }}</strong></div><div v-if="order.failureReason" class="info-row"><span>Lý do hủy</span><strong class="danger">{{ order.failureReason }}</strong></div></section>
       <section class="card"><h3>Thao tác</h3><div class="actions"><button v-if="allowedActions.includes('CONFIRMED')" class="btn btn-primary" :disabled="saving" @click="updateStatus('CONFIRMED')">Xác nhận</button><p v-if="pendingPayment" class="payment-wait">Chờ khách thanh toán PayOS</p><button v-if="allowedActions.includes('PREPARING')" class="btn btn-primary" :disabled="saving" @click="updateStatus('PREPARING')">Bắt đầu chế biến</button><button v-if="allowedActions.includes('READY')" class="btn btn-success" :disabled="saving" @click="updateStatus('READY')">Hoàn thành</button><button v-if="allowedActions.includes('CANCELLED')" class="btn btn-outline danger-button" :disabled="saving" @click="openCancelModal">Hủy đơn</button></div>

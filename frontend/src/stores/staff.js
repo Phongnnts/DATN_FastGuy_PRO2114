@@ -16,11 +16,7 @@ export const useStaffStore = defineStore('staff', () => {
   const dispatchCounts = ref({ priority: 0, new: 0, review: 0 });
   const dispatchLoading = ref(false);
   const dispatchError = ref('');
-  const handoverItems = ref([]);
-  const handoverLoading = ref(false);
-  const handoverError = ref('');
   const kitchenQueues = ref({});
-  let handoverRequestGeneration = 0;
   let fetchVersion = 0;
   let dispatchFilter = 'PRIORITY';
   const dispatchRequestGate = createDispatchRequestGate(dispatchFilter);
@@ -80,6 +76,12 @@ export const useStaffStore = defineStore('staff', () => {
         statusHistory: o.statusHistory || [
         { status: o.status || o.orderStatus, time: o.createdAt, note: '' },
       ],
+      statusEnteredAt: o.statusEnteredAt ?? null,
+      expiresAt: o.expiresAt ?? null,
+      remainingSeconds: o.remainingSeconds ?? null,
+      receivedAt: Date.now(),
+      timeoutPolicy: o.timeoutPolicy ?? null,
+      ownerShiftCode: o.ownerShiftCode ?? null,
       allowedActions: Array.isArray(o.allowedActions) ? o.allowedActions : [],
       internalNotes: Array.isArray(o.internalNotes) ? o.internalNotes : [],
     };
@@ -114,45 +116,16 @@ export const useStaffStore = defineStore('staff', () => {
         deliveryAttemptLimit: Number(o.deliveryAttemptLimit || 0),
         retryScheduledAt: o.retryScheduledAt || null,
         readyAt: o.readyAt || null,
-        classification: o.classification,
-         minutesUntilClose: o.minutesUntilClose ?? null,
-         staffShiftId: o.staffShiftId ?? null,
-         ownerShiftLabel: o.ownerShiftLabel ?? null,
-         handoverRequired: Boolean(o.handoverRequired),
-         waitingSince: o.waitingSince ?? null,
+         classification: o.classification,
+          minutesUntilClose: o.minutesUntilClose ?? null,
+          statusEnteredAt: o.statusEnteredAt ?? null,
+          expiresAt: o.expiresAt ?? null,
+          remainingSeconds: o.remainingSeconds ?? null,
+          receivedAt: Date.now(),
+          timeoutPolicy: o.timeoutPolicy ?? null,
+          ownerShiftCode: o.ownerShiftCode ?? null,
+          waitingSince: o.waitingSince ?? null,
        };
-   }
-
-   async function fetchHandoverOrders() {
-     const generation = ++handoverRequestGeneration;
-     handoverLoading.value = true;
-     handoverError.value = '';
-     try {
-       const data = await staffApi.getHandoverOrders();
-       if (generation !== handoverRequestGeneration) return handoverItems.value;
-       handoverItems.value = Array.isArray(data) ? data.map(mapOrderListItem) : [];
-       return handoverItems.value;
-     } catch (error) {
-       if (generation === handoverRequestGeneration) handoverError.value = error.message || 'Không thể tải danh sách bàn giao';
-       throw error;
-     } finally {
-       if (generation === handoverRequestGeneration) handoverLoading.value = false;
-     }
-   }
-
-   async function claimHandover(orderId) {
-     const order = handoverItems.value.find((item) => item.id === orderId);
-     if (!order) return;
-     handoverRequestGeneration += 1;
-     handoverLoading.value = false;
-     try {
-       await staffApi.claimHandover(orderId, order.status, order.staffShiftId);
-       handoverItems.value = handoverItems.value.filter((item) => item.id !== orderId);
-       await fetchKitchenOrders(order.status);
-     } catch (error) {
-       if (error.status === 409) await fetchHandoverOrders();
-       throw error;
-     }
    }
 
    async function fetchDispatchOrders(filter) {
@@ -368,14 +341,8 @@ export const useStaffStore = defineStore('staff', () => {
     dispatchCounts,
      dispatchLoading,
      dispatchError,
-     handoverItems,
-     handoverLoading,
-     handoverError,
      kitchenQueues,
      fetchDashboard,
-     fetchHandoverOrders,
-     claimHandover,
-
     fetchKitchenOrders,
     fetchOrders,
     fetchConfirmedOrders,

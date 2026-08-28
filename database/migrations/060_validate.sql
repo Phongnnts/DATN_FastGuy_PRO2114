@@ -1,0 +1,13 @@
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+IF DB_NAME() NOT IN (N'FastGuyDB',N'FastGuyDB_Operations060_Test') THROW 51000, '060 validator target database is not approved', 1;
+IF OBJECT_ID(N'dbo.SchemaMigrationHistory',N'U') IS NULL OR NOT EXISTS(SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id='060_operating_finance') THROW 51000, '060 migration history missing', 1;
+IF OBJECT_ID(N'dbo.OperatingExpense',N'U') IS NULL OR OBJECT_ID(N'dbo.FixedAsset',N'U') IS NULL THROW 51000, '060 tables missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'dbo.OperatingExpense') AND name=N'FK_OperatingExpense_CreatedBy' AND is_disabled=0 AND is_not_trusted=0) THROW 51000, '060 operating expense FK missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'dbo.FixedAsset') AND name=N'FK_FixedAsset_CreatedBy' AND is_disabled=0 AND is_not_trusted=0) THROW 51000, '060 fixed asset FK missing', 1;
+IF (SELECT COUNT(*) FROM sys.check_constraints WHERE parent_object_id IN(OBJECT_ID(N'dbo.OperatingExpense'),OBJECT_ID(N'dbo.FixedAsset')) AND name IN(N'CK_OperatingExpense_Category',N'CK_OperatingExpense_Amount',N'CK_FixedAsset_Value',N'CK_FixedAsset_UsefulLife',N'CK_FixedAsset_Status',N'CK_FixedAsset_Retirement') AND is_disabled=0 AND is_not_trusted=0)<>6 THROW 51000, '060 checks missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.OperatingExpense') AND name=N'IX_OperatingExpense_ExpenseDate' AND is_disabled=0) THROW 51000, '060 expense index missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.FixedAsset') AND name=N'IX_FixedAsset_Status_DepreciationStartDate' AND is_disabled=0) THROW 51000, '060 asset index missing', 1;
+IF EXISTS(SELECT 1 FROM dbo.OperatingExpense WHERE amount<=0 OR category NOT IN('RENT','UTILITIES','SALARY','MARKETING','MAINTENANCE','OTHER')) THROW 51000, '060 invalid operating expense', 1;
+IF EXISTS(SELECT 1 FROM dbo.FixedAsset WHERE acquisition_cost<=0 OR salvage_value<0 OR salvage_value>=acquisition_cost OR useful_life_months<=0 OR status NOT IN('ACTIVE','RETIRED') OR (status='ACTIVE' AND retired_at IS NOT NULL) OR (status='RETIRED' AND retired_at IS NULL)) THROW 51000, '060 invalid fixed asset', 1;
+PRINT '060 validation passed';

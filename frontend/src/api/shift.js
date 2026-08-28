@@ -5,6 +5,9 @@ export default {
   getMine() {
     return client.get('/shifts/mine');
   },
+  getWeek(weekStart) {
+    return client.get('/shifts/week', { params: { weekStart } });
+  },
   getCurrent() {
     return client.get('/shifts/current');
   },

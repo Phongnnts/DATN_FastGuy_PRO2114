@@ -26,7 +26,8 @@ public class InventoryReservationService {
     }
 
     public static boolean canTransition(String from, String to) {
-        return "RESERVED".equals(from) && Set.of("CONSUMED", "RELEASED").contains(to);
+        return "RESERVED".equals(from) && Set.of("CONSUMED", "RELEASED").contains(to)
+                || "CONSUMED".equals(from) && "WASTED".equals(to);
     }
 
     public void reserve(EntityManager em, Orders order, Map<Integer, Integer> variantQuantities) {
@@ -90,7 +91,7 @@ public class InventoryReservationService {
     }
 
     static String cancellationTransactionType(String status) {
-        return "RESERVED".equals(status) ? "RELEASE" : null;
+        return "RESERVED".equals(status) ? "RELEASE" : "CONSUMED".equals(status) ? "WASTE" : null;
     }
 
     public boolean cancel(EntityManager em, Orders order) {
@@ -98,7 +99,14 @@ public class InventoryReservationService {
         if (reservation == null) return hasLegacyReservationEvidence(em, order.getOrderId());
         if (reservation.getItems() == null || reservation.getItems().isEmpty()) return false;
         if ("RESERVED".equals(reservation.getStatus())) return release(em, order);
-        return "CONSUMED".equals(reservation.getStatus());
+        if (!canTransition(reservation.getStatus(), "WASTED")) return false;
+        for (InventoryReservationItem line : reservation.getItems().stream().sorted((a, b) -> Integer.compare(a.getInventoryItem().getInventoryItemId(), b.getInventoryItem().getInventoryItemId())).toList()) {
+            InventoryItem item = items.lock(em, line.getInventoryItem().getInventoryItemId());
+            BigDecimal onHand = item.getOnHandQuantity();
+            record(em, order, item, "WASTE", line.getQuantity().negate(), onHand, onHand);
+        }
+        reservation.setStatus("WASTED");
+        return true;
     }
 
     public boolean hasReservations(EntityManager em, int orderId) { return findByOrder(em, orderId) != null; }
@@ -132,7 +140,7 @@ public class InventoryReservationService {
         transaction.setQuantity(scale(quantity));
         transaction.setQuantityBefore(scale(before));
         transaction.setQuantityAfter(scale(after));
-        if ("CONSUME".equals(type)) {
+        if (Set.of("CONSUME", "WASTE").contains(type)) {
             BigDecimal cost=item.getAverageUnitCost().setScale(4,RoundingMode.HALF_UP);
             transaction.setUnitCostSnapshot(cost);
             transaction.setTotalCost(quantity.abs().multiply(cost).setScale(4,RoundingMode.HALF_UP));

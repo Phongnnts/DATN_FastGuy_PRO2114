@@ -19,11 +19,15 @@ class OrderHistoryAtomicitySourceTest {
     }
 
     @Test
-    void orderServiceDelegatesCancellationAndSchedulerKeepsPaymentGuard() throws Exception {
+    void orderServiceDelegatesCancellationAndSchedulerUsesCanonicalExpiry() throws Exception {
         String orderService = source("OrderService.java");
         String scheduler = source("OrderScheduler.java");
+        String expiryPolicy = source("OrderExpiryPolicy.java");
         assertTrue(orderService.contains("orderTransitionService.cancel("));
-        assertTrue(scheduler.contains("false, \"UNPAID\"") || scheduler.contains("true, \"UNPAID\""));
+        assertTrue(scheduler.contains("expiryService.cancelCutoffCandidates(now)"));
+        assertTrue(scheduler.contains("expiryService.cancelExpiredCandidates(now)"));
+        assertTrue(expiryPolicy.contains("BANK_TRANSFER"));
+        assertTrue(expiryPolicy.contains("UNPAID"));
     }
 
     @Test

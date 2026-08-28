@@ -20,18 +20,18 @@ test('page and component use executable local-time utility and fire change event
     assert.match(source, /staff-shift-changed/);
   }
   assert.match(shiftStatus, /aria-live/);
-  assert.match(shiftsPage, /s\.shiftDate > todayKey\.value/);
-  assert.match(shiftsPage, /s\.shiftDate < todayKey\.value/);
+  assert.match(shiftsPage, /shiftApi\.getWeek/);
+  assert.match(shiftsPage, /v-for="day in days"/);
   assert.match(shiftsPage, /isCheckedIn/);
   assert.match(shiftsPage, /isCheckedOut/);
   assert.match(staffLayout, /shiftSequence/);
 });
 
-test('staff page renders every same-day shift with independent action state', () => {
-  assert.match(shiftsPage, /const todayShifts = computed/);
-  assert.match(shiftsPage, /v-for="shift in todayShifts"/);
+test('staff page renders every weekly shift with independent action state', () => {
+  assert.match(shiftsPage, /v-for="day in days"/);
+  assert.match(shiftsPage, /v-for="shift in day\.shifts"/);
   assert.match(shiftsPage, /:key="shift\.shiftId"/);
-  assert.match(shiftsPage, /savingShiftId\.value === shift\.shiftId/);
+  assert.match(shiftsPage, /savingShiftId === shift\.shiftId/);
   assert.match(shiftsPage, /aria-live="polite"/);
   assert.doesNotMatch(shiftsPage, /const todayShift = computed/);
   assert.doesNotMatch(shiftsPage, /const saving = ref/);
