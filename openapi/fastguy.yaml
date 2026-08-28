@@ -422,6 +422,49 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShiftCheckoutConflictResponse' }
+  /shifts/attendance:
+    get:
+      operationId: getMyShiftAttendance
+      summary: Get authenticated Staff monthly attendance
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: month, in: query, required: true, schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' } }
+      responses:
+        '200': { description: Monthly attendance, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftAttendanceResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/shifts/attendance:
+    get:
+      operationId: getAdminShiftAttendance
+      summary: Review monthly Staff attendance
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: month, in: query, required: true, schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' } }
+        - { name: userId, in: query, required: false, schema: { type: integer, minimum: 1 } }
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/AttendanceStatus' } }
+      responses:
+        '200': { description: Monthly attendance review, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftAttendanceResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/shifts/{shiftId}/attendance-approval:
+    put:
+      operationId: approveShiftAttendance
+      summary: Approve calculated attendance without changing check timestamps
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: shiftId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AttendanceApprovalRequest' } } }
+      responses:
+        '200': { description: Approved attendance, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftAttendanceMutationResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /admin/shifts/week:
     get:
       operationId: getAdminShiftWeek
@@ -1486,6 +1529,58 @@ components:
       oneOf:
         - $ref: '#/components/schemas/ShiftMutationSource'
         - type: 'null'
+    AttendanceStatus:
+      type: string
+      enum: [PENDING, APPROVED]
+    ShiftAttendanceItem:
+      type: object
+      additionalProperties: false
+      required: [shiftId, userId, staffName, shiftDate, shiftCode, startTime, endTime, checkInAt, checkOutAt, attendanceStatus, actualMinutes, overlapEligibleMinutes, lateMinutes, earlyLeaveMinutes, potentialOvertimeMinutes, approvedMinutes, approvedOvertimeMinutes, attendanceNote, approvedBy, approvedAt, updatedAt]
+      properties:
+        shiftId: { type: integer, minimum: 1 }
+        userId: { type: integer, minimum: 1 }
+        staffName: { type: string }
+        shiftDate: { type: string, format: date }
+        shiftCode: { $ref: '#/components/schemas/ShiftCode' }
+        startTime: { type: string }
+        endTime: { type: string }
+        checkInAt: { type: [string, 'null'] }
+        checkOutAt: { type: [string, 'null'] }
+        attendanceStatus: { oneOf: [{ $ref: '#/components/schemas/AttendanceStatus' }, { type: 'null' }] }
+        actualMinutes: { type: integer, minimum: 0 }
+        overlapEligibleMinutes: { type: integer, minimum: 0 }
+        lateMinutes: { type: integer, minimum: 0 }
+        earlyLeaveMinutes: { type: integer, minimum: 0 }
+        potentialOvertimeMinutes: { type: integer, minimum: 0 }
+        approvedMinutes: { type: [integer, 'null'], minimum: 0 }
+        approvedOvertimeMinutes: { type: [integer, 'null'], minimum: 0 }
+        attendanceNote: { type: [string, 'null'], maxLength: 500 }
+        approvedBy: { type: [integer, 'null'], minimum: 1 }
+        approvedAt: { type: [string, 'null'] }
+        updatedAt: { type: string }
+    ShiftAttendanceResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/ShiftAttendanceItem' } }
+    AttendanceApprovalRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedUpdatedAt, approvedMinutes, approvedOvertimeMinutes]
+      properties:
+        expectedUpdatedAt: { type: string, minLength: 1 }
+        approvedMinutes: { type: integer, minimum: 0 }
+        approvedOvertimeMinutes: { type: integer, minimum: 0 }
+        attendanceNote: { type: [string, 'null'], maxLength: 500 }
+    ShiftAttendanceMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/ShiftAttendanceItem' }
     ShiftMonitoringState:
       type: string
       enum: [SCHEDULED, CHECK_IN_WINDOW, LATE, ACTIVE_MANUAL, ACTIVE_AUTO, CHECK_OUT_WINDOW, COMPLETED_MANUAL, COMPLETED_AUTO, MISSING_STAFF, MISSING_NEXT_SHIFT, ROLLOVER_BLOCKED]
@@ -2452,13 +2547,22 @@ components:
     AdminFullReportData:
       type: object
       additionalProperties: true
-      required: [itemRevenue, shippingRevenue, serviceFeeRevenue, discountTotal, grossRevenue, refundTotal, netCashRevenue, operationalOrderCount, operationalCompletedCount, completionRate, revenueByHour, performanceByWeekday, refundTrend, exceptionReasons, monthlyFinancialTrend]
+      required: [itemRevenue, shippingRevenue, serviceFeeRevenue, discountTotal, revenueBeforeDiscount, revenueAfterDiscount, netRevenue, cogs, grossProfit, foodCostPercent, grossMarginPercent, aov, grossRevenue, periodRevenue, refundTotal, netCashRevenue, operationalOrderCount, operationalCompletedCount, completionRate, revenueByHour, performanceByWeekday, refundTrend, exceptionReasons, monthlyFinancialTrend]
       properties:
         itemRevenue: { type: number, minimum: 0 }
         shippingRevenue: { type: number, minimum: 0 }
         serviceFeeRevenue: { type: number, minimum: 0 }
         discountTotal: { type: number, minimum: 0 }
-        grossRevenue: { type: number, minimum: 0 }
+        revenueBeforeDiscount: { type: number, minimum: 0 }
+        revenueAfterDiscount: { type: number }
+        netRevenue: { type: number }
+        cogs: { type: [number, 'null'], minimum: 0 }
+        grossProfit: { type: [number, 'null'] }
+        foodCostPercent: { type: [number, 'null'] }
+        grossMarginPercent: { type: [number, 'null'] }
+        aov: { type: number }
+        grossRevenue: { type: number }
+        periodRevenue: { type: number }
         refundTotal: { type: number, minimum: 0 }
         netCashRevenue: { type: number }
         operationalOrderCount: { type: integer, minimum: 0 }

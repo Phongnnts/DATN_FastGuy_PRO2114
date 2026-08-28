@@ -1,0 +1,10 @@
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+IF DB_NAME() NOT IN (N'FastGuyDB',N'FastGuyDB_Attendance061_Test') THROW 51000, '061 validator target database is not approved', 1;
+IF OBJECT_ID(N'dbo.SchemaMigrationHistory',N'U') IS NULL OR NOT EXISTS(SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id='061_work_shift_attendance_approval') THROW 51000, '061 migration history missing', 1;
+IF (SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.WorkShift') AND name IN(N'attendance_status',N'approved_minutes',N'approved_overtime_minutes',N'attendance_note',N'approved_by',N'approved_at'))<>6 THROW 51000, '061 columns missing', 1;
+IF (SELECT COUNT(*) FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'dbo.WorkShift') AND name IN(N'CK_WorkShift_AttendanceStatus',N'CK_WorkShift_ApprovedMinutes',N'CK_WorkShift_AttendanceApproval') AND is_disabled=0 AND is_not_trusted=0)<>3 THROW 51000, '061 checks missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'dbo.WorkShift') AND name=N'FK_WorkShift_ApprovedBy' AND is_disabled=0 AND is_not_trusted=0) THROW 51000, '061 FK_WorkShift_ApprovedBy missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.WorkShift') AND name=N'IX_WorkShift_AttendanceReview' AND is_disabled=0) THROW 51000, '061 IX_WorkShift_AttendanceReview missing', 1;
+IF EXISTS(SELECT 1 FROM dbo.WorkShift WHERE attendance_status NOT IN('PENDING','APPROVED') OR approved_minutes<0 OR approved_overtime_minutes<0 OR (attendance_status IS NULL AND (approved_minutes IS NOT NULL OR approved_overtime_minutes IS NOT NULL OR attendance_note IS NOT NULL OR approved_by IS NOT NULL OR approved_at IS NOT NULL)) OR (attendance_status='PENDING' AND (approved_minutes IS NOT NULL OR approved_overtime_minutes IS NOT NULL OR approved_by IS NOT NULL OR approved_at IS NOT NULL)) OR (attendance_status='APPROVED' AND (approved_minutes IS NULL OR approved_overtime_minutes IS NULL OR approved_by IS NULL OR approved_at IS NULL))) THROW 51000, '061 invalid attendance approval', 1;
+PRINT '061 validation passed';

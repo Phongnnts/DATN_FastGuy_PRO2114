@@ -22,6 +22,7 @@ public class AdminService {
     private ProductDAO productDAO = new ProductDAO();
     private CodSettlementDAO codSettlementDAO = new CodSettlementDAO();
     private StoreConfigService storeConfigService = new StoreConfigService();
+    private MenuPerformanceReportService menuPerformanceReportService = new MenuPerformanceReportService();
 
     public Map<String, Object> getDashboard() {
         return getDashboardWithPeriod(null);
@@ -119,19 +120,33 @@ public class AdminService {
         data.put("revenueByMonth", ordersDAO.sumRevenueByCustomRange(start, end));
         data.put("revenueByDay", ordersDAO.revenueByDay(start, end));
         Map<String, Double> financial = ordersDAO.financialBreakdown(start, end);
-        double grossRevenue = financial.get("grossRevenue");
+        double revenueBeforeDiscount = financial.get("itemRevenue") + financial.get("shippingRevenue") + financial.get("serviceFeeRevenue");
+        double revenueAfterDiscount = revenueBeforeDiscount - financial.get("discountTotal");
         double refundTotal = ordersDAO.sumRefundsInRange(start, end);
+        double netRevenue = revenueAfterDiscount - refundTotal;
+        Map<String, Object> menu = menuPerformanceReportService.report(start.toLocalDate(), end.minusDays(1).toLocalDate());
+        Number cogsValue = (Number) menu.get("cost");
+        Double cogs = Boolean.TRUE.equals(menu.get("costComplete")) && cogsValue != null ? cogsValue.doubleValue() : null;
+        Double grossProfit = cogs == null ? null : netRevenue - cogs;
         data.put("itemRevenue", financial.get("itemRevenue"));
         data.put("shippingRevenue", financial.get("shippingRevenue"));
         data.put("serviceFeeRevenue", financial.get("serviceFeeRevenue"));
         data.put("discountTotal", financial.get("discountTotal"));
-        data.put("grossRevenue", grossRevenue);
-        data.put("periodRevenue", grossRevenue);
+        data.put("revenueBeforeDiscount", revenueBeforeDiscount);
+        data.put("revenueAfterDiscount", revenueAfterDiscount);
+        data.put("grossRevenue", revenueAfterDiscount);
+        data.put("periodRevenue", revenueAfterDiscount);
         data.put("refundTotal", refundTotal);
         data.put("refundCount", ordersDAO.countRefundsInRange(start, end));
-        data.put("netCashRevenue", grossRevenue - refundTotal);
-        data.put("netRevenue", grossRevenue - refundTotal);
-        data.put("periodOrders", ordersDAO.countByStatusAndDateRange("DELIVERED", start, end));
+        data.put("netCashRevenue", netRevenue);
+        data.put("netRevenue", netRevenue);
+        data.put("cogs", cogs);
+        data.put("grossProfit", grossProfit);
+        data.put("foodCostPercent", cogs == null || netRevenue == 0 ? null : cogs * 100 / netRevenue);
+        data.put("grossMarginPercent", grossProfit == null || netRevenue == 0 ? null : grossProfit * 100 / netRevenue);
+        long deliveredOrders = ordersDAO.countByStatusAndDateRange("DELIVERED", start, end);
+        data.put("aov", deliveredOrders == 0 ? 0.0 : netRevenue / deliveredOrders);
+        data.put("periodOrders", deliveredOrders);
         long[] operational = ordersDAO.operationalCohortSummary(start, end);
         data.put("operationalOrderCount", operational[0]);
         data.put("operationalCompletedCount", operational[1]);

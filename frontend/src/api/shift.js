@@ -8,6 +8,9 @@ export default {
   getWeek(weekStart) {
     return client.get('/shifts/week', { params: { weekStart } });
   },
+  getAttendance(month) {
+    return client.get('/shifts/attendance', { params: { month } });
+  },
   getCurrent() {
     return client.get('/shifts/current');
   },

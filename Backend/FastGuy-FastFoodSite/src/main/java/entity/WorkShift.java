@@ -57,6 +57,24 @@ public class WorkShift {
     @Column(name = "status")
     private String status;
 
+    @Column(name = "attendance_status")
+    private String attendanceStatus;
+
+    @Column(name = "approved_minutes")
+    private Integer approvedMinutes;
+
+    @Column(name = "approved_overtime_minutes")
+    private Integer approvedOvertimeMinutes;
+
+    @Column(name = "attendance_note")
+    private String attendanceNote;
+
+    @Column(name = "approved_by")
+    private Integer approvedBy;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -93,6 +111,20 @@ public class WorkShift {
     public void setCheckOutAt(LocalDateTime checkOutAt) { this.checkOutAt = checkOutAt; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getAttendanceStatus() { return attendanceStatus; }
+    public void setAttendanceStatus(String attendanceStatus) { this.attendanceStatus = attendanceStatus; }
+    public Integer getApprovedMinutes() { return approvedMinutes; }
+    public void setApprovedMinutes(Integer approvedMinutes) { this.approvedMinutes = approvedMinutes; }
+    public Integer getApprovedOvertimeMinutes() { return approvedOvertimeMinutes; }
+    public void setApprovedOvertimeMinutes(Integer approvedOvertimeMinutes) { this.approvedOvertimeMinutes = approvedOvertimeMinutes; }
+    public String getAttendanceNote() { return attendanceNote; }
+    public void setAttendanceNote(String attendanceNote) { this.attendanceNote = attendanceNote; }
+    public Integer getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(Integer approvedBy) { this.approvedBy = approvedBy; }
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }
