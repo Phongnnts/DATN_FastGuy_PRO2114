@@ -18,7 +18,7 @@ import entity.Orders;
 import entity.User;
 import entity.WorkShift;
 import jakarta.persistence.EntityManager;
-import service.OrderScheduler;
+import service.OrderExpiryService;
 import service.OrderTransitionService;
 import service.StaffOrderService;
 import utils.DatabaseUtil;
@@ -126,7 +126,7 @@ class StaffDispatchBrowserFixtureIT {
                 .setParameter("code", prefix(runId) + "CANCEL")
                 .executeUpdate();
         em.getTransaction().commit();
-        new OrderScheduler().cancelReadyOrdersAfterClosing();
+        new OrderExpiryService().cancelCutoffCandidates(LocalDateTime.now(BUSINESS_ZONE).withHour(20).withMinute(45));
         assertEquals(1L, orderCount(em, prefix(runId) + "CANCEL", "CANCELLED"));
         System.out.println("Staff dispatch browser scheduler complete: " + runId);
     }

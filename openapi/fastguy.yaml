@@ -109,6 +109,129 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /admin/operating-expenses:
+    get:
+      operationId: listOperatingExpenses
+      summary: List operating expenses
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Operating expenses, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingExpenseListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createOperatingExpense
+      summary: Create an operating expense
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingExpenseRequest' } } } }
+      responses:
+        '201': { description: Operating expense created, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingExpenseResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/operating-expenses/{expenseId}:
+    parameters:
+      - { name: expenseId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getOperatingExpense
+      summary: Get an operating expense
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Operating expense, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingExpenseResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateOperatingExpense
+      summary: Update an operating expense
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingExpenseRequest' } } } }
+      responses:
+        '200': { description: Operating expense updated, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingExpenseResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteOperatingExpense
+      summary: Delete an operating expense
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Operating expense deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /admin/fixed-assets:
+    get:
+      operationId: listFixedAssets
+      summary: List fixed assets
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Fixed assets, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createFixedAsset
+      summary: Create a fixed asset
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetRequest' } } } }
+      responses:
+        '201': { description: Fixed asset created, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/fixed-assets/{assetId}:
+    parameters:
+      - { name: assetId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: getFixedAsset
+      summary: Get a fixed asset
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Fixed asset, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateFixedAsset
+      summary: Update an active fixed asset
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetRequest' } } } }
+      responses:
+        '200': { description: Fixed asset updated, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/fixed-assets/{assetId}/retire:
+    parameters:
+      - { name: assetId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    put:
+      operationId: retireFixedAsset
+      summary: Retire an active fixed asset
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetRetireRequest' } } } }
+      responses:
+        '200': { description: Fixed asset retired, content: { application/json: { schema: { $ref: '#/components/schemas/FixedAssetResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/reports/operating-profit:
+    get:
+      operationId: getOperatingProfitReport
+      summary: Get operating profit for a date range
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Operating profit report, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingProfitResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /admin/reports/full:
     get:
       operationId: getAdminFullReport
@@ -299,6 +422,63 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShiftCheckoutConflictResponse' }
+  /admin/shifts/week:
+    get:
+      operationId: getAdminShiftWeek
+      summary: Get the Staff schedule for one Monday-based week
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: weekStart, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Weekly Staff schedule, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftWeekResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      operationId: replaceAdminShiftWeek
+      summary: Replace the Staff schedule for one Monday-based week
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminShiftWeekUpdateRequest' }
+      responses:
+        '200': { description: Replaced weekly Staff schedule, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftWeekResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /admin/shifts/monitoring:
+    get:
+      operationId: getAdminShiftMonitoring
+      summary: Monitor current and adjacent Staff shift coverage
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Shift monitoring state, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftMonitoringResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /shifts/week:
+    get:
+      operationId: getShiftWeek
+      summary: Get the authenticated Staff member's schedule for one Monday-based week
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: weekStart, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Weekly Staff schedule, content: { application/json: { schema: { $ref: '#/components/schemas/ShiftWeekResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /store/config:
+    get:
+      operationId: getPublicStoreConfig
+      summary: Get public store configuration
+      security: []
+      responses:
+        '200': { description: Public store configuration, content: { application/json: { schema: { $ref: '#/components/schemas/PublicStoreConfigResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /categories:
 
     get:
@@ -1292,6 +1472,255 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    ShiftCode:
+      type: string
+      enum: [MORNING, AFTERNOON, EVENING]
+    NullableShiftCode:
+      oneOf:
+        - $ref: '#/components/schemas/ShiftCode'
+        - type: 'null'
+    ShiftMutationSource:
+      type: string
+      enum: [MANUAL, AUTO]
+    NullableShiftMutationSource:
+      oneOf:
+        - $ref: '#/components/schemas/ShiftMutationSource'
+        - type: 'null'
+    ShiftMonitoringState:
+      type: string
+      enum: [SCHEDULED, CHECK_IN_WINDOW, LATE, ACTIVE_MANUAL, ACTIVE_AUTO, CHECK_OUT_WINDOW, COMPLETED_MANUAL, COMPLETED_AUTO, MISSING_STAFF, MISSING_NEXT_SHIFT, ROLLOVER_BLOCKED]
+    ShiftAlertSeverity:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+    ShiftWeekItem:
+      type: object
+      additionalProperties: false
+      required: [shiftId, userId, userName, staffName, role, shiftDate, shiftCode, startTime, endTime, status, checkInAt, checkOutAt, checkInSource, checkOutSource]
+      properties:
+        shiftId: { type: integer, minimum: 1 }
+        userId: { type: integer, minimum: 1 }
+        userName: { type: string }
+        staffName: { type: string }
+        role: { type: string, enum: [STAFF, SHIPPER] }
+        shiftDate: { type: string, format: date }
+        shiftCode: { $ref: '#/components/schemas/ShiftCode' }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        status: { type: string }
+        checkInAt: { type: [string, 'null'] }
+        checkOutAt: { type: [string, 'null'] }
+        checkInSource: { $ref: '#/components/schemas/NullableShiftMutationSource' }
+        checkOutSource: { $ref: '#/components/schemas/NullableShiftMutationSource' }
+    ShiftWeekData:
+      type: object
+      additionalProperties: false
+      required: [weekStart, shifts]
+      properties:
+        weekStart: { type: string, format: date }
+        shifts: { type: array, maxItems: 21, items: { $ref: '#/components/schemas/ShiftWeekItem' } }
+    ShiftWeekResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/ShiftWeekData' }
+    AdminShiftWeekSlotRequest:
+      type: object
+      additionalProperties: false
+      required: [shiftDate, shiftCode, userId, role]
+      properties:
+        shiftDate: { type: string, format: date }
+        shiftCode: { $ref: '#/components/schemas/ShiftCode' }
+        userId: { type: integer, minimum: 1 }
+        role: { type: string, const: STAFF }
+    AdminShiftWeekUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [weekStart, slots]
+      properties:
+        weekStart: { type: string, format: date }
+        slots:
+          type: array
+          maxItems: 21
+          items: { $ref: '#/components/schemas/AdminShiftWeekSlotRequest' }
+    ShiftMonitoringItem:
+      type: object
+      additionalProperties: false
+      required: [shiftId, userId, userName, staffName, role, shiftDate, shiftCode, startTime, endTime, status, checkInAt, checkOutAt, checkInSource, checkOutSource, monitoringState, alertSeverity, activeOwnershipCount]
+      properties:
+        shiftId: { type: [integer, 'null'], minimum: 1 }
+        userId: { type: [integer, 'null'], minimum: 1 }
+        userName: { type: [string, 'null'] }
+        staffName: { type: [string, 'null'] }
+        role: { type: [string, 'null'], enum: [STAFF, SHIPPER, null] }
+        shiftDate: { type: string, format: date }
+        shiftCode: { $ref: '#/components/schemas/ShiftCode' }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        checkInAt: { type: [string, 'null'] }
+        checkOutAt: { type: [string, 'null'] }
+        checkInSource: { $ref: '#/components/schemas/NullableShiftMutationSource' }
+        checkOutSource: { $ref: '#/components/schemas/NullableShiftMutationSource' }
+        status: { type: [string, 'null'] }
+        monitoringState: { $ref: '#/components/schemas/ShiftMonitoringState' }
+        alertSeverity: { $ref: '#/components/schemas/ShiftAlertSeverity' }
+        activeOwnershipCount: { type: integer, minimum: 0 }
+    ShiftMonitoringResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/ShiftMonitoringItem' } }
+    PublicStoreConfig:
+      type: object
+      additionalProperties: false
+      required: [isOpen, openTime, closeTime, orderCutoffTime, serviceFee, taxRate, deliveryFee, minOrderAmount, estimatedDeliveryMinutes, storeName, storePhone, storeAddress, storeLogo]
+      properties:
+        isOpen: { type: boolean }
+        openTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        closeTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        orderCutoffTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        serviceFee: { type: number, minimum: 0 }
+        taxRate: { type: number, minimum: 0 }
+        deliveryFee: { type: number, minimum: 0 }
+        minOrderAmount: { type: number, minimum: 0 }
+        estimatedDeliveryMinutes: { type: integer, minimum: 0 }
+        storeName: { type: string }
+        storePhone: { type: string }
+        storeAddress: { type: string }
+        storeLogo: { type: string }
+    PublicStoreConfigResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/PublicStoreConfig' }
+    OperatingExpenseCategory:
+      type: string
+      enum: [RENT, UTILITIES, SALARY, MARKETING, MAINTENANCE, OTHER]
+    FinanceMoney:
+      type: number
+      format: decimal
+      multipleOf: 0.01
+    PositiveFinanceMoney:
+      allOf:
+        - $ref: '#/components/schemas/FinanceMoney'
+        - exclusiveMinimum: 0
+    OperatingExpense:
+      type: object
+      additionalProperties: false
+      required: [expenseId, expenseDate, category, description, amount, createdBy, createdByName, createdAt, updatedAt]
+      properties:
+        expenseId: { type: integer, minimum: 1 }
+        expenseDate: { type: string, format: date }
+        category: { $ref: '#/components/schemas/OperatingExpenseCategory' }
+        description: { type: string, minLength: 1, maxLength: 500 }
+        amount: { $ref: '#/components/schemas/PositiveFinanceMoney' }
+        createdBy: { type: integer, minimum: 1 }
+        createdByName: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    OperatingExpenseRequest:
+      type: object
+      additionalProperties: false
+      required: [expenseDate, category, description, amount]
+      properties:
+        expenseDate: { type: string, format: date }
+        category: { $ref: '#/components/schemas/OperatingExpenseCategory' }
+        description: { type: string, minLength: 1, maxLength: 500 }
+        amount: { type: number, format: decimal, multipleOf: 0.01, exclusiveMinimum: 0 }
+    OperatingExpenseResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/OperatingExpense' }
+    OperatingExpenseListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/OperatingExpense' } }
+    FixedAssetStatus:
+      type: string
+      enum: [ACTIVE, RETIRED]
+    FixedAsset:
+      type: object
+      additionalProperties: false
+      required: [assetId, assetName, acquisitionCost, salvageValue, depreciationStartDate, usefulLifeMonths, status, retiredAt, createdBy, createdByName, createdAt, updatedAt]
+      properties:
+        assetId: { type: integer, minimum: 1 }
+        assetName: { type: string, minLength: 1, maxLength: 255 }
+        acquisitionCost: { $ref: '#/components/schemas/PositiveFinanceMoney' }
+        salvageValue: { type: number, format: decimal, multipleOf: 0.01, minimum: 0 }
+        depreciationStartDate: { type: string, format: date }
+        usefulLifeMonths: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/FixedAssetStatus' }
+        retiredAt: { type: [string, 'null'] }
+        createdBy: { type: integer, minimum: 1 }
+        createdByName: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    FixedAssetRequest:
+      type: object
+      additionalProperties: false
+      required: [assetName, acquisitionCost, salvageValue, depreciationStartDate, usefulLifeMonths]
+      properties:
+        assetName: { type: string, minLength: 1, maxLength: 255 }
+        acquisitionCost: { type: number, format: decimal, multipleOf: 0.01, exclusiveMinimum: 0 }
+        salvageValue: { type: number, format: decimal, multipleOf: 0.01, minimum: 0 }
+        depreciationStartDate: { type: string, format: date }
+        usefulLifeMonths: { type: integer, minimum: 1 }
+    FixedAssetRetireRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus]
+      properties:
+        expectedStatus: { type: string, const: ACTIVE }
+    FixedAssetResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/FixedAsset' }
+    FixedAssetListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/FixedAsset' } }
+    OperatingProfitData:
+      type: object
+      additionalProperties: false
+      required: [grossRevenue, refundTotal, netRevenue, cogs, grossProfit, operatingExpenses, profitBeforeDepreciation, depreciation, operatingProfit, costComplete, missingCostItemCount, fromDate, toDate]
+      properties:
+        grossRevenue: { $ref: '#/components/schemas/FinanceMoney' }
+        refundTotal: { $ref: '#/components/schemas/FinanceMoney' }
+        netRevenue: { $ref: '#/components/schemas/FinanceMoney' }
+        cogs: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
+        grossProfit: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
+        operatingExpenses: { $ref: '#/components/schemas/FinanceMoney' }
+        profitBeforeDepreciation: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
+        depreciation: { $ref: '#/components/schemas/FinanceMoney' }
+        operatingProfit: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
+        costComplete: { type: boolean }
+        missingCostItemCount: { type: integer, minimum: 0 }
+        fromDate: { type: string, format: date }
+        toDate: { type: string, format: date }
+    OperatingProfitResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/OperatingProfitData' }
     InventoryMode:
       type: string
       enum: [INGREDIENT, FINISHED_GOOD, UNTRACKED, SUSPENDED]
@@ -1816,7 +2245,7 @@ components:
     StaffDispatchOrder:
       type: object
       additionalProperties: false
-      required: [orderId, orderCode, userId, customerName, customerPhone, customerAddress, status, orderStatus, itemCount, items, totalAmount, shippingFee, serviceFee, discountAmount, paymentMethod, paymentStatus, finalAmount, refundAmount, refundedAt, shipperId, shipperName, assignedAt, updatedAt, endedAt, createdAt, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailureCode, failureNote, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, readyAt, classification, minutesUntilClose]
+      required: [orderId, orderCode, userId, customerName, customerPhone, customerAddress, status, orderStatus, itemCount, items, totalAmount, shippingFee, serviceFee, discountAmount, paymentMethod, paymentStatus, finalAmount, refundAmount, refundedAt, shipperId, shipperName, assignedAt, updatedAt, endedAt, createdAt, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailureCode, failureNote, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, readyAt, classification, minutesUntilClose, statusEnteredAt, expiresAt, remainingSeconds, timeoutPolicy, ownerShiftCode]
       properties:
         orderId: { type: integer, minimum: 1 }
         orderCode: { type: [string, 'null'] }
@@ -1873,6 +2302,11 @@ components:
           enum: [PRIORITY, NEW, REVIEW]
         minutesUntilClose:
           type: [integer, 'null']
+        statusEnteredAt: { type: [string, 'null'] }
+        expiresAt: { type: [string, 'null'] }
+        remainingSeconds: { type: [integer, 'null'], minimum: 0 }
+        timeoutPolicy: { type: [string, 'null'] }
+        ownerShiftCode: { $ref: '#/components/schemas/NullableShiftCode' }
     StaffDispatchCounts:
       type: object
       additionalProperties: false
@@ -1915,7 +2349,7 @@ components:
     StaffHandoverOrder:
       type: object
       additionalProperties: false
-      required: [orderId, orderCode, status, customerName, itemCount, waitingSince, staffShiftId, ownerShiftLabel, handoverRequired]
+      required: [orderId, orderCode, status, customerName, itemCount, waitingSince, staffShiftId, ownerShiftLabel, ownerShiftCode, handoverRequired]
       properties:
         orderId: { type: integer, minimum: 1 }
         orderCode: { type: [string, 'null'] }
@@ -1925,6 +2359,7 @@ components:
         waitingSince: { type: [string, 'null'], pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}' }
         staffShiftId: { type: [integer, 'null'], minimum: 1 }
         ownerShiftLabel: { type: [string, 'null'] }
+        ownerShiftCode: { $ref: '#/components/schemas/NullableShiftCode' }
         handoverRequired: { type: boolean, const: true }
     StaffHandoverListResponse:
       type: object
@@ -1970,9 +2405,7 @@ components:
       required: [status, data]
       properties:
         status: { type: string, const: success }
-        data:
-          type: object
-          additionalProperties: true
+        data: { $ref: '#/components/schemas/ShiftWeekItem' }
     AssignShipperRequest:
       type: object
       additionalProperties: false
@@ -3180,7 +3613,7 @@ components:
     AdminOrderDetail:
       type: object
       additionalProperties: false
-      required: [orderId, orderCode, status, customerName, customerPhone, customerAddress, totalAmount, shippingFee, serviceFee, finalAmount, discountAmount, paymentMethod, paymentStatus, deliveryNote, cancelledBy, failureNote, failureReason, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundNote, refundedAt, createdAt, confirmedAt, cancelledAt, deliveredAt, staffName, shipperName, internalNote, review, payment, items, statusHistory]
+      required: [orderId, orderCode, status, customerName, customerPhone, customerAddress, totalAmount, shippingFee, serviceFee, finalAmount, discountAmount, paymentMethod, paymentStatus, deliveryNote, cancelledBy, failureNote, failureReason, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundNote, refundedAt, createdAt, confirmedAt, cancelledAt, deliveredAt, staffName, shipperName, internalNote, review, payment, items, statusHistory, statusEnteredAt, expiresAt, remainingSeconds, timeoutPolicy, ownerShiftCode]
       properties:
         orderId:
           type: integer
@@ -3277,6 +3710,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminOrderStatusHistory'
+        statusEnteredAt: { type: [string, 'null'] }
+        expiresAt: { type: [string, 'null'] }
+        remainingSeconds: { type: [integer, 'null'], minimum: 0 }
+        timeoutPolicy: { type: [string, 'null'] }
+        ownerShiftCode: { $ref: '#/components/schemas/NullableShiftCode' }
     AdminOrderDetailResponse:
       type: object
       additionalProperties: false

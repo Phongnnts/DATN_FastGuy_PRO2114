@@ -1,6 +1,7 @@
 package service;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -17,7 +18,12 @@ import utils.DatabaseUtil;
 
 public class WorkShiftService {
     static final long SHIFT_GRACE_MINUTES = 15;
+    static final long AUTO_MINUTES = 5;
     static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    static final Map<String, List<LocalTime>> STAFF_TEMPLATES = Map.of(
+            "MORNING", List.of(LocalTime.of(8, 0), LocalTime.of(12, 0)),
+            "AFTERNOON", List.of(LocalTime.of(12, 0), LocalTime.of(16, 0)),
+            "EVENING", List.of(LocalTime.of(16, 0), LocalTime.of(21, 0)));
 
     static LocalDateTime businessNow() {
         return LocalDateTime.now(BUSINESS_ZONE);
@@ -108,14 +114,22 @@ public class WorkShiftService {
     }
 
     public WorkShift currentCheckedInShift(int userId) {
+        return currentCheckedInShift(userId, null);
+    }
+
+    public WorkShift currentCheckedInShift(int userId, String role) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
-            LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
-            List<WorkShift> shifts = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.user.role = 'STAFF' AND ws.user.status = 'ACTIVE' AND ws.shiftDate = :today AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL ORDER BY ws.checkInAt DESC, ws.shiftId DESC", WorkShift.class)
-                    .setParameter("userId", userId)
-                    .setParameter("today", now.toLocalDate())
-                    .getResultList();
-            return shifts.stream().filter(shift -> isValidCheckedInShift(shift, now)).findFirst().orElse(null);
+            LocalDateTime now = businessNow();
+            String jpql = "SELECT ws FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.user.role IN ('STAFF','SHIPPER') AND ws.user.status = 'ACTIVE' AND ws.shiftDate = :today AND ws.status = 'CHECKED_IN' AND ws.checkInAt IS NOT NULL AND ws.checkOutAt IS NULL";
+            if (role != null) {
+                if (!"STAFF".equals(role) && !"SHIPPER".equals(role)) throw new IllegalArgumentException("Invalid role");
+                jpql += " AND ws.user.role = :role";
+            }
+            var query = em.createQuery(jpql + " ORDER BY ws.checkInAt DESC, ws.shiftId DESC", WorkShift.class)
+                    .setParameter("userId", userId).setParameter("today", now.toLocalDate());
+            if (role != null) query.setParameter("role", role);
+            return query.getResultList().stream().filter(shift -> isValidCheckedInShift(shift, now)).findFirst().orElse(null);
         } finally {
             em.close();
         }
@@ -184,6 +198,7 @@ public class WorkShiftService {
                 LocalTime end = shift.getEndTime().plusMinutes(SHIFT_GRACE_MINUTES);
                 if (currentTime.isBefore(start) || currentTime.isAfter(end)) throw new IllegalArgumentException("Outside shift time window");
                 shift.setCheckInAt(now);
+                shift.setCheckInSource("MANUAL");
                 shift.setStatus("CHECKED_IN");
             } else {
                 if (!"CHECKED_IN".equals(shift.getStatus()) || shift.getCheckInAt() == null || shift.getCheckOutAt() != null) throw new IllegalArgumentException("Cannot check out");
@@ -193,6 +208,7 @@ public class WorkShiftService {
                     if (activeOwnershipCount > 0) throw new ActiveOwnershipConflict(activeOwnershipCount);
                 }
                 shift.setCheckOutAt(now);
+                shift.setCheckOutSource("MANUAL");
                 shift.setStatus("CHECKED_OUT");
             }
             em.getTransaction().commit();
@@ -203,6 +219,10 @@ public class WorkShiftService {
         } finally {
             em.close();
         }
+    }
+
+    public static class ScheduleReferenceConflict extends RuntimeException {
+        public ScheduleReferenceConflict() { super("Weekly schedule is referenced by orders"); }
     }
 
     public static class ActiveOwnershipConflict extends RuntimeException {
@@ -226,10 +246,23 @@ public class WorkShiftService {
             if (user == null || (!"STAFF".equals(user.getRole()) && !"SHIPPER".equals(user.getRole()))) throw new IllegalArgumentException("Shift user must be STAFF or SHIPPER");
             if (!"ACTIVE".equals(user.getStatus())) throw new IllegalArgumentException("Shift user must be active");
             shift.setUser(user);
+            shift.setStaffRoleSnapshot(roleSnapshot(user));
         }
         if (creating || data.containsKey("shiftDate")) shift.setShiftDate(parseDate(data.get("shiftDate"), "shiftDate"));
-        if (creating || data.containsKey("startTime")) shift.setStartTime(parseTime(data.get("startTime"), "startTime"));
-        if (creating || data.containsKey("endTime")) shift.setEndTime(parseTime(data.get("endTime"), "endTime"));
+        if (creating || data.containsKey("shiftCode")) {
+            String code = String.valueOf(data.get("shiftCode"));
+            if (!STAFF_TEMPLATES.containsKey(code)) throw new IllegalArgumentException("Invalid shiftCode");
+            shift.setShiftCode(code);
+        }
+        if ("STAFF".equals(shift.getUser().getRole())) {
+            if (shift.getShiftCode() == null) throw new IllegalArgumentException("shiftCode is required for STAFF");
+            shift.setStartTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(0));
+            shift.setEndTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(1));
+        } else {
+            if (creating || data.containsKey("startTime")) shift.setStartTime(parseTime(data.get("startTime"), "startTime"));
+            if (creating || data.containsKey("endTime")) shift.setEndTime(parseTime(data.get("endTime"), "endTime"));
+            if (shift.getShiftCode() == null) shift.setShiftCode(codeFor(shift.getStartTime()));
+        }
         if (shift.getEndTime() == null || shift.getStartTime() == null || !shift.getEndTime().isAfter(shift.getStartTime())) throw new IllegalArgumentException("End time must be after start time");
         shift.setStatus(creating ? "SCHEDULED" : shift.getStatus());
         Long overlaps = em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :userId AND ws.shiftDate = :shiftDate AND ws.shiftId <> :shiftId AND ws.startTime < :endTime AND ws.endTime > :startTime", Long.class)
@@ -250,17 +283,111 @@ public class WorkShiftService {
         catch (RuntimeException e) { throw new IllegalArgumentException("Invalid " + field); }
     }
 
+    public Map<String, Object> week(String weekStart, Integer userId) {
+        LocalDate monday = validateWeekStart(weekStart, LocalDate.now(BUSINESS_ZONE).with(DayOfWeek.MONDAY));
+        Map<String, Object> result = new HashMap<>();
+        result.put("weekStart", monday);
+        result.put("shifts", list(userId, "STAFF", monday.toString(), monday.plusDays(6).toString()));
+        return result;
+    }
+
+    public Map<String, Object> replaceWeek(Map<String, Object> payload) {
+        if (payload == null || !payload.keySet().equals(java.util.Set.of("weekStart", "slots")) || !(payload.get("slots") instanceof List<?> slots)) throw new IllegalArgumentException("Invalid weekly schedule payload");
+        LocalDate monday = validateWeekStart(String.valueOf(payload.get("weekStart")), LocalDate.now(BUSINESS_ZONE).with(DayOfWeek.MONDAY));
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        for (Object value : slots) {
+            if (!(value instanceof Map<?, ?> slot) || !slot.keySet().equals(java.util.Set.of("shiftDate", "shiftCode", "userId", "role")) || !"STAFF".equals(slot.get("role")) || !(slot.get("userId") instanceof Number)) throw new IllegalArgumentException("Invalid weekly schedule slot");
+            LocalDate date = parseDate(slot.get("shiftDate"), "shiftDate");
+            String code = String.valueOf(slot.get("shiftCode"));
+            if (date.isBefore(monday) || date.isAfter(monday.plusDays(6)) || !STAFF_TEMPLATES.containsKey(code) || !keys.add(date + ":" + code)) throw new IllegalArgumentException("Invalid weekly schedule slot");
+        }
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            List<WorkShift> existing = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.role = 'STAFF' AND ws.shiftDate BETWEEN :start AND :end", WorkShift.class).setParameter("start", monday).setParameter("end", monday.plusDays(6)).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
+            if (existing.stream().anyMatch(s -> !"SCHEDULED".equals(s.getStatus()) || s.getCheckInAt() != null || s.getCheckOutAt() != null)) throw new IllegalStateException("Attended weekly schedule cannot be replaced");
+            if (!existing.isEmpty() && em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.staffShift IN :shifts", Long.class).setParameter("shifts", existing).getSingleResult() > 0) throw new ScheduleReferenceConflict();
+            existing.forEach(em::remove);
+            for (Object value : slots) {
+                Map<?, ?> slot = (Map<?, ?>) value;
+                User user = em.find(User.class, ((Number) slot.get("userId")).intValue(), LockModeType.PESSIMISTIC_WRITE);
+                if (user == null || !"STAFF".equals(user.getRole()) || !"ACTIVE".equals(user.getStatus())) throw new IllegalArgumentException("Shift user must be active STAFF");
+                WorkShift shift = new WorkShift();
+                shift.setUser(user); shift.setStaffRoleSnapshot("STAFF"); shift.setShiftDate(parseDate(slot.get("shiftDate"), "shiftDate")); shift.setShiftCode(String.valueOf(slot.get("shiftCode")));
+                shift.setStartTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(0)); shift.setEndTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(1)); shift.setStatus("SCHEDULED"); em.persist(shift);
+            }
+            em.getTransaction().commit();
+            return week(monday.toString(), null);
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
+    }
+
+    public List<Map<String, Object>> monitoring() {
+        LocalDateTime now = businessNow();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String code : List.of("MORNING", "AFTERNOON", "EVENING")) {
+            List<Map<String, Object>> matches = list(null, "STAFF", now.toLocalDate().toString(), now.toLocalDate().toString()).stream().filter(s -> code.equals(s.get("shiftCode"))).toList();
+            Map<String, Object> item = matches.isEmpty() ? missingMonitoring(now.toLocalDate(), code) : new HashMap<>(matches.get(0));
+            if (!matches.isEmpty()) {
+                WorkShift shift = findShift(((Number) item.get("shiftId")).intValue());
+                long ownership = new dao.OrdersDAO().countActiveOwnership(shift.getShiftId());
+                boolean missingNext = nextCode(code) != null && list(null, "STAFF", now.toLocalDate().toString(), now.toLocalDate().toString()).stream().noneMatch(s -> nextCode(code).equals(s.get("shiftCode")));
+                List<String> state = monitoring(shift, now, missingNext, ownership);
+                item.put("monitoringState", state.get(0)); item.put("alertSeverity", state.get(1)); item.put("activeOwnershipCount", ownership);
+            }
+            result.add(item);
+        }
+        return result;
+    }
+
+    static LocalDate validateWeekStart(String value, LocalDate currentMonday) {
+        LocalDate date;
+        try { date = LocalDate.parse(value); } catch (RuntimeException e) { throw new IllegalArgumentException("Invalid weekStart"); }
+        if (date.getDayOfWeek() != DayOfWeek.MONDAY || date.isAfter(currentMonday)) throw new IllegalArgumentException("weekStart must be a Monday not after the current week");
+        return date;
+    }
+
+    static List<String> monitoring(WorkShift shift, LocalDateTime now, boolean missingNext, long ownership) {
+        LocalDateTime start = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
+        LocalDateTime end = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
+        if ("CHECKED_OUT".equals(shift.getStatus())) return List.of("AUTO".equals(shift.getCheckOutSource()) ? "COMPLETED_AUTO" : "COMPLETED_MANUAL", "INFO");
+        if ("CHECKED_IN".equals(shift.getStatus())) {
+            if (now.isAfter(end.plusMinutes(AUTO_MINUTES)) && ownership > 0) return List.of("ROLLOVER_BLOCKED", "CRITICAL");
+            if (now.isAfter(end)) return List.of("CHECK_OUT_WINDOW", "WARNING");
+            return List.of("AUTO".equals(shift.getCheckInSource()) ? "ACTIVE_AUTO" : "ACTIVE_MANUAL", "AUTO".equals(shift.getCheckInSource()) ? "WARNING" : "INFO");
+        }
+        if (missingNext && now.isAfter(end)) return List.of("MISSING_NEXT_SHIFT", "CRITICAL");
+        if (now.isAfter(start.plusMinutes(AUTO_MINUTES))) return List.of("LATE", "WARNING");
+        if (!now.isBefore(start.minusMinutes(SHIFT_GRACE_MINUTES))) return List.of("CHECK_IN_WINDOW", "INFO");
+        return List.of("SCHEDULED", "INFO");
+    }
+
+    static void autoCheckIn(WorkShift shift, LocalDateTime now) { shift.setCheckInAt(now); shift.setCheckInSource("AUTO"); shift.setStatus("CHECKED_IN"); }
+    static void autoCheckOut(WorkShift shift, LocalDateTime now) { shift.setCheckOutAt(now); shift.setCheckOutSource("AUTO"); shift.setStatus("CHECKED_OUT"); }
+    private static String nextCode(String code) { return "MORNING".equals(code) ? "AFTERNOON" : "AFTERNOON".equals(code) ? "EVENING" : null; }
+    private static String codeFor(LocalTime start) { return start.isBefore(LocalTime.NOON) ? "MORNING" : start.isBefore(LocalTime.of(16, 0)) ? "AFTERNOON" : "EVENING"; }
+    private static String roleSnapshot(User user) { return "STAFF".equals(user.getRole()) ? "STAFF" : "NON_STAFF"; }
+
+    private WorkShift findShift(int id) { EntityManager em = DatabaseUtil.getEntityManager(); try { return em.find(WorkShift.class, id); } finally { em.close(); } }
+    private Map<String, Object> missingMonitoring(LocalDate date, String code) { Map<String, Object> item = new HashMap<>(); item.put("shiftId", null); item.put("userId", null); item.put("userName", null); item.put("staffName", null); item.put("role", null); item.put("status", null); item.put("shiftDate", date); item.put("shiftCode", code); item.put("startTime", STAFF_TEMPLATES.get(code).get(0)); item.put("endTime", STAFF_TEMPLATES.get(code).get(1)); item.put("checkInAt", null); item.put("checkOutAt", null); item.put("checkInSource", null); item.put("checkOutSource", null); item.put("monitoringState", "MISSING_STAFF"); item.put("alertSeverity", "CRITICAL"); item.put("activeOwnershipCount", 0L); return item; }
+
     private Map<String, Object> toMap(WorkShift shift) {
         Map<String, Object> result = new HashMap<>();
         result.put("shiftId", shift.getShiftId());
         result.put("userId", shift.getUser().getUserId());
         result.put("userName", shift.getUser().getFullName());
+        result.put("staffName", shift.getUser().getFullName());
         result.put("role", shift.getUser().getRole());
         result.put("shiftDate", shift.getShiftDate());
+        result.put("shiftCode", shift.getShiftCode());
         result.put("startTime", shift.getStartTime());
         result.put("endTime", shift.getEndTime());
         result.put("checkInAt", shift.getCheckInAt());
         result.put("checkOutAt", shift.getCheckOutAt());
+        result.put("checkInSource", shift.getCheckInSource());
+        result.put("checkOutSource", shift.getCheckOutSource());
         result.put("status", shift.getStatus());
         return result;
     }

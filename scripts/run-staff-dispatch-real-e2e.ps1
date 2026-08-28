@@ -5,6 +5,7 @@ param(
     [int]$ShutdownPort = 18005,
     [int]$FrontendPort = 15174,
     [switch]$Ownership,
+    [switch]$Operations,
     [ValidateSet('desktop-chrome','mobile-chrome')]
     [string]$Project,
     [switch]$SafetySelfTest
@@ -22,6 +23,7 @@ $mutatedEnvironmentNames = @(
     'JWT_SECRET', 'CATALINA_HOME', 'CATALINA_BASE',
     'FASTGUY_E2E_DB_NAME', 'FASTGUY_E2E_STAFF_PASSWORD', 'FASTGUY_E2E_BACKEND_DIR',
     'FASTGUY_E2E_MAVEN_HOME', 'FASTGUY_E2E_RUN_ID', 'FASTGUY_E2E_STAFF_EMAIL',
+    'FASTGUY_E2E_ADMIN_EMAIL', 'FASTGUY_E2E_USER_EMAIL',
     'PLAYWRIGHT_API_TARGET', 'PLAYWRIGHT_BASE_URL'
 )
 $processEnvironment = [Environment]::GetEnvironmentVariables('Process')
@@ -87,7 +89,7 @@ function New-RandomSecret([int]$Bytes) {
 
 function Invoke-Fixture([string]$Action, [string]$RunId) {
     $env:FASTGUY_E2E_RUN_ID = $RunId
-    $fixture = if ($Ownership) { 'integration.StaffOwnershipBrowserFixtureIT' } else { 'integration.StaffDispatchBrowserFixtureIT' }
+    $fixture = if ($Operations) { 'integration.OperationsBrowserFixtureIT' } elseif ($Ownership) { 'integration.StaffOwnershipBrowserFixtureIT' } else { 'integration.StaffDispatchBrowserFixtureIT' }
     & mvn.cmd "-Dtest=$fixture" "-De2e.action=$Action" test -f (Join-Path $backend 'pom.xml')
     if ($LASTEXITCODE -ne 0) { throw "Fixture $Action failed" }
 }
@@ -137,7 +139,7 @@ foreach ($port in $BackendPort,$ShutdownPort,$FrontendPort) {
 }
 
 try {
-    $env:FASTGUY_E2E_DB_NAME = 'FastGuyDB_Inventory054_Test'
+    $env:FASTGUY_E2E_DB_NAME = if ($Operations) { 'FastGuyDB_Operations060_Test' } else { 'FastGuyDB_Inventory054_Test' }
     $env:FASTGUY_E2E_STAFF_PASSWORD = New-RandomSecret 24
     $env:FASTGUY_E2E_BACKEND_DIR = $backend
     $env:FASTGUY_E2E_MAVEN_HOME = Split-Path (Split-Path (Get-Command mvn.cmd).Source -Parent) -Parent
@@ -180,11 +182,15 @@ try {
     $expectedPorts = @($ShutdownPort,$BackendPort) | Sort-Object
     if (Compare-Object $runtimePorts $expectedPorts) { throw "Unexpected isolated Tomcat listeners: $runtimePorts" }
 
-    $projects = if ($Project) { @($Project) } else { @('desktop-chrome','mobile-chrome') }
+    $projects = if ($Project) { @($Project) } elseif ($Operations) { @('desktop-chrome') } else { @('desktop-chrome','mobile-chrome') }
     foreach ($project in $projects) {
         $runId = ((Get-Date).ToString('yyyyMMddHHmmssfff') + $project.Substring(0,1)).ToLower()
         $env:FASTGUY_E2E_RUN_ID = $runId
         $env:FASTGUY_E2E_STAFF_EMAIL = if ($Ownership) { "ownership-current-$runId@test.local" } else { "staff-$runId@test.local" }
+        if ($Operations) {
+            $env:FASTGUY_E2E_ADMIN_EMAIL = "admin-$runId@test.local"
+            $env:FASTGUY_E2E_USER_EMAIL = "user-$runId@test.local"
+        }
         $projectFailure = $null
         try {
             Invoke-Fixture 'seed' $runId
@@ -192,7 +198,7 @@ try {
             $env:PLAYWRIGHT_BASE_URL = ''
             Push-Location $frontend
             try {
-                $spec = if ($Ownership) { 'tests/e2e/staff-ownership-real-backend.spec.js' } else { 'tests/e2e/staff-dispatch-real-backend.spec.js' }
+                $spec = if ($Operations) { 'tests/e2e/operations-real-backend.spec.js' } elseif ($Ownership) { 'tests/e2e/staff-ownership-real-backend.spec.js' } else { 'tests/e2e/staff-dispatch-real-backend.spec.js' }
                 & npx.cmd playwright test $spec "--project=$project" --config=playwright.real-backend.config.js
                 if ($LASTEXITCODE -ne 0) { throw "Playwright $project failed" }
             } finally {

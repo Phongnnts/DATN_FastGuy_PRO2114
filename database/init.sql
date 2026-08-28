@@ -24,6 +24,17 @@ SET NUMERIC_ROUNDABORT OFF;
 SET XACT_ABORT ON;
 GO
 
+CREATE TABLE dbo.SchemaMigrationHistory (
+    migration_id varchar(100) NOT NULL CONSTRAINT PK_SchemaMigrationHistory PRIMARY KEY,
+    applied_at datetime2(0) NOT NULL CONSTRAINT DF_SchemaMigrationHistory_AppliedAt DEFAULT SYSUTCDATETIME(),
+    applied_by sysname NOT NULL CONSTRAINT DF_SchemaMigrationHistory_AppliedBy DEFAULT ORIGINAL_LOGIN(),
+    details nvarchar(1000) NULL
+);
+INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
+    ('000_preflight_history', N'Canonical fresh schema baseline'),
+    ('059_shift_schedule_order_timeout', N'Canonical fresh schema baseline'),
+    ('060_operating_finance', N'Canonical fresh schema baseline');
+
 CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
     name nvarchar(255) NOT NULL,
@@ -242,6 +253,7 @@ CREATE TABLE dbo.Orders (
     payos_checkout_url varchar(500) NULL,
     guest_return_proof_hash varchar(64) NULL,
     order_status varchar(30) NOT NULL CONSTRAINT DF_Orders_Status DEFAULT 'PENDING',
+    status_entered_at datetime2(0) NOT NULL CONSTRAINT DF_Orders_StatusEnteredAt DEFAULT SYSDATETIME(),
     staff_id int NULL CONSTRAINT FK_Orders_Staff REFERENCES dbo.Users(user_id),
     staff_shift_id int NULL,
     shipper_id int NULL CONSTRAINT FK_Orders_Shipper REFERENCES dbo.Users(user_id),
@@ -456,6 +468,37 @@ CREATE TABLE dbo.InventoryTransaction (
     CONSTRAINT CK_InventoryTransaction_Cost CHECK ((unit_cost_snapshot IS NULL OR unit_cost_snapshot>=0) AND (total_cost IS NULL OR total_cost>=0))
 );
 
+CREATE TABLE dbo.OperatingExpense (
+    expense_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_OperatingExpense PRIMARY KEY,
+    expense_date date NOT NULL,
+    category varchar(20) NOT NULL,
+    description nvarchar(500) NOT NULL,
+    amount decimal(18,2) NOT NULL,
+    created_by int NOT NULL CONSTRAINT FK_OperatingExpense_CreatedBy REFERENCES dbo.Users(user_id),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_OperatingExpense_CreatedAt DEFAULT SYSUTCDATETIME(),
+    updated_at datetime2(0) NOT NULL CONSTRAINT DF_OperatingExpense_UpdatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT CK_OperatingExpense_Category CHECK (category IN ('RENT','UTILITIES','SALARY','MARKETING','MAINTENANCE','OTHER')),
+    CONSTRAINT CK_OperatingExpense_Amount CHECK (amount > 0)
+);
+
+CREATE TABLE dbo.FixedAsset (
+    asset_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_FixedAsset PRIMARY KEY,
+    asset_name nvarchar(255) NOT NULL,
+    acquisition_cost decimal(18,2) NOT NULL,
+    salvage_value decimal(18,2) NOT NULL,
+    depreciation_start_date date NOT NULL,
+    useful_life_months int NOT NULL,
+    status varchar(20) NOT NULL CONSTRAINT DF_FixedAsset_Status DEFAULT 'ACTIVE',
+    retired_at datetime2(0) NULL,
+    created_by int NOT NULL CONSTRAINT FK_FixedAsset_CreatedBy REFERENCES dbo.Users(user_id),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_FixedAsset_CreatedAt DEFAULT SYSUTCDATETIME(),
+    updated_at datetime2(0) NOT NULL CONSTRAINT DF_FixedAsset_UpdatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT CK_FixedAsset_Value CHECK (acquisition_cost > 0 AND salvage_value >= 0 AND salvage_value < acquisition_cost),
+    CONSTRAINT CK_FixedAsset_UsefulLife CHECK (useful_life_months > 0),
+    CONSTRAINT CK_FixedAsset_Status CHECK (status IN ('ACTIVE','RETIRED')),
+    CONSTRAINT CK_FixedAsset_Retirement CHECK ((status = 'ACTIVE' AND retired_at IS NULL) OR (status = 'RETIRED' AND retired_at IS NOT NULL))
+);
+
 CREATE TABLE dbo.LoyaltyTransaction (
     loyalty_transaction_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_LoyaltyTransaction PRIMARY KEY,
     user_id int NOT NULL CONSTRAINT FK_LoyaltyTransaction_User REFERENCES dbo.Users(user_id),
@@ -474,12 +517,21 @@ CREATE TABLE dbo.WorkShift (
     shift_date date NOT NULL,
     start_time time(0) NOT NULL,
     end_time time(0) NOT NULL,
+    shift_code varchar(10) NOT NULL,
+    check_in_source varchar(10) NULL,
+    check_out_source varchar(10) NULL,
+    staff_role_snapshot varchar(10) NOT NULL CONSTRAINT DF_WorkShift_StaffRoleSnapshot DEFAULT 'NON_STAFF',
     check_in_at datetime2(0) NULL,
     check_out_at datetime2(0) NULL,
     status varchar(20) NOT NULL CONSTRAINT DF_WorkShift_Status DEFAULT 'SCHEDULED',
     created_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Updated DEFAULT GETDATE(),
     CONSTRAINT CK_WorkShift_Time CHECK (start_time < end_time),
+    CONSTRAINT CK_WorkShift_ShiftCode CHECK (shift_code IN ('MORNING','AFTERNOON','EVENING')),
+    CONSTRAINT CK_WorkShift_CheckInSource CHECK (check_in_source IS NULL OR check_in_source IN ('MANUAL','AUTO')),
+    CONSTRAINT CK_WorkShift_CheckOutSource CHECK (check_out_source IS NULL OR check_out_source IN ('MANUAL','AUTO')),
+    CONSTRAINT CK_WorkShift_StaffRoleSnapshot CHECK (staff_role_snapshot IN ('STAFF','NON_STAFF')),
+    CONSTRAINT CK_WorkShift_StaffFixedTimes CHECK (staff_role_snapshot<>'STAFF' OR (shift_code='MORNING' AND start_time='08:00' AND end_time='12:00') OR (shift_code='AFTERNOON' AND start_time='12:00' AND end_time='16:00') OR (shift_code='EVENING' AND start_time='16:00' AND end_time='21:00')),
     CONSTRAINT CK_WorkShift_Status CHECK (status IN ('SCHEDULED', 'CHECKED_IN', 'CHECKED_OUT', 'ABSENT', 'CANCELLED')),
     CONSTRAINT CK_WorkShift_CheckTimes CHECK (check_out_at IS NULL OR (check_in_at IS NOT NULL AND check_out_at >= check_in_at))
 );
@@ -600,7 +652,10 @@ CREATE INDEX IX_CartItem_Product ON dbo.CartItem(product_id);
 CREATE INDEX IX_CartItem_Variant ON dbo.CartItem(variant_id);
 CREATE INDEX IX_Orders_User ON dbo.Orders(user_id);
 CREATE INDEX IX_Orders_Staff_Status ON dbo.Orders(staff_id, order_status);
+CREATE UNIQUE INDEX UX_WorkShift_Staff_Date_Code ON dbo.WorkShift(shift_date,shift_code) WHERE staff_role_snapshot='STAFF';
 CREATE INDEX IX_Orders_StaffShift_Status ON dbo.Orders(staff_shift_id, order_status);
+CREATE INDEX IX_Orders_Status_StatusEnteredAt ON dbo.Orders(order_status,status_entered_at);
+CREATE INDEX IX_Orders_PaymentStatus_OrderStatus_StatusEnteredAt ON dbo.Orders(payment_status,order_status,status_entered_at);
 CREATE INDEX IX_Orders_Shipper_Status ON dbo.Orders(shipper_id, order_status);
 CREATE INDEX IX_Orders_Status_Created ON dbo.Orders(order_status, created_at);
 CREATE INDEX IX_InventoryItem_ActiveType ON dbo.InventoryItem(active, item_type);
@@ -613,6 +668,8 @@ CREATE INDEX IX_InventoryReservationItem_InventoryItem ON dbo.InventoryReservati
 CREATE INDEX IX_InventoryTransaction_Order ON dbo.InventoryTransaction(order_id);
 CREATE INDEX IX_InventoryTransaction_ItemCreated ON dbo.InventoryTransaction(inventory_item_id, created_at DESC);
 CREATE INDEX IX_LoyaltyTransaction_User_Created ON dbo.LoyaltyTransaction(user_id, created_at);
+CREATE INDEX IX_OperatingExpense_ExpenseDate ON dbo.OperatingExpense(expense_date, category);
+CREATE INDEX IX_FixedAsset_Status_DepreciationStartDate ON dbo.FixedAsset(status, depreciation_start_date);
 CREATE INDEX IX_WorkShift_User_Date ON dbo.WorkShift(user_id, shift_date);
 CREATE INDEX IX_WorkShift_Date_Status ON dbo.WorkShift(shift_date, status);
 CREATE INDEX IX_CouponRedemption_Coupon ON dbo.CouponRedemption(coupon_id);
@@ -722,19 +779,19 @@ INSERT dbo.Coupon (coupon_id, code, type, value, min_order, max_discount, max_us
     (2, 'FREESHIP', 'FREE_SHIPPING', 0, 30000, 30000, 100, 0, DATEADD(day, 60, GETDATE()), 1, 1, DATEADD(day, -10, GETDATE()), GETDATE());
 SET IDENTITY_INSERT dbo.Coupon OFF;
 
-SET IDENTITY_INSERT dbo.WorkShift ON;
-INSERT dbo.WorkShift (shift_id, user_id, shift_date, start_time, end_time, check_in_at, check_out_at, status, created_at, updated_at) VALUES
-    (1, 2, CAST(GETDATE() AS date), '08:00', '16:00', CASE WHEN CAST(GETDATE() AS time) >= '08:00' THEN DATEADD(hour, 8, CAST(CAST(GETDATE() AS date) AS datetime2)) END, CASE WHEN CAST(GETDATE() AS time) > '16:00' THEN DATEADD(hour, 16, CAST(CAST(GETDATE() AS date) AS datetime2)) END, CASE WHEN CAST(GETDATE() AS time) < '08:00' THEN 'SCHEDULED' WHEN CAST(GETDATE() AS time) <= '16:00' THEN 'CHECKED_IN' ELSE 'CHECKED_OUT' END, DATEADD(day, -1, GETDATE()), GETDATE()),
-    (2, 3, CAST(GETDATE() AS date), '14:00', '22:00', CASE WHEN CAST(GETDATE() AS time) >= '14:00' THEN DATEADD(hour, 14, CAST(CAST(GETDATE() AS date) AS datetime2)) END, CASE WHEN CAST(GETDATE() AS time) > '22:00' THEN DATEADD(hour, 22, CAST(CAST(GETDATE() AS date) AS datetime2)) END, CASE WHEN CAST(GETDATE() AS time) < '14:00' THEN 'SCHEDULED' WHEN CAST(GETDATE() AS time) <= '22:00' THEN 'CHECKED_IN' ELSE 'CHECKED_OUT' END, DATEADD(day, -1, GETDATE()), GETDATE()),
-    (3, 2, DATEADD(day, 1, CAST(GETDATE() AS date)), '16:00', '22:00', NULL, NULL, 'SCHEDULED', GETDATE(), GETDATE());
-SET IDENTITY_INSERT dbo.WorkShift OFF;
+DECLARE @WeekStart date=DATEADD(day,1-DATEPART(weekday,CAST(GETDATE() AS date)),CAST(GETDATE() AS date));
+;WITH days(n) AS (SELECT n FROM (VALUES(0),(1),(2),(3),(4),(5),(6)) d(n)), slots(shift_code,start_time,end_time) AS (SELECT * FROM (VALUES('MORNING',CAST('08:00' AS time),CAST('12:00' AS time)),('AFTERNOON',CAST('12:00' AS time),CAST('16:00' AS time)),('EVENING',CAST('16:00' AS time),CAST('21:00' AS time))) s(shift_code,start_time,end_time))
+INSERT dbo.WorkShift(user_id,shift_date,start_time,end_time,shift_code,check_in_source,check_out_source,staff_role_snapshot,check_in_at,check_out_at,status)
+SELECT 2,DATEADD(day,d.n,@WeekStart),s.start_time,s.end_time,s.shift_code,CASE WHEN DATEADD(day,d.n,@WeekStart)<=CAST(GETDATE() AS date) THEN 'AUTO' END,CASE WHEN DATEADD(day,d.n,@WeekStart)<CAST(GETDATE() AS date) OR (DATEADD(day,d.n,@WeekStart)=CAST(GETDATE() AS date) AND CAST(GETDATE() AS time)>s.end_time) THEN 'AUTO' END,'STAFF',CASE WHEN DATEADD(day,d.n,@WeekStart)<CAST(GETDATE() AS date) OR (DATEADD(day,d.n,@WeekStart)=CAST(GETDATE() AS date) AND CAST(GETDATE() AS time)>=s.start_time) THEN DATEADD(second,DATEDIFF(second,CAST('00:00' AS time),s.start_time),CAST(DATEADD(day,d.n,@WeekStart) AS datetime2)) END,CASE WHEN DATEADD(day,d.n,@WeekStart)<CAST(GETDATE() AS date) OR (DATEADD(day,d.n,@WeekStart)=CAST(GETDATE() AS date) AND CAST(GETDATE() AS time)>s.end_time) THEN DATEADD(second,DATEDIFF(second,CAST('00:00' AS time),s.end_time),CAST(DATEADD(day,d.n,@WeekStart) AS datetime2)) END,CASE WHEN DATEADD(day,d.n,@WeekStart)>CAST(GETDATE() AS date) OR (DATEADD(day,d.n,@WeekStart)=CAST(GETDATE() AS date) AND CAST(GETDATE() AS time)<s.start_time) THEN 'SCHEDULED' WHEN DATEADD(day,d.n,@WeekStart)=CAST(GETDATE() AS date) AND CAST(GETDATE() AS time)<=s.end_time THEN 'CHECKED_IN' ELSE 'CHECKED_OUT' END FROM days d CROSS JOIN slots s;
+INSERT dbo.WorkShift(user_id,shift_date,start_time,end_time,shift_code,check_in_source,check_out_source,staff_role_snapshot,check_in_at,check_out_at,status)
+SELECT 3,DATEADD(day,n,@WeekStart),'09:00','18:00','MORNING',CASE WHEN DATEADD(day,n,@WeekStart)<=CAST(GETDATE() AS date) THEN 'MANUAL' END,CASE WHEN DATEADD(day,n,@WeekStart)<CAST(GETDATE() AS date) THEN 'MANUAL' END,'NON_STAFF',CASE WHEN DATEADD(day,n,@WeekStart)<=CAST(GETDATE() AS date) THEN DATEADD(hour,9,CAST(DATEADD(day,n,@WeekStart) AS datetime2)) END,CASE WHEN DATEADD(day,n,@WeekStart)<CAST(GETDATE() AS date) THEN DATEADD(hour,18,CAST(DATEADD(day,n,@WeekStart) AS datetime2)) END,CASE WHEN DATEADD(day,n,@WeekStart)>CAST(GETDATE() AS date) OR (DATEADD(day,n,@WeekStart)=CAST(GETDATE() AS date) AND CAST(GETDATE() AS time)<'09:00') THEN 'SCHEDULED' WHEN DATEADD(day,n,@WeekStart)=CAST(GETDATE() AS date) AND CAST(GETDATE() AS time)<='18:00' THEN 'CHECKED_IN' ELSE 'CHECKED_OUT' END FROM (VALUES(0),(1),(2),(3),(4),(5),(6)) d(n);
 
 SET IDENTITY_INSERT dbo.Orders ON;
 INSERT dbo.Orders (order_id, order_code, idempotency_key, request_hash, idempotency_owner, user_id, customer_name, customer_phone, customer_address, to_province_name, to_district_name, to_ward_name, total_amount, shipping_fee, service_fee, final_amount, cod_collected_amount, cod_collected_at, shipping_provider, expected_delivery_time, payment_method, payment_status, payos_payment_link_id, payos_checkout_url, order_status, staff_id, shipper_id, assigned_at, confirmed_at, ready_at, picked_up_at, paid_at, delivered_at, cancelled_at, failure_reason, cancelled_by, coupon_code, discount_amount, delivery_note, created_at, updated_at) VALUES
     (1, 'FG-DEMO-001', 'demo-order-001', REPLICATE('a',64), 'USER:4', 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 59000, 15000, 0, 74000, NULL, NULL, 'GHN', DATEADD(hour, 1, GETDATE()), 'BANK_TRANSFER', 'UNPAID', 'DEMO-REFERENCE-001', 'https://pay.payos.vn/web/demo', 'PENDING', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, N'Giao tai le tan', DATEADD(minute, -20, GETDATE()), GETDATE()),
     (2, 'FG-DEMO-002', NULL, NULL, NULL, 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 69000, 15000, 0, 84000, NULL, NULL, 'GHN', DATEADD(hour, 1, GETDATE()), 'COD', 'UNPAID', NULL, NULL, 'CONFIRMED', 2, NULL, NULL, DATEADD(minute, -25, GETDATE()), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, DATEADD(minute, -30, GETDATE()), GETDATE()),
     (3, 'FG-DEMO-003', NULL, NULL, NULL, 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 89000, 15000, 0, 104000, NULL, NULL, 'GHN', DATEADD(hour, 1, GETDATE()), 'COD', 'UNPAID', NULL, NULL, 'PREPARING', 2, NULL, NULL, DATEADD(minute, -40, GETDATE()), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, DATEADD(minute, -45, GETDATE()), GETDATE()),
-    (4, 'FG-DEMO-004', NULL, NULL, NULL, 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 59000, 15000, 0, 74000, NULL, NULL, 'GHN', DATEADD(minute, 45, GETDATE()), 'COD', 'UNPAID', NULL, NULL, 'READY', 2, NULL, NULL, DATEADD(hour, -1, GETDATE()), DATEADD(minute, -15, GETDATE()), NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, DATEADD(hour, -2, GETDATE()), GETDATE()),
+    (4, 'FG-DEMO-004', NULL, NULL, NULL, 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 59000, 15000, 0, 74000, NULL, NULL, 'GHN', DATEADD(minute, 45, GETDATE()), 'COD', 'UNPAID', NULL, NULL, 'READY', 2, NULL, NULL, DATEADD(hour, -1, GETDATE()), DATEADD(minute, -15, GETDATE()), NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, DATEADD(hour, -2, GETDATE()), GETDATE()),
     (5, 'FG-DEMO-005', NULL, NULL, NULL, 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 89000, 15000, 0, 104000, NULL, NULL, 'GHN', DATEADD(minute, 30, GETDATE()), 'COD', 'UNPAID', NULL, NULL, 'ASSIGNED', 2, 3, DATEADD(minute, -10, GETDATE()), DATEADD(hour, -2, GETDATE()), DATEADD(minute, -20, GETDATE()), NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, DATEADD(hour, -3, GETDATE()), GETDATE()),
     (6, 'FG-DEMO-006', NULL, NULL, NULL, 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 59000, 15000, 0, 74000, NULL, NULL, 'GHN', DATEADD(minute, 15, GETDATE()), 'COD', 'UNPAID', NULL, NULL, 'PICKED_UP', 2, 3, DATEADD(minute, -30, GETDATE()), DATEADD(hour, -3, GETDATE()), DATEADD(hour, -1, GETDATE()), DATEADD(minute, -20, GETDATE()), NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, DATEADD(hour, -4, GETDATE()), GETDATE()),
     (7, 'FG-DEMO-007', NULL, NULL, NULL, 4, N'FastGuy Customer', '0901000004', N'123 Nguyen Hue, Quan 1', N'TP. Ho Chi Minh', N'Quan 1', N'Ben Nghe', 79000, 15000, 0, 74000, 74000, DATEADD(day, -1, GETDATE()), 'GHN', DATEADD(day, -1, GETDATE()), 'COD', 'PAID', NULL, NULL, 'DELIVERED', 2, 3, DATEADD(day, -1, GETDATE()), DATEADD(day, -1, GETDATE()), DATEADD(day, -1, GETDATE()), DATEADD(day, -1, GETDATE()), DATEADD(day, -1, GETDATE()), DATEADD(day, -1, GETDATE()), NULL, NULL, NULL, 'WELCOME10', 20000, NULL, DATEADD(day, -2, GETDATE()), DATEADD(day, -1, GETDATE())),
@@ -819,6 +876,27 @@ INSERT dbo.Review (review_id, user_id, order_id, product_id, rating, comment, cr
     (1, 4, 7, 1, 5, N'Giao nhanh, mon an con nong.', DATEADD(hour, -20, GETDATE()), DATEADD(hour, -20, GETDATE()));
 SET IDENTITY_INSERT dbo.Review OFF;
 
+UPDATE dbo.InventoryItem SET average_unit_cost=CASE inventory_item_id WHEN 1 THEN 28000 WHEN 2 THEN 34000 WHEN 3 THEN 9000 WHEN 4 THEN 5000 ELSE 43000 END;
+UPDATE dbo.OrderItem SET unit_cost_snapshot=CASE variant_id WHEN 1 THEN 28000 WHEN 2 THEN 34000 WHEN 3 THEN 9000 WHEN 4 THEN 5000 ELSE 43000 END,total_cost_snapshot=quantity*CASE variant_id WHEN 1 THEN 28000 WHEN 2 THEN 34000 WHEN 3 THEN 9000 WHEN 4 THEN 5000 ELSE 43000 END;
+UPDATE o SET status_entered_at=CASE WHEN o.order_status IN('PENDING','CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP') THEN DATEADD(minute,-5,SYSDATETIME()) ELSE COALESCE(o.delivered_at,o.cancelled_at,o.created_at) END,staff_shift_id=CASE WHEN o.staff_id=2 AND o.order_status IN('CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP') THEN (SELECT TOP(1) shift_id FROM dbo.WorkShift WHERE user_id=2 AND shift_date=CAST(GETDATE() AS date) ORDER BY CASE WHEN CAST(GETDATE() AS time) BETWEEN start_time AND end_time THEN 0 ELSE 1 END,start_time) END FROM dbo.Orders o;
+UPDATE dbo.InventoryItem SET reserved_quantity=2 WHERE inventory_item_id=1;
+
+SET IDENTITY_INSERT dbo.Orders ON;
+;WITH n(n) AS (SELECT n FROM (VALUES(9),(10),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20),(21),(22),(23),(24),(25),(26),(27),(28),(29),(30),(31),(32)) v(n))
+INSERT dbo.Orders(order_id,order_code,user_id,customer_name,customer_phone,customer_address,total_amount,shipping_fee,final_amount,cod_collected_amount,cod_collected_at,payment_method,payment_status,order_status,staff_id,shipper_id,assigned_at,confirmed_at,ready_at,picked_up_at,paid_at,delivered_at,cancelled_at,cancelled_by,discount_amount,status_entered_at,created_at,updated_at)
+SELECT n,CONCAT('FG-DEMO-',RIGHT(CONCAT('000',n),3)),4,N'FastGuy Customer','0901000004',N'123 Nguyen Hue, Quan 1',59000,15000,74000,CASE WHEN n%4<>0 THEN 74000 END,CASE WHEN n%4<>0 THEN DATEADD(day,-(n*2),GETDATE()) END,'COD',CASE WHEN n%4<>0 THEN 'PAID' ELSE 'UNPAID' END,CASE WHEN n%4<>0 THEN 'DELIVERED' ELSE 'CANCELLED' END,CASE WHEN n%4<>0 THEN 2 END,CASE WHEN n%4<>0 THEN 3 END,CASE WHEN n%4<>0 THEN DATEADD(day,-(n*2),GETDATE()) END,CASE WHEN n%4<>0 THEN DATEADD(day,-(n*2),GETDATE()) END,CASE WHEN n%4<>0 THEN DATEADD(day,-(n*2),GETDATE()) END,CASE WHEN n%4<>0 THEN DATEADD(day,-(n*2),GETDATE()) END,CASE WHEN n%4<>0 THEN DATEADD(day,-(n*2),GETDATE()) END,CASE WHEN n%4<>0 THEN DATEADD(day,-(n*2),GETDATE()) END,CASE WHEN n%4=0 THEN DATEADD(day,-(n*2),GETDATE()) END,CASE WHEN n%4=0 THEN 'CUSTOMER' END,0,DATEADD(day,-(n*2),GETDATE()),DATEADD(day,-(n*2),GETDATE()),DATEADD(day,-(n*2),GETDATE()) FROM n;
+SET IDENTITY_INSERT dbo.Orders OFF;
+INSERT dbo.OrderItem(order_id,product_id,variant_id,product_name,variant_name,quantity,unit_price,total_price,unit_cost_snapshot,total_cost_snapshot,modifiers_json) SELECT order_id,1,1,N'Classic Burger',N'Tieu chuan',1,59000,59000,28000,28000,N'[{"modifierOptionId":3,"groupName":"Sot","optionName":"Sot dac biet","price":0}]' FROM dbo.Orders WHERE order_id BETWEEN 9 AND 32;
+INSERT dbo.InventoryReservation(order_id,status,created_at,updated_at) SELECT order_id,CASE WHEN order_status='DELIVERED' THEN 'CONSUMED' ELSE 'RELEASED' END,created_at,status_entered_at FROM dbo.Orders WHERE order_id BETWEEN 9 AND 32;
+INSERT dbo.InventoryReservationItem(reservation_id,inventory_item_id,quantity) SELECT reservation_id,1,1 FROM dbo.InventoryReservation WHERE order_id BETWEEN 9 AND 32;
+INSERT dbo.InventoryTransaction(inventory_item_id,order_id,transaction_type,quantity,quantity_before,quantity_after,unit_cost_snapshot,total_cost,created_at) SELECT 1,order_id,'RESERVE',1,100,99,28000,28000,DATEADD(minute,-5,created_at) FROM dbo.Orders WHERE order_id BETWEEN 9 AND 32;
+INSERT dbo.InventoryTransaction(inventory_item_id,order_id,transaction_type,quantity,quantity_before,quantity_after,unit_cost_snapshot,total_cost,created_at) SELECT 1,order_id,CASE WHEN order_status='DELIVERED' THEN 'CONSUME' ELSE 'RELEASE' END,1,99,CASE WHEN order_status='DELIVERED' THEN 98 ELSE 100 END,28000,28000,status_entered_at FROM dbo.Orders WHERE order_id BETWEEN 9 AND 32;
+INSERT dbo.OrderStatusHistory(order_id,actor_user_id,actor_role,from_status,to_status,note,created_at) SELECT order_id,CASE WHEN order_status='DELIVERED' THEN 3 ELSE 4 END,CASE WHEN order_status='DELIVERED' THEN 'SHIPPER' ELSE 'USER' END,CASE WHEN order_status='DELIVERED' THEN 'PICKED_UP' ELSE 'PENDING' END,order_status,N'Demo history',status_entered_at FROM dbo.Orders WHERE order_id BETWEEN 9 AND 32;
+INSERT dbo.LoyaltyTransaction(user_id,order_id,transaction_type,points,created_at) SELECT 4,order_id,'EARN',74,delivered_at FROM dbo.Orders WHERE order_id BETWEEN 9 AND 32 AND order_status='DELIVERED';
+UPDATE dbo.Users SET loyalty_points=(SELECT SUM(points) FROM dbo.LoyaltyTransaction WHERE user_id=4) WHERE user_id=4;
+INSERT dbo.OperatingExpense(expense_date,category,description,amount,created_by) VALUES (DATEADD(month,-5,CAST(GETDATE() AS date)),'RENT',N'Tien thue cua hang',18000000,1),(DATEADD(month,-4,CAST(GETDATE() AS date)),'UTILITIES',N'Dien nuoc',4200000,1),(DATEADD(month,-3,CAST(GETDATE() AS date)),'SALARY',N'Luong nhan vien',24000000,1),(DATEADD(month,-2,CAST(GETDATE() AS date)),'MARKETING',N'Khuyen mai sinh vien',3500000,1),(DATEADD(month,-1,CAST(GETDATE() AS date)),'MAINTENANCE',N'Bao tri thiet bi',1800000,1),(CAST(GETDATE() AS date),'OTHER',N'Vat tu van hanh',900000,1);
+INSERT dbo.FixedAsset(asset_name,acquisition_cost,salvage_value,depreciation_start_date,useful_life_months,status,created_by) VALUES (N'Bep chien cong nghiep',45000000,5000000,DATEADD(month,-18,CAST(GETDATE() AS date)),60,'ACTIVE',1),(N'Tu dong bao quan',62000000,7000000,DATEADD(month,-14,CAST(GETDATE() AS date)),72,'ACTIVE',1),(N'Bo may POS',18000000,1000000,DATEADD(month,-10,CAST(GETDATE() AS date)),36,'ACTIVE',1),(N'Xe may giao hang',32000000,4000000,DATEADD(month,-8,CAST(GETDATE() AS date)),48,'ACTIVE',1);
+
 COMMIT TRANSACTION;
 END TRY
 BEGIN CATCH
@@ -829,10 +907,12 @@ GO
 
 DECLARE @RequiredTables TABLE (table_name sysname PRIMARY KEY);
 INSERT @RequiredTables (table_name) VALUES
-    ('Users'), ('PasswordResetToken'), ('Address'), ('Category'), ('Product'), ('ProductVariant'),
+    ('SchemaMigrationHistory'), ('Users'), ('PasswordResetToken'), ('Address'), ('Category'), ('Product'), ('ProductVariant'),
     ('ProductModifierGroup'), ('ProductModifierOption'), ('Cart'), ('CartItem'), ('Orders'), ('OrderItem'),
     ('Coupon'), ('CouponRedemption'), ('Banner'), ('Review'), ('OrderStatusHistory'), ('LoyaltyTransaction'), ('WorkShift'),
-    ('PaymentAttempt'), ('InventoryReservation'), ('InventoryTransaction'), ('ShippingConfig');
+    ('PaymentAttempt'), ('InventoryItem'), ('VariantInventoryItem'), ('Recipe'), ('RecipeItem'), ('InventoryReservation'), ('InventoryReservationLegacyHistory'), ('InventoryReservationItem'), ('GoodsReceipt'), ('GoodsReceiptItem'), ('StockCount'), ('StockCountItem'), ('InventoryTransaction'), ('OperatingExpense'), ('FixedAsset'), ('CodSettlement'), ('ShippingConfig');
+DECLARE @ExpectedTableCount int = (SELECT COUNT(*) FROM @RequiredTables);
+IF @ExpectedTableCount <> 37 THROW 51020, 'Validation failed: canonical required table list must contain 37 tables.',1;
 
 IF EXISTS (
     SELECT 1 FROM @RequiredTables r
@@ -840,8 +920,8 @@ IF EXISTS (
 )
     THROW 51000, 'Validation failed: required table missing.', 1;
 
-IF (SELECT COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo')) <> 22
-    THROW 51001, 'Validation failed: dbo must contain exactly 21 entity tables plus ShippingConfig.', 1;
+IF (SELECT COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo')) <> @ExpectedTableCount
+    THROW 51001, 'Validation failed: dbo table count differs from canonical CREATE TABLE set.', 1;
 
 IF OBJECT_ID(N'dbo.Role', N'U') IS NOT NULL
    OR OBJECT_ID(N'dbo.DeliveryZone', N'U') IS NOT NULL
@@ -871,17 +951,8 @@ IF EXISTS (
 )
     THROW 51005, 'Validation failed: demo order is missing inventory reservation.', 1;
 
-IF EXISTS (
-    SELECT oi.order_id, oi.variant_id
-    FROM dbo.OrderItem oi
-    GROUP BY oi.order_id, oi.variant_id
-    HAVING SUM(oi.quantity) <> (
-        SELECT COALESCE(SUM(r.quantity), 0)
-        FROM dbo.InventoryReservation r
-        WHERE r.order_id = oi.order_id AND r.variant_id = oi.variant_id
-    )
-)
-    THROW 51006, 'Validation failed: reservation quantities do not match order items.', 1;
+IF EXISTS (SELECT 1 FROM dbo.InventoryReservation r LEFT JOIN dbo.InventoryReservationItem ri ON ri.reservation_id=r.reservation_id GROUP BY r.reservation_id HAVING COUNT(ri.reservation_item_id)=0)
+    THROW 51006, 'Validation failed: reservation has no inventory lines.', 1;
 
 IF EXISTS (
     SELECT 1
@@ -922,6 +993,7 @@ IF EXISTS (
 IF EXISTS (
     SELECT 1
     FROM dbo.InventoryReservation reservation
+    OUTER APPLY (SELECT SUM(quantity) AS quantity FROM dbo.InventoryReservationItem WHERE reservation_id=reservation.reservation_id) reserved
     OUTER APPLY (
         SELECT
             SUM(CASE WHEN transaction_row.transaction_type = 'RESERVE' THEN 1 ELSE 0 END) AS reserve_count,
@@ -936,14 +1008,13 @@ IF EXISTS (
             MIN(CASE WHEN transaction_row.transaction_type IN ('CONSUME', 'RELEASE', 'WASTE') THEN transaction_row.created_at END) AS terminal_at
         FROM dbo.InventoryTransaction transaction_row
         WHERE transaction_row.order_id = reservation.order_id
-          AND transaction_row.variant_id = reservation.variant_id
     ) lifecycle
     WHERE COALESCE(lifecycle.reserve_count, 0) <> 1
-       OR COALESCE(lifecycle.reserve_quantity, 0) <> reservation.quantity
+       OR COALESCE(lifecycle.reserve_quantity, 0) <> reserved.quantity
        OR (reservation.status = 'RESERVED' AND (COALESCE(lifecycle.consume_count, 0) <> 0 OR COALESCE(lifecycle.release_count, 0) <> 0 OR COALESCE(lifecycle.waste_count, 0) <> 0))
-       OR (reservation.status = 'CONSUMED' AND (COALESCE(lifecycle.consume_count, 0) <> 1 OR COALESCE(lifecycle.consume_quantity, 0) <> reservation.quantity OR COALESCE(lifecycle.release_count, 0) <> 0 OR COALESCE(lifecycle.waste_count, 0) <> 0))
-       OR (reservation.status = 'RELEASED' AND (COALESCE(lifecycle.release_count, 0) <> 1 OR COALESCE(lifecycle.release_quantity, 0) <> reservation.quantity OR COALESCE(lifecycle.consume_count, 0) <> 0 OR COALESCE(lifecycle.waste_count, 0) <> 0))
-       OR (reservation.status = 'WASTED' AND (COALESCE(lifecycle.consume_count, 0) <> 1 OR COALESCE(lifecycle.consume_quantity, 0) <> reservation.quantity OR COALESCE(lifecycle.waste_count, 0) <> 1 OR COALESCE(lifecycle.waste_quantity, 0) <> reservation.quantity OR COALESCE(lifecycle.release_count, 0) <> 0))
+       OR (reservation.status = 'CONSUMED' AND (COALESCE(lifecycle.consume_count, 0) <> 1 OR COALESCE(lifecycle.consume_quantity, 0) <> reserved.quantity OR COALESCE(lifecycle.release_count, 0) <> 0 OR COALESCE(lifecycle.waste_count, 0) <> 0))
+       OR (reservation.status = 'RELEASED' AND (COALESCE(lifecycle.release_count, 0) <> 1 OR COALESCE(lifecycle.release_quantity, 0) <> reserved.quantity OR COALESCE(lifecycle.consume_count, 0) <> 0 OR COALESCE(lifecycle.waste_count, 0) <> 0))
+       OR (reservation.status = 'WASTED' AND (COALESCE(lifecycle.consume_count, 0) <> 1 OR COALESCE(lifecycle.consume_quantity, 0) <> reserved.quantity OR COALESCE(lifecycle.waste_count, 0) <> 1 OR COALESCE(lifecycle.waste_quantity, 0) <> reserved.quantity OR COALESCE(lifecycle.release_count, 0) <> 0))
        OR (reservation.status IN ('CONSUMED', 'RELEASED', 'WASTED') AND (lifecycle.terminal_at IS NULL OR lifecycle.terminal_at < lifecycle.reserved_at))
 )
     THROW 51011, 'Validation failed: inventory transaction sequence does not match reservation lifecycle.', 1;
@@ -955,7 +1026,7 @@ IF EXISTS (
         SELECT 1
         FROM dbo.InventoryReservation reservation
         WHERE reservation.order_id = transaction_row.order_id
-          AND reservation.variant_id = transaction_row.variant_id
+
     )
 )
     THROW 51012, 'Validation failed: inventory transaction has no matching reservation.', 1;
@@ -972,6 +1043,15 @@ IF EXISTS (
     WHERE latest.to_status IS NULL OR latest.to_status <> orders.order_status
 )
     THROW 51009, 'Validation failed: latest order history does not match order status.', 1;
+
+DECLARE @ValidationWeekStart date=DATEADD(day,1-DATEPART(weekday,CAST(GETDATE() AS date)),CAST(GETDATE() AS date));
+IF (SELECT COUNT(*) FROM dbo.WorkShift WHERE staff_role_snapshot='STAFF' AND shift_date BETWEEN @ValidationWeekStart AND DATEADD(day,6,@ValidationWeekStart))<>21 OR EXISTS(SELECT 1 FROM dbo.WorkShift WHERE staff_role_snapshot='STAFF' GROUP BY shift_date,shift_code HAVING COUNT(*)<>1) THROW 51013, 'Validation failed: current week must contain exact 7x3 STAFF schedule, one STAFF per slot.',1;
+IF NOT ((SELECT COUNT(*) FROM dbo.Orders) BETWEEN 20 AND 40) THROW 51014, 'Validation failed: demo order count must remain manageable.',1;
+IF EXISTS(SELECT 1 FROM dbo.Orders WHERE order_status IN('PENDING','CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP') AND status_entered_at<DATEADD(minute,-30,SYSDATETIME())) THROW 51015, 'No active demo order may exceed its state timeout',1;
+IF EXISTS(SELECT 1 FROM dbo.Orders WHERE order_status IN('CONFIRMED','PREPARING','READY','ASSIGNED','PICKED_UP') AND (staff_shift_id IS NULL OR staff_id<>2)) THROW 51016, 'Validation failed: active owned store order lacks STAFF shift ownership.',1;
+IF EXISTS(SELECT 1 FROM dbo.OrderItem WHERE unit_cost_snapshot IS NULL OR total_cost_snapshot IS NULL) THROW 51017, 'Validation failed: order cost snapshot incomplete.',1;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.OperatingExpense') AND name='IX_OperatingExpense_ExpenseDate') OR NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.FixedAsset') AND name='IX_FixedAsset_Status_DepreciationStartDate') THROW 51018, 'Validation failed: operating finance index missing.',1;
+IF (SELECT COALESCE(SUM(final_amount),0) FROM dbo.Orders WHERE order_status='DELIVERED')<=0 OR (SELECT COALESCE(SUM(total_cost_snapshot),0) FROM dbo.OrderItem oi JOIN dbo.Orders o ON o.order_id=oi.order_id WHERE o.order_status='DELIVERED')<=0 OR (SELECT COALESCE(SUM(amount),0) FROM dbo.OperatingExpense)<=0 OR (SELECT COALESCE(SUM((acquisition_cost-salvage_value)/useful_life_months),0) FROM dbo.FixedAsset WHERE status='ACTIVE')<=0 THROW 51019, 'Financial demo must have nonzero revenue, COGS, expense, and depreciation',1;
 
 SELECT 'Users' AS table_name, COUNT(*) AS row_count FROM dbo.Users
 UNION ALL SELECT 'Products', COUNT(*) FROM dbo.Product

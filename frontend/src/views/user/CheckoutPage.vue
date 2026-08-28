@@ -13,6 +13,7 @@ import { userApi, shippingApi, orderApi, storeApi } from '@/api';
 import couponApi from '@/api/coupon';
 import { useToast } from '@/stores/toast';
 import { loadAddressHierarchy } from '@/utils/checkoutAddress';
+import { isPastOrderCutoff } from '@/utils/orderCutoff';
 
 const toast = useToast();
 
@@ -70,6 +71,8 @@ function clearIdempotencyKey() {
   try { sessionStorage.removeItem(IDEMPOTENCY_STORAGE_KEY); } catch {}
 }
 const storeConfig = ref(null);
+const cutoffNow = ref(new Date());
+let cutoffTimer;
 const currentStep = ref(1);
 const shippingError = ref('');
 
@@ -91,10 +94,12 @@ let applyingSavedAddress = false;
 
 const serviceFee = computed(() => Number(storeConfig.value?.serviceFee) || 0);
 const total = computed(() => Math.max(0, cart.subtotal + (shippingFee.value || 0) + serviceFee.value - couponDiscount.value));
-const isStoreClosed = computed(() => storeConfig.value?.isOpen === false);
+const cutoffClosed = computed(() => isPastOrderCutoff(storeConfig.value?.orderCutoffTime, cutoffNow.value));
+const isStoreClosed = computed(() => storeConfig.value?.isOpen === false || cutoffClosed.value);
 const hasInvalidItems = computed(() => cart.items.some(i => (i.variantStatus && i.variantStatus !== 'AVAILABLE') || (i.quantityAvailable != null && (Number(i.quantityAvailable) <= 0 || i.quantity > Number(i.quantityAvailable)))));
 
 onMounted(async () => {
+  cutoffTimer = setInterval(() => { cutoffNow.value = new Date(); }, 30000);
   try {
     const capabilities = await orderApi.getPaymentCapabilities();
     paymentAvailability.value = {
@@ -319,7 +324,7 @@ function handleCodDialogKeydown(event) {
   else if (!event.shiftKey && document.activeElement === buttons.at(-1)) { event.preventDefault(); buttons[0].focus(); }
 }
 
-onBeforeUnmount(() => { addressSelectionGeneration += 1; document.body.style.overflow = ''; });
+onBeforeUnmount(() => { addressSelectionGeneration += 1; clearInterval(cutoffTimer); document.body.style.overflow = ''; });
 
 async function loadClaimedCoupons() {
   claimedCouponsLoading.value = true;
@@ -387,7 +392,9 @@ function selectClaimedCoupon(c) {
 
 async function placeOrder() {
   if (submitting.value) return;
-  if (isStoreClosed.value) return toast.error('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
+  try { storeConfig.value = await storeApi.getConfig(); cutoffNow.value = new Date(); }
+  catch {}
+  if (storeConfig.value?.isOpen === false || isPastOrderCutoff(storeConfig.value?.orderCutoffTime, new Date())) return toast.error('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
   if (hasInvalidItems.value) return toast.error('Co mon da het hang hoac vuot ton kho, vui long cap nhat gio hang');
   if (shippingFee.value === null) return toast.error('Dịch vụ giao hàng tạm không khả dụng. Vui lòng thử lại sau.');
   if (!isPaymentEnabled(paymentMethod.value)) return toast.error('Phương thức thanh toán đang chọn không khả dụng.');
@@ -483,6 +490,8 @@ async function placeOrder() {
       if (!isGuest.value) await cart.fetchCart();
       await productStore.refreshAvailability();
       toast.error(CONFLICT_MESSAGE);
+    } else if (e?.code === 'STORE_CLOSED' || e?.response?.data?.code === 'STORE_CLOSED') {
+      toast.error(e?.response?.data?.message || e.message || 'Cửa hàng đã ngừng nhận đơn.');
     } else {
       toast.error(e.message);
     }
@@ -498,13 +507,13 @@ async function placeOrder() {
     <div class="container">
       <div class="checkout-breadcrumb"><router-link to="/home">Trang chủ</router-link><i class="bi bi-chevron-right"></i><router-link to="/cart">Giỏ hàng</router-link><i class="bi bi-chevron-right"></i><strong>Thanh toán</strong></div>
       <CheckoutStepper :current="currentStep === 3 ? 3 : 2" />
+      <div v-if="storeConfig" class="store-status" :class="{ closed: isStoreClosed }">
+        <i :class="isStoreClosed ? 'bi bi-shop-window' : 'bi bi-check-circle-fill'"></i>
+        <span>{{ isStoreClosed ? 'Cửa hàng hiện đã đóng cửa' : 'Cửa hàng đang mở cửa' }} · {{ storeConfig.openTime }} - {{ storeConfig.closeTime }} · Nhận đơn đến {{ storeConfig.orderCutoffTime }}</span>
+      </div>
     <div v-if="cart.items.length > 0" class="checkout-shell">
       <div class="checkout-layout">
         <div class="checkout-main">
-          <div v-if="storeConfig" class="store-status" :class="{ closed: isStoreClosed }">
-            <i :class="isStoreClosed ? 'bi bi-shop-window' : 'bi bi-check-circle-fill'"></i>
-            <span>{{ isStoreClosed ? 'Cửa hàng hiện đã đóng cửa' : 'Cửa hàng đang mở cửa' }} · {{ storeConfig.openTime }} - {{ storeConfig.closeTime }}</span>
-          </div>
           <div v-show="currentStep <= 2" class="card mb-3 checkout-block checkout-section delivery-section">
            <h3><i class="bi bi-geo-alt"></i> Thông tin nhận hàng</h3>
 
@@ -756,7 +765,8 @@ async function placeOrder() {
               <span>Tổng cộng</span><span>{{ formatPrice(total) }}</span>
             </div>
           </div>
-          <p v-if="isStoreClosed" class="stock-warning">Cửa hàng đang đóng cửa ({{ storeConfig.openTime }} - {{ storeConfig.closeTime }}), chưa thể đặt hàng.</p>
+          <p v-if="cutoffClosed" class="stock-warning">Cửa hàng ngừng nhận đơn lúc {{ storeConfig.orderCutoffTime }}, chưa thể đặt hàng.</p>
+          <p v-else-if="isStoreClosed" class="stock-warning">Cửa hàng đang đóng cửa ({{ storeConfig.openTime }} - {{ storeConfig.closeTime }}), chưa thể đặt hàng.</p>
           <p v-else-if="hasInvalidItems" class="stock-warning">Có món đã hết hàng hoặc vượt tồn kho</p>
           <button
             v-if="currentStep === 3"

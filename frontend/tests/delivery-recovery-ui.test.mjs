@@ -66,7 +66,7 @@ test('staff queue and detail expose bounded recovery controls', () => {
   assert.match(staffDetail, /Hàng hóa sẽ được ghi nhận hao hụt/);
   assert.match(staffDetail, /Mã giảm giá sẽ được giải phóng/);
   assert.match(staffDetail, /Thanh toán online có thể cần hoàn tiền/);
-  assert.match(staffDetail, /error\.status === 409/);
+  assert.match(staffDetail, /\[409, 410\]\.includes\(error\.status\)/);
 });
 
 test('admin override requires note and operational fields remain visible', () => {

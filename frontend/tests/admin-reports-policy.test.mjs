@@ -95,6 +95,8 @@ test('existing load requestId guard and chart rendering are preserved', () => {
   assert.match(reportsPage, /const id = \+\+requestId;/);
   assert.match(reportsPage, /if \(id !== requestId\) return;/);
   assert.match(reportsPage, /buildAllCharts\(\)/);
-  assert.match(reportsPage, /if \(id === requestId\) error\.value/);
-  assert.match(reportsPage, /if \(id === requestId\) loading\.value = false;/);
+  assert.match(reportsPage, /Promise\.allSettled/);
+  assert.match(reportsPage, /reportWarning\.value/);
+  assert.match(reportsPage, /financeWarning\.value/);
+  assert.match(reportsPage, /loading\.value = false;/);
 });

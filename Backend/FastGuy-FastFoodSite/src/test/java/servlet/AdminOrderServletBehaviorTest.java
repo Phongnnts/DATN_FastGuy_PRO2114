@@ -46,7 +46,8 @@ class AdminOrderServletBehaviorTest {
                 "deliveryNote", "cancelledBy", "failureNote", "failureReason", "deliveryFailureCode", "deliveryAttemptCount", "deliveryAttemptLimit",
                 "deliveryFailedAt", "retryScheduledAt", "returnedToStoreAt", "refundStatus", "refundAmount", "refundNote", "refundedAt",
                 "createdAt", "confirmedAt", "cancelledAt", "deliveredAt", "staffName", "shipperName", "internalNote", "review",
-                "payment", "items", "statusHistory")) assertTrue(data.has(field), field);
+                "payment", "items", "statusHistory", "statusEnteredAt", "expiresAt", "remainingSeconds", "timeoutPolicy",
+                "ownerShiftCode")) assertTrue(data.has(field), field);
         assertTrue(data.path("payment").isNull());
         assertTrue(data.path("items").isArray());
         assertTrue(data.path("statusHistory").isArray());

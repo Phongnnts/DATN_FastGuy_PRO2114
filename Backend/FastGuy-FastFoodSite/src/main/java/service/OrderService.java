@@ -495,6 +495,7 @@ public class OrderService {
         order.setPaymentMethod(paymentMethod != null ? paymentMethod : "COD");
         order.setPaymentStatus("UNPAID");
         order.setOrderStatus("PENDING");
+        order.setStatusEnteredAt(WorkShiftService.businessNow());
         order.setDiscountAmount(discountAmount);
         order.setCouponCode(couponCode);
         order.setDeliveryNote(deliveryNote);
@@ -588,7 +589,8 @@ public class OrderService {
     private BigDecimal validateBusinessHoursAndGetServiceFee(Map<String, String> config) {
         String openTime = config.getOrDefault(StoreConfigService.OPEN_TIME, "00:00");
         String closeTime = config.getOrDefault(StoreConfigService.CLOSE_TIME, "00:00");
-        if (!StoreConfigService.isOpen(openTime, closeTime, LocalTime.now())) throw new IllegalArgumentException("Cửa hàng hiện đã đóng cửa");
+        LocalTime now = WorkShiftService.businessNow().toLocalTime();
+        if (!StoreConfigService.isOpen(openTime, closeTime, now) || !StoreConfigService.acceptsCheckoutAt(now)) throw new IllegalArgumentException("Cửa hàng hiện đã đóng cửa");
         return StoreConfigService.parseFee(config.get(StoreConfigService.SERVICE_FEE));
     }
 

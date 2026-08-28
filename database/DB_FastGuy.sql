@@ -12,6 +12,17 @@ SET CONCAT_NULL_YIELDS_NULL ON;
 SET NUMERIC_ROUNDABORT OFF;
 GO
 
+CREATE TABLE dbo.SchemaMigrationHistory (
+    migration_id varchar(100) NOT NULL CONSTRAINT PK_SchemaMigrationHistory PRIMARY KEY,
+    applied_at datetime2(0) NOT NULL CONSTRAINT DF_SchemaMigrationHistory_AppliedAt DEFAULT SYSUTCDATETIME(),
+    applied_by sysname NOT NULL CONSTRAINT DF_SchemaMigrationHistory_AppliedBy DEFAULT ORIGINAL_LOGIN(),
+    details nvarchar(1000) NULL
+);
+INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
+    ('000_preflight_history', N'Canonical fresh schema baseline'),
+    ('059_shift_schedule_order_timeout', N'Canonical fresh schema baseline'),
+    ('060_operating_finance', N'Canonical fresh schema baseline');
+
 -- Tạo bảng Category
 CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
@@ -247,6 +258,7 @@ CREATE TABLE dbo.Orders (
     payos_checkout_url varchar(500) NULL,
     guest_return_proof_hash varchar(64) NULL,
     order_status varchar(30) NOT NULL CONSTRAINT DF_Orders_Status DEFAULT 'PENDING',
+    status_entered_at datetime2(0) NOT NULL CONSTRAINT DF_Orders_StatusEnteredAt DEFAULT SYSDATETIME(),
     staff_id int NULL CONSTRAINT FK_Orders_Staff REFERENCES dbo.Users(user_id),
     staff_shift_id int NULL,
     shipper_id int NULL CONSTRAINT FK_Orders_Shipper REFERENCES dbo.Users(user_id),
@@ -325,6 +337,37 @@ CREATE TABLE dbo.StockCount (stock_count_id int IDENTITY(1,1) NOT NULL CONSTRAIN
 CREATE TABLE dbo.StockCountItem (stock_count_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_StockCountItem PRIMARY KEY,stock_count_id int NOT NULL CONSTRAINT FK_StockCountItem_Count REFERENCES dbo.StockCount(stock_count_id),inventory_item_id int NOT NULL CONSTRAINT FK_StockCountItem_Item REFERENCES dbo.InventoryItem(inventory_item_id),theoretical_quantity decimal(19,4) NOT NULL,actual_quantity decimal(19,4) NULL,variance_quantity decimal(19,4) NULL,unit_cost_snapshot decimal(19,4) NULL,variance_cost decimal(19,4) NULL,reason_code varchar(50) NULL,note nvarchar(500) NULL,CONSTRAINT UQ_StockCountItem_CountItem UNIQUE(stock_count_id,inventory_item_id),CONSTRAINT CK_StockCountItem_Quantity CHECK(theoretical_quantity>=0 AND (actual_quantity IS NULL OR actual_quantity>=0)),CONSTRAINT CK_StockCountItem_Cost CHECK(unit_cost_snapshot IS NULL OR unit_cost_snapshot>=0));
 CREATE TABLE dbo.InventoryTransaction (inventory_transaction_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_InventoryTransaction PRIMARY KEY, inventory_item_id int NOT NULL CONSTRAINT FK_InventoryTransaction_Item REFERENCES dbo.InventoryItem(inventory_item_id), order_id int NULL CONSTRAINT FK_InventoryTransaction_Order REFERENCES dbo.Orders(order_id), transaction_type varchar(20) NOT NULL, quantity decimal(19,4) NOT NULL, quantity_before decimal(19,4) NULL, quantity_after decimal(19,4) NULL, reference_type varchar(30) NULL, reference_id varchar(100) NULL, reason_code varchar(50) NULL, note nvarchar(500) NULL, unit_cost_snapshot decimal(19,4) NULL,total_cost decimal(19,4) NULL,goods_receipt_id int NULL CONSTRAINT FK_InventoryTransaction_GoodsReceipt REFERENCES dbo.GoodsReceipt(goods_receipt_id),stock_count_id int NULL CONSTRAINT FK_InventoryTransaction_StockCount REFERENCES dbo.StockCount(stock_count_id),created_by int NULL CONSTRAINT FK_InventoryTransaction_CreatedBy REFERENCES dbo.Users(user_id), created_at datetime2(0) NOT NULL CONSTRAINT DF_InventoryTransaction_Created DEFAULT GETDATE(), CONSTRAINT CK_InventoryTransaction_Quantity CHECK (quantity <> 0), CONSTRAINT CK_InventoryTransaction_Type CHECK (transaction_type IN ('RECEIPT','RESERVE','RELEASE','CONSUME','ADJUSTMENT','WASTE','RETURN')),CONSTRAINT CK_InventoryTransaction_Cost CHECK((unit_cost_snapshot IS NULL OR unit_cost_snapshot>=0) AND (total_cost IS NULL OR total_cost>=0)));
 
+CREATE TABLE dbo.OperatingExpense (
+    expense_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_OperatingExpense PRIMARY KEY,
+    expense_date date NOT NULL,
+    category varchar(20) NOT NULL,
+    description nvarchar(500) NOT NULL,
+    amount decimal(18,2) NOT NULL,
+    created_by int NOT NULL CONSTRAINT FK_OperatingExpense_CreatedBy REFERENCES dbo.Users(user_id),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_OperatingExpense_CreatedAt DEFAULT SYSUTCDATETIME(),
+    updated_at datetime2(0) NOT NULL CONSTRAINT DF_OperatingExpense_UpdatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT CK_OperatingExpense_Category CHECK (category IN ('RENT','UTILITIES','SALARY','MARKETING','MAINTENANCE','OTHER')),
+    CONSTRAINT CK_OperatingExpense_Amount CHECK (amount > 0)
+);
+
+CREATE TABLE dbo.FixedAsset (
+    asset_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_FixedAsset PRIMARY KEY,
+    asset_name nvarchar(255) NOT NULL,
+    acquisition_cost decimal(18,2) NOT NULL,
+    salvage_value decimal(18,2) NOT NULL,
+    depreciation_start_date date NOT NULL,
+    useful_life_months int NOT NULL,
+    status varchar(20) NOT NULL CONSTRAINT DF_FixedAsset_Status DEFAULT 'ACTIVE',
+    retired_at datetime2(0) NULL,
+    created_by int NOT NULL CONSTRAINT FK_FixedAsset_CreatedBy REFERENCES dbo.Users(user_id),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_FixedAsset_CreatedAt DEFAULT SYSUTCDATETIME(),
+    updated_at datetime2(0) NOT NULL CONSTRAINT DF_FixedAsset_UpdatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT CK_FixedAsset_Value CHECK (acquisition_cost > 0 AND salvage_value >= 0 AND salvage_value < acquisition_cost),
+    CONSTRAINT CK_FixedAsset_UsefulLife CHECK (useful_life_months > 0),
+    CONSTRAINT CK_FixedAsset_Status CHECK (status IN ('ACTIVE','RETIRED')),
+    CONSTRAINT CK_FixedAsset_Retirement CHECK ((status = 'ACTIVE' AND retired_at IS NULL) OR (status = 'RETIRED' AND retired_at IS NOT NULL))
+);
+
 -- Tạo bảng LoyaltyTransaction
 CREATE TABLE dbo.LoyaltyTransaction (
     loyalty_transaction_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_LoyaltyTransaction PRIMARY KEY,
@@ -345,12 +388,21 @@ CREATE TABLE dbo.WorkShift (
     shift_date date NOT NULL,
     start_time time(0) NOT NULL,
     end_time time(0) NOT NULL,
+    shift_code varchar(10) NOT NULL,
+    check_in_source varchar(10) NULL,
+    check_out_source varchar(10) NULL,
+    staff_role_snapshot varchar(10) NOT NULL CONSTRAINT DF_WorkShift_StaffRoleSnapshot DEFAULT 'NON_STAFF',
     check_in_at datetime2(0) NULL,
     check_out_at datetime2(0) NULL,
     status varchar(20) NOT NULL CONSTRAINT DF_WorkShift_Status DEFAULT 'SCHEDULED',
     created_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Updated DEFAULT GETDATE(),
     CONSTRAINT CK_WorkShift_Time CHECK (start_time < end_time),
+    CONSTRAINT CK_WorkShift_ShiftCode CHECK (shift_code IN ('MORNING','AFTERNOON','EVENING')),
+    CONSTRAINT CK_WorkShift_CheckInSource CHECK (check_in_source IS NULL OR check_in_source IN ('MANUAL','AUTO')),
+    CONSTRAINT CK_WorkShift_CheckOutSource CHECK (check_out_source IS NULL OR check_out_source IN ('MANUAL','AUTO')),
+    CONSTRAINT CK_WorkShift_StaffRoleSnapshot CHECK (staff_role_snapshot IN ('STAFF','NON_STAFF')),
+    CONSTRAINT CK_WorkShift_StaffFixedTimes CHECK (staff_role_snapshot<>'STAFF' OR (shift_code='MORNING' AND start_time='08:00' AND end_time='12:00') OR (shift_code='AFTERNOON' AND start_time='12:00' AND end_time='16:00') OR (shift_code='EVENING' AND start_time='16:00' AND end_time='21:00')),
     CONSTRAINT CK_WorkShift_Status CHECK (status IN ('SCHEDULED', 'CHECKED_IN', 'CHECKED_OUT', 'ABSENT', 'CANCELLED')),
     CONSTRAINT CK_WorkShift_CheckTimes CHECK (check_out_at IS NULL OR (check_in_at IS NOT NULL AND check_out_at >= check_in_at))
 );
@@ -464,10 +516,15 @@ CREATE INDEX IX_RecipeItem_InventoryItem ON dbo.RecipeItem(inventory_item_id);
 CREATE INDEX IX_InventoryReservationItem_InventoryItem ON dbo.InventoryReservationItem(inventory_item_id);
 CREATE INDEX IX_InventoryTransaction_Order ON dbo.InventoryTransaction(order_id);
 CREATE INDEX IX_InventoryTransaction_ItemCreated ON dbo.InventoryTransaction(inventory_item_id,created_at DESC);
+CREATE INDEX IX_OperatingExpense_ExpenseDate ON dbo.OperatingExpense(expense_date, category);
+CREATE INDEX IX_FixedAsset_Status_DepreciationStartDate ON dbo.FixedAsset(status, depreciation_start_date);
 CREATE INDEX IX_Review_Order ON dbo.Review(order_id);
 CREATE INDEX IX_Review_ProductCreatedAt ON dbo.Review(product_id, created_at DESC, review_id DESC);
 CREATE INDEX IX_Review_FeaturedCreatedAt ON dbo.Review(is_featured, created_at DESC) WHERE is_featured = 1;
+CREATE UNIQUE INDEX UX_WorkShift_Staff_Date_Code ON dbo.WorkShift(shift_date,shift_code) WHERE staff_role_snapshot='STAFF';
 CREATE INDEX IX_Orders_StaffShift_Status ON dbo.Orders(staff_shift_id, order_status);
+CREATE INDEX IX_Orders_Status_StatusEnteredAt ON dbo.Orders(order_status,status_entered_at);
+CREATE INDEX IX_Orders_PaymentStatus_OrderStatus_StatusEnteredAt ON dbo.Orders(payment_status,order_status,status_entered_at);
 GO
 CREATE OR ALTER TRIGGER dbo.TR_Orders_AssignmentRoleGuard ON dbo.Orders AFTER INSERT, UPDATE AS
 BEGIN
@@ -527,7 +584,7 @@ SET IDENTITY_INSERT dbo.Coupon ON;
 INSERT INTO dbo.Coupon(coupon_id,code,type,value,min_order,max_discount,max_uses,used_count,expires_at,is_active,is_public,created_at,updated_at) VALUES (1,'GIAM10','FIXED',10000,50000,10000,100,1,'2027-01-01',1,1,'2026-01-01','2026-01-01');
 SET IDENTITY_INSERT dbo.Coupon OFF;
 SET IDENTITY_INSERT dbo.WorkShift ON;
-INSERT INTO dbo.WorkShift(shift_id,user_id,shift_date,start_time,end_time,check_in_at,check_out_at,status,created_at,updated_at) VALUES (1,2,'2026-01-02','08:00','16:00','2026-01-02 08:00','2026-01-02 16:00','CHECKED_OUT','2026-01-01','2026-01-02'),(2,3,'2026-01-02','08:00','16:00','2026-01-02 08:00','2026-01-02 16:00','CHECKED_OUT','2026-01-01','2026-01-02');
+INSERT INTO dbo.WorkShift(shift_id,user_id,shift_date,start_time,end_time,shift_code,check_in_source,check_out_source,staff_role_snapshot,check_in_at,check_out_at,status,created_at,updated_at) VALUES (1,2,'2026-01-02','08:00','12:00','MORNING','MANUAL','MANUAL','STAFF','2026-01-02 08:00','2026-01-02 12:00','CHECKED_OUT','2026-01-01','2026-01-02'),(2,3,'2026-01-02','08:00','16:00','MORNING','MANUAL','MANUAL','NON_STAFF','2026-01-02 08:00','2026-01-02 16:00','CHECKED_OUT','2026-01-01','2026-01-02');
 SET IDENTITY_INSERT dbo.WorkShift OFF;
 
 SET IDENTITY_INSERT dbo.Orders ON;

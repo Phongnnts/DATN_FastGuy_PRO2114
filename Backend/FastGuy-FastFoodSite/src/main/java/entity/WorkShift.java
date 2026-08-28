@@ -36,6 +36,18 @@ public class WorkShift {
     @Column(name = "end_time")
     private LocalTime endTime;
 
+    @Column(name = "shift_code")
+    private String shiftCode;
+
+    @Column(name = "check_in_source")
+    private String checkInSource;
+
+    @Column(name = "check_out_source")
+    private String checkOutSource;
+
+    @Column(name = "staff_role_snapshot")
+    private String staffRoleSnapshot;
+
     @Column(name = "check_in_at")
     private LocalDateTime checkInAt;
 
@@ -67,6 +79,14 @@ public class WorkShift {
     public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
     public LocalTime getEndTime() { return endTime; }
     public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
+    public String getShiftCode() { return shiftCode; }
+    public void setShiftCode(String shiftCode) { this.shiftCode = shiftCode; }
+    public String getCheckInSource() { return checkInSource; }
+    public void setCheckInSource(String checkInSource) { this.checkInSource = checkInSource; }
+    public String getCheckOutSource() { return checkOutSource; }
+    public void setCheckOutSource(String checkOutSource) { this.checkOutSource = checkOutSource; }
+    public String getStaffRoleSnapshot() { return staffRoleSnapshot; }
+    public void setStaffRoleSnapshot(String staffRoleSnapshot) { this.staffRoleSnapshot = staffRoleSnapshot; }
     public LocalDateTime getCheckInAt() { return checkInAt; }
     public void setCheckInAt(LocalDateTime checkInAt) { this.checkInAt = checkInAt; }
     public LocalDateTime getCheckOutAt() { return checkOutAt; }

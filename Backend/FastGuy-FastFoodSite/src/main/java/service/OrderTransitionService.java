@@ -22,7 +22,7 @@ public class OrderTransitionService {
             "CONFIRMED", Set.of("PREPARING", "CANCELLED"),
             "PREPARING", Set.of("READY", "CANCELLED"),
             "READY", Set.of("ASSIGNED", "CANCELLED"),
-            "ASSIGNED", Set.of("PICKED_UP", "CANCELLED"),
+            "ASSIGNED", Set.of("PICKED_UP"),
             "PICKED_UP", Set.of("DELIVERED", "DELIVERY_FAILED"),
             "DELIVERY_FAILED", Set.of("PICKED_UP", "RETURNED_TO_STORE"),
             "RETURNED_TO_STORE", Set.of(),
@@ -45,7 +45,7 @@ public class OrderTransitionService {
         if (expectedUserId != null && (order.getUser() == null || order.getUser().getUserId() != expectedUserId)) return false;
         if (expectedPaymentStatus != null && !expectedPaymentStatus.equals(order.getPaymentStatus())) return false;
         String status = order.getOrderStatus();
-        if (Set.of("CANCELLED", "DELIVERED", "RETURNED_TO_STORE").contains(status)) return false;
+        if (Set.of("ASSIGNED", "PICKED_UP", "CANCELLED", "DELIVERED", "RETURNED_TO_STORE").contains(status)) return false;
         if (pendingOnly && !"PENDING".equals(status)) return false;
         return !("READY".equals(status) && ("USER".equals(actorRole) || "CUSTOMER".equals(actorRole)));
     }
@@ -53,7 +53,7 @@ public class OrderTransitionService {
     public CancellationResult cancel(int orderId, Integer expectedUserId, String expectedPaymentStatus,
                                      boolean pendingOnly, String actorRole, Integer actorUserId, String reason) {
         return cancel(orderId, order -> canCancel(order, expectedUserId, expectedPaymentStatus, pendingOnly, actorRole),
-                actorRole, actorUserId, reason, LocalDateTime.now());
+                actorRole, actorUserId, reason, WorkShiftService.businessNow());
     }
 
     public CancellationResult cancelReadyIfUnassignedAfterClosing(int orderId, LocalDateTime now,
@@ -95,6 +95,14 @@ public class OrderTransitionService {
         } finally {
             em.close();
         }
+    }
+
+    public CancellationResult cancelIfExpired(int orderId, LocalDateTime now) {
+        return cancel(orderId, order -> OrderExpiryPolicy.isExpired(order, now), "SYSTEM", null, "Quá thời gian xử lý", now);
+    }
+
+    public CancellationResult cancelAtCutoff(int orderId, LocalDateTime now) {
+        return cancel(orderId, OrderExpiryPolicy::isCutoffCancellationCandidate, "SYSTEM", null, "Hết giờ nhận đơn", now);
     }
 
     public record CancellationResult(String orderCode, Integer orderUserId) {}
@@ -152,7 +160,6 @@ public class OrderTransitionService {
 
     public MutationResult transition(int orderId, String toStatus, String actorRole, Integer actorUserId, String note,
                                      Integer assignedShipperId, java.math.BigDecimal collectedAmount, String expectedStatus) {
-        if (!canUseDetailedTransition(toStatus) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
         if (!canUseDetailedTransition(toStatus) || !isCanonicalStatus(toStatus) || !isActorRole(actorRole)) return MutationResult.INVALID;
         if ("ASSIGNED".equals(toStatus) && !canAssignOrder(actorRole, actorUserId, expectedStatus, true)) return MutationResult.INVALID;
         EntityManager em = DatabaseUtil.getEntityManager();
@@ -216,7 +223,7 @@ public class OrderTransitionService {
 
             if ("CONFIRMED".equals(toStatus) && !canActorConfirm(actorRole, currentStaffShift)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             applyActorOwnership(order, toStatus, actorRole, currentStaffShift);
-            if (!"CANCELLED".equals(toStatus)) order.setOrderStatus(toStatus);
+            if (!"CANCELLED".equals(toStatus)) applyStatus(order, toStatus, WorkShiftService.businessNow());
             User actor = actorUserId == null ? null : em.find(User.class, actorUserId);
             if (actor != null) {
                 if ("STAFF".equals(actorRole)) order.setStaff(actor);
@@ -249,7 +256,7 @@ public class OrderTransitionService {
                     || !DeliveryFailurePolicy.isValidFailure(reasonCode, note)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (order.getDeliveryAttemptCount() >= order.getDeliveryAttemptLimit()) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
             order.setDeliveryAttemptCount(order.getDeliveryAttemptCount() + 1);
-            order.setOrderStatus("DELIVERY_FAILED");
+            applyStatus(order, "DELIVERY_FAILED", WorkShiftService.businessNow());
             order.setDeliveryFailureCode(reasonCode);
             order.setFailureReason(note.trim());
             order.setDeliveryFailedAt(LocalDateTime.now());
@@ -282,7 +289,7 @@ public class OrderTransitionService {
             order.setStaff(em.find(User.class, staffId));
             order.setRetryScheduledAt(scheduledAt);
             String to = "IMMEDIATE".equals(retryMode) ? "PICKED_UP" : "DELIVERY_FAILED";
-            order.setOrderStatus(to);
+            applyStatus(order, to, WorkShiftService.businessNow());
             clearOwnershipAfterRecovery(order, to);
             if ("PICKED_UP".equals(to)) order.setPickedUpAt(LocalDateTime.now());
             em.persist(new OrderStatusHistory(orderId, staffId, "STAFF", "DELIVERY_FAILED", to, normalizedNote, LocalDateTime.now()));
@@ -306,7 +313,7 @@ public class OrderTransitionService {
             if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !isOwnedBy(order, staffShift)
                     || !canStartScheduledRetry(order, shipperShift, WorkShiftService.businessNow())) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             if (order.getRetryScheduledAt() == null || order.getRetryScheduledAt().isAfter(WorkShiftService.businessNow())) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
-            order.setOrderStatus("PICKED_UP");
+            applyStatus(order, "PICKED_UP", WorkShiftService.businessNow());
             clearOwnershipAfterRecovery(order, "PICKED_UP");
             order.setPickedUpAt(LocalDateTime.now());
             order.setRetryScheduledAt(null);
@@ -332,7 +339,7 @@ public class OrderTransitionService {
             if (!"DELIVERY_FAILED".equals(order.getOrderStatus()) || !isOwnedBy(order, staffShift)) { em.getTransaction().rollback(); return MutationResult.INVALID; }
             inventoryReservationService.cancel(em, order);
             releaseCoupon(em, orderId);
-            order.setOrderStatus("RETURNED_TO_STORE");
+            applyStatus(order, "RETURNED_TO_STORE", WorkShiftService.businessNow());
             clearOwnershipAfterRecovery(order, "RETURNED_TO_STORE");
             order.setReturnedToStoreAt(LocalDateTime.now());
             order.setRetryScheduledAt(null);
@@ -367,6 +374,13 @@ public class OrderTransitionService {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();
             throw e;
         } finally { em.close(); }
+    }
+
+    static void applyStatus(Orders order, String status, LocalDateTime now) {
+        if (!Objects.equals(order.getOrderStatus(), status)) {
+            order.setOrderStatus(status);
+            order.setStatusEnteredAt(now);
+        }
     }
 
     static void assignRetryShipper(Orders order, User shipper, LocalDateTime assignedAt) {
@@ -500,7 +514,7 @@ public class OrderTransitionService {
         if (!inventoryReservationService.cancel(em, order)) return false;
         String from = order.getOrderStatus();
         releaseCoupon(em, order.getOrderId());
-        order.setOrderStatus("CANCELLED");
+        applyStatus(order, "CANCELLED", now);
         order.setCancelledAt(now);
         order.setCancelledBy("USER".equals(actorRole) ? "CUSTOMER" : actorRole);
         if ("PAID".equals(order.getPaymentStatus())) order.setRefundStatus("PENDING");

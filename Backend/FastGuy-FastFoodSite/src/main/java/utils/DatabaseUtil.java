@@ -6,23 +6,30 @@ import jakarta.persistence.Persistence;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class DatabaseUtil {
     private static EntityManagerFactory factory;
 
     public static synchronized EntityManager getEntityManager() {
         if (factory == null) {
-            Map<String, String> overrides = new HashMap<>();
-            String url = sqlServerTimeUrl(AppConfig.getDbUrl());
-            String user = AppConfig.getDbUser();
-            String pass = AppConfig.getDbPassword();
-            if (!url.isEmpty()) overrides.put("jakarta.persistence.jdbc.url", url);
-            if (!user.isEmpty()) overrides.put("jakarta.persistence.jdbc.user", user);
-            if (!pass.isEmpty()) overrides.put("jakarta.persistence.jdbc.password", pass);
+            Map<String, String> overrides = connectionOverrides(
+                    AppConfig.getDbUrl(), AppConfig::getDbUser, AppConfig::getDbPassword);
             factory = Persistence.createEntityManagerFactory("FastGuyPU",
                     overrides.isEmpty() ? null : overrides);
         }
         return factory.createEntityManager();
+    }
+
+    static Map<String, String> connectionOverrides(String configuredUrl, Supplier<String> user, Supplier<String> password) {
+        Map<String, String> overrides = new HashMap<>();
+        String url = sqlServerTimeUrl(configuredUrl);
+        overrides.put("jakarta.persistence.jdbc.url", url);
+        if (!configuredUrl.toLowerCase(java.util.Locale.ROOT).contains("integratedsecurity=true")) {
+            overrides.put("jakarta.persistence.jdbc.user", user.get());
+            overrides.put("jakarta.persistence.jdbc.password", password.get());
+        }
+        return overrides;
     }
 
     static String sqlServerTimeUrl(String url) {

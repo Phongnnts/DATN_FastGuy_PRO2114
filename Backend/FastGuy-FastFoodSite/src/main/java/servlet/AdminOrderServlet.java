@@ -20,6 +20,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.OrderExpiryPolicy;
 import service.OrderService;
 import service.OrderStatusHistoryService;
 import service.ReviewService;
@@ -328,6 +329,12 @@ public class AdminOrderServlet extends HttpServlet {
 
         var savedHistory = historyService.getByOrderId(o.getOrderId());
         data.put("statusHistory", savedHistory);
+        OrderExpiryPolicy.Metadata metadata = OrderExpiryPolicy.metadata(o, LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")));
+        data.put("statusEnteredAt", metadata.statusEnteredAt() == null ? null : metadata.statusEnteredAt().toString());
+        data.put("expiresAt", metadata.expiresAt() == null ? null : metadata.expiresAt().toString());
+        data.put("remainingSeconds", metadata.remainingSeconds());
+        data.put("timeoutPolicy", metadata.timeoutPolicy());
+        data.put("ownerShiftCode", o.getStaffShift() == null ? null : o.getStaffShift().getShiftCode());
 
         return data;
     }

@@ -25,7 +25,7 @@ test('conflicts retain HTTP status and refetch canonical staff data', async () =
   const dispatch = await read('../src/views/staff/DispatchPage.vue');
 
   assert.match(client, /normalizeApiError\(err\)/);
-  assert.match(detail, /error\.status === 409/);
+  assert.match(detail, /\[409, 410\]\.includes\(error\.status\)/);
   assert.match(detail, /error\.status === 422/);
   assert.match(detail, /Shipper không còn trong ca hoạt động/);
   assert.match(dispatch, /error\.status === 409/);

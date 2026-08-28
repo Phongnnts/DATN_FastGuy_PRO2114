@@ -72,6 +72,19 @@ class OrderTransitionServiceTest {
     }
 
     @Test
+    void assignedAndPickedUpOrdersCannotBeCancelledByAnyActorOrScheduler() {
+        OrderTransitionService service = new OrderTransitionService();
+        for (String status : new String[] { "ASSIGNED", "PICKED_UP" }) {
+            Orders order = cancellableOrder();
+            order.setOrderStatus(status);
+            assertFalse(service.canTransition(status, "CANCELLED"));
+            for (String role : new String[] { "USER", "CUSTOMER", "STAFF", "SHIPPER", "ADMIN", "SYSTEM" }) {
+                assertFalse(OrderTransitionService.canCancel(order, null, null, false, role));
+            }
+        }
+    }
+
+    @Test
     void assignedOrderCanBePickedUpButReadyOrderCannotSkipAssignment() {
         OrderTransitionService service = new OrderTransitionService();
         assertTrue(service.canTransition("READY", "ASSIGNED"));

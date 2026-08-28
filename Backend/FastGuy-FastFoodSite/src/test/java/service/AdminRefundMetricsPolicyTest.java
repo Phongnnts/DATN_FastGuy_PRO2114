@@ -140,10 +140,11 @@ class AdminRefundMetricsPolicyTest {
         int count = source.indexOf("public long countRefundsInRange");
         assertTrue(sum >= 0 && count > sum);
         String sumQuery = source.substring(sum, count);
+        assertTrue(sumQuery.contains("sumRefundsDecimalInRange(start, end).doubleValue()"));
         assertTrue(sumQuery.contains("o.refundStatus = 'REFUNDED'"));
         assertTrue(sumQuery.contains("o.refundedAt >= :start"));
         assertTrue(sumQuery.contains("o.refundedAt < :end"));
-        assertTrue(sumQuery.contains("result != null ? result.doubleValue() : 0.0"));
+        assertTrue(sumQuery.contains("result != null ? result : BigDecimal.ZERO"));
         assertTrue(source.substring(count).contains("o.refundStatus = 'REFUNDED'"));
     }
 }

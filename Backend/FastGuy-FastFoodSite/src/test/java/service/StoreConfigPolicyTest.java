@@ -72,6 +72,14 @@ class StoreConfigPolicyTest {
     }
 
     @Test
+    void publicConfigEmitsContractCutoffTime() {
+        PersistenceFake fake = new PersistenceFake();
+        assertEquals("20:45", new StoreConfigService(fake::entityManager).getPublicConfig().get("orderCutoffTime"));
+        assertTrue(StoreConfigService.acceptsCheckoutAt(java.time.LocalTime.of(20, 44, 59)));
+        assertFalse(StoreConfigService.acceptsCheckoutAt(java.time.LocalTime.of(20, 45)));
+    }
+
+    @Test
     void publicConfigExcludesLowStockThreshold() {
         PersistenceFake fake = new PersistenceFake();
         fake.values.put(StoreConfigService.LOW_STOCK_THRESHOLD, "10");

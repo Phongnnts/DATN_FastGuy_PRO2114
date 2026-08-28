@@ -58,6 +58,15 @@ export default {
   getFullReport(params) {
     return client.get('/admin/reports/full', { params });
   },
+  getOperatingExpenses() { return client.get('/admin/operating-expenses'); },
+  createOperatingExpense(data) { return client.post('/admin/operating-expenses', data); },
+  updateOperatingExpense(id, data) { return client.put(`/admin/operating-expenses/${id}`, data); },
+  deleteOperatingExpense(id) { return client.delete(`/admin/operating-expenses/${id}`); },
+  getFixedAssets() { return client.get('/admin/fixed-assets'); },
+  createFixedAsset(data) { return client.post('/admin/fixed-assets', data); },
+  updateFixedAsset(id, data) { return client.put(`/admin/fixed-assets/${id}`, data); },
+  retireFixedAsset(id) { return client.put(`/admin/fixed-assets/${id}/retire`, { expectedStatus: 'ACTIVE' }); },
+  getOperatingProfitReport(params) { return client.get('/admin/reports/operating-profit', { params }); },
   getInventoryTransactions(params) {
     return client.get('/admin/inventory/transactions', { params });
   },
@@ -102,6 +111,15 @@ export default {
   },
   getShifts(params) {
     return client.get('/admin/shifts', { params });
+  },
+  getShiftWeek(weekStart) {
+    return client.get('/admin/shifts/week', { params: { weekStart } });
+  },
+  replaceShiftWeek(data) {
+    return client.put('/admin/shifts/week', data);
+  },
+  getShiftMonitoring() {
+    return client.get('/admin/shifts/monitoring');
   },
   createShift(data) {
     return client.post('/admin/shifts', data);

@@ -106,7 +106,9 @@ test('staff kitchen renders queue detail and safe polling states', () => {
   assert.match(ordersPage, /order\.itemCount/);
   assert.match(ordersPage, /modifier\.name/);
   assert.match(ordersPage, /waitingDuration/);
-  assert.match(ordersPage, /setInterval\([^]*30000\)/);
+  assert.match(ordersPage, /setInterval\([^]*1000\)/);
+  assert.match(ordersPage, /remaining\(order\) === 0/);
+  assert.match(ordersPage, /refresh\(\{ silent: true \}\)/);
   assert.match(ordersPage, /inFlight/);
   assert.match(ordersPage, /queuedRefresh/);
   assert.match(ordersPage, /loadedTab/);

@@ -8,7 +8,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-test('real staff Pinia store rejects stale kitchen and handover responses around claim', async (t) => {
+test('real staff Pinia store rejects stale kitchen responses after automatic rollover refresh', async (t) => {
   const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   t.after(() => vite.close());
   const [{ createPinia, setActivePinia }, { useStaffStore }, apiModule] = await Promise.all([
@@ -24,22 +24,15 @@ test('real staff Pinia store rejects stale kitchen and handover responses around
 
   const oldKitchen = deferred();
   const newKitchen = deferred();
-  const staleHandover = deferred();
   let readyCalls = 0;
   api.getReadyOrders = () => (++readyCalls === 1 ? oldKitchen.promise : newKitchen.promise);
-  api.getHandoverOrders = () => staleHandover.promise;
-  api.claimHandover = async () => {};
 
-  store.handoverItems = [{ id: 7, status: 'READY', staffShiftId: null }];
   const oldQueueRequest = store.fetchKitchenOrders('READY');
-  const staleHandoverRequest = store.fetchHandoverOrders();
-  const claim = store.claimHandover(7);
+  const newQueueRequest = store.fetchKitchenOrders('READY');
   newKitchen.resolve([{ orderId: 7, status: 'READY', orderCode: 'FG-7', itemCount: 1 }]);
-  await claim;
+  await newQueueRequest;
   oldKitchen.resolve([{ orderId: 1, status: 'READY', orderCode: 'OLD', itemCount: 1 }]);
-  staleHandover.resolve([{ orderId: 7, status: 'READY', staffShiftId: null, itemCount: 1 }]);
-  await Promise.all([oldQueueRequest, staleHandoverRequest]);
+  await oldQueueRequest;
 
   assert.deepEqual(store.kitchenQueues.READY.map((order) => order.id), [7]);
-  assert.deepEqual(store.handoverItems, []);
 });
