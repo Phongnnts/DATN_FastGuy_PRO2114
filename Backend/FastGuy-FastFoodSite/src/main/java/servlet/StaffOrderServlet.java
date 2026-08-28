@@ -189,7 +189,7 @@ public class StaffOrderServlet extends HttpServlet {
     }
 
     public static boolean requiresCheckedInShift(String method, String pathInfo) {
-        return !("GET".equals(method) && ("/history".equals(pathInfo) || "/export".equals(pathInfo)));
+        return !("GET".equals(method) && ("/history".equals(pathInfo) || "/export".equals(pathInfo) || "/ownership-count".equals(pathInfo)));
     }
 
     public static boolean hasRouteAccess(String method, String pathInfo, boolean validIdentity, boolean checkedIn) {

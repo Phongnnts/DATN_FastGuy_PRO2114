@@ -14,6 +14,9 @@ class StaffShiftAccessPolicyTest {
     void historyAndExportBypassOnlyCheckedInShift() {
         assertFalse(StaffOrderServlet.requiresCheckedInShift("GET", "/history"));
         assertFalse(StaffOrderServlet.requiresCheckedInShift("GET", "/export"));
+        assertFalse(StaffOrderServlet.requiresCheckedInShift("GET", "/ownership-count"));
+        assertTrue(StaffOrderServlet.hasRouteAccess("GET", "/ownership-count", true, false));
+        assertFalse(StaffOrderServlet.hasRouteAccess("GET", "/ownership-count", false, false));
         assertTrue(StaffOrderServlet.hasRouteAccess("GET", "/history", true, false));
         assertTrue(StaffOrderServlet.hasRouteAccess("GET", "/export", true, false));
         assertFalse(StaffOrderServlet.hasRouteAccess("GET", "/history", false, true));
