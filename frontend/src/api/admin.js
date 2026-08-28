@@ -121,6 +121,12 @@ export default {
   getShiftMonitoring() {
     return client.get('/admin/shifts/monitoring');
   },
+  getShiftAttendance(params) {
+    return client.get('/admin/shifts/attendance', { params });
+  },
+  approveShiftAttendance(id, data) {
+    return client.put(`/admin/shifts/${id}/attendance-approval`, data);
+  },
   createShift(data) {
     return client.post('/admin/shifts', data);
   },

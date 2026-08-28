@@ -26,6 +26,11 @@ public class ShiftServlet extends HttpServlet {
         if (userId < 0) return;
         resp.setContentType("application/json;charset=UTF-8");
         if ("/mine".equals(req.getPathInfo())) ApiResponse.ok(resp, workShiftService.list(userId, null, null, null));
+        else if ("/attendance".equals(req.getPathInfo())) {
+            if (!"STAFF".equals(JwtUtil.getRole(req.getHeader("Authorization").substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return; }
+            try { ApiResponse.ok(resp, workShiftService.attendance(req.getParameter("month"), userId, null)); }
+            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
+        }
         else if ("/week".equals(req.getPathInfo())) {
             if (!"STAFF".equals(JwtUtil.getRole(req.getHeader("Authorization").substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return; }
             try { ApiResponse.ok(resp, workShiftService.week(req.getParameter("weekStart"), userId)); }

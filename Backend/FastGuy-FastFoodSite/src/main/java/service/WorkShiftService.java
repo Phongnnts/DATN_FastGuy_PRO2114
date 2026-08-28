@@ -5,6 +5,8 @@ import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -207,9 +209,7 @@ public class WorkShiftService {
                     long activeOwnershipCount = new dao.OrdersDAO().countActiveOwnership(em, shiftId);
                     if (activeOwnershipCount > 0) throw new ActiveOwnershipConflict(activeOwnershipCount);
                 }
-                shift.setCheckOutAt(now);
-                shift.setCheckOutSource("MANUAL");
-                shift.setStatus("CHECKED_OUT");
+                completeAttendance(shift, now, "MANUAL");
             }
             em.getTransaction().commit();
             return toMap(shift);
@@ -365,7 +365,91 @@ public class WorkShiftService {
     }
 
     static void autoCheckIn(WorkShift shift, LocalDateTime now) { shift.setCheckInAt(now); shift.setCheckInSource("AUTO"); shift.setStatus("CHECKED_IN"); }
-    static void autoCheckOut(WorkShift shift, LocalDateTime now) { shift.setCheckOutAt(now); shift.setCheckOutSource("AUTO"); shift.setStatus("CHECKED_OUT"); }
+    static void autoCheckOut(WorkShift shift, LocalDateTime now) { completeAttendance(shift, now, "AUTO"); }
+
+    record Attendance(int actualMinutes, int overlapEligibleMinutes, int lateMinutes, int earlyLeaveMinutes, int potentialOvertimeMinutes) {}
+
+    static Attendance attendance(WorkShift shift) {
+        if (shift.getCheckInAt() == null || shift.getCheckOutAt() == null) return new Attendance(0, 0, 0, 0, 0);
+        LocalDateTime scheduledStart = LocalDateTime.of(shift.getShiftDate(), shift.getStartTime());
+        LocalDateTime scheduledEnd = LocalDateTime.of(shift.getShiftDate(), shift.getEndTime());
+        int actual = nonnegativeMinutes(shift.getCheckInAt(), shift.getCheckOutAt());
+        LocalDateTime overlapStart = shift.getCheckInAt().isAfter(scheduledStart) ? shift.getCheckInAt() : scheduledStart;
+        LocalDateTime overlapEnd = shift.getCheckOutAt().isBefore(scheduledEnd) ? shift.getCheckOutAt() : scheduledEnd;
+        return new Attendance(actual, nonnegativeMinutes(overlapStart, overlapEnd), nonnegativeMinutes(scheduledStart, shift.getCheckInAt()), nonnegativeMinutes(shift.getCheckOutAt(), scheduledEnd), nonnegativeMinutes(scheduledEnd, shift.getCheckOutAt()));
+    }
+
+    private static int nonnegativeMinutes(LocalDateTime from, LocalDateTime to) { return (int) Math.max(0, ChronoUnit.MINUTES.between(from, to)); }
+
+    static void validateApproval(WorkShift shift, int approvedMinutes, int approvedOvertimeMinutes) {
+        Attendance value = attendance(shift);
+        if (approvedMinutes < 0 || approvedOvertimeMinutes < 0 || approvedMinutes > value.overlapEligibleMinutes() || approvedOvertimeMinutes > value.potentialOvertimeMinutes()) throw new IllegalArgumentException("Approved minutes exceed calculated bounds");
+    }
+
+    static void completeAttendance(WorkShift shift, LocalDateTime at, String source) {
+        shift.setCheckOutAt(at); shift.setCheckOutSource(source); shift.setStatus("CHECKED_OUT"); shift.setAttendanceStatus("PENDING");
+        shift.setApprovedMinutes(null); shift.setApprovedOvertimeMinutes(null); shift.setApprovedBy(null); shift.setApprovedAt(null);
+    }
+    public List<Map<String, Object>> attendance(String month, Integer userId, String status) {
+        YearMonth period;
+        try { period = YearMonth.parse(month); } catch (RuntimeException e) { throw new IllegalArgumentException("Invalid month"); }
+        if (status != null && !status.isBlank() && !java.util.Set.of("PENDING", "APPROVED").contains(status)) throw new IllegalArgumentException("Invalid attendance status");
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            String jpql = "SELECT ws FROM WorkShift ws WHERE ws.staffRoleSnapshot = 'STAFF' AND ws.attendanceStatus IN ('PENDING','APPROVED') AND ws.shiftDate BETWEEN :start AND :end";
+            if (userId != null) jpql += " AND ws.user.userId = :userId";
+            if (status != null && !status.isBlank()) jpql += " AND ws.attendanceStatus = :status";
+            var query = em.createQuery(jpql + " ORDER BY ws.shiftDate DESC, ws.startTime", WorkShift.class).setParameter("start", period.atDay(1)).setParameter("end", period.atEndOfMonth());
+            if (userId != null) query.setParameter("userId", userId);
+            if (status != null && !status.isBlank()) query.setParameter("status", status);
+            return query.getResultList().stream().map(this::attendanceMap).toList();
+        } finally { em.close(); }
+    }
+
+    public Map<String, Object> approveAttendance(int shiftId, int adminId, Map<String, Object> data) {
+        if (data == null || !data.keySet().equals(java.util.Set.of("expectedUpdatedAt", "approvedMinutes", "approvedOvertimeMinutes", "attendanceNote")) && !data.keySet().equals(java.util.Set.of("expectedUpdatedAt", "approvedMinutes", "approvedOvertimeMinutes"))) throw new IllegalArgumentException("Invalid attendance approval payload");
+        int minutes = exactInt(data.get("approvedMinutes"), "approvedMinutes");
+        int overtime = exactInt(data.get("approvedOvertimeMinutes"), "approvedOvertimeMinutes");
+        String note = data.get("attendanceNote") == null ? null : String.valueOf(data.get("attendanceNote")).trim();
+        if (note != null && note.length() > 500) throw new IllegalArgumentException("attendanceNote is too long");
+        LocalDateTime expected;
+        try { expected = LocalDateTime.parse(String.valueOf(data.get("expectedUpdatedAt"))); } catch (RuntimeException e) { throw new IllegalArgumentException("Invalid expectedUpdatedAt"); }
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            WorkShift shift = em.find(WorkShift.class, shiftId, LockModeType.PESSIMISTIC_WRITE);
+            if (shift == null) throw new AttendanceNotFound();
+            validateApprovalEligibility(shift);
+            if (shift.getUpdatedAt() == null || !shift.getUpdatedAt().equals(expected)) throw new StaleAttendanceConflict();
+            validateApproval(shift, minutes, overtime);
+            if (shift.getCheckOutAt() == null) throw new IllegalArgumentException("Attendance is not complete");
+            shift.setApprovedMinutes(minutes); shift.setApprovedOvertimeMinutes(overtime); shift.setAttendanceNote(note == null || note.isBlank() ? null : note); shift.setApprovedBy(adminId); shift.setApprovedAt(businessNow()); shift.setAttendanceStatus("APPROVED");
+            em.getTransaction().commit();
+            return attendanceMap(shift);
+        } catch (RuntimeException e) { if (em.getTransaction().isActive()) em.getTransaction().rollback(); throw e; }
+        finally { em.close(); }
+    }
+
+    static void validateApprovalEligibility(WorkShift shift) {
+        if (!"STAFF".equals(shift.getStaffRoleSnapshot()) || !"PENDING".equals(shift.getAttendanceStatus())) throw new IllegalArgumentException("Only pending Staff attendance can be approved");
+    }
+
+    static int exactInt(Object value, String field) {
+        if (!(value instanceof Number number)) throw new IllegalArgumentException("Invalid " + field);
+        try { return new java.math.BigDecimal(number.toString()).intValueExact(); }
+        catch (RuntimeException e) { throw new IllegalArgumentException("Invalid " + field); }
+    }
+
+    public static class AttendanceNotFound extends RuntimeException { public AttendanceNotFound() { super("Shift not found"); } }
+    public static class StaleAttendanceConflict extends RuntimeException { public StaleAttendanceConflict() { super("Attendance changed; reload before approval"); } }
+
+    private Map<String, Object> attendanceMap(WorkShift shift) {
+        Map<String, Object> result = toMap(shift); Attendance value = attendance(shift);
+        result.put("attendanceStatus", shift.getAttendanceStatus()); result.put("actualMinutes", value.actualMinutes()); result.put("overlapEligibleMinutes", value.overlapEligibleMinutes()); result.put("lateMinutes", value.lateMinutes()); result.put("earlyLeaveMinutes", value.earlyLeaveMinutes()); result.put("potentialOvertimeMinutes", value.potentialOvertimeMinutes()); result.put("approvedMinutes", shift.getApprovedMinutes()); result.put("approvedOvertimeMinutes", shift.getApprovedOvertimeMinutes()); result.put("attendanceNote", shift.getAttendanceNote()); result.put("approvedBy", shift.getApprovedBy()); result.put("approvedAt", shift.getApprovedAt()); result.put("updatedAt", shift.getUpdatedAt());
+        result.remove("userName"); result.remove("role"); result.remove("status"); result.remove("checkInSource"); result.remove("checkOutSource");
+        return result;
+    }
+
     private static String nextCode(String code) { return "MORNING".equals(code) ? "AFTERNOON" : "AFTERNOON".equals(code) ? "EVENING" : null; }
     private static String codeFor(LocalTime start) { return start.isBefore(LocalTime.NOON) ? "MORNING" : start.isBefore(LocalTime.of(16, 0)) ? "AFTERNOON" : "EVENING"; }
     private static String roleSnapshot(User user) { return "STAFF".equals(user.getRole()) ? "STAFF" : "NON_STAFF"; }

@@ -27,6 +27,14 @@ test('page and component use executable local-time utility and fire change event
   assert.match(staffLayout, /shiftSequence/);
 });
 
+test('staff attendance rejects same-month stale responses and invalidates on unmount', () => {
+  assert.match(shiftsPage, /let attendanceGeneration = 0/);
+  assert.match(shiftsPage, /const generation = \+\+attendanceGeneration/);
+  assert.match(shiftsPage, /generation !== attendanceGeneration/);
+  assert.match(shiftsPage, /generation === attendanceGeneration/);
+  assert.match(shiftsPage, /onUnmounted\(\(\) => \{ attendanceGeneration\+\+/);
+});
+
 test('staff page renders selected-day shifts with independent action state', () => {
   assert.match(shiftsPage, /v-for="day in calendarDays"/);
   assert.match(shiftsPage, /v-for="shift in selectedShifts"/);

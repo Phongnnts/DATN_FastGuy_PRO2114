@@ -122,6 +122,11 @@ class AdminRefundMetricsPolicyTest {
         Field dao = AdminService.class.getDeclaredField("ordersDAO");
         dao.setAccessible(true);
         dao.set(service, stub);
+        Field menu = AdminService.class.getDeclaredField("menuPerformanceReportService");
+        menu.setAccessible(true);
+        menu.set(service, new MenuPerformanceReportService() {
+            @Override public Map<String, Object> report(java.time.LocalDate from, java.time.LocalDate to) { return Map.of("cost", 400_000.0, "costComplete", true); }
+        });
 
         Map<String, Object> data = service.getFullReport("7d", null, null);
 

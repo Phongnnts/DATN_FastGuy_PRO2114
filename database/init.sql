@@ -34,7 +34,8 @@ INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
     ('000_preflight_history', N'Canonical fresh schema baseline'),
     ('042_login_bruteforce_lock', N'Canonical fresh schema baseline'),
     ('059_shift_schedule_order_timeout', N'Canonical fresh schema baseline'),
-    ('060_operating_finance', N'Canonical fresh schema baseline');
+    ('060_operating_finance', N'Canonical fresh schema baseline'),
+    ('061_work_shift_attendance_approval', N'Canonical fresh schema baseline');
 
 CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
@@ -528,6 +529,12 @@ CREATE TABLE dbo.WorkShift (
     check_in_at datetime2(0) NULL,
     check_out_at datetime2(0) NULL,
     status varchar(20) NOT NULL CONSTRAINT DF_WorkShift_Status DEFAULT 'SCHEDULED',
+    attendance_status varchar(20) NULL,
+    approved_minutes int NULL,
+    approved_overtime_minutes int NULL,
+    attendance_note nvarchar(500) NULL,
+    approved_by int NULL CONSTRAINT FK_WorkShift_ApprovedBy REFERENCES dbo.Users(user_id),
+    approved_at datetime2(0) NULL,
     created_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Updated DEFAULT GETDATE(),
     CONSTRAINT CK_WorkShift_Time CHECK (start_time < end_time),
@@ -537,7 +544,10 @@ CREATE TABLE dbo.WorkShift (
     CONSTRAINT CK_WorkShift_StaffRoleSnapshot CHECK (staff_role_snapshot IN ('STAFF','NON_STAFF')),
     CONSTRAINT CK_WorkShift_StaffFixedTimes CHECK (staff_role_snapshot<>'STAFF' OR (shift_code='MORNING' AND start_time='08:00' AND end_time='12:00') OR (shift_code='AFTERNOON' AND start_time='12:00' AND end_time='16:00') OR (shift_code='EVENING' AND start_time='16:00' AND end_time='21:00')),
     CONSTRAINT CK_WorkShift_Status CHECK (status IN ('SCHEDULED', 'CHECKED_IN', 'CHECKED_OUT', 'ABSENT', 'CANCELLED')),
-    CONSTRAINT CK_WorkShift_CheckTimes CHECK (check_out_at IS NULL OR (check_in_at IS NOT NULL AND check_out_at >= check_in_at))
+    CONSTRAINT CK_WorkShift_CheckTimes CHECK (check_out_at IS NULL OR (check_in_at IS NOT NULL AND check_out_at >= check_in_at)),
+    CONSTRAINT CK_WorkShift_AttendanceStatus CHECK (attendance_status IS NULL OR attendance_status IN ('PENDING','APPROVED')),
+    CONSTRAINT CK_WorkShift_ApprovedMinutes CHECK ((approved_minutes IS NULL OR approved_minutes >= 0) AND (approved_overtime_minutes IS NULL OR approved_overtime_minutes >= 0)),
+    CONSTRAINT CK_WorkShift_AttendanceApproval CHECK ((attendance_status IS NULL AND approved_minutes IS NULL AND approved_overtime_minutes IS NULL AND attendance_note IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (attendance_status = 'PENDING' AND approved_minutes IS NULL AND approved_overtime_minutes IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (attendance_status = 'APPROVED' AND approved_minutes IS NOT NULL AND approved_overtime_minutes IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL))
 );
 
 CREATE TABLE dbo.CodSettlement (
@@ -676,6 +686,7 @@ CREATE INDEX IX_OperatingExpense_ExpenseDate ON dbo.OperatingExpense(expense_dat
 CREATE INDEX IX_FixedAsset_Status_DepreciationStartDate ON dbo.FixedAsset(status, depreciation_start_date);
 CREATE INDEX IX_WorkShift_User_Date ON dbo.WorkShift(user_id, shift_date);
 CREATE INDEX IX_WorkShift_Date_Status ON dbo.WorkShift(shift_date, status);
+CREATE INDEX IX_WorkShift_AttendanceReview ON dbo.WorkShift(attendance_status, shift_date, user_id) INCLUDE(updated_at, approved_minutes, approved_overtime_minutes);
 CREATE INDEX IX_CouponRedemption_Coupon ON dbo.CouponRedemption(coupon_id);
 CREATE INDEX IX_OrderItem_Order ON dbo.OrderItem(order_id);
 CREATE INDEX IX_OrderItem_Product ON dbo.OrderItem(product_id);

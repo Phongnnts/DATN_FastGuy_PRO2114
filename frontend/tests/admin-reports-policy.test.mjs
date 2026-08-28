@@ -5,9 +5,9 @@ import test from 'node:test';
 const reportsPage = readFileSync(new URL('../src/views/admin/ReportsPage.vue', import.meta.url), 'utf8');
 
 test('report exposes reconcilable financial breakdown and operational cohort', () => {
-  for (const label of ['Tiền món', 'Phí giao hàng', 'Giảm giá', 'Doanh thu gộp', 'Đã hoàn tiền', 'Dòng tiền ròng']) assert.match(reportsPage, new RegExp(label));
-  assert.doesNotMatch(reportsPage, /Phí dịch vụ|serviceFeeRevenue/);
-  for (const field of ['itemRevenue', 'shippingRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'netCashRevenue', 'operationalOrderCount', 'operationalCompletedCount']) assert.match(reportsPage, new RegExp(`data\\.${field}`));
+  for (const label of ['Tiền món', 'Phí giao hàng thu khách', 'Giảm giá', 'Doanh thu gộp', 'Đã hoàn tiền']) assert.match(reportsPage, new RegExp(label));
+  assert.doesNotMatch(reportsPage, /Dòng tiền ròng|Doanh thu phí giao hàng|Phí dịch vụ|serviceFeeRevenue/);
+  for (const field of ['itemRevenue', 'shippingRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'operationalOrderCount', 'operationalCompletedCount']) assert.match(reportsPage, new RegExp(`data\\.${field}`));
   assert.match(reportsPage, /data\.value\.completionRate/);
   assert.match(reportsPage, /Number\(data\.value\.completionRate \|\| 0\)/);
   assert.match(reportsPage, /Number\(product\.revenue \|\| 0\) \* 100 \/ data\.itemRevenue/);
@@ -21,21 +21,27 @@ test('report renders advanced operational analytics without fabricated datasets'
 
 test('core commerce charts use legible business-specific encodings', () => {
   assert.match(reportsPage, /const monthly = data\.value\.monthlyFinancialTrend/);
-  assert.match(reportsPage, /label: 'Doanh thu gộp'[\s\S]*label: 'Hoàn tiền'[\s\S]*label: 'Dòng tiền ròng'/);
+  assert.match(reportsPage, /label: 'Doanh thu gộp'[\s\S]*label: 'Hoàn tiền'[\s\S]*label: 'Doanh thu thuần'/);
   assert.match(reportsPage, /const top[\s\S]*indexAxis: 'y'/);
   assert.match(reportsPage, /const category[\s\S]*indexAxis: 'y'/);
   assert.match(reportsPage, /const payment[\s\S]*indexAxis: 'y'[\s\S]*max: 100/);
   assert.match(reportsPage, /Tỷ trọng đơn thành công và doanh thu/);
 });
 
-test('KPI row exposes gross net cash and refund cards from backend report fields', () => {
+test('KPI row exposes gross and refund cards without net cash card', () => {
   assert.match(reportsPage, /Doanh thu gộp/);
   assert.match(reportsPage, /formatPrice\(data\.grossRevenue \|\| 0\)/);
-  assert.match(reportsPage, /Dòng tiền ròng/);
-  assert.match(reportsPage, /data\.netCashRevenue/);
+  assert.doesNotMatch(reportsPage, /Dòng tiền ròng/);
   assert.match(reportsPage, /Đã hoàn tiền/);
   assert.match(reportsPage, /formatPrice\(data\.refundTotal \|\| 0\)/);
   assert.match(reportsPage, /data\.refundCount/);
+});
+
+test('full report exposes profitability KPIs with truthful incomplete values', () => {
+  for (const field of ['cogs', 'grossProfit', 'foodCostPercent', 'grossMarginPercent', 'aov']) assert.match(reportsPage, new RegExp(`data\\.${field}`));
+  for (const label of ['Giá vốn', 'Lợi nhuận gộp', 'Tỷ lệ giá vốn', 'Biên lợi nhuận gộp', 'Giá trị đơn trung bình']) assert.match(reportsPage, new RegExp(label));
+  assert.match(reportsPage, /data\.cogs == null \? 'Chưa đủ dữ liệu'/);
+  assert.match(reportsPage, /data\.foodCostPercent == null \? '—'/);
 });
 
 test('net cash revenue prefers backend value with compatibility fallback', () => {
@@ -46,7 +52,7 @@ test('revenueByDay chart compares gross refund events and net cash', () => {
   const dayBranch = reportsPage.slice(reportsPage.indexOf('const day = data.value.revenueByDay'), reportsPage.indexOf('const month = data.value.revenueByMonth'));
   assert.match(dayBranch, /label: 'Doanh thu gộp'/);
   assert.match(dayBranch, /label: 'Hoàn tiền'/);
-  assert.match(dayBranch, /label: 'Dòng tiền ròng'/);
+  assert.match(dayBranch, /label: 'Doanh thu thuần'/);
   assert.match(dayBranch, /data\.value\.refundTrend/);
 });
 
@@ -78,7 +84,7 @@ test('CSV includes summary rows period gross refund net orders then product rows
   assert.match(reportsPage, /'Kỳ báo cáo'/);
   assert.match(reportsPage, /'Doanh thu gộp'/);
   assert.match(reportsPage, /Đã hoàn tiền/);
-  assert.match(reportsPage, /'Dòng tiền ròng'/);
+  assert.match(reportsPage, /'Doanh thu thuần'/);
   assert.match(reportsPage, /'Đơn hoàn tất cùng cohort'/);
   assert.match(reportsPage, /'Hạng', 'Sản phẩm', 'Số lượng bán', 'Doanh thu', 'Tỷ trọng'/);
   assert.match(reportsPage, /d\.topProducts \|\| \[\]\)\.map/);

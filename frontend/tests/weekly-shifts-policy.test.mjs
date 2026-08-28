@@ -26,6 +26,22 @@ test('admin schedule renders seven days by three fixed Staff slots and exact pay
   assert.match(adminPage, /:disabled="isCurrentWeek"/);
 });
 
+test('admin attendance filters by existing staff and includes userId in request identity', () => {
+  assert.match(adminPage, /const attendanceUserId = ref\(''\)/);
+  assert.match(adminPage, /v-model="attendanceUserId"/);
+  assert.match(adminPage, /v-for="user in staff"/);
+  assert.match(adminPage, /userId: attendanceUserId\.value \? Number\(attendanceUserId\.value\) : undefined/);
+  assert.match(adminPage, /attendanceMonth\.value\}\|\$\{attendanceStatus\.value\}\|\$\{attendanceUserId\.value/);
+});
+
+test('admin attendance rejects same-filter stale responses including conflict reloads', () => {
+  assert.match(adminPage, /let attendanceGeneration = 0/);
+  assert.match(adminPage, /const generation = \+\+attendanceGeneration/);
+  assert.match(adminPage, /generation !== attendanceGeneration/);
+  assert.match(adminPage, /generation === attendanceGeneration/);
+  assert.match(adminPage, /onUnmounted\(\(\) => \{[^}]*attendanceGeneration\+\+/);
+});
+
 test('admin monitoring refreshes every 30 seconds and rejects stale generations', () => {
   assert.match(adminPage, /setInterval\([^]*30000\)/);
   assert.match(adminPage, /monitorGeneration/);
