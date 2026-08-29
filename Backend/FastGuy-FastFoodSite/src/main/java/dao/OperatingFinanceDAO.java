@@ -9,6 +9,7 @@ import java.util.*;
 
 public class OperatingFinanceDAO {
     public List<OperatingExpense> listExpenses(){EntityManager em=DatabaseUtil.getEntityManager();try{return em.createQuery("SELECT e FROM OperatingExpense e JOIN FETCH e.createdBy ORDER BY e.expenseDate DESC,e.expenseId DESC",OperatingExpense.class).getResultList();}finally{em.close();}}
+    public List<OperatingExpense> listExpenses(LocalDate from,LocalDate to){EntityManager em=DatabaseUtil.getEntityManager();try{return em.createQuery("SELECT e FROM OperatingExpense e JOIN FETCH e.createdBy WHERE e.expenseDate>=:from AND e.expenseDate<=:to ORDER BY e.expenseDate DESC,e.expenseId DESC",OperatingExpense.class).setParameter("from",from).setParameter("to",to).getResultList();}finally{em.close();}}
     public OperatingExpense findExpense(int id){EntityManager em=DatabaseUtil.getEntityManager();try{return em.createQuery("SELECT e FROM OperatingExpense e JOIN FETCH e.createdBy WHERE e.expenseId=:id",OperatingExpense.class).setParameter("id",id).getResultStream().findFirst().orElse(null);}finally{em.close();}}
     public OperatingExpense saveExpense(OperatingExpense value){return save(value);}
     public boolean deleteExpense(int id){EntityManager em=DatabaseUtil.getEntityManager();try{em.getTransaction().begin();OperatingExpense value=em.find(OperatingExpense.class,id);if(value==null){em.getTransaction().rollback();return false;}em.remove(value);em.getTransaction().commit();return true;}catch(RuntimeException e){rollback(em);throw e;}finally{em.close();}}

@@ -27,6 +27,9 @@ class OperatingFinanceServiceTest {
         assertEquals(new BigDecimal("9007199254740992.01"),report.get("grossRevenue"));
         assertEquals(new BigDecimal("0.00"),report.get("refundTotal"));
         assertEquals(new BigDecimal("9007199254740977.00"),report.get("operatingProfit"));
+        assertEquals(new BigDecimal("15.00"),report.get("storeExpenses"));
+        assertEquals(new BigDecimal("9007199254740977.00"),report.get("estimatedOperatingResult"));
+        assertEquals(true,report.get("includesManualSalary"));
     }
 
     @Test void operatingFinanceOrderTotalsUseBigDecimalQueries() throws Exception {
@@ -46,10 +49,12 @@ class OperatingFinanceServiceTest {
         assertEquals(new BigDecimal("100.00"),report.get("grossRevenue"));
         assertEquals(new BigDecimal("10.00"),report.get("refundTotal"));
         assertEquals(new BigDecimal("90.00"),report.get("netRevenue"));
-        assertNull(report.get("cogs"));assertNull(report.get("grossProfit"));assertNull(report.get("profitBeforeDepreciation"));assertNull(report.get("operatingProfit"));
-        assertEquals(new BigDecimal("15.00"),report.get("operatingExpenses"));assertEquals(2,report.get("missingCostItemCount"));
-        assertEquals(Set.of("grossRevenue","refundTotal","netRevenue","cogs","grossProfit","operatingExpenses","profitBeforeDepreciation","depreciation","operatingProfit","costComplete","missingCostItemCount","fromDate","toDate"),report.keySet());
-        assertEquals("{\"grossRevenue\":100.00,\"refundTotal\":10.00,\"netRevenue\":90.00,\"cogs\":null,\"grossProfit\":null,\"operatingExpenses\":15.00,\"profitBeforeDepreciation\":null,\"depreciation\":0.00,\"operatingProfit\":null,\"costComplete\":false,\"missingCostItemCount\":2,\"fromDate\":\"2024-01-01\",\"toDate\":\"2024-01-31\"}",assertDoesNotThrow(()->utils.JsonUtil.getMapper().writeValueAsString(report)));
+        assertNull(report.get("cogs"));assertNull(report.get("grossProfit"));assertNull(report.get("profitBeforeDepreciation"));assertNull(report.get("operatingProfit"));assertNull(report.get("estimatedOperatingResult"));
+        assertEquals(new BigDecimal("15.00"),report.get("operatingExpenses"));assertEquals(new BigDecimal("15.00"),report.get("storeExpenses"));assertEquals(true,report.get("includesManualSalary"));assertEquals(2,report.get("missingCostItemCount"));
+        assertEquals(Set.of("grossRevenue","refundTotal","netRevenue","cogs","grossProfit","operatingExpenses","storeExpenses","profitBeforeDepreciation","estimatedOperatingResult","depreciation","operatingProfit","includesManualSalary","costComplete","missingCostItemCount","fromDate","toDate"),report.keySet());
+        String json=assertDoesNotThrow(()->utils.JsonUtil.getMapper().writeValueAsString(report));
+        assertTrue(json.contains("\"estimatedOperatingResult\":null"));
+        assertTrue(json.contains("\"includesManualSalary\":true"));
     }
 
     private static FixedAsset asset(BigDecimal cost,BigDecimal salvage,LocalDate start,int months,LocalDateTime retired){FixedAsset a=new FixedAsset();a.setAcquisitionCost(cost);a.setSalvageValue(salvage);a.setDepreciationStartDate(start);a.setUsefulLifeMonths(months);a.setStatus(retired==null?FixedAsset.Status.ACTIVE:FixedAsset.Status.RETIRED);a.setRetiredAt(retired);return a;}

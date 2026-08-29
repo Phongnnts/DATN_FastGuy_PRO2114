@@ -114,8 +114,12 @@ paths:
       operationId: listOperatingExpenses
       summary: List operating expenses
       security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, schema: { type: string, format: date } }
+        - { name: toDate, in: query, schema: { type: string, format: date } }
       responses:
         '200': { description: Operating expenses, content: { application/json: { schema: { $ref: '#/components/schemas/OperatingExpenseListResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
     post:
@@ -1824,7 +1828,7 @@ components:
     OperatingProfitData:
       type: object
       additionalProperties: false
-      required: [grossRevenue, refundTotal, netRevenue, cogs, grossProfit, operatingExpenses, profitBeforeDepreciation, depreciation, operatingProfit, costComplete, missingCostItemCount, fromDate, toDate]
+      required: [grossRevenue, refundTotal, netRevenue, cogs, grossProfit, operatingExpenses, storeExpenses, profitBeforeDepreciation, estimatedOperatingResult, depreciation, operatingProfit, includesManualSalary, costComplete, missingCostItemCount, fromDate, toDate]
       properties:
         grossRevenue: { $ref: '#/components/schemas/FinanceMoney' }
         refundTotal: { $ref: '#/components/schemas/FinanceMoney' }
@@ -1832,9 +1836,12 @@ components:
         cogs: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
         grossProfit: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
         operatingExpenses: { $ref: '#/components/schemas/FinanceMoney' }
+        storeExpenses: { $ref: '#/components/schemas/FinanceMoney' }
         profitBeforeDepreciation: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
+        estimatedOperatingResult: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
         depreciation: { $ref: '#/components/schemas/FinanceMoney' }
         operatingProfit: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
+        includesManualSalary: { type: boolean, const: true }
         costComplete: { type: boolean }
         missingCostItemCount: { type: integer, minimum: 0 }
         fromDate: { type: string, format: date }

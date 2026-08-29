@@ -58,7 +58,7 @@ export default {
   getFullReport(params) {
     return client.get('/admin/reports/full', { params });
   },
-  getOperatingExpenses() { return client.get('/admin/operating-expenses'); },
+  getOperatingExpenses(params) { return client.get('/admin/operating-expenses', { params }); },
   createOperatingExpense(data) { return client.post('/admin/operating-expenses', data); },
   updateOperatingExpense(id, data) { return client.put(`/admin/operating-expenses/${id}`, data); },
   deleteOperatingExpense(id) { return client.delete(`/admin/operating-expenses/${id}`); },

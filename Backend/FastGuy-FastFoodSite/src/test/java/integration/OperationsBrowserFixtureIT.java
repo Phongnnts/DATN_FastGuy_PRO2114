@@ -81,6 +81,10 @@ class OperationsBrowserFixtureIT {
                 .setParameter("code", "E2E-" + runId + "-MULTI").setParameter("created", now.minusMinutes(50)).setParameter("now", now).setParameter("entered", now.minusMinutes(40)).setParameter("failed", now.minusMinutes(35)).setParameter("staff", staff.getUserId()).executeUpdate();
         em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,cancelled_at,refund_status,refund_amount,cancelled_by,staff_id) VALUES (:code,'R4 Refund','000','E2E',80000,0,0,0,80000,'BANK_TRANSFER','PAID','CANCELLED',:created,:now,:entered,:cancelled,'PENDING',80000,'ADMIN',:staff)")
                 .setParameter("code", "E2E-" + runId + "-REFUND").setParameter("created", now.minusMinutes(70)).setParameter("now", now).setParameter("entered", now.minusMinutes(60)).setParameter("cancelled", now.minusMinutes(55)).setParameter("staff", staff.getUserId()).executeUpdate();
+        em.createNativeQuery("INSERT INTO OperatingExpense(expense_date,category,description,amount,created_by,created_at,updated_at) VALUES (:date,'SALARY',:description,120,:admin,:now,:now)")
+                .setParameter("date", now.toLocalDate()).setParameter("description", "E2E-" + runId + "-SALARY").setParameter("admin", admin.getUserId()).setParameter("now", now).executeUpdate();
+        em.createNativeQuery("INSERT INTO OperatingExpense(expense_date,category,description,amount,created_by,created_at,updated_at) VALUES (:date,'RENT',:description,999,:admin,:now,:now)")
+                .setParameter("date", now.toLocalDate().minusYears(2)).setParameter("description", "E2E-" + runId + "-OLD").setParameter("admin", admin.getUserId()).setParameter("now", now).executeUpdate();
         em.getTransaction().commit();
         assertTrue(admin.getUserId() > 0);
     }

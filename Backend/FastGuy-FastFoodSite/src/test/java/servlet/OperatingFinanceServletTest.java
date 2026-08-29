@@ -14,6 +14,14 @@ class OperatingFinanceServletTest {
         Capture invalid=new Capture();authorizedExpenses().doPost(request("Bearer x",null,"{\"expenseDate\":\"2024-01-01\",\"category\":\"RENT\",\"description\":\"Rent\",\"amount\":1,\"extra\":true}",Map.of()),response(invalid));assertEquals(400,invalid.status);
     }
 
+    @Test void expensesAcceptInclusiveDateRangeAndRejectPartialOrReversedRange() throws Exception {
+        class RangeService extends OperatingFinanceService { java.time.LocalDate from,to; public List<Map<String,Object>> listExpenses(java.time.LocalDate from,java.time.LocalDate to){this.from=from;this.to=to;return List.of();} }
+        RangeService service=new RangeService();OperatingExpenseServlet servlet=new OperatingExpenseServlet(service){protected int admin(HttpServletRequest q,HttpServletResponse p){return 1;}};
+        Capture ok=new Capture();servlet.doGet(request("Bearer x",null,null,Map.of("fromDate","2024-01-01","toDate","2024-01-31")),response(ok));assertEquals(200,ok.status);assertEquals(java.time.LocalDate.of(2024,1,1),service.from);assertEquals(java.time.LocalDate.of(2024,1,31),service.to);
+        Capture partial=new Capture();servlet.doGet(request("Bearer x",null,null,Map.of("fromDate","2024-01-01")),response(partial));assertEquals(400,partial.status);
+        Capture reversed=new Capture();servlet.doGet(request("Bearer x",null,null,Map.of("fromDate","2024-02-01","toDate","2024-01-31")),response(reversed));assertEquals(400,reversed.status);
+    }
+
     @Test void financeServletsReturnGeneric500WithoutInternalMessage() throws Exception {
         OperatingFinanceService failing=new OperatingFinanceService(){public List<Map<String,Object>> listExpenses(){throw new RuntimeException("jdbc password=secret");}};
         OperatingExpenseServlet servlet=new OperatingExpenseServlet(failing){protected int admin(HttpServletRequest q,HttpServletResponse p){return 1;}};

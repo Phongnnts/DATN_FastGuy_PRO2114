@@ -6,7 +6,7 @@ const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('admin finance API uses exact OpenAPI endpoints and retire body', async () => {
   const source = await read('src/api/admin.js');
-  for (const fragment of ["client.get('/admin/operating-expenses')", "client.post('/admin/operating-expenses', data)", 'client.put(`/admin/operating-expenses/${id}`, data)', 'client.delete(`/admin/operating-expenses/${id}`)', "client.get('/admin/fixed-assets')", "client.post('/admin/fixed-assets', data)", 'client.put(`/admin/fixed-assets/${id}`, data)', "client.put(`/admin/fixed-assets/${id}/retire`, { expectedStatus: 'ACTIVE' })", "client.get('/admin/reports/operating-profit', { params })"]) assert.match(source, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  for (const fragment of ["client.get('/admin/operating-expenses', { params })", "client.post('/admin/operating-expenses', data)", 'client.put(`/admin/operating-expenses/${id}`, data)', 'client.delete(`/admin/operating-expenses/${id}`)', "client.get('/admin/fixed-assets')", "client.post('/admin/fixed-assets', data)", 'client.put(`/admin/fixed-assets/${id}`, data)', "client.put(`/admin/fixed-assets/${id}/retire`, { expectedStatus: 'ACTIVE' })", "client.get('/admin/reports/operating-profit', { params })"]) assert.match(source, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 test('finance pages remain addressable while only store expenses join reports', async () => {
@@ -20,8 +20,9 @@ test('finance pages remain addressable while only store expenses join reports', 
 
 test('operating report uses exact labels and incomplete costs are not zero', async () => {
   const source = await read('src/views/admin/ReportsPage.vue');
-  for (const label of ['Doanh thu thuần', 'COGS', 'Lợi nhuận gộp', 'Chi phí vận hành', 'Lợi nhuận trước khấu hao (mô phỏng)', 'Khấu hao', 'Lợi nhuận hoạt động']) assert.match(source, new RegExp(label.replace(/[()]/g, '\\$&')));
-  assert.match(source, /costComplete/); assert.match(source, /Chưa đầy đủ/); assert.match(source, /mô phỏng quản trị sinh viên, không phải kế toán thuế/);
+  for (const label of ['Doanh thu thuần', 'Giá vốn', 'Chi phí cửa hàng', 'Kết quả vận hành ước tính']) assert.match(source, new RegExp(label));
+  assert.match(source, /costComplete/); assert.match(source, /Chưa đủ dữ liệu/); assert.match(source, /Số liệu quản trị ước tính, không phải kế toán thuế/);
+  assert.doesNotMatch(source, /Lợi nhuận trước khấu hao \(mô phỏng\)|\['Khấu hao','depreciation'\]/);
 });
 
 test('checkout cutoff clock refreshes and rechecks immediately before submit', async () => {

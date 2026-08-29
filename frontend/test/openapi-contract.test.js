@@ -372,10 +372,10 @@ test('OpenAPI contracts operating expenses, fixed assets, and operating profit',
   assert.equal(schemas.FixedAssetRequest.properties.usefulLifeMonths.minimum, 1);
   assert.deepEqual(schemas.FixedAssetStatus.enum, ['ACTIVE', 'RETIRED']);
   assert.deepEqual(schemas.FixedAsset.properties.retiredAt.type, ['string', 'null']);
-  const reportFields = ['grossRevenue', 'refundTotal', 'netRevenue', 'cogs', 'grossProfit', 'operatingExpenses', 'profitBeforeDepreciation', 'depreciation', 'operatingProfit', 'costComplete', 'missingCostItemCount', 'fromDate', 'toDate'];
+  const reportFields = ['grossRevenue', 'refundTotal', 'netRevenue', 'cogs', 'grossProfit', 'operatingExpenses', 'storeExpenses', 'profitBeforeDepreciation', 'estimatedOperatingResult', 'depreciation', 'operatingProfit', 'includesManualSalary', 'costComplete', 'missingCostItemCount', 'fromDate', 'toDate'];
   assert.deepEqual(schemas.OperatingProfitData.required, reportFields);
   assert.deepEqual(Object.keys(schemas.OperatingProfitData.properties), reportFields);
-  for (const field of ['cogs', 'grossProfit', 'profitBeforeDepreciation', 'operatingProfit']) assert.ok(schemas.OperatingProfitData.properties[field].oneOf.some((item) => item.type === 'null'));
+  for (const field of ['cogs', 'grossProfit', 'profitBeforeDepreciation', 'estimatedOperatingResult', 'operatingProfit']) assert.ok(schemas.OperatingProfitData.properties[field].oneOf.some((item) => item.type === 'null'));
   for (const name of ['OperatingExpense', 'FixedAsset']) assert.doesNotMatch(JSON.stringify(schemas[name]), /deletedBy|retiredBy|approvedBy/);
 });
 

@@ -1,13 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { adminApi } from '@/api';
-import { dateRangeForDays } from '@/utils/inventoryOperations';
 
-const range = ref(dateRangeForDays(30));
+const props = defineProps({ range: { type: Object, required: true } });
 const report = ref(null);
 const loading = ref(false);
 const error = ref('');
-const dateError = computed(() => range.value.fromDate > range.value.toDate ? 'Từ ngày không được sau đến ngày.' : '');
+const dateError = computed(() => props.range.fromDate > props.range.toDate ? 'Từ ngày không được sau đến ngày.' : '');
 const cards = computed(() => report.value ? [
   ['Doanh thu sau giảm', report.value.netRevenue],
   ['Giá vốn', report.value.costComplete ? report.value.cost : 'Chưa đủ dữ liệu'],
@@ -18,28 +17,20 @@ const cards = computed(() => report.value ? [
 
 function money(value) { return Number(value).toLocaleString('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }); }
 function percent(value) { return Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 1 }); }
-function preset(days) { range.value = dateRangeForDays(days); load(); }
 async function load() {
   if (dateError.value) return;
   loading.value = true; error.value = '';
-  try { report.value = await adminApi.getMenuPerformanceReport(range.value); }
+  try { report.value = await adminApi.getMenuPerformanceReport(props.range); }
   catch (exception) { error.value = exception.message || 'Không thể tải báo cáo theo món'; }
   finally { loading.value = false; }
 }
 onMounted(load);
+watch(() => props.range, load, { deep: true });
 </script>
 
 <template>
   <main class="report-page">
     <header class="page-heading"><div><p class="eyebrow">Kinh doanh</p><h1>Báo cáo hiệu quả món ăn</h1><p>Đơn đã giao, tính theo ngày giao. Giá vốn dùng snapshot tại thời điểm đặt món.</p></div></header>
-    <section class="panel filters" aria-label="Khoảng thời gian báo cáo">
-      <div class="presets"><button type="button" @click="preset(1)">Hôm nay</button><button type="button" @click="preset(7)">7 ngày</button><button type="button" @click="preset(30)">30 ngày</button></div>
-      <label for="report-from">Từ ngày<input id="report-from" v-model="range.fromDate" class="form-input" type="date" :max="range.toDate" /></label>
-      <label for="report-to">Đến ngày<input id="report-to" v-model="range.toDate" class="form-input" type="date" :min="range.fromDate" /></label>
-      <button class="btn btn-primary" :disabled="loading || !!dateError" @click="load">Xem báo cáo</button>
-      <p v-if="dateError" role="alert">{{ dateError }}</p>
-    </section>
-
     <div v-if="loading" class="panel state" role="status">Đang tổng hợp doanh thu và giá vốn...</div>
     <div v-else-if="error" class="panel state error" role="alert">{{ error }}<button class="btn btn-outline" @click="load">Thử lại</button></div>
     <template v-else-if="report">
