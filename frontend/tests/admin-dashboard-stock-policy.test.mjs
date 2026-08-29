@@ -5,12 +5,9 @@ import { dashboardViewState } from '../src/utils/adminDashboardViewState.js';
 
 const page = readFileSync(new URL('../src/views/admin/DashboardPage.vue', import.meta.url), 'utf8');
 
-test('admin dashboard exposes out and low stock SKU counts with inventory actions', () => {
-  assert.match(page, /outOfStockSkuCount/);
-  assert.match(page, /lowStockSkuCount/);
-  assert.match(page, /lowStockThreshold/);
-  assert.match(page, /Hết hàng/);
-  assert.match(page, /Sắp hết/);
+test('admin dashboard exposes consolidated stock attention with inventory action', () => {
+  assert.match(page, /LOW_STOCK_ITEMS/);
+  assert.match(page, /Mặt hàng dưới mức an toàn/);
   assert.match(page, /\/admin\/inventory/);
 });
 
@@ -40,27 +37,22 @@ test('refresh error retains valid dashboard with nonblocking error banner', () =
   });
 });
 
-test('stock cards preserve distinct states zero values threshold and inventory destinations', () => {
-  assert.match(page, /Hết hàng<strong>\{\{ Number\(data\.outOfStockSkuCount \|\| 0\) \}\} SKU/);
-  assert.match(page, /Sắp hết<strong>\{\{ Number\(data\.lowStockSkuCount \|\| 0\) \}\} SKU/);
-  assert.match(page, /filter: 'OUT'/);
+test('stock risk is one actionable attention item', () => {
+  assert.match(page, /LOW_STOCK_ITEMS/);
+  assert.match(page, /Mặt hàng dưới mức an toàn/);
   assert.match(page, /filter: 'LOW'/);
-  assert.match(page, /Ngưỡng ≤ \{\{ data\.lowStockThreshold \}\}/);
 });
 
-test('dashboard keeps COD and revenue production fields', () => {
+test('dashboard keeps today revenue and COD attention destinations', () => {
   assert.match(page, /data\.revenueToday/);
-  assert.match(page, /data\.totalRevenue/);
-  assert.match(page, /data\.pendingCodAmount/);
-  assert.match(page, /data\.pendingCodCount/);
+  assert.match(page, /PENDING_COD_SETTLEMENTS/);
   assert.match(page, /\/admin\/cod-settlements/);
 });
 
-test('stock icons are decorative and responsive source policy remains', () => {
-  assert.match(page, /bi bi-x-octagon" aria-hidden="true"/);
-  assert.match(page, /bi bi-exclamation-triangle" aria-hidden="true"/);
-  assert.match(page, /repeat\(auto-fit,minmax\(180px,1fr\)\)/);
-  assert.match(page, /@media\(max-width:760px\).*\.operation-strip\{grid-template-columns:1fr\}/s);
+test('attention icons are decorative and responsive source policy remains', () => {
+  assert.match(page, /bi bi-exclamation-circle" aria-hidden="true"/);
+  assert.match(page, /repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(page, /@media\(max-width:760px\).*\.attention-list\{grid-template-columns:1fr\}/s);
 });
 
 test('admin stock alerts remain current response UI only', () => {

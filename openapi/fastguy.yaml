@@ -2519,7 +2519,7 @@ components:
     AdminDashboardData:
       type: object
       additionalProperties: true
-      required: [customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, pendingCodCount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount]
+      required: [customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, pendingCodCount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete, attentionItems]
       properties:
         customerCount: { type: integer, minimum: 0 }
         activeProductCount: { type: integer, minimum: 0 }
@@ -2537,6 +2537,24 @@ components:
         lowStockThreshold: { type: integer, minimum: 1 }
         outOfStockSkuCount: { type: integer, minimum: 0 }
         lowStockSkuCount: { type: integer, minimum: 0 }
+        deliveredOrdersToday: { type: integer, minimum: 0 }
+        activeOrdersToday: { type: integer, minimum: 0 }
+        aovToday: { type: number, minimum: 0 }
+        grossProfitToday: { type: [number, 'null'] }
+        costComplete: { type: boolean }
+        attentionItems:
+          type: array
+          items: { $ref: '#/components/schemas/AdminAttentionItem' }
+    AdminAttentionItem:
+      type: object
+      additionalProperties: false
+      required: [type, severity, count]
+      properties:
+        type:
+          type: string
+          enum: [OVERDUE_PENDING_ORDERS, DELIVERY_FAILED_ORDERS, PENDING_REFUNDS, STAFF_COVERAGE_GAPS, LOW_STOCK_ITEMS, PENDING_COD_SETTLEMENTS]
+        severity: { type: string, enum: [WARNING, CRITICAL] }
+        count: { type: integer, minimum: 1 }
     AdminDashboardResponse:
       type: object
       additionalProperties: false

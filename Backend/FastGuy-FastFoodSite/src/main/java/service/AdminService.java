@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ public class AdminService {
     private CodSettlementDAO codSettlementDAO = new CodSettlementDAO();
     private StoreConfigService storeConfigService = new StoreConfigService();
     private MenuPerformanceReportService menuPerformanceReportService = new MenuPerformanceReportService();
+    private WorkShiftService workShiftService = new WorkShiftService();
 
     public Map<String, Object> getDashboard() {
         return getDashboardWithPeriod(null);
@@ -87,7 +89,32 @@ public class AdminService {
         data.put("lowStockThreshold", lowStockThreshold);
         data.put("outOfStockSkuCount", stockRiskCounts[0]);
         data.put("lowStockSkuCount", stockRiskCounts[1]);
+
+        long deliveredToday = ordersDAO.countByStatusAndDateRange("DELIVERED", operationalStart, operationalEnd);
+        long activeToday = ordersDAO.countActiveByDateRange(operationalStart, operationalEnd);
+        double revenueToday = ((Number) data.get("revenueToday")).doubleValue();
+        Map<String, Object> menuToday = menuPerformanceReportService.report(today, today);
+        boolean costComplete = Boolean.TRUE.equals(menuToday.get("costComplete"));
+        Number grossProfit = costComplete && menuToday.get("grossProfit") instanceof Number number ? number : null;
+        List<Map<String, Object>> attentionItems = new ArrayList<>();
+        addAttention(attentionItems, "OVERDUE_PENDING_ORDERS", "WARNING", ordersDAO.countOverdueActive(LocalDateTime.now(BUSINESS_ZONE).minusMinutes(25)));
+        addAttention(attentionItems, "DELIVERY_FAILED_ORDERS", "CRITICAL", ((Number) ordersByStatus.get("DELIVERY_FAILED")).longValue());
+        addAttention(attentionItems, "PENDING_REFUNDS", "WARNING", ordersDAO.countPendingRefunds());
+        long coverageGaps = workShiftService.countCoverageGaps();
+        addAttention(attentionItems, "STAFF_COVERAGE_GAPS", "CRITICAL", coverageGaps);
+        addAttention(attentionItems, "LOW_STOCK_ITEMS", "WARNING", stockRiskCounts[0] + stockRiskCounts[1]);
+        addAttention(attentionItems, "PENDING_COD_SETTLEMENTS", "WARNING", ((Number) data.get("pendingCodCount")).longValue());
+        data.put("deliveredOrdersToday", deliveredToday);
+        data.put("activeOrdersToday", activeToday);
+        data.put("aovToday", deliveredToday == 0 ? 0.0 : revenueToday / deliveredToday);
+        data.put("grossProfitToday", grossProfit);
+        data.put("costComplete", costComplete);
+        data.put("attentionItems", attentionItems);
         return data;
+    }
+
+    private static void addAttention(List<Map<String, Object>> items, String type, String severity, long count) {
+        if (count > 0) items.add(Map.of("type", type, "severity", severity, "count", count));
     }
 
     public Map<String, Object> getFullReport(String period, String startDate, String endDate) {

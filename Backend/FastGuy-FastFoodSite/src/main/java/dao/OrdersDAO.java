@@ -233,6 +233,25 @@ public class OrdersDAO {
         }
     }
 
+    public long countPendingRefunds() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.refundStatus = 'PENDING'", Long.class).getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countActiveByDateRange(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.createdAt >= :start AND o.createdAt < :end AND o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE')", Long.class)
+                    .setParameter("start", start).setParameter("end", end).getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
     public long countOverdueActive(LocalDateTime threshold) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

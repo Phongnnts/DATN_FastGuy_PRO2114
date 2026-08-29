@@ -324,6 +324,17 @@ public class WorkShiftService {
         } finally { em.close(); }
     }
 
+    public long countCoverageGaps() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            Number staffed = (Number) em.createNativeQuery("SELECT COUNT(DISTINCT shift_code) FROM WorkShift WHERE staff_role_snapshot='STAFF' AND shift_date=:date")
+                    .setParameter("date", businessNow().toLocalDate()).getSingleResult();
+            return Math.max(0, STAFF_TEMPLATES.size() - staffed.longValue());
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Map<String, Object>> monitoring() {
         LocalDateTime now = businessNow();
         List<Map<String, Object>> result = new ArrayList<>();
