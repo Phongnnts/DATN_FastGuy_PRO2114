@@ -12,13 +12,6 @@ const users = ref([]);
 const shifts = ref([]);
 const selections = ref({});
 const monitoring = ref([]);
-const attendance = ref([]);
-const attendanceMonth = ref(dateKey(new Date()).slice(0, 7));
-const attendanceStatus = ref('PENDING');
-const attendanceUserId = ref('');
-const attendanceLoading = ref(false);
-const attendanceError = ref('');
-const attendanceSavingId = ref(null);
 const loading = ref(true);
 const saving = ref(false);
 const loadError = ref('');
@@ -28,7 +21,6 @@ const weekStart = ref(mondayKey(new Date()));
 const currentWeekStart = mondayKey(new Date());
 let monitorTimer;
 let monitorGeneration = 0;
-let attendanceGeneration = 0;
 let loadGeneration = 0;
 let baseline = '[]';
 const tabRefs = ref([]);
@@ -77,29 +69,17 @@ async function loadMonitoring() {
   catch (error) { if (generation !== monitorGeneration) return; monitorError.value = error.message || 'Không thể tải giám sát'; }
   finally { if (generation === monitorGeneration) monitorLoading.value = false; }
 }
-async function loadAttendance() {
-  const generation = ++attendanceGeneration; const requested = `${attendanceMonth.value}|${attendanceStatus.value}|${attendanceUserId.value}`; attendanceLoading.value = true; attendanceError.value = '';
-  try { const data = await adminApi.getShiftAttendance({ month: attendanceMonth.value, status: attendanceStatus.value || undefined, userId: attendanceUserId.value ? Number(attendanceUserId.value) : undefined }); if (generation !== attendanceGeneration || requested !== `${attendanceMonth.value}|${attendanceStatus.value}|${attendanceUserId.value}`) return; attendance.value = Array.isArray(data) ? data : []; }
-  catch (error) { if (generation === attendanceGeneration && requested === `${attendanceMonth.value}|${attendanceStatus.value}|${attendanceUserId.value}`) attendanceError.value = error.message || 'Không thể tải chấm công'; }
-  finally { if (generation === attendanceGeneration) attendanceLoading.value = false; }
-}
-async function approve(item) {
-  if (attendanceSavingId.value !== null) return; attendanceSavingId.value = item.shiftId; attendanceError.value = '';
-  try { await adminApi.approveShiftAttendance(item.shiftId, { expectedUpdatedAt: item.updatedAt, approvedMinutes: Number(item.approvedMinutes ?? item.overlapEligibleMinutes), approvedOvertimeMinutes: Number(item.approvedOvertimeMinutes ?? item.potentialOvertimeMinutes), attendanceNote: item.attendanceNote || null }); await loadAttendance(); toast.success('Đã duyệt chấm công'); }
-  catch (error) { attendanceError.value = error.status === 409 ? 'Dữ liệu đã thay đổi. Danh sách đang được tải lại.' : error.message || 'Không thể duyệt chấm công'; if (error.status === 409) await loadAttendance(); }
-  finally { attendanceSavingId.value = null; }
-}
-function selectTab(value) { tab.value = value; if (value === 'monitoring') loadMonitoring(); if (value === 'attendance') loadAttendance(); }
-function handleTabKeydown(event, index) { const keys = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: 2 }; if (!(event.key in keys)) return; event.preventDefault(); const next = (keys[event.key] + 3) % 3; selectTab(['schedule', 'monitoring', 'attendance'][next]); tabRefs.value[next]?.focus(); }
+function selectTab(value) { tab.value = value; if (value === 'monitoring') loadMonitoring(); }
+function handleTabKeydown(event, index) { const keys = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: 1 }; if (!(event.key in keys)) return; event.preventDefault(); const next = (keys[event.key] + 2) % 2; selectTab(['schedule', 'monitoring'][next]); tabRefs.value[next]?.focus(); }
 
 onMounted(() => { initialize(); monitorTimer = setInterval(() => { if (tab.value === 'monitoring') loadMonitoring(); }, 30000); });
-onUnmounted(() => { monitorGeneration++; attendanceGeneration++; clearInterval(monitorTimer); });
+onUnmounted(() => { monitorGeneration++; clearInterval(monitorTimer); });
 </script>
 
 <template>
   <main class="shifts-page">
     <header class="page-header"><div><h1>Ca làm nhân viên</h1><p>Lập lịch tuần và giám sát vận hành.</p></div></header>
-    <div class="tabs" role="tablist" aria-label="Quản lý ca làm"><button id="schedule-tab" :ref="el => tabRefs[0] = el" role="tab" :aria-selected="tab === 'schedule'" aria-controls="schedule-panel" :tabindex="tab === 'schedule' ? 0 : -1" @keydown="handleTabKeydown($event, 0)" @click="selectTab('schedule')">Lịch tuần</button><button id="monitor-tab" :ref="el => tabRefs[1] = el" role="tab" :aria-selected="tab === 'monitoring'" aria-controls="monitor-panel" :tabindex="tab === 'monitoring' ? 0 : -1" @keydown="handleTabKeydown($event, 1)" @click="selectTab('monitoring')">Giám sát</button><button id="attendance-tab" :ref="el => tabRefs[2] = el" role="tab" :aria-selected="tab === 'attendance'" aria-controls="attendance-panel" :tabindex="tab === 'attendance' ? 0 : -1" @keydown="handleTabKeydown($event, 2)" @click="selectTab('attendance')">Duyệt công</button></div>
+    <div class="tabs" role="tablist" aria-label="Quản lý ca làm"><button id="schedule-tab" :ref="el => tabRefs[0] = el" role="tab" :aria-selected="tab === 'schedule'" aria-controls="schedule-panel" :tabindex="tab === 'schedule' ? 0 : -1" @keydown="handleTabKeydown($event, 0)" @click="selectTab('schedule')">Lịch tuần</button><button id="monitor-tab" :ref="el => tabRefs[1] = el" role="tab" :aria-selected="tab === 'monitoring'" aria-controls="monitor-panel" :tabindex="tab === 'monitoring' ? 0 : -1" @keydown="handleTabKeydown($event, 1)" @click="selectTab('monitoring')">Giám sát</button></div>
 
     <section v-if="tab === 'schedule'" id="schedule-panel" class="panel" role="tabpanel" aria-labelledby="schedule-tab">
       <div class="week-toolbar"><button class="btn btn-outline" type="button" aria-label="Tuần trước" @click="moveWeek(-1)">‹ Tuần trước</button><strong>Tuần từ {{ weekStart }}</strong><button class="btn btn-outline" type="button" aria-label="Tuần sau" :disabled="isCurrentWeek" @click="moveWeek(1)">Tuần sau ›</button><button class="btn btn-primary" type="button" :disabled="loading || saving" @click="saveWeek">{{ saving ? 'Đang lưu...' : 'Lưu lịch' }}</button></div>
@@ -116,13 +96,7 @@ onUnmounted(() => { monitorGeneration++; attendanceGeneration++; clearInterval(m
       <div v-else class="table-wrapper"><table class="table"><thead><tr><th>Ngày</th><th>Ca</th><th>Nhân viên</th><th>Giờ</th><th>Check-in</th><th>Check-out</th><th>Trạng thái</th><th>Mức cảnh báo</th></tr></thead><tbody><tr v-for="item in monitoring" :key="`${item.shiftDate}-${item.shiftCode}`" :class="`severity-${item.alertSeverity.toLowerCase()}`"><td>{{ item.shiftDate }}</td><td>{{ CODE_LABELS[item.shiftCode] }}</td><td>{{ item.staffName || 'Chưa phân công' }}</td><td>{{ time(item.startTime) }}–{{ time(item.endTime) }}</td><td>{{ item.checkInAt || '—' }}<small>{{ source(item.checkInSource) }}</small></td><td>{{ item.checkOutAt || '—' }}<small>{{ source(item.checkOutSource) }}</small></td><td>{{ STATE_LABELS[item.monitoringState] || item.monitoringState }}</td><td><strong :class="{ critical: item.alertSeverity === 'CRITICAL' }" :role="item.alertSeverity === 'CRITICAL' ? 'alert' : undefined">{{ item.alertSeverity }}</strong></td></tr></tbody></table></div>
     </section>
 
-    <section v-else id="attendance-panel" class="panel" role="tabpanel" aria-labelledby="attendance-tab">
-      <div class="week-toolbar"><label>Tháng <input v-model="attendanceMonth" type="month" @change="loadAttendance"></label><label>Trạng thái <select v-model="attendanceStatus" class="form-select" @change="loadAttendance"><option value="">Tất cả</option><option value="PENDING">Chờ duyệt</option><option value="APPROVED">Đã duyệt</option></select></label><label>Nhân viên <select v-model="attendanceUserId" class="form-select" @change="loadAttendance"><option value="">Tất cả</option><option v-for="user in staff" :key="user.userId" :value="String(user.userId)">{{ user.fullName }}</option></select></label><button class="btn btn-outline" type="button" :disabled="attendanceLoading" @click="loadAttendance">Làm mới</button></div>
-      <div v-if="attendanceError" class="state error" role="alert">{{ attendanceError }}</div>
-      <div v-else-if="attendanceLoading && !attendance.length" class="state" aria-live="polite">Đang tải chấm công...</div>
-      <div v-else-if="!attendance.length" class="state">Không có chấm công phù hợp.</div>
-      <div v-else class="table-wrapper"><table class="table"><thead><tr><th>Ngày / ca</th><th>Nhân viên</th><th>Thực tế</th><th>Hợp lệ</th><th>Muộn / sớm</th><th>OT</th><th>Phút duyệt</th><th>OT duyệt</th><th>Ghi chú</th><th></th></tr></thead><tbody><tr v-for="item in attendance" :key="item.shiftId"><td>{{ item.shiftDate }}<small>{{ CODE_LABELS[item.shiftCode] }}</small></td><td>{{ item.staffName }}</td><td>{{ item.actualMinutes }}</td><td>{{ item.overlapEligibleMinutes }}</td><td>{{ item.lateMinutes }} / {{ item.earlyLeaveMinutes }}</td><td>{{ item.potentialOvertimeMinutes }}</td><td><input v-model.number="item.approvedMinutes" type="number" min="0" :max="item.overlapEligibleMinutes" aria-label="Phút duyệt"></td><td><input v-model.number="item.approvedOvertimeMinutes" type="number" min="0" :max="item.potentialOvertimeMinutes" aria-label="Phút tăng ca duyệt"></td><td><input v-model="item.attendanceNote" maxlength="500" aria-label="Ghi chú chấm công"></td><td><button class="btn btn-primary" type="button" :disabled="attendanceSavingId !== null || item.attendanceStatus === 'APPROVED'" @click="approve(item)">{{ attendanceSavingId === item.shiftId ? 'Đang duyệt...' : item.attendanceStatus === 'APPROVED' ? 'Đã duyệt' : 'Duyệt' }}</button></td></tr></tbody></table></div>
-    </section>
+
   </main>
 </template>
 

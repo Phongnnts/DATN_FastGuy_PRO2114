@@ -53,7 +53,7 @@ test('seven indexable routes carry robots description and canonical', () => {
 });
 
 test('breadcrumb meta covers account, admin detail, and staff operations pages', () => {
-  assert.equal((router.match(/breadcrumb:/g) || []).length, 23);
+  assert.equal((router.match(/breadcrumb:/g) || []).length, 24);
   assert.match(router, /name: 'StaffProfile',[\s\S]*?breadcrumb: \[\{ label: 'Vận hành', to: '\/staff' \}, \{ label: 'Hồ sơ' \}\]/);
   assert.match(router, /name: 'ShipperProfile',[\s\S]*?breadcrumb: \[\{ label: 'Giao hàng', to: '\/shipper' \}, \{ label: 'Hồ sơ' \}\]/);
   const productEditor = router.slice(

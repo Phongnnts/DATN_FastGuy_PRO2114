@@ -5,6 +5,7 @@ import test from 'node:test';
 const adminApi = readFileSync(new URL('../src/api/admin.js', import.meta.url), 'utf8');
 const shiftApi = readFileSync(new URL('../src/api/shift.js', import.meta.url), 'utf8');
 const adminPage = readFileSync(new URL('../src/views/admin/ShiftsPage.vue', import.meta.url), 'utf8');
+const attendancePage = readFileSync(new URL('../src/views/admin/AttendancePage.vue', import.meta.url), 'utf8');
 const staffPage = readFileSync(new URL('../src/views/staff/StaffShiftsPage.vue', import.meta.url), 'utf8');
 
 test('weekly APIs match OpenAPI paths, query, and replacement body', () => {
@@ -27,19 +28,19 @@ test('admin schedule renders seven days by three fixed Staff slots and exact pay
 });
 
 test('admin attendance filters by existing staff and includes userId in request identity', () => {
-  assert.match(adminPage, /const attendanceUserId = ref\(''\)/);
-  assert.match(adminPage, /v-model="attendanceUserId"/);
-  assert.match(adminPage, /v-for="user in staff"/);
-  assert.match(adminPage, /userId: attendanceUserId\.value \? Number\(attendanceUserId\.value\) : undefined/);
-  assert.match(adminPage, /attendanceMonth\.value\}\|\$\{attendanceStatus\.value\}\|\$\{attendanceUserId\.value/);
+  assert.match(attendancePage, /const attendanceUserId = ref\(''\)/);
+  assert.match(attendancePage, /v-model="attendanceUserId"/);
+  assert.match(attendancePage, /v-for="user in staff"/);
+  assert.match(attendancePage, /userId: attendanceUserId\.value \? Number\(attendanceUserId\.value\) : undefined/);
+  assert.match(attendancePage, /attendanceMonth\.value\}\|\$\{attendanceStatus\.value\}\|\$\{attendanceUserId\.value/);
 });
 
 test('admin attendance rejects same-filter stale responses including conflict reloads', () => {
-  assert.match(adminPage, /let attendanceGeneration = 0/);
-  assert.match(adminPage, /const generation = \+\+attendanceGeneration/);
-  assert.match(adminPage, /generation !== attendanceGeneration/);
-  assert.match(adminPage, /generation === attendanceGeneration/);
-  assert.match(adminPage, /onUnmounted\(\(\) => \{[^}]*attendanceGeneration\+\+/);
+  assert.match(attendancePage, /let attendanceGeneration = 0/);
+  assert.match(attendancePage, /const generation = \+\+attendanceGeneration/);
+  assert.match(attendancePage, /generation !== attendanceGeneration/);
+  assert.match(attendancePage, /generation === attendanceGeneration/);
+  assert.match(attendancePage, /onUnmounted\(\(\) => \{[^}]*attendanceGeneration\+\+/);
 });
 
 test('admin monitoring refreshes every 30 seconds and rejects stale generations', () => {

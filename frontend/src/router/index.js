@@ -512,6 +512,12 @@ const routes = [
         name: 'AdminShifts',
         component: () => import('@/views/admin/ShiftsPage.vue'),
       },
+      {
+        path: 'attendance',
+        name: 'AdminAttendance',
+        component: () => import('@/views/admin/AttendancePage.vue'),
+        meta: { breadcrumb: [{ label: 'Nhân sự' }, { label: 'Chấm công & tiền công' }] },
+      },
     ],
   },
 
@@ -540,7 +546,7 @@ const pageTitles = {
    AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Tổng quan kho', AdminRecipes: 'Công thức định lượng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
   AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền', AdminCodSettlements: 'Đối soát COD',
   AdminOperatingExpenses: 'Chi phí vận hành', AdminFixedAssets: 'Tài sản cố định',
-  AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', NotFound: 'Không tìm thấy trang',
+   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', AdminAttendance: 'Chấm công & tiền công', AdminStockCounts: 'Kiểm kê kho', NotFound: 'Không tìm thấy trang',
 };
 
 function applyTitles(records) {

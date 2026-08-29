@@ -30,11 +30,13 @@ const navigationGroups = [
   { label: 'Nhân sự', links: [
     { label: 'Người dùng', path: '/admin/users', icon: 'bi-people' },
     { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },
+    { label: 'Chấm công & tiền công', path: '/admin/attendance', icon: 'bi-person-check' },
   ] },
   { label: 'Kho hàng', links: [
     { label: 'Tồn kho', path: '/admin/inventory', icon: 'bi-boxes' },
     { label: 'Nhập hàng', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
     { label: 'Công thức & định mức', path: '/admin/recipes', icon: 'bi-diagram-3' },
+    { label: 'Kiểm kê kho', path: '/admin/inventory/stock-counts', icon: 'bi-clipboard-check' },
   ] },
   { label: 'Báo cáo', links: [{ label: 'Báo cáo kinh doanh', path: '/admin/reports', icon: 'bi-graph-up' }] },
   { label: 'Hệ thống', links: [{ label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' }] },
