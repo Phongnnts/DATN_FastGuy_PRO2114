@@ -17,7 +17,7 @@ import utils.DatabaseUtil;
 import utils.PasswordUtil;
 
 class OperationsBrowserFixtureIT {
-    private static final String DATABASE = "FastGuyDB_Operations060_Test";
+    private static final List<String> DATABASES = List.of("FastGuyDB_Operations060_Test", "FastGuyDB_Attendance061_Test");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Test
@@ -39,8 +39,8 @@ class OperationsBrowserFixtureIT {
     private void verifyTarget(EntityManager em) {
         assertEquals("true", requiredEnv("FASTGUY_DISPOSABLE_DB").toLowerCase());
         Object[] identity = (Object[]) em.createNativeQuery("SELECT @@SERVERNAME,DB_NAME(),DATABASEPROPERTYEX(DB_NAME(),'Status'),CAST(compatibility_level AS int) FROM sys.databases WHERE name=DB_NAME()").getSingleResult();
-        assertEquals(DATABASE, identity[1]);
-        assertEquals(DATABASE, requiredEnv("FASTGUY_E2E_DB_NAME"));
+        assertTrue(DATABASES.contains(identity[1]));
+        assertEquals(identity[1], requiredEnv("FASTGUY_E2E_DB_NAME"));
         assertEquals("ONLINE", identity[2]);
         assertTrue(((Number) identity[3]).intValue() >= 160);
         assertEquals(2L, ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM SchemaMigrationHistory WHERE migration_id IN ('059_shift_schedule_order_timeout','060_operating_finance')").getSingleResult()).longValue());
@@ -75,6 +75,12 @@ class OperationsBrowserFixtureIT {
         }
         em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,staff_id) VALUES (:code,'E2E','000','E2E',1,0,0,0,1,'COD','UNPAID','PENDING',:now,:now,:now,:staff)")
                 .setParameter("code", "E2E-" + runId + "-TIMEOUT").setParameter("now", now).setParameter("staff", staff.getUserId()).executeUpdate();
+        em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,confirmed_at,staff_id) VALUES (:code,'R4 Overdue','000','E2E',100000,0,0,0,100000,'BANK_TRANSFER','PAID','CONFIRMED',:created,:now,:entered,:created,:staff)")
+                .setParameter("code", "E2E-" + runId + "-OVERDUE").setParameter("created", now.minusMinutes(30)).setParameter("now", now).setParameter("entered", now.minusMinutes(20)).setParameter("staff", staff.getUserId()).executeUpdate();
+        em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,delivery_failed_at,refund_status,refund_amount,staff_id) VALUES (:code,'R4 Multi','000','E2E',90000,0,0,0,90000,'COD','UNPAID','DELIVERY_FAILED',:created,:now,:entered,:failed,'PENDING',90000,:staff)")
+                .setParameter("code", "E2E-" + runId + "-MULTI").setParameter("created", now.minusMinutes(50)).setParameter("now", now).setParameter("entered", now.minusMinutes(40)).setParameter("failed", now.minusMinutes(35)).setParameter("staff", staff.getUserId()).executeUpdate();
+        em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,cancelled_at,refund_status,refund_amount,cancelled_by,staff_id) VALUES (:code,'R4 Refund','000','E2E',80000,0,0,0,80000,'BANK_TRANSFER','PAID','CANCELLED',:created,:now,:entered,:cancelled,'PENDING',80000,'ADMIN',:staff)")
+                .setParameter("code", "E2E-" + runId + "-REFUND").setParameter("created", now.minusMinutes(70)).setParameter("now", now).setParameter("entered", now.minusMinutes(60)).setParameter("cancelled", now.minusMinutes(55)).setParameter("staff", staff.getUserId()).executeUpdate();
         em.getTransaction().commit();
         assertTrue(admin.getUserId() > 0);
     }

@@ -173,6 +173,16 @@ public class OrdersDAO {
         }
     }
 
+    public List<Orders> findAttentionCandidates() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT o FROM Orders o WHERE o.orderStatus IN ('PENDING','CONFIRMED','PREPARING','READY','DELIVERY_FAILED') OR o.refundStatus = 'PENDING' ORDER BY o.orderId", Orders.class)
+                    .getResultList();
+        } finally {
+            em.close();
+        }
+    }
+
     public List<Orders> findPendingRefunds() {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -257,6 +267,21 @@ public class OrdersDAO {
         try {
             return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.orderStatus IN ('PENDING', 'CONFIRMED', 'PREPARING') AND o.createdAt < :threshold", Long.class)
                     .setParameter("threshold", threshold)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public long countAttentionOverdue(LocalDateTime now) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.statusEnteredAt IS NOT NULL AND ((o.orderStatus = 'PENDING' AND ((o.paymentMethod = 'BANK_TRANSFER' AND o.paymentStatus = 'UNPAID' AND o.statusEnteredAt <= :pendingBank) OR ((o.paymentMethod <> 'BANK_TRANSFER' OR o.paymentMethod IS NULL OR o.paymentStatus <> 'UNPAID' OR o.paymentStatus IS NULL) AND o.statusEnteredAt <= :pending))) OR (o.orderStatus = 'CONFIRMED' AND o.statusEnteredAt <= :confirmed) OR (o.orderStatus = 'PREPARING' AND o.statusEnteredAt <= :preparing) OR (o.orderStatus = 'READY' AND o.statusEnteredAt <= :ready))", Long.class)
+                    .setParameter("pending", now.minusMinutes(10))
+                    .setParameter("pendingBank", now.minusMinutes(15))
+                    .setParameter("confirmed", now.minusMinutes(15))
+                    .setParameter("preparing", now.minusMinutes(20))
+                    .setParameter("ready", now.minusMinutes(15))
                     .getSingleResult();
         } finally {
             em.close();

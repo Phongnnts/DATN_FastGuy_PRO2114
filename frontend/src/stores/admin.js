@@ -81,14 +81,17 @@ export const useAdminStore = defineStore('admin', () => {
     commit: (categories) => { allCategories.value = categories; },
   });
 
+  let ordersRequestGeneration = 0;
   async function fetchOrders(params) {
+    const requestGeneration = ++ordersRequestGeneration;
     try {
       const data = await adminApi.getOrders(params);
+      if (requestGeneration !== ordersRequestGeneration) return allOrders.value;
       allOrders.value = Array.isArray(data) ? data : [];
       error.value = '';
       return allOrders.value;
     } catch (e) {
-      error.value = e.message;
+      if (requestGeneration === ordersRequestGeneration) error.value = e.message;
       throw e;
     }
   }

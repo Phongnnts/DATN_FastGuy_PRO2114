@@ -97,7 +97,7 @@ public class AdminService {
         boolean costComplete = Boolean.TRUE.equals(menuToday.get("costComplete"));
         Number grossProfit = costComplete && menuToday.get("grossProfit") instanceof Number number ? number : null;
         List<Map<String, Object>> attentionItems = new ArrayList<>();
-        addAttention(attentionItems, "OVERDUE_PENDING_ORDERS", "WARNING", ordersDAO.countOverdueActive(LocalDateTime.now(BUSINESS_ZONE).minusMinutes(25)));
+        addAttention(attentionItems, "OVERDUE_PENDING_ORDERS", "WARNING", ordersDAO.countAttentionOverdue(LocalDateTime.now(BUSINESS_ZONE)));
         addAttention(attentionItems, "DELIVERY_FAILED_ORDERS", "CRITICAL", ((Number) ordersByStatus.get("DELIVERY_FAILED")).longValue());
         addAttention(attentionItems, "PENDING_REFUNDS", "WARNING", ordersDAO.countPendingRefunds());
         long coverageGaps = workShiftService.countCoverageGaps();

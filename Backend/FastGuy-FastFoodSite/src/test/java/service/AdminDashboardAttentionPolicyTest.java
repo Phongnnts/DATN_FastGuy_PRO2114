@@ -9,9 +9,16 @@ class AdminDashboardAttentionPolicyTest {
         String service=Files.readString(Path.of("src/main/java/service/AdminService.java"));
         for(String field:new String[]{"deliveredOrdersToday","activeOrdersToday","aovToday","grossProfitToday","costComplete","attentionItems"}) assertTrue(service.contains("data.put(\""+field+"\""),field);
         for(String type:new String[]{"OVERDUE_PENDING_ORDERS","DELIVERY_FAILED_ORDERS","PENDING_REFUNDS","STAFF_COVERAGE_GAPS","LOW_STOCK_ITEMS","PENDING_COD_SETTLEMENTS"}) assertTrue(service.contains(type),type);
-        assertTrue(service.contains("countOverdueActive"));
+        assertTrue(service.contains("countAttentionOverdue"));
         assertTrue(service.contains("countPendingRefunds"));
         assertTrue(service.contains("menuPerformanceReportService.report"));
+    }
+
+    @Test void overdueAttentionUsesStatusEnteredAtAndPolicyThresholdsInSql() throws Exception {
+        String dao=Files.readString(Path.of("src/main/java/dao/OrdersDAO.java"));
+        assertTrue(dao.contains("long countAttentionOverdue("));
+        assertTrue(dao.contains("statusEnteredAt"));
+        for(String minutes:new String[]{"10","15","20"}) assertTrue(dao.contains("minusMinutes("+minutes+")"),minutes);
     }
 
     @Test void pendingRefundCountIsComputedInSql() throws Exception {

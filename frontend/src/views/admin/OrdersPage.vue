@@ -1,12 +1,17 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice, formatDate } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 
 const adminStore = useAdminStore();
+const route = useRoute();
+const router = useRouter();
 const searchTerm = ref('');
-const activeStatus = ref('');
+const activeStatus = computed(() => statusFilters.some((item) => item.key === route.query.status) ? route.query.status : '');
+const attentionActive = computed(() => activeStatus.value === 'ATTENTION');
+const tabButtons = ref([]);
 const paymentMethod = ref('');
 const paymentStatus = ref('');
 const refundStatus = ref('');
@@ -19,6 +24,7 @@ const loading = ref(false);
 const loadError = ref('');
 
 const statusFilters = [
+  { key: 'ATTENTION', label: 'Cần xử lý' },
   { key: '', label: 'Tất cả' },
   { key: 'REFUND_PENDING', label: 'Cần hoàn tiền' },
   { key: 'PENDING', label: 'Chờ xác nhận' },
@@ -34,9 +40,16 @@ const statusFilters = [
 ];
 
 const dateError = computed(() => filterFromDate.value && filterToDate.value && filterFromDate.value > filterToDate.value ? 'Từ ngày không được sau đến ngày.' : '');
-const statusCount = (key) => key === 'REFUND_PENDING'
-  ? adminStore.allOrders.filter((o) => o.status === 'CANCELLED' && o.refundStatus === 'PENDING').length
-  : key ? adminStore.allOrders.filter((o) => o.status === key).length : adminStore.allOrders.length;
+const statusCount = (key) => key === 'ATTENTION'
+  ? adminStore.allOrders.length
+  : key === 'REFUND_PENDING'
+    ? adminStore.allOrders.filter((o) => o.status === 'CANCELLED' && o.refundStatus === 'PENDING').length
+    : key ? adminStore.allOrders.filter((o) => o.status === key).length : adminStore.allOrders.length;
+const ATTENTION_REASON_LABELS = {
+  PROCESSING_OVERDUE: 'Quá hạn xử lý',
+  DELIVERY_FAILED: 'Giao thất bại',
+  PENDING_REFUND: 'Chờ hoàn tiền',
+};
 const totalRevenue = computed(() => adminStore.allOrders.filter((o) => o.paymentStatus === 'PAID' && o.status === 'DELIVERED').reduce((sum, o) => sum + Number(o.finalAmount || 0), 0));
 const todayCount = computed(() => {
   const today = new Date().toLocaleDateString('en-CA');
@@ -44,13 +57,16 @@ const todayCount = computed(() => {
 });
 
 async function loadOrders() {
-  if (dateError.value) return;
+  if (!attentionActive.value && dateError.value) return;
   loading.value = true;
   loadError.value = '';
   try {
     const params = {};
-    if (filterFromDate.value) params.fromDate = filterFromDate.value;
-    if (filterToDate.value) params.toDate = filterToDate.value;
+    if (attentionActive.value) params.attentionOnly = true;
+    else {
+      if (filterFromDate.value) params.fromDate = filterFromDate.value;
+      if (filterToDate.value) params.toDate = filterToDate.value;
+    }
     await adminStore.fetchOrders(params);
   } catch (e) {
     loadError.value = e?.response?.data?.message || e.message || 'Không thể tải danh sách đơn hàng.';
@@ -70,9 +86,19 @@ function setDatePreset(days) {
   currentPage.value = 1;
   loadOrders();
 }
+async function selectStatus(status) {
+  await router.push({ query: { ...route.query, status: status || undefined } });
+}
+function handleTabKeydown(event, index) {
+  const targets = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: statusFilters.length - 1 };
+  if (!(event.key in targets)) return;
+  event.preventDefault();
+  const next = (targets[event.key] + statusFilters.length) % statusFilters.length;
+  selectStatus(statusFilters[next].key);
+  nextTick(() => tabButtons.value[next]?.focus());
+}
 function resetFilters() {
   searchTerm.value = '';
-  activeStatus.value = '';
   paymentMethod.value = '';
   paymentStatus.value = '';
   refundStatus.value = '';
@@ -83,16 +109,18 @@ function resetFilters() {
   loadOrders();
 }
 onMounted(loadOrders);
+watch(() => route.query.status, loadOrders);
 
 const filtered = computed(() => {
   let list = [...adminStore.allOrders];
   if (activeStatus.value === 'REFUND_PENDING') list = list.filter((o) => o.status === 'CANCELLED' && o.refundStatus === 'PENDING');
-  else if (activeStatus.value) list = list.filter((o) => o.status === activeStatus.value);
+  else if (activeStatus.value && activeStatus.value !== 'ATTENTION') list = list.filter((o) => o.status === activeStatus.value);
   if (paymentMethod.value) list = list.filter((o) => o.paymentMethod === paymentMethod.value);
   if (paymentStatus.value) list = list.filter((o) => o.paymentStatus === paymentStatus.value);
   if (refundStatus.value) list = list.filter((o) => o.refundStatus === refundStatus.value);
   const q = searchTerm.value.trim().toLocaleLowerCase('vi');
   if (q) list = list.filter((o) => `${o.orderCode || ''} ${o.customerName || ''}`.toLocaleLowerCase('vi').includes(q));
+  if (attentionActive.value && sortBy.value === 'date-desc') return list;
   return list.sort((a, b) => {
     if (sortBy.value === 'amount-asc') return Number(a.finalAmount || 0) - Number(b.finalAmount || 0);
     if (sortBy.value === 'amount-desc') return Number(b.finalAmount || 0) - Number(a.finalAmount || 0);
@@ -121,8 +149,8 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
     </section>
 
     <section class="panel">
-      <nav class="status-tabs" aria-label="Lọc trạng thái">
-        <button v-for="item in statusFilters" :key="item.key" :class="{ active: activeStatus === item.key }" :aria-pressed="activeStatus === item.key" @click="activeStatus = item.key">
+      <nav class="status-tabs" role="tablist" aria-label="Lọc trạng thái">
+        <button v-for="(item, index) in statusFilters" :key="item.key" :ref="element => tabButtons[index] = element" role="tab" :aria-selected="activeStatus === item.key" :tabindex="activeStatus === item.key ? 0 : -1" :class="{ active: activeStatus === item.key }" @keydown="handleTabKeydown($event, index)" @click="selectStatus(item.key)">
           {{ item.label }} <span>{{ statusCount(item.key) }}</span>
         </button>
       </nav>
@@ -135,12 +163,13 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
         <select v-model="sortBy" class="form-select" aria-label="Sắp xếp"><option value="date-desc">Mới nhất</option><option value="date-asc">Cũ nhất</option><option value="amount-desc">Giá trị cao nhất</option><option value="amount-asc">Giá trị thấp nhất</option></select>
       </div>
       <div class="date-row">
-        <div class="presets"><button @click="setDatePreset(0)">Hôm nay</button><button @click="setDatePreset(7)">7 ngày</button><button @click="setDatePreset(30)">30 ngày</button></div>
-        <label>Từ ngày <input v-model="filterFromDate" type="date" class="form-input" :max="filterToDate || undefined" /></label>
-        <label>Đến ngày <input v-model="filterToDate" type="date" class="form-input" :min="filterFromDate || undefined" /></label>
-        <button class="btn btn-primary" :disabled="!!dateError || loading" @click="currentPage = 1; loadOrders()">Áp dụng</button>
+        <div class="presets"><button :disabled="attentionActive" @click="setDatePreset(0)">Hôm nay</button><button :disabled="attentionActive" @click="setDatePreset(7)">7 ngày</button><button :disabled="attentionActive" @click="setDatePreset(30)">30 ngày</button></div>
+        <label>Từ ngày <input v-model="filterFromDate" type="date" class="form-input" :disabled="attentionActive" :max="filterToDate || undefined" /></label>
+        <label>Đến ngày <input v-model="filterToDate" type="date" class="form-input" :disabled="attentionActive" :min="filterFromDate || undefined" /></label>
+        <button class="btn btn-primary" :disabled="attentionActive || !!dateError || loading" @click="currentPage = 1; loadOrders()">Áp dụng</button>
         <button class="btn btn-outline" @click="resetFilters"><i class="bi bi-x-circle"></i> Đặt lại</button>
-        <p v-if="dateError" class="field-error" role="alert">{{ dateError }}</p>
+        <p v-if="attentionActive" class="date-note">Cần xử lý luôn hiển thị toàn bộ việc chưa giải quyết, không giới hạn ngày.</p>
+        <p v-else-if="dateError" class="field-error" role="alert">{{ dateError }}</p>
       </div>
 
       <div v-if="loading" class="state" role="status"><span class="spinner"></span><strong>Đang tải đơn hàng...</strong></div>
@@ -157,7 +186,7 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
               <td><strong>{{ formatPrice(order.finalAmount || 0) }}</strong></td>
               <td><span class="payment-method">{{ order.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }}</span><small :class="['payment-state', String(order.paymentStatus).toLowerCase()]">{{ order.paymentStatus === 'PAID' ? 'Đã thanh toán' : order.paymentStatus === 'FAILED' ? 'Thất bại' : 'Chờ thanh toán' }}</small></td>
               <td>{{ formatDate(order.createdAt) }}</td>
-              <td><OrderStatusBadge :status="order.status" /></td>
+              <td><OrderStatusBadge :status="order.status" /><div v-if="order.attentionReasons?.length" class="attention-reasons"><span v-for="reason in order.attentionReasons" :key="reason">{{ ATTENTION_REASON_LABELS[reason] }}</span></div></td>
               <td>
                 <span v-if="order.refundStatus === 'REFUNDED'" class="refund-badge refund-done">Đã hoàn {{ formatPrice(order.refundAmount) }}</span>
                 <span v-else-if="order.refundStatus === 'REJECTED'" class="refund-badge refund-rejected">Đã từ chối</span>
@@ -192,7 +221,8 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
 .filter-area { display: grid; grid-template-columns: minmax(240px, 2fr) repeat(4, minmax(130px, 1fr)); gap: 10px; padding: 16px 16px 10px; }.wide { max-width: none; }
 .date-row { align-items: end; display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px 16px; position: relative; }.date-row label { color: var(--text-mid); font-size: 11px; font-weight: 600; }.date-row input { margin-top: 4px; width: 145px; }
 .presets { background: var(--surface); border-radius: var(--radius-sm); display: flex; padding: 3px; }.presets button { border-radius: 6px; color: var(--text-mid); font-size: 12px; padding: 8px 10px; }.presets button:hover { background: white; color: var(--text-dark); }
-.field-error { color: var(--red-active); flex-basis: 100%; font-size: 12px; }
+.field-error, .date-note { flex-basis: 100%; font-size: 12px; }.field-error { color: var(--red-active); }.date-note { color: var(--text-mid); }.presets button:disabled { cursor: not-allowed; opacity: .45; }
+.attention-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }.attention-reasons span { background: #fff3e8; border-radius: 99px; color: #9a4b24; font-size: 10px; font-weight: 700; padding: 3px 7px; white-space: nowrap; }
 .table-wrapper { border-top: 1px solid var(--border); overflow-x: auto; }.table { min-width: 1020px; }.table th { color: var(--text-mid); font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }.table td { vertical-align: middle; }
 .order-link { color: var(--role-admin); font-weight: 700; }.order-link:hover, .order-link:focus { text-decoration: underline; }
 .payment-method { display: block; font-size: 13px; font-weight: 700; }.payment-state { color: #b45309; display: block; font-size: 11px; }.payment-state.paid { color: #047857; }.payment-state.failed { color: #b91c1c; }

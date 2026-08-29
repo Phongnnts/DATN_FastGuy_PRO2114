@@ -1110,6 +1110,36 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /admin/orders:
+    get:
+      operationId: listAdminOrders
+      summary: List admin orders or unresolved attention orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fromDate
+          in: query
+          schema: { type: string, format: date }
+        - name: toDate
+          in: query
+          schema: { type: string, format: date }
+        - name: attentionOnly
+          in: query
+          schema: { type: boolean, default: false }
+          description: When true, date parameters are not allowed.
+      responses:
+        '200':
+          description: Admin order list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /admin/orders/{orderId}:
     get:
       operationId: getAdminOrderDetail
@@ -3635,6 +3665,49 @@ components:
       properties:
         featured:
           type: boolean
+    AdminOrderAttentionReason:
+      type: string
+      enum: [PROCESSING_OVERDUE, DELIVERY_FAILED, PENDING_REFUND]
+    AdminOrderListItem:
+      type: object
+      additionalProperties: false
+      required: [orderId, orderCode, status, customerName, paymentMethod, paymentStatus, itemCount, finalAmount, serviceFee, cancelledBy, failureNote, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundedAt, refundNote, createdAt, attentionReasons]
+      properties:
+        orderId: { type: integer, minimum: 1 }
+        orderCode: { type: [string, 'null'] }
+        status: { type: [string, 'null'] }
+        customerName: { type: [string, 'null'] }
+        paymentMethod: { type: [string, 'null'] }
+        paymentStatus: { type: [string, 'null'] }
+        itemCount: { type: integer, minimum: 0 }
+        finalAmount: { type: [number, 'null'] }
+        serviceFee: { type: [number, 'null'] }
+        cancelledBy: { type: [string, 'null'] }
+        failureNote: { type: [string, 'null'] }
+        deliveryFailureCode: { type: [string, 'null'] }
+        deliveryAttemptCount: { type: integer, minimum: 0 }
+        deliveryAttemptLimit: { type: integer, minimum: 0 }
+        deliveryFailedAt: { type: [string, 'null'] }
+        retryScheduledAt: { type: [string, 'null'] }
+        returnedToStoreAt: { type: [string, 'null'] }
+        refundStatus: { type: [string, 'null'] }
+        refundAmount: { type: [number, 'null'] }
+        refundedAt: { type: [string, 'null'] }
+        refundNote: { type: [string, 'null'] }
+        createdAt: { type: [string, 'null'] }
+        attentionReasons:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/AdminOrderAttentionReason' }
+    AdminOrderListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AdminOrderListItem' }
     AdminOrderReview:
       type: object
       additionalProperties: false

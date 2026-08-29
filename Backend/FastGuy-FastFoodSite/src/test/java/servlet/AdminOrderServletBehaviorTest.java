@@ -68,6 +68,23 @@ class AdminOrderServletBehaviorTest {
     }
 
     @Test
+    void listSerializesAttentionReasonsAndRejectsAttentionWithDateRange() throws Exception {
+        TestAdminOrderServlet servlet = servlet();
+        ResponseCapture listCapture = new ResponseCapture();
+
+        servlet.get(request("/", "", Map.of("attentionOnly", "true")), response(listCapture));
+
+        JsonNode item = json(listCapture).path("data").path(0);
+        assertEquals(200, listCapture.status);
+        assertTrue(item.path("attentionReasons").isArray());
+        assertEquals("DELIVERY_FAILED", item.path("attentionReasons").path(0).asText());
+
+        ResponseCapture invalidCapture = new ResponseCapture();
+        servlet.get(request("/", "", Map.of("attentionOnly", "true", "fromDate", "2026-08-01")), response(invalidCapture));
+        assertEquals(400, invalidCapture.status);
+    }
+
+    @Test
     void putFeaturedReviewParsesBodyMutatesReviewAndReturnsSuccessEnvelope() throws Exception {
         TestAdminOrderServlet servlet = servlet();
         ResponseCapture capture = new ResponseCapture();
@@ -116,10 +133,15 @@ class AdminOrderServletBehaviorTest {
     }
 
     private HttpServletRequest request(String path, String body) {
+        return request(path, body, Map.of());
+    }
+
+    private HttpServletRequest request(String path, String body, Map<String, String> parameters) {
         return (HttpServletRequest) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[] { HttpServletRequest.class }, (proxy, method, args) -> switch (method.getName()) {
                     case "getPathInfo" -> path;
                     case "getReader" -> new BufferedReader(new StringReader(body));
+                    case "getParameter" -> parameters.get((String) args[0]);
                     default -> defaultValue(method.getReturnType());
                 });
     }
@@ -162,6 +184,7 @@ class AdminOrderServletBehaviorTest {
         private final Orders order;
         private StubOrdersDAO(Orders order) { this.order = order; }
         @Override public Orders findById(int orderId) { return orderId == 44 ? order : null; }
+        @Override public List<Orders> findAttentionCandidates() { return List.of(order); }
     }
 
     private static class StubOrderItemDAO extends OrderItemDAO {

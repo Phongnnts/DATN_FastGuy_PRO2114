@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -20,6 +21,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.AdminOrderAttentionPolicy;
 import service.OrderExpiryPolicy;
 import service.OrderService;
 import service.OrderStatusHistoryService;
@@ -33,6 +35,7 @@ import utils.PrivilegedAuth;
 
 @WebServlet("/api/admin/orders/*")
 public class AdminOrderServlet extends HttpServlet {
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private OrdersDAO ordersDAO = new OrdersDAO();
     private OrderItemDAO orderItemDAO = new OrderItemDAO();
     private PaymentAttemptDAO paymentAttemptDAO = new PaymentAttemptDAO();
@@ -77,6 +80,7 @@ public class AdminOrderServlet extends HttpServlet {
             m.put("refundedAt", o.getRefundedAt());
             m.put("refundNote", o.getRefundNote());
             m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
+            m.put("attentionReasons", AdminOrderAttentionPolicy.reasons(o, LocalDateTime.now(BUSINESS_ZONE)));
             return m;
     }
 
@@ -89,7 +93,20 @@ public class AdminOrderServlet extends HttpServlet {
         if (path == null || path.equals("/")) {
             String fromDate = req.getParameter("fromDate");
             String toDate = req.getParameter("toDate");
+            String attentionValue = req.getParameter("attentionOnly");
             try {
+                boolean attentionOnly = parseAttentionOnly(attentionValue);
+                if (attentionOnly && (fromDate != null || toDate != null)) {
+                    ApiResponse.error(resp, "attentionOnly cannot be combined with date parameters", 400);
+                    return;
+                }
+                if (attentionOnly) {
+                    LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+                    List<Map<String, Object>> attentionData = AdminOrderAttentionPolicy.sort(ordersDAO.findAttentionCandidates(), now)
+                            .stream().map(this::toListItem).collect(Collectors.toList());
+                    ApiResponse.ok(resp, attentionData);
+                    return;
+                }
                 LocalDate from = fromDate == null || fromDate.isBlank() ? null : LocalDate.parse(fromDate);
                 LocalDate to = toDate == null || toDate.isBlank() ? null : LocalDate.parse(toDate);
                 if (from != null && to != null && from.isAfter(to)) {
@@ -102,6 +119,8 @@ public class AdminOrderServlet extends HttpServlet {
                 ApiResponse.ok(resp, allData);
             } catch (DateTimeParseException e) {
                 ApiResponse.error(resp, "Invalid date format, expected yyyy-MM-dd", 400);
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
             }
             return;
         }
@@ -114,6 +133,12 @@ public class AdminOrderServlet extends HttpServlet {
         } catch (NumberFormatException e) {
             resp.sendError(404);
         }
+    }
+
+    static boolean parseAttentionOnly(String value) {
+        if (value == null || value.isBlank() || "false".equals(value)) return false;
+        if ("true".equals(value)) return true;
+        throw new IllegalArgumentException("attentionOnly must be true or false");
     }
 
     private int getAdminId(HttpServletRequest req) {
