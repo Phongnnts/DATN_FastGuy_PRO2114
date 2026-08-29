@@ -123,6 +123,8 @@ test('operations harness is disposable, target locked, desktop role scoped, and 
   assert.match(script, /New-RandomSecret/);
   assert.match(script, /Invoke-Fixture 'cleanup'/);
   assert.match(operationsScript, /-Operations -Project desktop-chrome/);
+  assert.match(script, /NavigationR1/);
+  assert.match(script, /admin-navigation-r1-real-backend\.spec\.js/);
   assert.match(operationsScript, /shipper-field-command\.spec\.js --project=desktop-chrome --project=mobile-chrome/);
   assert.match(script, /if \(\$Operations\) \{ @\('desktop-chrome'\) \}/);
 });

@@ -16,17 +16,15 @@ test('admin API exposes inventory transactions endpoint forwarding params', () =
   assert.match(api, /getInventoryTransactions\s*\(\s*params\s*\)\s*\{\s*return client\.get\('\/admin\/inventory\/transactions',\s*\{\s*params\s*\}\);\s*\}/);
 });
 
-test('ledger route is registered with page and title', () => {
-  assert.match(router, /path: 'inventory\/ledger'[\s\S]*name: 'AdminInventoryLedger'[\s\S]*InventoryLedgerPage\.vue/);
-  assert.match(router, /AdminInventoryLedger: 'Sổ tồn kho'/);
+test('legacy ledger route redirects to the history tab', () => {
+  assert.match(router, /path: 'inventory\/ledger'[\s\S]*redirect: \{ path: '\/admin\/inventory', query: \{ tab: 'history' \} \}/);
 });
 
-test('sidebar keeps grouped inventory overview, recipes and report history entry', () => {
-  assert.match(layout, /Quản lý kho/);
-  assert.match(layout, /label: 'Tổng quan', path: '\/admin\/inventory'/);
-  assert.match(layout, /label: 'Công thức món', path: '\/admin\/recipes'/);
-  assert.match(layout, /label: 'Lịch sử kho', path: '\/admin\/inventory\/ledger'/);
-  assert.match(layout, /label: 'Báo cáo theo món', path: '\/admin\/inventory\/reports'/);
+test('sidebar keeps only task-based inventory entries', () => {
+  assert.match(layout, /label: 'Kho hàng'/);
+  assert.match(layout, /label: 'Tồn kho', path: '\/admin\/inventory'/);
+  assert.match(layout, /label: 'Công thức & định mức', path: '\/admin\/recipes'/);
+  assert.doesNotMatch(layout, /label: 'Lịch sử kho'|label: 'Báo cáo theo món'/);
 });
 
 test('ledger whitelists contracted transaction types and builds item filters', () => {

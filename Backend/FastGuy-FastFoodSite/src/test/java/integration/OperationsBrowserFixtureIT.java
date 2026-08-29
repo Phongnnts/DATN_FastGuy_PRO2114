@@ -60,10 +60,18 @@ class OperationsBrowserFixtureIT {
             LocalTime end = List.of(LocalTime.of(12, 0), LocalTime.of(16, 0), LocalTime.of(21, 0)).get(slot);
             LocalDate shiftDate = monday.plusDays(day);
             boolean current = shiftDate.equals(now.toLocalDate()) && !now.toLocalTime().isBefore(start) && now.toLocalTime().isBefore(end);
-            em.createNativeQuery("INSERT INTO WorkShift(user_id,shift_date,start_time,end_time,shift_code,status,staff_role_snapshot,check_in_at,check_in_source) VALUES (:user,:date,:start,:end,:code,:status,'STAFF',:checkInAt,:checkInSource)")
-                    .setParameter("user", staff.getUserId()).setParameter("date", shiftDate).setParameter("start", start).setParameter("end", end)
-                    .setParameter("code", List.of("MORNING", "AFTERNOON", "EVENING").get(slot)).setParameter("status", current ? "CHECKED_IN" : "SCHEDULED")
-                    .setParameter("checkInAt", current ? now : null).setParameter("checkInSource", current ? "MANUAL" : null).executeUpdate();
+            String code = List.of("MORNING", "AFTERNOON", "EVENING").get(slot);
+            int existing = ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM WorkShift WHERE shift_date=:date AND shift_code=:code AND staff_role_snapshot='STAFF'")
+                    .setParameter("date", shiftDate).setParameter("code", code).getSingleResult()).intValue();
+            if (current && existing > 0) {
+                em.createNativeQuery("UPDATE WorkShift SET user_id=:user,status='CHECKED_IN',check_in_at=:checkInAt,check_in_source='MANUAL',check_out_at=NULL,check_out_source=NULL WHERE shift_date=:date AND shift_code=:code AND staff_role_snapshot='STAFF'")
+                        .setParameter("user", staff.getUserId()).setParameter("checkInAt", now).setParameter("date", shiftDate).setParameter("code", code).executeUpdate();
+            } else if (existing == 0) {
+                em.createNativeQuery("INSERT INTO WorkShift(user_id,shift_date,start_time,end_time,shift_code,status,staff_role_snapshot,check_in_at,check_in_source) VALUES (:user,:date,:start,:end,:code,:status,'STAFF',:checkInAt,:checkInSource)")
+                        .setParameter("user", staff.getUserId()).setParameter("date", shiftDate).setParameter("start", start).setParameter("end", end)
+                        .setParameter("code", code).setParameter("status", current ? "CHECKED_IN" : "SCHEDULED")
+                        .setParameter("checkInAt", current ? now : null).setParameter("checkInSource", current ? "MANUAL" : null).executeUpdate();
+            }
         }
         em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,staff_id) VALUES (:code,'E2E','000','E2E',1,0,0,0,1,'COD','UNPAID','PENDING',:now,:now,:now,:staff)")
                 .setParameter("code", "E2E-" + runId + "-TIMEOUT").setParameter("now", now).setParameter("staff", staff.getUserId()).executeUpdate();

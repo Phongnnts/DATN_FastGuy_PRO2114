@@ -14,29 +14,30 @@ function logout() {
   router.push('/');
 }
 
-const sidebarLinks = [
-  { label: 'Tổng quan', path: '/admin', icon: 'bi-speedometer2' },
-  { label: 'Người dùng', path: '/admin/users', icon: 'bi-people' },
-  { label: 'Sản phẩm', path: '/admin/products', icon: 'bi-box-seam' },
-  { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
-  { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
-  { label: 'Đối soát COD', path: '/admin/cod-settlements', icon: 'bi-cash-stack' },
-  { label: 'Hoàn tiền', path: '/admin/refunds', icon: 'bi-arrow-return-left' },
-  { label: 'Báo cáo', path: '/admin/reports', icon: 'bi-graph-up' },
-  { label: 'Chi phí vận hành', path: '/admin/operating-expenses', icon: 'bi-wallet2' },
-  { label: 'Tài sản cố định', path: '/admin/fixed-assets', icon: 'bi-building' },
-   { label: 'Mã giảm giá', path: '/admin/coupons', icon: 'bi-ticket-perforated' },
-   { label: 'Banner', path: '/admin/banners', icon: 'bi-images' },
-   { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },
-  { label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' },
-];
-
-const inventoryLinks = [
-  { label: 'Tổng quan', path: '/admin/inventory', icon: 'bi-boxes' },
-  { label: 'Nhập hàng', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
-  { label: 'Công thức món', path: '/admin/recipes', icon: 'bi-diagram-3' },
-  { label: 'Lịch sử kho', path: '/admin/inventory/ledger', icon: 'bi-clock-history' },
-  { label: 'Báo cáo theo món', path: '/admin/inventory/reports', icon: 'bi-graph-up-arrow' },
+const navigationGroups = [
+  { label: 'Tổng quan', links: [{ label: 'Dashboard', path: '/admin', icon: 'bi-speedometer2' }] },
+  { label: 'Vận hành', links: [
+    { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
+    { label: 'Đối soát COD', path: '/admin/cod-settlements', icon: 'bi-cash-stack' },
+    { label: 'Hoàn tiền', path: '/admin/refunds', icon: 'bi-arrow-return-left' },
+  ] },
+  { label: 'Bán hàng', links: [
+    { label: 'Sản phẩm', path: '/admin/products', icon: 'bi-box-seam' },
+    { label: 'Danh mục', path: '/admin/categories', icon: 'bi-tags' },
+    { label: 'Mã giảm giá', path: '/admin/coupons', icon: 'bi-ticket-perforated' },
+    { label: 'Banner', path: '/admin/banners', icon: 'bi-images' },
+  ] },
+  { label: 'Nhân sự', links: [
+    { label: 'Người dùng', path: '/admin/users', icon: 'bi-people' },
+    { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },
+  ] },
+  { label: 'Kho hàng', links: [
+    { label: 'Tồn kho', path: '/admin/inventory', icon: 'bi-boxes' },
+    { label: 'Nhập hàng', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
+    { label: 'Công thức & định mức', path: '/admin/recipes', icon: 'bi-diagram-3' },
+  ] },
+  { label: 'Báo cáo', links: [{ label: 'Báo cáo kinh doanh', path: '/admin/reports', icon: 'bi-graph-up' }] },
+  { label: 'Hệ thống', links: [{ label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' }] },
 ];
 
 function isLinkActive(link) {
@@ -53,21 +54,11 @@ function isLinkActive(link) {
         <span class="sidebar-brand-title">Fast<span class="sidebar-brand-highlight">Guy</span></span>
         <span class="sidebar-brand-subtitle">Quản trị</span>
       </div>
-      <nav class="sidebar-nav">
-        <router-link
-          v-for="link in sidebarLinks"
-          :key="link.path"
-          :to="link.path"
-          :class="{ 'router-link-active': isLinkActive(link) }"
-          @click="sidebarOpen = false"
-        >
-          <i :class="link.icon"></i>
-          <span>{{ link.label }}</span>
-        </router-link>
-        <section class="nav-group" aria-labelledby="inventory-nav-title">
-          <h2 id="inventory-nav-title">Quản lý kho</h2>
+      <nav class="sidebar-nav" aria-label="Điều hướng quản trị">
+        <section v-for="(group, index) in navigationGroups" :key="group.label" class="nav-group" :aria-labelledby="`admin-nav-group-${index}`">
+          <h2 :id="`admin-nav-group-${index}`">{{ group.label }}</h2>
           <router-link
-            v-for="link in inventoryLinks"
+            v-for="link in group.links"
             :key="link.path"
             :to="link.path"
             :class="{ 'router-link-active': isLinkActive(link) }"
@@ -75,11 +66,6 @@ function isLinkActive(link) {
           >
             <i :class="link.icon" aria-hidden="true"></i><span>{{ link.label }}</span>
           </router-link>
-          <template v-for="link in inventoryLinks" :key="`${link.path}-children`">
-            <router-link v-for="child in link.children || []" :key="child.path" class="nav-child" :to="child.path" :class="{ 'router-link-active': isLinkActive(child) }" @click="sidebarOpen = false">
-              <i class="bi bi-clock-history" aria-hidden="true"></i><span>{{ child.label }}</span>
-            </router-link>
-          </template>
         </section>
       </nav>
       <div class="sidebar-footer">

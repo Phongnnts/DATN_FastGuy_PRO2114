@@ -14,10 +14,10 @@ const [layout, inventory, receipts, recipes, counts, variants] = await Promise.a
 ]);
 
 test('inventory navigation is grouped under one plain-language warehouse section', () => {
-  assert.match(layout, /Quản lý kho/);
-  for (const label of ['Tổng quan', 'Nhập hàng', 'Công thức món', 'Lịch sử kho', 'Báo cáo theo món']) assert.ok(layout.includes(label), label);
-  for (const path of ['/admin/inventory', '/admin/inventory/receipts', '/admin/recipes', '/admin/inventory/reports', '/admin/inventory/ledger']) assert.ok(layout.includes(path), path);
-  assert.doesNotMatch(layout, /label: 'Kiểm kê'/);
+  assert.match(layout, /label: 'Kho hàng'/);
+  for (const label of ['Tồn kho', 'Nhập hàng', 'Công thức & định mức']) assert.ok(layout.includes(label), label);
+  for (const path of ['/admin/inventory', '/admin/inventory/receipts', '/admin/recipes']) assert.ok(layout.includes(path), path);
+  assert.doesNotMatch(layout, /label: 'Kiểm kê'|label: 'Lịch sử kho'|label: 'Báo cáo theo món'/);
 });
 
 test('inventory overview guides work then keeps operational detail expandable', () => {

@@ -65,8 +65,9 @@ test('inventory page keeps accessible dialogs with stale-conflict recovery', () 
   assert.doesNotMatch(inventory, /openWaste|wasteInventory|Lãng phí/);
 });
 
-test('inventory page links the ledger', () => {
-  assert.match(inventory, /name: 'AdminInventoryLedger'/);
+test('inventory page embeds the ledger behind the history tab', () => {
+  assert.match(inventory, /InventoryLedgerPage/);
+  assert.match(inventory, /selectTab\('history'\)/);
 });
 
 test('recipes page edits whole recipe with duplicate and non-positive guards', () => {
@@ -104,11 +105,10 @@ test('router registers recipes route next to inventory pages', () => {
 });
 
 test('sidebar groups simplified inventory destinations', () => {
-  assert.match(layout, /Quản lý kho/);
-  assert.match(layout, /label: 'Tổng quan', path: '\/admin\/inventory'/);
-  assert.match(layout, /label: 'Công thức món', path: '\/admin\/recipes'/);
-  assert.match(layout, /label: 'Lịch sử kho', path: '\/admin\/inventory\/ledger'/);
-  assert.match(layout, /label: 'Báo cáo theo món', path: '\/admin\/inventory\/reports'/);
+  assert.match(layout, /label: 'Kho hàng'/);
+  assert.match(layout, /label: 'Tồn kho', path: '\/admin\/inventory'/);
+  assert.match(layout, /label: 'Công thức & định mức', path: '\/admin\/recipes'/);
+  assert.doesNotMatch(layout, /label: 'Lịch sử kho'|label: 'Báo cáo theo món'/);
 });
 
 test('variant editor owns mode selection without embedded BOM editor', () => {

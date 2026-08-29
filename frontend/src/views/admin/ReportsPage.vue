@@ -1,10 +1,32 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Chart, registerables } from 'chart.js';
 import { adminApi } from '@/api';
 import { formatPrice } from '@/utils/format';
+import InventoryReportsPage from './InventoryReportsPage.vue';
+import OperatingExpensesPage from './OperatingExpensesPage.vue';
 
 Chart.register(...registerables);
+
+const route = useRoute();
+const router = useRouter();
+const activeTab = computed(() => ['menu', 'expenses'].includes(route.query.tab) ? route.query.tab : 'overview');
+const tabRefs = ref([]);
+
+function selectTab(tab) {
+  if (tab === activeTab.value) return;
+  router.push({ query: { ...route.query, tab: tab === 'overview' ? undefined : tab } });
+}
+
+function handleTabKeydown(event, index) {
+  const targets = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: 2 };
+  if (!(event.key in targets)) return;
+  event.preventDefault();
+  const next = (targets[event.key] + 3) % 3;
+  selectTab(['overview', 'menu', 'expenses'][next]);
+  nextTick(() => tabRefs.value[next]?.focus());
+}
 
 const data = ref({});
 const operatingProfit = ref(null);
@@ -136,14 +158,27 @@ function buildAllCharts() {
   if (reasons.length && refs.exceptionReasons.value) replaceChart('exceptionReasons', config('bar', reasons.map(x => x.reason), [{ label: 'Số đơn', data: reasons.map(x => x.count), backgroundColor: COLORS.yellow + 'aa', borderRadius: 6 }], { extra: { indexAxis: 'y' }, scales: { x: axis(), y: { grid: { display: false }, ticks: { color: text } } } }));
 }
 function has(key) { return Array.isArray(data.value[key]) && data.value[key].length; }
-onMounted(() => usePreset('6m'));
+watch(activeTab, (tab) => {
+  if (tab === 'overview') nextTick(() => Object.keys(data.value).length ? buildAllCharts() : usePreset(activePreset.value));
+  else Object.values(charts).forEach(chart => chart?.destroy());
+});
+onMounted(() => { if (activeTab.value === 'overview') usePreset('6m'); });
 onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.destroy()); });
 </script>
 
 <template>
-  <main class="reports-page">
-    <header class="page-heading"><div><p class="eyebrow">Phân tích</p><h1>Báo cáo kinh doanh</h1><p>Theo dõi doanh thu, đơn hàng và hiệu suất sản phẩm.</p></div><div class="head-actions"><button class="btn btn-outline" :disabled="loading || !Object.keys(data).length" @click="exportCsv"><i class="bi bi-download"></i> Xuất CSV</button><button class="btn btn-outline" :disabled="loading" @click="refresh"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div></header>
+  <div class="reports-page">
+    <header class="page-heading"><div><p class="eyebrow">Phân tích</p><h1>Báo cáo kinh doanh</h1><p>Theo dõi doanh thu, đơn hàng và hiệu suất sản phẩm.</p></div><div v-if="activeTab === 'overview'" class="head-actions"><button class="btn btn-outline" :disabled="loading || !Object.keys(data).length" @click="exportCsv"><i class="bi bi-download"></i> Xuất CSV</button><button class="btn btn-outline" :disabled="loading" @click="refresh"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div></header>
 
+    <nav class="report-tabs" role="tablist" aria-label="Báo cáo kinh doanh">
+      <button id="report-overview-tab" :ref="el => tabRefs[0] = el" type="button" role="tab" aria-controls="report-overview-panel" :aria-selected="activeTab === 'overview'" :tabindex="activeTab === 'overview' ? 0 : -1" :class="{ active: activeTab === 'overview' }" @keydown="handleTabKeydown($event, 0)" @click="selectTab('overview')">Tổng quan</button>
+      <button id="report-menu-tab" :ref="el => tabRefs[1] = el" type="button" role="tab" aria-controls="report-menu-panel" :aria-selected="activeTab === 'menu'" :tabindex="activeTab === 'menu' ? 0 : -1" :class="{ active: activeTab === 'menu' }" @keydown="handleTabKeydown($event, 1)" @click="selectTab('menu')">Hiệu quả món</button>
+      <button id="report-expenses-tab" :ref="el => tabRefs[2] = el" type="button" role="tab" aria-controls="report-expenses-panel" :aria-selected="activeTab === 'expenses'" :tabindex="activeTab === 'expenses' ? 0 : -1" :class="{ active: activeTab === 'expenses' }" @keydown="handleTabKeydown($event, 2)" @click="selectTab('expenses')">Chi phí</button>
+    </nav>
+
+    <section v-if="activeTab === 'menu'" id="report-menu-panel" class="tab-panel" role="tabpanel" aria-labelledby="report-menu-tab"><InventoryReportsPage /></section>
+    <section v-else-if="activeTab === 'expenses'" id="report-expenses-panel" class="tab-panel" role="tabpanel" aria-labelledby="report-expenses-tab"><OperatingExpensesPage /></section>
+    <section v-else id="report-overview-panel" class="tab-panel" role="tabpanel" aria-labelledby="report-overview-tab">
     <section class="filter-panel" aria-label="Khoảng thời gian báo cáo">
       <div><span class="filter-label">Khoảng nhanh</span><div class="presets"><button v-for="item in [{v:'7d',l:'7 ngày'},{v:'30d',l:'30 ngày'},{v:'6m',l:'6 tháng'},{v:'1y',l:'1 năm'}]" :key="item.v" :class="{ active: !customActive && activePreset === item.v }" :aria-pressed="!customActive && activePreset === item.v" @click="usePreset(item.v)">{{ item.l }}</button></div></div>
       <div class="custom-dates"><label>Từ ngày<input v-model="customFrom" class="form-input" type="date" :max="customTo || today"></label><label>Đến ngày<input v-model="customTo" class="form-input" type="date" :min="customFrom || undefined" :max="today"></label><button class="btn btn-primary" :disabled="!!dateError || loading" @click="applyCustom">Áp dụng</button><p v-if="(customFrom || customTo) && dateError" role="alert">{{ dateError }}</p></div>
@@ -174,11 +209,12 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
 
       <section class="top-table"><header><div><h2>Chi tiết sản phẩm bán chạy</h2><p>Xếp hạng theo số lượng bán trong {{ periodLabel }}</p></div><span>{{ data.topProducts?.length || 0 }} sản phẩm</span></header><div v-if="has('topProducts')" class="table-wrapper"><table class="table"><thead><tr><th>Hạng</th><th>Sản phẩm</th><th>Số lượng bán</th><th>Doanh thu</th><th>Tỷ trọng</th></tr></thead><tbody><tr v-for="(product, index) in data.topProducts" :key="product.name"><td><b class="rank" :class="`rank-${index + 1}`">{{ index + 1 }}</b></td><td><strong>{{ product.name }}</strong></td><td>{{ Number(product.sold).toLocaleString('vi-VN') }}</td><td><strong>{{ formatPrice(product.revenue || 0) }}</strong></td><td>{{ data.itemRevenue ? (Number(product.revenue || 0) * 100 / data.itemRevenue).toFixed(1) : 0 }}%</td></tr></tbody></table></div><div v-else class="empty"><i class="bi bi-table"></i><strong>Chưa có dữ liệu xếp hạng</strong></div></section>
     </template>
-  </main>
+    </section>
+  </div>
 </template>
 
 <style scoped>
-.reports-page { display: grid; gap: 20px; }.page-heading { align-items: flex-end; display: flex; justify-content: space-between; gap: 16px; }.page-heading h1 { font-size: 28px; margin: 2px 0 4px; }.page-heading p { color: var(--text-mid); font-size: 14px; }.eyebrow { color: var(--role-admin) !important; font-size: 11px !important; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.head-actions { display: flex; gap: 9px; }
+.reports-page { display: grid; gap: 20px; }.report-tabs{display:flex;gap:4px;width:max-content;max-width:100%;padding:4px;border:1px solid var(--border-light);border-radius:12px;background:#fff}.report-tabs button{min-height:40px;padding:8px 16px;border-radius:8px;color:var(--text-mid);font-weight:700}.report-tabs button.active{background:var(--primary);color:#fff}.report-tabs button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}.page-heading { align-items: flex-end; display: flex; justify-content: space-between; gap: 16px; }.page-heading h1 { font-size: 28px; margin: 2px 0 4px; }.page-heading p { color: var(--text-mid); font-size: 14px; }.eyebrow { color: var(--role-admin) !important; font-size: 11px !important; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.head-actions { display: flex; gap: 9px; }
 .filter-panel { align-items: end; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); display: flex; flex-wrap: wrap; gap: 22px; padding: 16px; }.filter-label,.custom-dates label { color: var(--text-mid); display: block; font-size: 11px; font-weight: 700; margin-bottom: 6px; }.presets { background: var(--surface); border-radius: 9px; display: flex; padding: 3px; }.presets button { border-radius: 7px; color: var(--text-mid); font-size: 12px; padding: 9px 13px; }.presets button.active { background: var(--white); box-shadow: var(--shadow-xs); color: var(--role-admin); font-weight: 700; }.custom-dates { align-items: end; display: flex; flex: 1; flex-wrap: wrap; gap: 9px; }.custom-dates label { margin: 0; }.custom-dates input { margin-top: 6px; width: 155px; }.custom-dates p { color: var(--red-active); flex-basis: 100%; font-size: 11px; margin: 0; }
 .error-banner { align-items: center; background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius); color: #b91c1c; display: flex; gap: 12px; padding: 13px 16px; }.error-banner > i { font-size: 22px; }.error-banner span { display: grid; flex: 1; font-size: 12px; }.loading-state { align-items: center; color: var(--text-mid); display: flex; gap: 10px; justify-content: center; min-height: 280px; }
 .stats { display: grid; gap: 14px; grid-template-columns: repeat(3,minmax(0,1fr)); }.stats article { align-items: center; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); display: flex; gap: 13px; padding: 18px; }.stats article > i { align-items: center; border-radius: 11px; display: flex; flex: 0 0 44px; font-size: 20px; height: 44px; justify-content: center; }.stats small { color: var(--text-mid); display: block; font-size: 11px; margin-bottom: 3px; }.stats strong { font-size: 19px; }.stats .sub { color: var(--text-mid); display: block; font-size: 11px; margin-top: 2px; }.stats .orange i { color: #c2410c; background: #ffedd5; }.stats .green i { color: #047857; background: #d1fae5; }.stats .blue i { color: #1d4ed8; background: #dbeafe; }.stats .violet i { color: #7c3aed; background: #ede9fe; }.stats .teal i { color: #0f766e; background: #ccfbf1; }.stats .red i { color: #b91c1c; background: #fee2e2; }

@@ -9,10 +9,10 @@ test('admin finance API uses exact OpenAPI endpoints and retire body', async () 
   for (const fragment of ["client.get('/admin/operating-expenses')", "client.post('/admin/operating-expenses', data)", 'client.put(`/admin/operating-expenses/${id}`, data)', 'client.delete(`/admin/operating-expenses/${id}`)', "client.get('/admin/fixed-assets')", "client.post('/admin/fixed-assets', data)", 'client.put(`/admin/fixed-assets/${id}`, data)', "client.put(`/admin/fixed-assets/${id}/retire`, { expectedStatus: 'ACTIVE' })", "client.get('/admin/reports/operating-profit', { params })"]) assert.match(source, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
-test('finance pages are routed and linked without fixed asset delete', async () => {
+test('finance pages remain addressable while only store expenses join reports', async () => {
   const [router, layout, expenses, assets] = await Promise.all([read('src/router/index.js'), read('src/layouts/AdminLayout.vue'), read('src/views/admin/OperatingExpensesPage.vue'), read('src/views/admin/FixedAssetsPage.vue')]);
-  assert.match(router, /AdminOperatingExpenses/); assert.match(router, /AdminFixedAssets/);
-  assert.match(layout, /Chi phí vận hành/); assert.match(layout, /Tài sản cố định/);
+  assert.match(router, /path: 'operating-expenses'[\s\S]*tab: 'expenses'/); assert.match(router, /AdminFixedAssets/);
+  assert.match(layout, /Báo cáo kinh doanh/); assert.doesNotMatch(layout, /label: 'Chi phí vận hành'|label: 'Tài sản cố định'/);
   for (const field of ['expenseDate', 'category', 'description', 'amount']) assert.match(expenses, new RegExp(field));
   for (const field of ['assetName', 'acquisitionCost', 'salvageValue', 'depreciationStartDate', 'usefulLifeMonths']) assert.match(assets, new RegExp(field));
   assert.match(expenses, /role="dialog"/); assert.match(assets, /retireFixedAsset/); assert.doesNotMatch(assets, /deleteFixedAsset/);

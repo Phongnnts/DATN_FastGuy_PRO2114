@@ -1,7 +1,8 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '@/api';
+import InventoryLedgerPage from './InventoryLedgerPage.vue';
 import { useAdminStore } from '@/stores/admin';
 import { useToast } from '@/stores/toast';
 import {
@@ -15,7 +16,33 @@ import {
 
 const toast = useToast();
 const adminStore = useAdminStore();
+const route = useRoute();
 const router = useRouter();
+const activeTab = computed(() => route.query.tab === 'history' ? 'history' : 'current');
+const tabRefs = ref([]);
+let currentLoaded = false;
+
+function loadCurrentTab() {
+  if (currentLoaded) return;
+  currentLoaded = true;
+  loadItems();
+  refreshSideData();
+}
+
+function selectTab(tab) {
+  if (tab === activeTab.value) return;
+  if (tab === 'current') loadCurrentTab();
+  router.push({ query: { ...route.query, tab: tab === 'current' ? undefined : tab } });
+}
+
+function handleTabKeydown(event, index) {
+  const targets = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: 1 };
+  if (!(event.key in targets)) return;
+  event.preventDefault();
+  const next = (targets[event.key] + 2) % 2;
+  selectTab(['current', 'history'][next]);
+  nextTick(() => tabRefs.value[next]?.focus());
+}
 
 const CONFLICT_MESSAGE = 'Tồn kho đã thay đổi. Đã cập nhật số lượng hiện tại, vui lòng kiểm tra và gửi lại.';
 const ITEM_TYPES = [{ value: 'INGREDIENT', label: 'Nguyên liệu' }, { value: 'FINISHED_GOOD', label: 'Thành phẩm' }];
@@ -217,14 +244,14 @@ function showFormError(message) {
   dialogError.value = message;
 }
 
+watch(activeTab, (tab) => { if (tab === 'current') loadCurrentTab(); });
 onMounted(() => {
-  loadItems();
-  refreshSideData();
+  if (activeTab.value === 'current') loadCurrentTab();
 });
 </script>
 
 <template>
-  <main class="inventory-page">
+  <div class="inventory-page">
     <header class="page-header">
       <div>
         <h1>Vận hành kho hôm nay</h1>
@@ -233,11 +260,17 @@ onMounted(() => {
       <div class="header-actions">
         <button class="btn btn-primary" @click="openDialog('create')"><i class="bi bi-plus-lg" aria-hidden="true"></i> Thêm mặt hàng</button>
         <button class="btn btn-outline" @click="router.push({ name: 'AdminGoodsReceipts' })"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i> Phiếu nhập</button>
-        <button class="btn btn-outline" @click="router.push({ name: 'AdminInventoryLedger' })"><i class="bi bi-journal-text" aria-hidden="true"></i> Sổ tồn kho</button>
+        <button class="btn btn-outline" @click="selectTab('history')"><i class="bi bi-journal-text" aria-hidden="true"></i> Lịch sử biến động</button>
         <button class="btn btn-outline" :disabled="loading" @click="loadItems"><i class="bi bi-arrow-clockwise" :class="{ spin: loading }" aria-hidden="true"></i> Làm mới</button>
       </div>
     </header>
 
+    <nav class="page-tabs" role="tablist" aria-label="Tồn kho">
+      <button id="inventory-current-tab" :ref="el => tabRefs[0] = el" type="button" role="tab" aria-controls="inventory-current-panel" :aria-selected="activeTab === 'current'" :tabindex="activeTab === 'current' ? 0 : -1" :class="{ active: activeTab === 'current' }" @keydown="handleTabKeydown($event, 0)" @click="selectTab('current')">Tồn hiện tại</button>
+      <button id="inventory-history-tab" :ref="el => tabRefs[1] = el" type="button" role="tab" aria-controls="inventory-history-panel" :aria-selected="activeTab === 'history'" :tabindex="activeTab === 'history' ? 0 : -1" :class="{ active: activeTab === 'history' }" @keydown="handleTabKeydown($event, 1)" @click="selectTab('history')">Lịch sử biến động</button>
+    </nav>
+
+    <section v-if="activeTab === 'current'" id="inventory-current-panel" class="tab-panel" role="tabpanel" aria-labelledby="inventory-current-tab">
     <section class="today-panel" aria-labelledby="today-title">
       <div><p class="eyebrow">Ưu tiên</p><h2 id="today-title">Hôm nay cần làm gì?</h2></div>
       <div class="action-grid" aria-live="polite">
@@ -251,7 +284,7 @@ onMounted(() => {
       <router-link :to="{ name: 'AdminGoodsReceipts' }"><span>1</span><strong>Nhập hàng</strong><small>Ghi nhận hàng về</small></router-link>
       <router-link :to="{ name: 'AdminRecipes' }"><span>2</span><strong>Công thức</strong><small>Đặt lượng dùng</small></router-link>
       <span class="workflow-step"><span>3</span><strong>Bán món</strong><small>Kho tự trừ</small></span>
-      <router-link :to="{ name: 'AdminInventoryReports' }"><span>4</span><strong>Lãi gộp</strong><small>Xem theo món</small></router-link>
+      <router-link :to="{ path: '/admin/reports', query: { tab: 'menu' } }"><span>4</span><strong>Lãi gộp</strong><small>Xem theo món</small></router-link>
     </nav>
 
     <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
@@ -312,10 +345,13 @@ onMounted(() => {
           <strong>{{ formatQuantity(tx.quantity) }}</strong>
         </li>
       </ul>
-      <router-link class="recent-link" :to="{ name: 'AdminInventoryLedger' }">Xem sổ tồn kho</router-link>
+      <button type="button" class="recent-link" @click="selectTab('history')">Xem lịch sử biến động</button>
     </section>
 
-    <div v-if="dialog" class="modal-overlay" @mousedown.self="closeDialog">
+    </section>
+    <section v-else id="inventory-history-panel" class="tab-panel" role="tabpanel" aria-labelledby="inventory-history-tab"><InventoryLedgerPage /></section>
+
+    <div v-if="dialog && activeTab === 'current'" class="modal-overlay" @mousedown.self="closeDialog">
       <form ref="modalRef" class="modal" role="dialog" aria-modal="true" :aria-labelledby="dialog.kind === 'create' || dialog.kind === 'edit' ? 'item-dialog-title' : 'stock-dialog-title'" @keydown="handleModalKeydown" @submit.prevent="dialog.kind === 'create' || dialog.kind === 'edit' ? submitItemForm() : submitMutation(dialog.kind)">
         <div class="modal-header">
           <div v-if="dialog.kind === 'create' || dialog.kind === 'edit'">
@@ -367,11 +403,12 @@ onMounted(() => {
         </div>
       </form>
     </div>
-  </main>
+  </div>
 </template>
 
 <style scoped>
 .inventory-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.page-tabs{display:flex;gap:4px;width:max-content;max-width:100%;padding:4px;border:1px solid var(--border-light);border-radius:12px;background:#fff}.page-tabs button{min-height:40px;padding:8px 16px;border-radius:8px;color:var(--text-mid);font-weight:700}.page-tabs button.active{background:var(--primary);color:#fff}.page-tabs button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 .today-panel{display:grid;gap:14px;padding:24px;border-radius:18px;background:#251d18;color:#fff}.today-panel h2{margin:2px 0 0;font-size:24px}.eyebrow{margin:0;color:#f2aa87;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.action-card{display:grid;gap:12px;align-content:space-between;min-height:118px;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.06)}.action-card .btn{justify-self:start;background:#fff}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.workflow>a,.workflow-step{display:grid;gap:3px;min-height:96px;padding:14px;border:1px solid var(--border-light);border-radius:12px;background:#fff;color:inherit;text-decoration:none}.workflow span>span,.workflow a>span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-weight:800}.workflow small{color:var(--text-mid)}
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .page-subtitle { margin: 4px 0 0; color: var(--text-mid); font-size: 14px; }

@@ -422,14 +422,7 @@ const routes = [
        },
        {
          path: 'inventory/ledger',
-        name: 'AdminInventoryLedger',
-        component: () => import('@/views/admin/InventoryLedgerPage.vue'),
-        meta: {
-          breadcrumb: [
-            { label: 'Tồn kho', to: '/admin/inventory' },
-            { label: 'Sổ tồn kho' },
-          ],
-        },
+         redirect: { path: '/admin/inventory', query: { tab: 'history' } },
        },
        {
          path: 'inventory/receipts',
@@ -445,9 +438,7 @@ const routes = [
        },
        {
          path: 'inventory/reports',
-         name: 'AdminInventoryReports',
-         component: () => import('@/views/admin/InventoryReportsPage.vue'),
-          meta: { breadcrumb: [{ label: 'Tồn kho', to: '/admin/inventory' }, { label: 'Báo cáo theo món' }] },
+         redirect: { path: '/admin/reports', query: { tab: 'menu' } },
        },
       {
         path: 'categories',
@@ -494,8 +485,7 @@ const routes = [
       },
       {
         path: 'operating-expenses',
-        name: 'AdminOperatingExpenses',
-        component: () => import('@/views/admin/OperatingExpensesPage.vue'),
+        redirect: { path: '/admin/reports', query: { tab: 'expenses' } },
       },
       {
         path: 'fixed-assets',

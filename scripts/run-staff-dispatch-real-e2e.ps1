@@ -6,6 +6,7 @@ param(
     [int]$FrontendPort = 15174,
     [switch]$Ownership,
     [switch]$Operations,
+    [switch]$NavigationR1,
     [ValidateSet('desktop-chrome','mobile-chrome')]
     [string]$Project,
     [switch]$SafetySelfTest
@@ -89,7 +90,7 @@ function New-RandomSecret([int]$Bytes) {
 
 function Invoke-Fixture([string]$Action, [string]$RunId) {
     $env:FASTGUY_E2E_RUN_ID = $RunId
-    $fixture = if ($Operations) { 'integration.OperationsBrowserFixtureIT' } elseif ($Ownership) { 'integration.StaffOwnershipBrowserFixtureIT' } else { 'integration.StaffDispatchBrowserFixtureIT' }
+    $fixture = if ($Operations -or $NavigationR1) { 'integration.OperationsBrowserFixtureIT' } elseif ($Ownership) { 'integration.StaffOwnershipBrowserFixtureIT' } else { 'integration.StaffDispatchBrowserFixtureIT' }
     & mvn.cmd "-Dtest=$fixture" "-De2e.action=$Action" test -f (Join-Path $backend 'pom.xml')
     if ($LASTEXITCODE -ne 0) { throw "Fixture $Action failed" }
 }
@@ -139,7 +140,7 @@ foreach ($port in $BackendPort,$ShutdownPort,$FrontendPort) {
 }
 
 try {
-    $env:FASTGUY_E2E_DB_NAME = if ($Operations) { 'FastGuyDB_Operations060_Test' } else { 'FastGuyDB_Inventory054_Test' }
+    $env:FASTGUY_E2E_DB_NAME = if ($Operations -or $NavigationR1) { 'FastGuyDB_Operations060_Test' } else { 'FastGuyDB_Inventory054_Test' }
     $env:FASTGUY_E2E_STAFF_PASSWORD = New-RandomSecret 24
     $env:FASTGUY_E2E_BACKEND_DIR = $backend
     $env:FASTGUY_E2E_MAVEN_HOME = Split-Path (Split-Path (Get-Command mvn.cmd).Source -Parent) -Parent
@@ -187,7 +188,7 @@ try {
         $runId = ((Get-Date).ToString('yyyyMMddHHmmssfff') + $project.Substring(0,1)).ToLower()
         $env:FASTGUY_E2E_RUN_ID = $runId
         $env:FASTGUY_E2E_STAFF_EMAIL = if ($Ownership) { "ownership-current-$runId@test.local" } else { "staff-$runId@test.local" }
-        if ($Operations) {
+        if ($Operations -or $NavigationR1) {
             $env:FASTGUY_E2E_ADMIN_EMAIL = "admin-$runId@test.local"
             $env:FASTGUY_E2E_USER_EMAIL = "user-$runId@test.local"
         }
@@ -198,8 +199,8 @@ try {
             $env:PLAYWRIGHT_BASE_URL = ''
             Push-Location $frontend
             try {
-                $spec = if ($Operations) { 'tests/e2e/operations-real-backend.spec.js' } elseif ($Ownership) { 'tests/e2e/staff-ownership-real-backend.spec.js' } else { 'tests/e2e/staff-dispatch-real-backend.spec.js' }
-                & npx.cmd playwright test $spec "--project=$project" --config=playwright.real-backend.config.js
+                $specs = if ($NavigationR1) { @('tests/e2e/admin-navigation-r1-real-backend.spec.js') } elseif ($Operations) { @('tests/e2e/operations-real-backend.spec.js') } elseif ($Ownership) { @('tests/e2e/staff-ownership-real-backend.spec.js') } else { @('tests/e2e/staff-dispatch-real-backend.spec.js') }
+                & npx.cmd playwright test $specs "--project=$project" --workers=1 --config=playwright.real-backend.config.js
                 if ($LASTEXITCODE -ne 0) { throw "Playwright $project failed" }
             } finally {
                 Pop-Location
