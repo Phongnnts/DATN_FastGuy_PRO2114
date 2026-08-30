@@ -11,8 +11,19 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.function.Supplier;
 
 public class OrdersDAO {
+    private final Supplier<EntityManager> entityManagers;
+
+    public OrdersDAO() {
+        this(DatabaseUtil::getEntityManager);
+    }
+
+    OrdersDAO(Supplier<EntityManager> entityManagers) {
+        this.entityManagers = entityManagers;
+    }
+
     public Orders findById(int id) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -244,7 +255,7 @@ public class OrdersDAO {
     }
 
     public long countPendingRefunds() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.refundStatus = 'PENDING'", Long.class).getSingleResult();
         } finally {
@@ -253,7 +264,7 @@ public class OrdersDAO {
     }
 
     public long countCurrentActiveOrders() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE')", Long.class)
                     .getSingleResult();
@@ -263,7 +274,7 @@ public class OrdersDAO {
     }
 
     public Map<String, Long> countCurrentActiveOrdersByStatus() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             List<Object[]> rows = em.createQuery("SELECT o.orderStatus, COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE') GROUP BY o.orderStatus", Object[].class)
                     .getResultList();
@@ -276,7 +287,7 @@ public class OrdersDAO {
     }
 
     public BigDecimal sumDeliveredPaidRevenue(LocalDateTime start, LocalDateTime end) {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             BigDecimal result = em.createQuery(
                     "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
@@ -354,13 +365,17 @@ public class OrdersDAO {
     }
 
     public double sumRevenue() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        return sumRevenueDecimal().doubleValue();
+    }
+
+    public BigDecimal sumRevenueDecimal() {
+        EntityManager em = entityManager();
         try {
             BigDecimal result = em.createQuery(
                     "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID'",
                     BigDecimal.class)
                     .getSingleResult();
-            return result != null ? result.doubleValue() : 0.0;
+            return result != null ? result : BigDecimal.ZERO;
         } finally {
             em.close();
         }
@@ -400,7 +415,7 @@ public class OrdersDAO {
     }
 
     public List<Map<String, Object>> sumRevenueByMonth() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             List<Object[]> rows = em.createNativeQuery(
                     "SELECT MONTH(o.delivered_at) AS m, YEAR(o.delivered_at) AS y, SUM(o.final_amount) AS rev " +
@@ -413,7 +428,7 @@ public class OrdersDAO {
                 Map<String, Object> item = new HashMap<>();
                 item.put("month", ((Number) row[0]).intValue());
                 item.put("year", ((Number) row[1]).intValue());
-                item.put("revenue", ((Number) row[2]).doubleValue());
+                item.put("revenue", decimal(row[2]));
                 result.add(item);
             }
             return result;
@@ -756,7 +771,7 @@ public class OrdersDAO {
     }
 
     public BigDecimal sumRefundsDecimalInRange(LocalDateTime start, LocalDateTime end) {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             BigDecimal result = em.createQuery(
                     "SELECT SUM(o.refundAmount) FROM Orders o WHERE o.refundStatus = 'REFUNDED' AND o.refundedAt >= :start AND o.refundedAt < :end",
@@ -785,7 +800,7 @@ public class OrdersDAO {
     }
 
     public List<Map<String, Object>> findTopProductsByDateRange(LocalDateTime start, LocalDateTime end, int limit) {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             List<Object[]> rows = em.createNativeQuery(
                     "SELECT TOP " + limit + " p.product_id, p.name, SUM(oi.quantity) AS sold, SUM(oi.total_price) AS rev " +
@@ -802,7 +817,7 @@ public class OrdersDAO {
                 item.put("productId", ((Number) row[0]).intValue());
                 item.put("name", row[1]);
                 item.put("sold", ((Number) row[2]).intValue());
-                item.put("revenue", row[3] != null ? ((Number) row[3]).doubleValue() : 0);
+                item.put("revenue", decimal(row[3]));
                 result.add(item);
             }
             return result;
@@ -1052,6 +1067,16 @@ public class OrdersDAO {
             }
             return result;
         } finally { em.close(); }
+    }
+
+    private EntityManager entityManager() {
+        return entityManagers.get();
+    }
+
+    private static BigDecimal decimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal amount) return amount;
+        return new BigDecimal(value.toString());
     }
 
     public void save(Orders order) throws RuntimeException {
