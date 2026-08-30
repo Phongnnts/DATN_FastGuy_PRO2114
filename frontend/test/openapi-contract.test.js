@@ -147,8 +147,36 @@ test('OpenAPI contracts operational dashboard and reconcilable financial reports
   assert.match(contract, /^      operationId: getAdminDashboard$/m);
   assert.match(contract, /^  \/admin\/reports\/full:$/m);
   assert.match(contract, /^      operationId: getAdminFullReport$/m);
-  const dashboard = schemaSection(contract, 'AdminDashboardData', 'AdminDashboardResponse');
-  for (const field of ['customerCount', 'activeProductCount', 'ordersByStatus', 'operationalOrderCount', 'operationalCompletedCount', 'completionRate']) assert.match(dashboard, new RegExp(`^        ${field}:`, 'm'));
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const document = JSON.parse(stdout);
+  const schema = document.components.schemas.AdminDashboardData;
+  const canonicalFields = [
+    'netCashRevenueToday', 'activeOrderCount', 'pendingRefundCount',
+    'pendingCodCount', 'lowStockItemCount', 'staffingGapCount',
+    'activeOrdersByStatus', 'operationalOrderCountToday',
+    'operationalCompletedCountToday', 'completionRateToday',
+    'attentionItems', 'sectionAvailability',
+  ];
+  assert.equal(schema.additionalProperties, false);
+  for (const field of canonicalFields) assert.ok(schema.required.includes(field));
+  assert.equal(schema.properties.netCashRevenueToday.description, 'Delivered-and-paid revenue recorded today minus refunds processed today.');
+  assert.equal(schema.properties.activeOrderCount.description, 'All currently non-terminal operational orders, including orders created before today.');
+  const availability = document.components.schemas.AdminDashboardSectionAvailability;
+  const sections = ['financial', 'orders', 'refunds', 'cod', 'inventory', 'staffing'];
+  assert.equal(availability.additionalProperties, false);
+  assert.deepEqual(availability.required, sections);
+  for (const section of sections) assert.deepEqual(availability.properties[section].enum, ['AVAILABLE', 'UNAVAILABLE']);
+  const compatibilityFields = [
+    'customerCount', 'totalUsers', 'totalOrders', 'activeProductCount', 'totalProducts',
+    'operationalOrderCount', 'operationalCompletedCount', 'completionRate', 'totalRevenue',
+    'ordersByStatus', 'pendingOrders', 'pendingCodAmount', 'ordersToday', 'revenueToday',
+    'revenueByMonth', 'topProducts', 'grossRevenue', 'periodRevenue', 'refundTotal',
+    'refundCount', 'netRevenue', 'periodOrders', 'periodTopProducts', 'lowStockThreshold',
+    'outOfStockSkuCount', 'lowStockSkuCount', 'deliveredOrdersToday', 'activeOrdersToday',
+    'aovToday', 'grossProfitToday', 'costComplete',
+  ];
+  for (const field of compatibilityFields) assert.equal(schema.properties[field].deprecated, true, field);
   const report = schemaSection(contract, 'AdminFullReportData', 'AdminFullReportResponse');
   for (const field of ['itemRevenue', 'shippingRevenue', 'serviceFeeRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'netCashRevenue', 'operationalOrderCount', 'operationalCompletedCount', 'completionRate', 'revenueByHour', 'performanceByWeekday', 'refundTrend', 'exceptionReasons', 'monthlyFinancialTrend']) assert.match(report, new RegExp(`^        ${field}:`, 'm'));
 });
