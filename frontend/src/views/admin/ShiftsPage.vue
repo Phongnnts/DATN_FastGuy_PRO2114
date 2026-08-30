@@ -5,7 +5,7 @@ import { useToast } from '@/stores/toast';
 
 const SHIFT_CODES = ['MORNING', 'AFTERNOON', 'EVENING'];
 const CODE_LABELS = { MORNING: 'Sáng', AFTERNOON: 'Chiều', EVENING: 'Tối' };
-const STATE_LABELS = { SCHEDULED: 'Đã lên lịch', CHECK_IN_WINDOW: 'Có thể check-in', LATE: 'Đi muộn', ACTIVE_MANUAL: 'Đang làm · thủ công', ACTIVE_AUTO: 'Đang làm · tự động', CHECK_OUT_WINDOW: 'Có thể check-out', COMPLETED_MANUAL: 'Hoàn tất · thủ công', COMPLETED_AUTO: 'Hoàn tất · tự động', MISSING_STAFF: 'Thiếu nhân viên', MISSING_NEXT_SHIFT: 'Thiếu ca kế tiếp', ROLLOVER_BLOCKED: 'Bị chặn bàn giao' };
+const STATE_LABELS = { SCHEDULED: 'Đã lên lịch', CHECK_IN_WINDOW: 'Có thể check-in thủ công', LATE: 'Chưa check-in', ACTIVE_MANUAL: 'Đang làm · thủ công', ACTIVE_AUTO: 'Đang làm · tự động trước đây', CHECK_OUT_WINDOW: 'Có thể check-out thủ công', COMPLETED_MANUAL: 'Hoàn tất · thủ công', COMPLETED_AUTO: 'Hoàn tất · tự động trước đây', MISSING_STAFF: 'Thiếu nhân viên', MISSING_NEXT_SHIFT: 'Thiếu ca kế tiếp', ROLLOVER_BLOCKED: 'Bị chặn bàn giao' };
 const toast = useToast();
 const tab = ref('schedule');
 const users = ref([]);
@@ -34,7 +34,7 @@ function fromKey(key) { const [year, month, day] = key.split('-').map(Number); r
 function mondayKey(date) { const monday = new Date(date); const day = monday.getDay() || 7; monday.setDate(monday.getDate() - day + 1); return dateKey(monday); }
 function slotKey(date, code) { return `${date}|${code}`; }
 function time(value) { return value ? String(value).slice(0, 5) : '—'; }
-function source(sourceValue) { return sourceValue === 'AUTO' ? 'Tự động' : sourceValue === 'MANUAL' ? 'Thủ công' : '—'; }
+function source(sourceValue) { return sourceValue === 'AUTO' ? 'Tự động trước đây' : sourceValue === 'MANUAL' ? 'Thủ công' : '—'; }
 function normalizedSlots(data) { return (Array.isArray(data?.shifts) ? data.shifts : []).map(({ shiftDate, shiftCode, userId }) => ({ shiftDate, shiftCode, userId: Number(userId), role: 'STAFF' })).sort((a, b) => `${a.shiftDate}|${a.shiftCode}|${a.userId}`.localeCompare(`${b.shiftDate}|${b.shiftCode}|${b.userId}`)); }
 function hydrate(data) { shifts.value = Array.isArray(data?.shifts) ? data.shifts : []; selections.value = Object.fromEntries(shifts.value.map((shift) => [slotKey(shift.shiftDate, shift.shiftCode), String(shift.userId)])); baseline = JSON.stringify(normalizedSlots(data)); }
 

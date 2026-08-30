@@ -11,6 +11,7 @@ const spec = readFileSync(new URL('frontend/tests/e2e/staff-dispatch-real-backen
 const scriptPath = new URL('../../scripts/run-staff-dispatch-real-e2e.ps1', import.meta.url).pathname.slice(1);
 const operationsScript = readFileSync(new URL('scripts/run-operations-real-e2e.ps1', root), 'utf8');
 const operationsSpec = readFileSync(new URL('frontend/tests/e2e/operations-real-backend.spec.js', root), 'utf8');
+const attendanceSpec = readFileSync(new URL('frontend/tests/e2e/attendance-report-real-backend.spec.js', root), 'utf8');
 const activityLogR7Spec = readFileSync(new URL('frontend/tests/e2e/admin-activity-log-r7-real-backend.spec.js', root), 'utf8');
 
 function runSafetyPathTest(target) {
@@ -123,6 +124,19 @@ test('R7 harness targets only the disposable activity-log database and runs desk
   assert.match(script, /admin-activity-log-r7-real-backend\.spec\.js/);
   assert.match(script, /if \(\$ActivityLogR7\).*desktop-chrome.*mobile-chrome/s);
   assert.match(script, /OperationsBrowserFixtureIT/);
+});
+
+test('R8 attendance harness is exact-disposable, aligned, desktop plus mobile, and cleans fixtures', () => {
+  assert.match(script, /\[switch\]\$AttendanceTruthR8/);
+  assert.match(script, /FastGuyDB_Attendance061_Test/);
+  assert.match(script, /if \(\$AttendanceTruthR8\) \{ \$env:DB_URL = Set-DatabaseNameInUrl \$env:DB_URL \$env:FASTGUY_E2E_DB_NAME \}/);
+  assert.match(script, /attendance-report-real-backend\.spec\.js/);
+  assert.match(script, /\$projects = if \(\$AttendanceTruthR8\) \{ @\('desktop-chrome','mobile-chrome'\) \}/);
+  assert.match(script, /OperationsBrowserFixtureIT/);
+  assert.match(script, /Invoke-Fixture 'cleanup' \$runId/);
+  assert.match(attendanceSpec, /FASTGUY_E2E_STAFF_PASSWORD/);
+  assert.doesNotMatch(attendanceSpec, /FASTGUY_E2E_PASSWORD/);
+  assert.match(operationsSpec, /getByText\('MANUAL AUTO'\)\)\.toHaveCount\(0\)/);
 });
 
 test('R7 spec expects the contracted pay-rate creation status', () => {

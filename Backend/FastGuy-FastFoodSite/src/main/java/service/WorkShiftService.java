@@ -378,9 +378,6 @@ public class WorkShiftService {
         return List.of("SCHEDULED", "INFO");
     }
 
-    static void autoCheckIn(WorkShift shift, LocalDateTime now) { shift.setCheckInAt(now); shift.setCheckInSource("AUTO"); shift.setStatus("CHECKED_IN"); }
-    static void autoCheckOut(WorkShift shift, LocalDateTime now) { completeAttendance(shift, now, "AUTO"); }
-
     record Attendance(int actualMinutes, int overlapEligibleMinutes, int lateMinutes, int earlyLeaveMinutes, int potentialOvertimeMinutes) {}
 
     static Attendance attendance(WorkShift shift) {

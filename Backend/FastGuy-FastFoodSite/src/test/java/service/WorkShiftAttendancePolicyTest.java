@@ -77,11 +77,25 @@ class WorkShiftAttendancePolicyTest {
     }
 
     @Test
-    void checkoutMarksAttendancePending() {
+    void manualCheckoutMarksAttendancePending() {
         WorkShift shift = shift(LocalDateTime.of(2026, 8, 1, 8, 0), null);
-        WorkShiftService.completeAttendance(shift, LocalDateTime.of(2026, 8, 1, 12, 0), "AUTO");
+        WorkShiftService.completeAttendance(shift, LocalDateTime.of(2026, 8, 1, 12, 0), "MANUAL");
+        assertEquals("CHECKED_OUT", shift.getStatus());
         assertEquals("PENDING", shift.getAttendanceStatus());
-        assertEquals("AUTO", shift.getCheckOutSource());
+        assertEquals("MANUAL", shift.getCheckOutSource());
+    }
+
+    @Test
+    void incompleteMissedCheckoutIsNotPayableOrApprovable() {
+        WorkShift shift = shift(LocalDateTime.of(2026, 8, 1, 8, 0), null);
+        shift.setStaffRoleSnapshot("STAFF");
+        WorkShiftService.Attendance minutes = WorkShiftService.attendance(shift);
+        assertEquals("CHECKED_IN", shift.getStatus());
+        assertEquals(0, minutes.actualMinutes());
+        assertEquals(0, minutes.overlapEligibleMinutes());
+        assertEquals(0, minutes.potentialOvertimeMinutes());
+        assertThrows(IllegalArgumentException.class, () -> WorkShiftService.validateApproval(shift, 1, 0));
+        assertThrows(IllegalArgumentException.class, () -> WorkShiftService.validateApprovalEligibility(shift));
     }
 
     private WorkShift shift(LocalDateTime checkIn, LocalDateTime checkOut) {

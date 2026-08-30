@@ -12,6 +12,7 @@ param(
     [switch]$ReportsR5,
     [switch]$PayRateR6,
     [switch]$ActivityLogR7,
+    [switch]$AttendanceTruthR8,
     [ValidateSet('desktop-chrome','mobile-chrome')]
     [string]$Project,
     [switch]$SafetySelfTest
@@ -29,7 +30,7 @@ $mutatedEnvironmentNames = @(
     'DB_URL', 'JWT_SECRET', 'CATALINA_HOME', 'CATALINA_BASE',
     'FASTGUY_E2E_DB_NAME', 'FASTGUY_E2E_STAFF_PASSWORD', 'FASTGUY_E2E_BACKEND_DIR',
     'FASTGUY_E2E_MAVEN_HOME', 'FASTGUY_E2E_RUN_ID', 'FASTGUY_E2E_STAFF_EMAIL',
-    'FASTGUY_E2E_ADMIN_EMAIL', 'FASTGUY_E2E_USER_EMAIL',
+    'FASTGUY_E2E_ADMIN_EMAIL', 'FASTGUY_E2E_USER_EMAIL', 'FASTGUY_E2E_ATTENDANCE_TRUTH_R8',
     'PLAYWRIGHT_API_TARGET', 'PLAYWRIGHT_BASE_URL'
 )
 $processEnvironment = [Environment]::GetEnvironmentVariables('Process')
@@ -101,7 +102,7 @@ function Set-DatabaseNameInUrl([string]$Url, [string]$DatabaseName) {
 
 function Invoke-Fixture([string]$Action, [string]$RunId) {
     $env:FASTGUY_E2E_RUN_ID = $RunId
-    $fixture = if ($Operations -or $NavigationR1 -or $DashboardR3 -or $OrdersR4 -or $ReportsR5 -or $PayRateR6 -or $ActivityLogR7) { 'integration.OperationsBrowserFixtureIT' } elseif ($Ownership) { 'integration.StaffOwnershipBrowserFixtureIT' } else { 'integration.StaffDispatchBrowserFixtureIT' }
+    $fixture = if ($Operations -or $NavigationR1 -or $DashboardR3 -or $OrdersR4 -or $ReportsR5 -or $PayRateR6 -or $ActivityLogR7 -or $AttendanceTruthR8) { 'integration.OperationsBrowserFixtureIT' } elseif ($Ownership) { 'integration.StaffOwnershipBrowserFixtureIT' } else { 'integration.StaffDispatchBrowserFixtureIT' }
     & mvn.cmd "-Dtest=$fixture" "-De2e.action=$Action" test -f (Join-Path $backend 'pom.xml')
     if ($LASTEXITCODE -ne 0) { throw "Fixture $Action failed" }
 }
@@ -151,8 +152,10 @@ foreach ($port in $BackendPort,$ShutdownPort,$FrontendPort) {
 }
 
 try {
-    $env:FASTGUY_E2E_DB_NAME = if ($ActivityLogR7) { 'FastGuyDB_ActivityLog063_Test' } elseif ($PayRateR6) { 'FastGuyDB_PayRate062_Test' } elseif ($OrdersR4 -or $ReportsR5) { 'FastGuyDB_Attendance061_Test' } elseif ($Operations -or $NavigationR1 -or $DashboardR3) { 'FastGuyDB_Operations060_Test' } else { 'FastGuyDB_Inventory054_Test' }
+    $env:FASTGUY_E2E_DB_NAME = if ($ActivityLogR7) { 'FastGuyDB_ActivityLog063_Test' } elseif ($PayRateR6) { 'FastGuyDB_PayRate062_Test' } elseif ($OrdersR4 -or $ReportsR5 -or $AttendanceTruthR8) { 'FastGuyDB_Attendance061_Test' } elseif ($Operations -or $NavigationR1 -or $DashboardR3) { 'FastGuyDB_Operations060_Test' } else { 'FastGuyDB_Inventory054_Test' }
     if ($ActivityLogR7) { $env:DB_URL = Set-DatabaseNameInUrl $env:DB_URL $env:FASTGUY_E2E_DB_NAME }
+    if ($AttendanceTruthR8) { $env:DB_URL = Set-DatabaseNameInUrl $env:DB_URL $env:FASTGUY_E2E_DB_NAME }
+    $env:FASTGUY_E2E_ATTENDANCE_TRUTH_R8 = if ($AttendanceTruthR8) { 'true' } else { $null }
     $env:FASTGUY_E2E_STAFF_PASSWORD = New-RandomSecret 24
     $env:FASTGUY_E2E_BACKEND_DIR = $backend
     $env:FASTGUY_E2E_MAVEN_HOME = Split-Path (Split-Path (Get-Command mvn.cmd).Source -Parent) -Parent
@@ -195,12 +198,12 @@ try {
     $expectedPorts = @($ShutdownPort,$BackendPort) | Sort-Object
     if (Compare-Object $runtimePorts $expectedPorts) { throw "Unexpected isolated Tomcat listeners: $runtimePorts" }
 
-    $projects = if ($Project) { @($Project) } elseif ($ActivityLogR7) { @('desktop-chrome','mobile-chrome') } elseif ($Operations) { @('desktop-chrome') } else { @('desktop-chrome','mobile-chrome') }
+    $projects = if ($AttendanceTruthR8) { @('desktop-chrome','mobile-chrome') } elseif ($Project) { @($Project) } elseif ($ActivityLogR7) { @('desktop-chrome','mobile-chrome') } elseif ($Operations) { @('desktop-chrome') } else { @('desktop-chrome','mobile-chrome') }
     foreach ($project in $projects) {
         $runId = ((Get-Date).ToString('yyyyMMddHHmmssfff') + $project.Substring(0,1)).ToLower()
         $env:FASTGUY_E2E_RUN_ID = $runId
         $env:FASTGUY_E2E_STAFF_EMAIL = if ($Ownership) { "ownership-current-$runId@test.local" } else { "staff-$runId@test.local" }
-        if ($Operations -or $NavigationR1 -or $DashboardR3 -or $OrdersR4 -or $ReportsR5 -or $PayRateR6 -or $ActivityLogR7) {
+        if ($Operations -or $NavigationR1 -or $DashboardR3 -or $OrdersR4 -or $ReportsR5 -or $PayRateR6 -or $ActivityLogR7 -or $AttendanceTruthR8) {
             $env:FASTGUY_E2E_ADMIN_EMAIL = "admin-$runId@test.local"
             $env:FASTGUY_E2E_USER_EMAIL = "user-$runId@test.local"
         }
@@ -211,7 +214,7 @@ try {
             $env:PLAYWRIGHT_BASE_URL = ''
             Push-Location $frontend
             try {
-                $specs = if ($ActivityLogR7) { @('tests/e2e/admin-activity-log-r7-real-backend.spec.js') } elseif ($PayRateR6) { @('tests/e2e/admin-pay-rate-r6-real-backend.spec.js') } elseif ($ReportsR5) { @('tests/e2e/admin-reports-r5-real-backend.spec.js') } elseif ($OrdersR4) { @('tests/e2e/admin-orders-r4-real-backend.spec.js') } elseif ($DashboardR3) { @('tests/e2e/admin-dashboard-r3-real-backend.spec.js') } elseif ($NavigationR1) { @('tests/e2e/admin-navigation-r1-real-backend.spec.js') } elseif ($Operations) { @('tests/e2e/operations-real-backend.spec.js') } elseif ($Ownership) { @('tests/e2e/staff-ownership-real-backend.spec.js') } else { @('tests/e2e/staff-dispatch-real-backend.spec.js') }
+                $specs = if ($AttendanceTruthR8) { @('tests/e2e/attendance-report-real-backend.spec.js') } elseif ($ActivityLogR7) { @('tests/e2e/admin-activity-log-r7-real-backend.spec.js') } elseif ($PayRateR6) { @('tests/e2e/admin-pay-rate-r6-real-backend.spec.js') } elseif ($ReportsR5) { @('tests/e2e/admin-reports-r5-real-backend.spec.js') } elseif ($OrdersR4) { @('tests/e2e/admin-orders-r4-real-backend.spec.js') } elseif ($DashboardR3) { @('tests/e2e/admin-dashboard-r3-real-backend.spec.js') } elseif ($NavigationR1) { @('tests/e2e/admin-navigation-r1-real-backend.spec.js') } elseif ($Operations) { @('tests/e2e/operations-real-backend.spec.js') } elseif ($Ownership) { @('tests/e2e/staff-ownership-real-backend.spec.js') } else { @('tests/e2e/staff-dispatch-real-backend.spec.js') }
                 & npx.cmd playwright test $specs "--project=$project" --workers=1 --config=playwright.real-backend.config.js
                 if ($LASTEXITCODE -ne 0) { throw "Playwright $project failed" }
             } finally {

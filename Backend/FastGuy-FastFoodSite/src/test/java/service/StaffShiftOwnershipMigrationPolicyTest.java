@@ -40,6 +40,23 @@ class StaffShiftOwnershipMigrationPolicyTest {
     }
 
     @Test
+    void ownershipFixtureSeedsSchemaValidDistinctShiftCodes() throws Exception {
+        String fixture = Files.readString(Path.of("src/test/java/integration/StaffShiftOwnershipHandoverIT.java"));
+        assertTrue(fixture.contains("insertShift(em, currentStaffId, now, \"MORNING\", \"NON_STAFF\")"));
+        assertTrue(fixture.contains("insertShift(em, otherStaffId, now, \"AFTERNOON\", \"NON_STAFF\")"));
+        assertTrue(fixture.contains("insertShift(em, shipperId, now, \"EVENING\", \"NON_STAFF\")"));
+        assertTrue(fixture.contains("shift.setShiftCode(code)"));
+        assertTrue(fixture.contains("shift.setStaffRoleSnapshot(staffRoleSnapshot)"));
+        assertTrue(fixture.contains("Assumptions.assumeTrue(now.toLocalTime().isAfter(LocalTime.of(0, 1))"));
+        assertTrue(fixture.contains("StaffShiftOwnershipHandoverIT requires business time after 00:01 so endTime is after startTime"));
+        assertTrue(fixture.contains("shift.setStartTime(LocalTime.MIDNIGHT)"));
+        assertTrue(fixture.contains("shift.setEndTime(now.toLocalTime().minusMinutes(1))"));
+        assertTrue(fixture.contains("order.setShippingProvider(\"GHN\")"));
+        assertTrue(fixture.indexOf("order.setShippingProvider(\"GHN\")") < fixture.indexOf("em.persist(order)"));
+        assertTrue(!fixture.contains("now.minusHours(2).toLocalTime()"));
+    }
+
+    @Test
     void runbookIncludes058DisposableValidationIdempotencyAndRetainedRecoveryGate() throws Exception {
         String runbook = Files.readString(Path.of("../../database/migrations/RUNBOOK.md"));
         assertTrue(runbook.contains("058_staff_shift_ownership.sql"));

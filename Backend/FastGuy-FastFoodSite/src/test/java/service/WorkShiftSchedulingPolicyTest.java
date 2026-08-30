@@ -45,14 +45,13 @@ class WorkShiftSchedulingPolicyTest {
     }
 
     @Test
-    void autoMutationUsesFiveMinuteBoundaries() {
-        WorkShift shift = shift("MORNING", "SCHEDULED");
-        WorkShiftService.autoCheckIn(shift, LocalDateTime.of(2026, 8, 24, 8, 5));
-        assertEquals("AUTO", shift.getCheckInSource());
-        assertEquals("CHECKED_IN", shift.getStatus());
-        WorkShiftService.autoCheckOut(shift, LocalDateTime.of(2026, 8, 24, 12, 5));
-        assertEquals("AUTO", shift.getCheckOutSource());
-        assertEquals("CHECKED_OUT", shift.getStatus());
+    void historicalAutomaticCompletionRemainsVisibleInMonitoring() {
+        WorkShift completed = shift("MORNING", "CHECKED_OUT");
+        completed.setCheckInAt(LocalDateTime.of(2026, 8, 24, 8, 5));
+        completed.setCheckOutAt(LocalDateTime.of(2026, 8, 24, 12, 5));
+        completed.setCheckInSource("AUTO");
+        completed.setCheckOutSource("AUTO");
+        assertEquals(List.of("COMPLETED_AUTO", "INFO"), WorkShiftService.monitoring(completed, LocalDateTime.of(2026, 8, 25, 8, 0), false, 0));
     }
 
     private WorkShift shift(String code, String status) {

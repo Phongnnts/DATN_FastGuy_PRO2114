@@ -4,9 +4,18 @@ const credentials = {
   Admin: process.env.FASTGUY_E2E_ADMIN_EMAIL,
   Staff: process.env.FASTGUY_E2E_STAFF_EMAIL,
 };
-const password = process.env.FASTGUY_E2E_PASSWORD;
+const password = process.env.FASTGUY_E2E_STAFF_PASSWORD;
+const attendanceMonth = previousBusinessMonth();
 
-test.skip(!password || Object.values(credentials).some(value => !value), 'Requires retained demo credentials');
+test.skip(!password || Object.values(credentials).some(value => !value), 'Requires disposable harness credentials');
+
+function previousBusinessMonth() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  const date = new Date(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+  date.setDate(1);
+  date.setMonth(date.getMonth() - 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
 
 function evidence(page) {
   const errors = [];
@@ -37,11 +46,17 @@ function expectSuccess(requests, path) {
 test('Admin reviews attendance and normalized report', async ({ page }) => {
   const observed = evidence(page);
   await login(page, 'Admin');
-  await page.goto('/admin/shifts');
   const attendanceResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/admin/shifts/attendance');
-  await page.getByRole('tab', { name: 'Duyệt công' }).click();
+  await page.goto('/admin/attendance');
   expect((await attendanceResponse).status()).toBeLessThan(400);
-  await expect(page.getByRole('tabpanel', { name: 'Duyệt công' })).toContainText(/Không có chấm công phù hợp|Phút duyệt/);
+  const attendancePanel = page.getByRole('region', { name: 'Chấm công' });
+  const monthInput = attendancePanel.getByLabel('Tháng');
+  const selectedAttendanceResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/admin/shifts/attendance');
+  await monthInput.fill(attendanceMonth);
+  await monthInput.press('Tab');
+  expect((await selectedAttendanceResponse).status()).toBeLessThan(400);
+  await expect(page.getByRole('heading', { name: 'Chấm công & tiền công' })).toBeVisible();
+  await expect(page.getByRole('spinbutton', { name: 'Phút duyệt' }).first()).toBeVisible();
   await page.goto('/admin/reports');
   await expect(page.getByText('Phí giao hàng thu khách', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Doanh thu thuần', { exact: true }).first()).toBeVisible();
@@ -61,8 +76,15 @@ test('Staff reads monthly attendance', async ({ page }) => {
   const attendanceResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/shifts/attendance');
   await page.goto('/staff/shifts');
   expect((await attendanceResponse).status()).toBeLessThan(400);
+  const attendancePanel = page.getByRole('region', { name: 'Chấm công tháng' });
+  const monthInput = attendancePanel.getByLabel('Tháng');
+  const selectedAttendanceResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/shifts/attendance');
+  await monthInput.fill(attendanceMonth);
+  await monthInput.press('Tab');
+  expect((await selectedAttendanceResponse).status()).toBeLessThan(400);
+  await expect(page.getByText('Chọn ngày màu xanh để xem ca. Check-in và check-out đều do bạn thực hiện.', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Chấm công tháng' })).toBeVisible();
-  await expect(page.getByText(/Chưa có dữ liệu chấm công tháng này|Đi muộn/).first()).toBeVisible();
+  await expect(page.getByText('Chờ duyệt', { exact: true }).first()).toBeVisible();
   expectSuccess(observed.requests, '/api/shifts/attendance');
   expect(observed.errors).toEqual([]);
 });

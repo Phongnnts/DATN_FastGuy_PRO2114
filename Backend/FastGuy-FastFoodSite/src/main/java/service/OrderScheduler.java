@@ -7,7 +7,6 @@ import java.util.concurrent.TimeUnit;
 
 public class OrderScheduler {
     private static ScheduledExecutorService scheduler;
-    private static final AutomaticAttendanceService attendanceService = new AutomaticAttendanceService();
     private static final ShiftRolloverService rolloverService = new ShiftRolloverService();
     private static final OrderExpiryService expiryService = new OrderExpiryService();
 
@@ -30,16 +29,15 @@ public class OrderScheduler {
 
     private static void runCancellationTick() {
         LocalDateTime now = WorkShiftService.businessNow();
-        runTick(() -> attendanceService.autoCheckIns(now), () -> rolloverService.rolloverEnded(now),
-                () -> expiryService.cancelCutoffCandidates(now), () -> attendanceService.autoCheckOuts(now),
+        runTick(
+                () -> rolloverService.rolloverEnded(now),
+                () -> expiryService.cancelCutoffCandidates(now),
                 () -> expiryService.cancelExpiredCandidates(now));
     }
 
-    static void runTick(Runnable checkIns, Runnable rollover, Runnable cutoff, Runnable checkOuts, Runnable expiry) {
-        runPhase(checkIns);
+    static void runTick(Runnable rollover, Runnable cutoff, Runnable expiry) {
         runPhase(rollover);
         runPhase(cutoff);
-        runPhase(checkOuts);
         runPhase(expiry);
     }
 

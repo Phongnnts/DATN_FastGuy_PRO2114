@@ -79,9 +79,9 @@ test('Staff desktop weekly calendar source timeout metadata cutoff banner and no
   const weekResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/shifts/week');
   await page.goto('/staff/shifts');
   expect((await weekResponse).status()).toBeLessThan(400);
-  await expect(page.getByRole('heading', { name: 'Lịch làm tuần' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Nguồn' })).toBeVisible();
-  await expect(page.getByText('MANUAL AUTO').first()).toBeAttached();
+  await expect(page.getByRole('heading', { name: 'Lịch làm của tôi' })).toBeVisible();
+  await expect(page.getByText('Chọn ngày màu xanh để xem ca. Check-in và check-out đều do bạn thực hiện.', { exact: true })).toBeVisible();
+  await expect(page.getByText('MANUAL AUTO')).toHaveCount(0);
   await page.goto('/staff/orders');
   await expect(page.getByText(/Nhận đơn đến/)).toBeVisible();
   await expect(page.getByText('Bàn giao thủ công', { exact: true })).toHaveCount(0);

@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -142,13 +143,15 @@ class StaffShiftOwnershipHandoverIT {
 
     private void seed(EntityManager em) {
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE).withNano(0);
+        Assumptions.assumeTrue(now.toLocalTime().isAfter(LocalTime.of(0, 1)),
+                "StaffShiftOwnershipHandoverIT requires business time after 00:01 so endTime is after startTime");
         em.getTransaction().begin();
         currentStaffId = insertUser(em, "STAFF", "Current Staff");
         otherStaffId = insertUser(em, "STAFF", "Other Staff");
         shipperId = insertUser(em, "SHIPPER", "Shipper");
-        currentShiftId = insertShift(em, currentStaffId, now);
-        otherShiftId = insertShift(em, otherStaffId, now);
-        insertShift(em, shipperId, now);
+        currentShiftId = insertShift(em, currentStaffId, now, "MORNING", "NON_STAFF");
+        otherShiftId = insertShift(em, otherStaffId, now, "AFTERNOON", "NON_STAFF");
+        insertShift(em, shipperId, now, "EVENING", "NON_STAFF");
         em.getTransaction().commit();
     }
 
@@ -167,12 +170,14 @@ class StaffShiftOwnershipHandoverIT {
         return user.getUserId();
     }
 
-    private int insertShift(EntityManager em, int userId, LocalDateTime now) {
+    private int insertShift(EntityManager em, int userId, LocalDateTime now, String code, String staffRoleSnapshot) {
         WorkShift shift = new WorkShift();
         shift.setUser(em.getReference(User.class, userId));
         shift.setShiftDate(now.toLocalDate());
-        shift.setStartTime(now.minusHours(2).toLocalTime());
-        shift.setEndTime(now.minusMinutes(1).toLocalTime());
+        shift.setStartTime(LocalTime.MIDNIGHT);
+        shift.setEndTime(now.toLocalTime().minusMinutes(1));
+        shift.setShiftCode(code);
+        shift.setStaffRoleSnapshot(staffRoleSnapshot);
         shift.setCheckInAt(now.minusHours(1));
         shift.setStatus("CHECKED_IN");
         em.persist(shift);
@@ -195,6 +200,7 @@ class StaffShiftOwnershipHandoverIT {
         order.setServiceFee(BigDecimal.ZERO);
         order.setDiscountAmount(BigDecimal.ZERO);
         order.setFinalAmount(BigDecimal.ONE);
+        order.setShippingProvider("GHN");
         order.setPaymentMethod("BANK_TRANSFER");
         order.setPaymentStatus("PAID");
         order.setOrderStatus(status);

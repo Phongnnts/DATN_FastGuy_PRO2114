@@ -55,4 +55,18 @@ class ActivityLogDatabaseSourcePolicyTest {
         assertTrue(runbook.contains("063_activity_log.sql"));
         assertTrue(runbook.contains("063_validate.sql"));
     }
+
+    @Test
+    void operationsFinanceCleanupRemovesActivityLogsBeforeFixtureUsersWhenTableExists() throws Exception {
+        String source = Files.readString(Path.of("src/test/java/integration/OperationsFinanceIT.java"));
+        int usersPresent = source.indexOf("if(!users.isEmpty())");
+        int tableGuard = source.indexOf("if(hasTable(em,\"ActivityLog\"))", usersPresent);
+        int activityLogs = source.indexOf("DELETE ActivityLog WHERE actor_user_id IN (:ids)", tableGuard);
+        int fixtureUsers = source.indexOf("DELETE Users WHERE user_id IN (:ids)", activityLogs);
+
+        assertTrue(usersPresent >= 0, "cleanup must require fixture users");
+        assertTrue(tableGuard > usersPresent, "older baselines must skip missing ActivityLog");
+        assertTrue(activityLogs > tableGuard, "cleanup must delete fixture users' ActivityLog rows");
+        assertTrue(fixtureUsers > activityLogs, "ActivityLog rows must be deleted before fixture Users");
+    }
 }

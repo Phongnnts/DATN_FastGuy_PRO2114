@@ -18,7 +18,15 @@ import utils.PrivilegedAuth;
 
 @WebServlet("/api/shifts/*")
 public class ShiftServlet extends HttpServlet {
-    private WorkShiftService workShiftService = new WorkShiftService();
+    private final WorkShiftService workShiftService;
+
+    public ShiftServlet() {
+        this(new WorkShiftService());
+    }
+
+    ShiftServlet(WorkShiftService workShiftService) {
+        this.workShiftService = workShiftService;
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -70,7 +78,7 @@ public class ShiftServlet extends HttpServlet {
         }
     }
 
-    private int worker(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected int worker(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String header = req.getHeader("Authorization");
         if (header == null || !header.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return -1; }
         String token = header.substring(7);

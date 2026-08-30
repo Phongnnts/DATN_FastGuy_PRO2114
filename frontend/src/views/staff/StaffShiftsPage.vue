@@ -62,7 +62,7 @@ function isCheckedOut(shift) { return Boolean(shift.checkOutAt) || ['CHECKED_OUT
 function isCurrent(shift) { const start = new Date(`${shift.shiftDate}T${time(shift.startTime)}:00`); const end = parseShiftEndDatetime(shift.shiftDate, shift.endTime, shift.startTime); return now.value >= start && now.value < end; }
 function canCheckOut(shift) { return now.value >= parseShiftEndDatetime(shift.shiftDate, shift.endTime, shift.startTime); }
 function countdown(shift) { const seconds = Math.max(0, Math.ceil((parseShiftEndDatetime(shift.shiftDate, shift.endTime, shift.startTime) - now.value) / 1000)); const hours = Math.floor(seconds / 3600); const minutes = Math.floor((seconds % 3600) / 60); return `${hours ? `${hours} giờ ` : ''}${minutes} phút`; }
-function sourceLabel(source) { return source === 'AUTO' ? 'Tự động' : source === 'MANUAL' ? 'Thủ công' : '—'; }
+function sourceLabel(source) { return source === 'AUTO' ? 'Tự động trước đây' : source === 'MANUAL' ? 'Thủ công' : '—'; }
 function statusLabel(status) { return { CHECKED_IN: 'Đang trong ca', CHECKED_OUT: 'Đã kết thúc', COMPLETED: 'Hoàn thành', SCHEDULED: 'Đã xếp lịch' }[status] || status; }
 function statusClass(status) { return status === 'CHECKED_IN' ? 'active' : ['CHECKED_OUT', 'COMPLETED'].includes(status) ? 'done' : 'scheduled'; }
 function shiftCodeLabel(code) { return { MORNING: 'Sáng', AFTERNOON: 'Chiều', EVENING: 'Tối' }[code] || code; }
@@ -110,7 +110,7 @@ onUnmounted(() => { attendanceGeneration++; clearInterval(clockTimer); });
 <template>
   <main class="staff-shifts">
     <header class="page-header">
-      <div><span class="eyebrow">Vận hành cửa hàng</span><h1>Lịch làm của tôi</h1><p>Chọn ngày màu xanh để xem ca được phân công.</p></div>
+      <div><span class="eyebrow">Vận hành cửa hàng</span><h1>Lịch làm của tôi</h1><p>Chọn ngày màu xanh để xem ca. Check-in và check-out đều do bạn thực hiện.</p></div>
       <nav aria-label="Điều hướng tuần"><button class="btn btn-outline" type="button" aria-label="Tuần trước" @click="moveWeek(-1)">‹ Tuần trước</button><button class="btn btn-outline" type="button" aria-label="Tuần sau" :disabled="isCurrentWeek" @click="moveWeek(1)">Tuần sau ›</button></nav>
     </header>
     <div v-if="error" class="page-error" role="alert">{{ error }}</div>
@@ -123,7 +123,7 @@ onUnmounted(() => { attendanceGeneration++; clearInterval(clockTimer); });
           <article v-for="shift in selectedShifts" :key="shift.shiftId" class="shift-card" :class="{ current: isCurrent(shift) }">
             <div class="shift-card-head"><div><span>{{ shiftCodeLabel(shift.shiftCode) }}</span><strong>{{ time(shift.startTime) }}–{{ time(shift.endTime) }}</strong></div><span class="status-badge" :class="statusClass(shift.status)">{{ statusLabel(shift.status) }}</span></div>
             <dl><div><dt>Check-in</dt><dd>{{ shift.checkInAt || '—' }}</dd></div><div><dt>Check-out</dt><dd>{{ shift.checkOutAt || '—' }}</dd></div><div><dt>Nguồn</dt><dd>{{ sourceLabel(shift.checkInSource) }} / {{ sourceLabel(shift.checkOutSource) }}</dd></div></dl>
-            <div class="actions" aria-live="polite"><button v-if="!isCheckedIn(shift)" class="btn detail-action" type="button" :disabled="savingShiftId !== null" :aria-label="`Check-in ca ${shiftCodeLabel(shift.shiftCode)} ngày ${shift.shiftDate}`" @click="checkIn(shift)">{{ savingShiftId === shift.shiftId ? 'Đang xử lý...' : 'Check-in' }}</button><button v-else-if="!isCheckedOut(shift)" class="btn detail-action secondary" type="button" :disabled="savingShiftId !== null || !canCheckOut(shift) || activeOwnershipCount > 0" :aria-label="`Check-out ca ${shiftCodeLabel(shift.shiftCode)} ngày ${shift.shiftDate}`" @click="checkOut(shift)">{{ savingShiftId === shift.shiftId ? 'Đang xử lý...' : 'Check-out' }}</button><span v-if="isCheckedIn(shift) && !isCheckedOut(shift) && !canCheckOut(shift)" class="countdown">Kết thúc theo lịch sau {{ countdown(shift) }}</span><span v-if="isCheckedIn(shift) && !isCheckedOut(shift) && activeOwnershipCount > 0" class="ownership" role="alert">Còn {{ activeOwnershipCount }} đơn đang phụ trách.</span></div>
+            <div class="actions" aria-live="polite"><button v-if="!isCheckedIn(shift)" class="btn detail-action" type="button" :disabled="savingShiftId !== null" :aria-label="`Check-in thủ công ca ${shiftCodeLabel(shift.shiftCode)} ngày ${shift.shiftDate}`" @click="checkIn(shift)">{{ savingShiftId === shift.shiftId ? 'Đang xử lý...' : 'Check-in thủ công' }}</button><button v-else-if="!isCheckedOut(shift)" class="btn detail-action secondary" type="button" :disabled="savingShiftId !== null || !canCheckOut(shift) || activeOwnershipCount > 0" :aria-label="`Check-out thủ công ca ${shiftCodeLabel(shift.shiftCode)} ngày ${shift.shiftDate}`" @click="checkOut(shift)">{{ savingShiftId === shift.shiftId ? 'Đang xử lý...' : 'Check-out thủ công' }}</button><span v-if="isCheckedIn(shift) && !isCheckedOut(shift) && !canCheckOut(shift)" class="countdown">Kết thúc theo lịch sau {{ countdown(shift) }}</span><span v-if="isCheckedIn(shift) && !isCheckedOut(shift) && activeOwnershipCount > 0" class="ownership" role="alert">Còn {{ activeOwnershipCount }} đơn đang phụ trách.</span></div>
           </article>
         </div>
         <div v-else class="day-empty"><i class="bi bi-calendar2-check" aria-hidden="true"></i><strong>Không có ca</strong><span>Bạn không được phân công trong ngày này.</span></div>
@@ -146,7 +146,6 @@ onUnmounted(() => { attendanceGeneration++; clearInterval(clockTimer); });
       <div v-else-if="!attendance.length" class="state">Chưa có dữ liệu chấm công tháng này.</div>
       <div v-else class="table-wrapper"><table class="table"><thead><tr><th>Ngày</th><th>Ca</th><th>Thực tế</th><th>Hợp lệ</th><th>Đi muộn</th><th>Về sớm</th><th>OT tiềm năng</th><th>Trạng thái</th></tr></thead><tbody><tr v-for="item in attendance" :key="item.shiftId"><td>{{ item.shiftDate }}</td><td>{{ shiftCodeLabel(item.shiftCode) }}</td><td>{{ item.actualMinutes }} phút</td><td>{{ item.overlapEligibleMinutes }} phút</td><td>{{ item.lateMinutes }} phút</td><td>{{ item.earlyLeaveMinutes }} phút</td><td>{{ item.potentialOvertimeMinutes }} phút</td><td>{{ item.attendanceStatus === 'APPROVED' ? 'Đã duyệt' : item.attendanceStatus === 'PENDING' ? 'Chờ duyệt' : '—' }}</td></tr></tbody></table></div>
     </section>
-    <span class="sr-only">MANUAL AUTO</span>
   </main>
 </template>
 

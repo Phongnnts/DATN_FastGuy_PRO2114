@@ -15,6 +15,7 @@ import utils.DatabaseUtil;
 
 class OperationsFinanceIT {
     private static final String DATABASE = "FastGuyDB_Operations060_Test";
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private final String token = "OPS060-" + Long.toUnsignedString(System.nanoTime());
     private final List<Integer> users = new ArrayList<>(), shifts = new ArrayList<>(), orders = new ArrayList<>(), items = new ArrayList<>();
     private final List<Integer> expenses = new ArrayList<>(), assets = new ArrayList<>();
@@ -27,21 +28,26 @@ class OperationsFinanceIT {
         Throwable failure = null;
         try {
             verifyTarget(em);
-            LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+            LocalDateTime businessNow = LocalDateTime.now(BUSINESS_ZONE).withNano(0);
+            Assumptions.assumeTrue(!businessNow.toLocalTime().isBefore(LocalTime.of(0, 2))
+                            && businessNow.toLocalTime().isBefore(LocalTime.of(23, 58)),
+                    "This real-transaction fixture must not cross the business date during manual check-in");
+            LocalDate today = businessNow.toLocalDate();
+            int manualUser = user(em, "SHIPPER", "Manual");
+            LocalTime[] manualWindow = manualCheckInWindow(businessNow.toLocalTime());
+            int manual = shift(em, manualUser, today, manualWindow[0], manualWindow[1], "EVENING", "SCHEDULED", null);
+            new WorkShiftService().check(manual, manualUser, true);
+            assertShift(em, manual, "CHECKED_IN", "MANUAL");
+
             int morningUser = user(em, "STAFF", "Morning");
             int afternoonUser = user(em, "STAFF", "Afternoon");
-            int manualUser = user(em, "SHIPPER", "Manual");
-            int autoUser = user(em, "SHIPPER", "Auto");
+            int missedUser = user(em, "STAFF", "Missed");
             int admin = user(em, "ADMIN", "Finance");
 
             int morning = shift(em, morningUser, today, LocalTime.of(8, 0), LocalTime.NOON, "MORNING", "CHECKED_IN", "MANUAL");
             int afternoon = shift(em, afternoonUser, today, LocalTime.NOON, LocalTime.of(16, 0), "AFTERNOON", "CHECKED_IN", "AUTO");
-            int manual = shift(em, manualUser, today, LocalTime.now().minusMinutes(5), LocalTime.now().plusMinutes(30), code(LocalTime.now()), "SCHEDULED", null);
-            new WorkShiftService().check(manual, manualUser, true);
-            assertShift(em, manual, "CHECKED_IN", "MANUAL");
-            int automatic = shift(em, autoUser, today, LocalTime.now().minusMinutes(20), LocalTime.now().plusMinutes(30), code(LocalTime.now().minusMinutes(20)), "SCHEDULED", null);
-            assertTrue(new AutomaticAttendanceService().autoCheckIns(LocalDateTime.now()) >= 1);
-            assertShift(em, automatic, "CHECKED_IN", "AUTO");
+            int missed = shift(em, missedUser, today.minusDays(1), LocalTime.of(8, 0), LocalTime.NOON, "MORNING", "SCHEDULED", null);
+            assertScheduledWithoutCheckIn(em, missed);
 
             int owned = order(em, "PREPARING", "PAID", LocalDateTime.now(), morningUser, morning);
             assertEquals(1, new ShiftRolloverService().rollover(morning, LocalDateTime.now()));
@@ -108,6 +114,13 @@ class OperationsFinanceIT {
         }
     }
 
+    static LocalTime[] manualCheckInWindow(LocalTime current) {
+        if (current.isBefore(LocalTime.of(0, 20))) return new LocalTime[] { LocalTime.of(0, 15), LocalTime.of(0, 45) };
+        LocalTime lateEnd = LocalTime.MAX.minusMinutes(15);
+        if (current.isAfter(lateEnd.minusMinutes(30))) return new LocalTime[] { lateEnd.minusMinutes(30), lateEnd };
+        return new LocalTime[] { current.minusMinutes(5), current.plusMinutes(30) };
+    }
+
     private void verifyTarget(EntityManager em) {
         Object[] row = (Object[]) em.createNativeQuery("SELECT @@SERVERNAME,DB_NAME(),DATABASEPROPERTYEX(DB_NAME(),'Status'),CAST(compatibility_level AS int) FROM sys.databases WHERE name=DB_NAME()").getSingleResult();
         assertEquals(DATABASE, row[1]);
@@ -134,8 +147,6 @@ class OperationsFinanceIT {
         commit(em); shifts.add(id); return id;
     }
 
-    private String code(LocalTime time) { return time.isBefore(LocalTime.NOON) ? "MORNING" : time.isBefore(LocalTime.of(16,0)) ? "AFTERNOON" : "EVENING"; }
-
     private int order(EntityManager em, String status, String payment, LocalDateTime entered, Integer staff, Integer shift) {
         tx(em);
         String sql = "DECLARE @ids TABLE(id int); INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,staff_id,staff_shift_id) OUTPUT INSERTED.order_id INTO @ids VALUES (:code,'Test','000','Test',1,0,0,0,1,'BANK_TRANSFER',:payment,:status,:created,:created,:entered,:staff,:shift); SELECT id FROM @ids";
@@ -160,8 +171,10 @@ class OperationsFinanceIT {
     private long count(EntityManager em,String table,String where,int id){return ((Number)em.createNativeQuery("SELECT COUNT_BIG(*) FROM "+table+" WHERE "+where).setParameter("id",id).getSingleResult()).longValue();}
     private void assertOrder(EntityManager em,int id,String status){assertEquals(status,scalar(em,"SELECT order_status FROM Orders WHERE order_id=:id",id));}
     private void assertShift(EntityManager em,int id,String status,String source){Object[] r=(Object[])em.createNativeQuery("SELECT status,check_in_source FROM WorkShift WHERE shift_id=:id").setParameter("id",id).getSingleResult();assertEquals(status,r[0]);assertEquals(source,r[1]);}
+    private void assertScheduledWithoutCheckIn(EntityManager em,int id){Object[] r=(Object[])em.createNativeQuery("SELECT status,check_in_at,check_in_source FROM WorkShift WHERE shift_id=:id").setParameter("id",id).getSingleResult();assertEquals("SCHEDULED",r[0]);assertNull(r[1]);assertNull(r[2]);}
     private void assertOwnership(EntityManager em,int id,int user,int shift){Object[] r=(Object[])em.createNativeQuery("SELECT staff_id,staff_shift_id FROM Orders WHERE order_id=:id").setParameter("id",id).getSingleResult();assertEquals(user,((Number)r[0]).intValue());assertEquals(shift,((Number)r[1]).intValue());}
     private void deleteShift(EntityManager em,int id){tx(em);em.createNativeQuery("DELETE WorkShift WHERE shift_id=:id").setParameter("id",id).executeUpdate();commit(em);shifts.remove(Integer.valueOf(id));}
+    private boolean hasTable(EntityManager em,String name){return ((Number)em.createNativeQuery("SELECT COUNT_BIG(*) FROM sys.tables WHERE name=:name").setParameter("name",name).getSingleResult()).longValue()>0;}
     private void tx(EntityManager em){em.getTransaction().begin();}
     private void commit(EntityManager em){em.getTransaction().commit();}
 
@@ -185,7 +198,7 @@ class OperationsFinanceIT {
         }
         if(!items.isEmpty())em.createNativeQuery("DELETE InventoryItem WHERE inventory_item_id IN (:ids)").setParameter("ids",items).executeUpdate();
         if(!shifts.isEmpty())em.createNativeQuery("DELETE WorkShift WHERE shift_id IN (:ids)").setParameter("ids",shifts).executeUpdate();
-        if(!users.isEmpty()){em.createNativeQuery("DELETE CartItem WHERE cart_id IN (SELECT cart_id FROM Cart WHERE user_id IN (:ids))").setParameter("ids",users).executeUpdate();em.createNativeQuery("DELETE Cart WHERE user_id IN (:ids)").setParameter("ids",users).executeUpdate();em.createNativeQuery("DELETE Users WHERE user_id IN (:ids)").setParameter("ids",users).executeUpdate();}
+        if(!users.isEmpty()){em.createNativeQuery("DELETE CartItem WHERE cart_id IN (SELECT cart_id FROM Cart WHERE user_id IN (:ids))").setParameter("ids",users).executeUpdate();em.createNativeQuery("DELETE Cart WHERE user_id IN (:ids)").setParameter("ids",users).executeUpdate();if(hasTable(em,"ActivityLog"))em.createNativeQuery("DELETE ActivityLog WHERE actor_user_id IN (:ids)").setParameter("ids",users).executeUpdate();em.createNativeQuery("DELETE Users WHERE user_id IN (:ids)").setParameter("ids",users).executeUpdate();}
         commit(em);
         long remaining=((Number)em.createNativeQuery("SELECT (SELECT COUNT_BIG(*) FROM Users WHERE email LIKE :token)+(SELECT COUNT_BIG(*) FROM Orders WHERE order_code LIKE :token)+(SELECT COUNT_BIG(*) FROM InventoryItem WHERE inventory_code=:exact)+(SELECT COUNT_BIG(*) FROM OperatingExpense WHERE description=:exact)+(SELECT COUNT_BIG(*) FROM FixedAsset WHERE asset_name=:exact)").setParameter("token",token+"%").setParameter("exact",token).getSingleResult()).longValue();
         assertEquals(0L,remaining,"Integration cleanup must remove every fixture");

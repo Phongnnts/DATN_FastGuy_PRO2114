@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -44,12 +45,14 @@ class OperationsBrowserFixtureIT {
         assertEquals("ONLINE", identity[2]);
         assertTrue(((Number) identity[3]).intValue() >= 160);
         assertEquals(2L, ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM SchemaMigrationHistory WHERE migration_id IN ('059_shift_schedule_order_timeout','060_operating_finance')").getSingleResult()).longValue());
+        if ("FastGuyDB_Attendance061_Test".equals(requiredEnv("FASTGUY_E2E_DB_NAME"))) assertEquals(1L, ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM SchemaMigrationHistory WHERE migration_id='061_work_shift_attendance_approval'").getSingleResult()).longValue());
     }
 
     private void seed(EntityManager em, String runId) {
         cleanup(em, runId);
         LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE).withNano(0);
         String password = requiredEnv("FASTGUY_E2E_STAFF_PASSWORD");
+        boolean attendanceTruthR8 = "true".equalsIgnoreCase(System.getenv("FASTGUY_E2E_ATTENDANCE_TRUTH_R8")) && "FastGuyDB_Attendance061_Test".equals(requiredEnv("FASTGUY_E2E_DB_NAME"));
         em.getTransaction().begin();
         User admin = user(em, "ADMIN", requiredEnv("FASTGUY_E2E_ADMIN_EMAIL"), "Admin Operations", password, runId, 1);
         User staff = user(em, "STAFF", requiredEnv("FASTGUY_E2E_STAFF_EMAIL"), "Staff Operations", password, runId, 2);
@@ -63,7 +66,7 @@ class OperationsBrowserFixtureIT {
             String code = List.of("MORNING", "AFTERNOON", "EVENING").get(slot);
             int existing = ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM WorkShift WHERE shift_date=:date AND shift_code=:code AND staff_role_snapshot='STAFF'")
                     .setParameter("date", shiftDate).setParameter("code", code).getSingleResult()).intValue();
-            if (current && existing > 0) {
+            if (current && existing > 0 && !attendanceTruthR8) {
                 em.createNativeQuery("UPDATE WorkShift SET user_id=:user,status='CHECKED_IN',check_in_at=:checkInAt,check_in_source='MANUAL',check_out_at=NULL,check_out_source=NULL WHERE shift_date=:date AND shift_code=:code AND staff_role_snapshot='STAFF'")
                         .setParameter("user", staff.getUserId()).setParameter("checkInAt", now).setParameter("date", shiftDate).setParameter("code", code).executeUpdate();
             } else if (existing == 0) {
@@ -73,6 +76,7 @@ class OperationsBrowserFixtureIT {
                         .setParameter("checkInAt", current ? now : null).setParameter("checkInSource", current ? "MANUAL" : null).executeUpdate();
             }
         }
+        if (attendanceTruthR8) seedAttendance(em, staff, now);
         em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,staff_id) VALUES (:code,'E2E','000','E2E',1,0,0,0,1,'COD','UNPAID','PENDING',:now,:now,:now,:staff)")
                 .setParameter("code", "E2E-" + runId + "-TIMEOUT").setParameter("now", now).setParameter("staff", staff.getUserId()).executeUpdate();
         em.createNativeQuery("INSERT INTO Orders(order_code,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,discount_amount,final_amount,payment_method,payment_status,order_status,created_at,updated_at,status_entered_at,confirmed_at,staff_id) VALUES (:code,'R4 Overdue','000','E2E',100000,0,0,0,100000,'BANK_TRANSFER','PAID','CONFIRMED',:created,:now,:entered,:created,:staff)")
@@ -87,6 +91,25 @@ class OperationsBrowserFixtureIT {
                 .setParameter("date", now.toLocalDate().minusYears(2)).setParameter("description", "E2E-" + runId + "-OLD").setParameter("admin", admin.getUserId()).setParameter("now", now).executeUpdate();
         em.getTransaction().commit();
         assertTrue(admin.getUserId() > 0);
+    }
+
+    private void seedAttendance(EntityManager em, User staff, LocalDateTime now) {
+        List<String> codes = List.of("MORNING", "AFTERNOON", "EVENING");
+        List<LocalTime> starts = List.of(LocalTime.of(8, 0), LocalTime.of(12, 0), LocalTime.of(16, 0));
+        List<LocalTime> ends = List.of(LocalTime.of(12, 0), LocalTime.of(16, 0), LocalTime.of(21, 0));
+        YearMonth month = YearMonth.from(now).minusMonths(1);
+        for (LocalDate date = month.atDay(1); !date.isAfter(month.atEndOfMonth()); date = date.plusDays(1)) {
+            for (int slot = 0; slot < codes.size(); slot++) {
+                long existing = ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM WorkShift WHERE shift_date=:date AND shift_code=:code AND staff_role_snapshot='STAFF'")
+                        .setParameter("date", date).setParameter("code", codes.get(slot)).getSingleResult()).longValue();
+                if (existing != 0) continue;
+                em.createNativeQuery("INSERT INTO WorkShift(user_id,shift_date,start_time,end_time,shift_code,status,staff_role_snapshot,check_in_at,check_out_at,check_in_source,check_out_source,attendance_status) VALUES (:user,:date,:start,:end,:code,'CHECKED_OUT','STAFF',:checkIn,:checkOut,'MANUAL','MANUAL','PENDING')")
+                        .setParameter("user", staff.getUserId()).setParameter("date", date).setParameter("start", starts.get(slot)).setParameter("end", ends.get(slot)).setParameter("code", codes.get(slot))
+                        .setParameter("checkIn", LocalDateTime.of(date, starts.get(slot).plusMinutes(5))).setParameter("checkOut", LocalDateTime.of(date, ends.get(slot).minusMinutes(5))).executeUpdate();
+                return;
+            }
+        }
+        throw new IllegalStateException("No free Staff attendance slot in previous month");
     }
 
     private User user(EntityManager em, String role, String email, String name, String password, String runId, int suffix) {
@@ -108,6 +131,7 @@ class OperationsBrowserFixtureIT {
             if (hasTable(em,"ActivityLog")) em.createNativeQuery("DELETE ActivityLog WHERE actor_user_id IN (:ids)").setParameter("ids",users).executeUpdate();
             if (hasTable(em,"StaffPayRate")) em.createNativeQuery("DELETE StaffPayRate WHERE user_id IN (:ids) OR created_by IN (:ids)").setParameter("ids",users).executeUpdate();
             em.createNativeQuery("DELETE WorkShift WHERE user_id IN (:ids)").setParameter("ids", users).executeUpdate();
+            assertEquals(0L, ((Number) em.createNativeQuery("SELECT COUNT_BIG(*) FROM WorkShift WHERE user_id IN (:ids)").setParameter("ids", users).getSingleResult()).longValue(), "Operations browser cleanup must remove fixture shifts");
             em.createNativeQuery("DELETE CartItem WHERE cart_id IN (SELECT cart_id FROM Cart WHERE user_id IN (:ids))").setParameter("ids", users).executeUpdate();
             em.createNativeQuery("DELETE Cart WHERE user_id IN (:ids)").setParameter("ids", users).executeUpdate();
             em.createNativeQuery("DELETE Users WHERE user_id IN (:ids)").setParameter("ids", users).executeUpdate();
