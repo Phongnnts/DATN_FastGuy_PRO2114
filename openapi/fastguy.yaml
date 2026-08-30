@@ -2674,11 +2674,11 @@ components:
           type: array
           items: { $ref: '#/components/schemas/AdminAttentionItem' }
         sectionAvailability: { $ref: '#/components/schemas/AdminDashboardSectionAvailability' }
-        customerCount: { type: integer, minimum: 0, deprecated: true }
-        totalUsers: { type: integer, minimum: 0, deprecated: true }
+        customerCount: { type: [integer, 'null'], minimum: 0, deprecated: true }
+        totalUsers: { type: [integer, 'null'], minimum: 0, deprecated: true }
         totalOrders: { type: integer, minimum: 0, deprecated: true }
-        activeProductCount: { type: integer, minimum: 0, deprecated: true }
-        totalProducts: { type: integer, minimum: 0, deprecated: true }
+        activeProductCount: { type: [integer, 'null'], minimum: 0, deprecated: true }
+        totalProducts: { type: [integer, 'null'], minimum: 0, deprecated: true }
         operationalOrderCount: { type: integer, minimum: 0, deprecated: true }
         operationalCompletedCount: { type: integer, minimum: 0, deprecated: true }
         completionRate: { type: number, minimum: 0, maximum: 100, deprecated: true }
@@ -2730,7 +2730,7 @@ components:
               name: { type: string }
               sold: { type: integer, minimum: 0 }
               revenue: { type: number, minimum: 0 }
-        lowStockThreshold: { type: integer, minimum: 1, deprecated: true }
+        lowStockThreshold: { type: [integer, 'null'], minimum: 1, deprecated: true }
         outOfStockSkuCount: { type: integer, minimum: 0, deprecated: true }
         lowStockSkuCount: { type: integer, minimum: 0, deprecated: true }
         deliveredOrdersToday: { type: integer, minimum: 0, deprecated: true }

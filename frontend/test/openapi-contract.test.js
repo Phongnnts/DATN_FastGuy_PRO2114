@@ -192,6 +192,15 @@ test('OpenAPI contracts operational dashboard and reconcilable financial reports
   assert.equal(schema.properties.activeOrderCount.description, 'All currently non-terminal operational orders, including orders created before today.');
   for (const field of canonicalFields) assert.notEqual(schema.properties[field].deprecated, true, field);
   for (const field of compatibilityFields) assert.equal(schema.properties[field].deprecated, true, field);
+  const nullableCompatibilityFields = ['activeProductCount', 'customerCount', 'lowStockThreshold', 'totalProducts', 'totalUsers'];
+  for (const field of nullableCompatibilityFields) assert.deepEqual(schema.properties[field].type, ['integer', 'null'], field);
+  assert.deepEqual(
+    Object.entries(schema.properties)
+      .filter(([field, property]) => !canonicalFields.includes(field) && Array.isArray(property.type) && property.type.includes('null'))
+      .map(([field]) => field)
+      .sort(),
+    [...nullableCompatibilityFields, 'grossProfitToday'].sort(),
+  );
 
   const availability = document.components.schemas.AdminDashboardSectionAvailability;
   const sections = ['financial', 'orders', 'refunds', 'cod', 'inventory', 'staffing'];
