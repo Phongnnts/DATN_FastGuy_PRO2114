@@ -252,6 +252,48 @@ public class OrdersDAO {
         }
     }
 
+    public long countCurrentActiveOrders() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE')", Long.class)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public Map<String, Long> countCurrentActiveOrdersByStatus() {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            List<Object[]> rows = em.createQuery("SELECT o.orderStatus, COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE') GROUP BY o.orderStatus", Object[].class)
+                    .getResultList();
+            Map<String, Long> result = new LinkedHashMap<>();
+            for (Object[] row : rows) result.put((String) row[0], ((Number) row[1]).longValue());
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public BigDecimal sumDeliveredPaidRevenue(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            BigDecimal result = em.createQuery(
+                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
+                    BigDecimal.class)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
+            return result != null ? result : BigDecimal.ZERO;
+        } finally {
+            em.close();
+        }
+    }
+
+    public BigDecimal sumProcessedRefunds(LocalDateTime start, LocalDateTime end) {
+        return sumRefundsDecimalInRange(start, end);
+    }
+
     public long countActiveByDateRange(LocalDateTime start, LocalDateTime end) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -626,18 +668,7 @@ public class OrdersDAO {
     }
 
     public BigDecimal sumRevenueDecimalByDateRange(LocalDateTime start, LocalDateTime end) {
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            BigDecimal result = em.createQuery(
-                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
-                    BigDecimal.class)
-                    .setParameter("start", start)
-                    .setParameter("end", end)
-                    .getSingleResult();
-            return result != null ? result : BigDecimal.ZERO;
-        } finally {
-            em.close();
-        }
+        return sumDeliveredPaidRevenue(start, end);
     }
 
     public long[] operationalCohortSummary(LocalDateTime start, LocalDateTime end) {

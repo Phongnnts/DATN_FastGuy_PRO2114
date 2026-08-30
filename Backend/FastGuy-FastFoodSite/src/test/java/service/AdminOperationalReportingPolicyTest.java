@@ -34,8 +34,8 @@ class AdminOperationalReportingPolicyTest {
     void dashboardUsesCarryOverOrdersAndEventTimeFinancialTruth() throws Exception {
         Map<String, Object> data = new AdminDashboardTestFixture().service().getDashboard();
 
-        assertEquals(1L, data.get("activeOrderCount"));
-        assertEquals(Map.of("PREPARING", 1L), data.get("activeOrdersByStatus"));
+        assertEquals(2L, data.get("activeOrderCount"));
+        assertEquals(Map.of("PREPARING", 1L, "DELIVERY_FAILED", 1L), data.get("activeOrdersByStatus"));
         assertEquals(new BigDecimal("80.00"), data.get("netCashRevenueToday"));
         assertInstanceOf(BigDecimal.class, data.get("netCashRevenueToday"));
         assertEquals(1L, data.get("pendingRefundCount"));
@@ -57,7 +57,7 @@ class AdminOperationalReportingPolicyTest {
             for (String section : List.of("financial", "orders", "refunds", "cod", "inventory", "staffing")) {
                 assertEquals(section.equals(failed) ? "UNAVAILABLE" : "AVAILABLE", availability.get(section), failed + ":" + section);
             }
-            if (!"orders".equals(failed)) assertEquals(1L, data.get("activeOrderCount"));
+            if (!"orders".equals(failed)) assertEquals(2L, data.get("activeOrderCount"));
             if (!"cod".equals(failed)) assertEquals(2L, data.get("pendingCodCount"));
             if (!"inventory".equals(failed)) assertEquals(2L, data.get("lowStockItemCount"));
             if (!"staffing".equals(failed)) assertEquals(1L, data.get("staffingGapCount"));
@@ -112,6 +112,7 @@ class AdminDashboardTestFixture {
     AdminDashboardTestFixture() {
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         orders.add(order("PREPARING", "UNPAID", today.minusDays(1).atTime(20, 0), null, null, null, null));
+        orders.add(order("DELIVERY_FAILED", "UNPAID", today.minusDays(1).atTime(21, 0), null, null, null, null));
         orders.add(order("DELIVERED", "PAID", today.atTime(8, 0), today.atTime(9, 0), new BigDecimal("100.00"), null, null));
         orders.add(order("DELIVERED", "UNPAID", today.atTime(8, 30), today.atTime(9, 30), new BigDecimal("900.00"), null, null));
         orders.add(order("DELIVERED", "PAID", today.minusDays(2).atTime(8, 0), today.minusDays(1).atTime(9, 0), new BigDecimal("50.00"), new BigDecimal("20.00"), today.atTime(10, 0)));
