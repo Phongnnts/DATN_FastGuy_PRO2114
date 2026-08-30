@@ -1,0 +1,14 @@
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+IF DB_NAME() NOT IN (N'FastGuyDB',N'FastGuyDB_PayRate062_Test') THROW 51000, '062 validator target database is not approved', 1;
+IF NOT EXISTS(SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id='062_staff_pay_rate_snapshot') THROW 51000, '062 history missing', 1;
+IF OBJECT_ID(N'dbo.StaffPayRate',N'U') IS NULL THROW 51000, 'StaffPayRate missing', 1;
+IF (SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.StaffPayRate') AND name IN(N'pay_rate_id',N'user_id',N'effective_from',N'regular_hourly_rate',N'overtime_hourly_rate',N'created_by',N'created_at'))<>7 THROW 51000, 'StaffPayRate columns missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'dbo.StaffPayRate') AND name=N'UQ_StaffPayRate_User_EffectiveFrom') THROW 51000, 'UQ_StaffPayRate_User_EffectiveFrom missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.StaffPayRate') AND name=N'IX_StaffPayRate_User_EffectiveFrom') THROW 51000, 'rate lookup index missing', 1;
+IF (SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.WorkShift') AND name IN(N'pay_snapshot_status',N'regular_hourly_rate_snapshot',N'overtime_hourly_rate_snapshot',N'regular_pay_amount',N'overtime_pay_amount',N'total_pay_amount'))<>6 THROW 51000, 'pay snapshot columns missing', 1;
+IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'dbo.WorkShift') AND name=N'CK_WorkShift_PaySnapshot' AND is_disabled=0 AND is_not_trusted=0) THROW 51000, 'pay snapshot constraint missing', 1;
+IF EXISTS(SELECT 1 FROM dbo.WorkShift WHERE attendance_status='APPROVED' AND pay_snapshot_status NOT IN('LEGACY_UNAVAILABLE','CALCULATED')) THROW 51000, 'approved attendance lacks snapshot status', 1;
+IF EXISTS(SELECT 1 FROM dbo.WorkShift WHERE pay_snapshot_status='LEGACY_UNAVAILABLE' AND (regular_hourly_rate_snapshot IS NOT NULL OR overtime_hourly_rate_snapshot IS NOT NULL OR regular_pay_amount IS NOT NULL OR overtime_pay_amount IS NOT NULL OR total_pay_amount IS NOT NULL)) THROW 51000, 'legacy snapshot fabricated', 1;
+IF EXISTS(SELECT 1 FROM dbo.WorkShift WHERE pay_snapshot_status='CALCULATED' AND (regular_hourly_rate_snapshot IS NULL OR overtime_hourly_rate_snapshot IS NULL OR regular_pay_amount IS NULL OR overtime_pay_amount IS NULL OR total_pay_amount IS NULL)) THROW 51000, 'calculated snapshot incomplete', 1;
+PRINT '062 validation passed';

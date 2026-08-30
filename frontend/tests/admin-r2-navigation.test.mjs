@@ -22,9 +22,9 @@ test('R2 shift management keeps schedule and monitoring only', () => {
   assert.doesNotMatch(shifts, /attendance|Duyệt công|Phút duyệt|getShiftAttendance|approveShiftAttendance/);
 });
 
-test('R2 attendance page owns existing approval workflow without payroll placeholders', () => {
+test('attendance page preserves the R2 approval workflow alongside R6 pay snapshots', () => {
   for (const token of ['getShiftAttendance', 'approveShiftAttendance', 'attendanceGeneration', 'expectedUpdatedAt', 'approvedMinutes', 'approvedOvertimeMinutes', 'attendanceNote']) assert.match(attendance, new RegExp(token));
   for (const label of ['Chấm công & tiền công', 'Chờ duyệt', 'Đã duyệt', 'Phút duyệt', 'OT duyệt']) assert.match(attendance, new RegExp(label));
   assert.match(attendance, /role="table"|<table/);
-  assert.doesNotMatch(attendance, /Tab tiền công|Tiền công dự kiến|hourlyRate|payRate/);
+  assert.doesNotMatch(attendance, /Bảng lương|Thuế|Bảo hiểm/);
 });

@@ -1,6 +1,7 @@
 package service;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -12,6 +13,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import dao.StaffPayRateDAO;
+import entity.StaffPayRate;
 import entity.User;
 import entity.WorkShift;
 import jakarta.persistence.EntityManager;
@@ -434,7 +437,11 @@ public class WorkShiftService {
             if (shift.getUpdatedAt() == null || !shift.getUpdatedAt().equals(expected)) throw new StaleAttendanceConflict();
             validateApproval(shift, minutes, overtime);
             if (shift.getCheckOutAt() == null) throw new IllegalArgumentException("Attendance is not complete");
+            StaffPayRate rate=new StaffPayRateDAO().effective(em,shift.getUser().getUserId(),shift.getShiftDate(),LockModeType.PESSIMISTIC_READ);
+            if(rate==null)throw new StaffPayRateService.MissingRate();
+            StaffPayRateService.Pay pay=StaffPayRateService.calculate(minutes,overtime,rate.getRegularHourlyRate(),rate.getOvertimeHourlyRate());
             shift.setApprovedMinutes(minutes); shift.setApprovedOvertimeMinutes(overtime); shift.setAttendanceNote(note == null || note.isBlank() ? null : note); shift.setApprovedBy(adminId); shift.setApprovedAt(businessNow()); shift.setAttendanceStatus("APPROVED");
+            shift.setPaySnapshotStatus("CALCULATED");shift.setRegularHourlyRateSnapshot(rate.getRegularHourlyRate());shift.setOvertimeHourlyRateSnapshot(rate.getOvertimeHourlyRate());shift.setRegularPayAmount(pay.regular());shift.setOvertimePayAmount(pay.overtime());shift.setTotalPayAmount(pay.total());
             em.getTransaction().commit();
             return attendanceMap(shift);
         } catch (RuntimeException e) { if (em.getTransaction().isActive()) em.getTransaction().rollback(); throw e; }
@@ -456,7 +463,9 @@ public class WorkShiftService {
 
     private Map<String, Object> attendanceMap(WorkShift shift) {
         Map<String, Object> result = toMap(shift); Attendance value = attendance(shift);
-        result.put("attendanceStatus", shift.getAttendanceStatus()); result.put("actualMinutes", value.actualMinutes()); result.put("overlapEligibleMinutes", value.overlapEligibleMinutes()); result.put("lateMinutes", value.lateMinutes()); result.put("earlyLeaveMinutes", value.earlyLeaveMinutes()); result.put("potentialOvertimeMinutes", value.potentialOvertimeMinutes()); result.put("approvedMinutes", shift.getApprovedMinutes()); result.put("approvedOvertimeMinutes", shift.getApprovedOvertimeMinutes()); result.put("attendanceNote", shift.getAttendanceNote()); result.put("approvedBy", shift.getApprovedBy()); result.put("approvedAt", shift.getApprovedAt()); result.put("updatedAt", shift.getUpdatedAt());
+        result.put("attendanceStatus", shift.getAttendanceStatus()); result.put("actualMinutes", value.actualMinutes()); result.put("overlapEligibleMinutes", value.overlapEligibleMinutes()); result.put("lateMinutes", value.lateMinutes()); result.put("earlyLeaveMinutes", value.earlyLeaveMinutes()); result.put("potentialOvertimeMinutes", value.potentialOvertimeMinutes()); result.put("approvedMinutes", shift.getApprovedMinutes()); result.put("approvedOvertimeMinutes", shift.getApprovedOvertimeMinutes()); result.put("attendanceNote", shift.getAttendanceNote()); result.put("approvedBy", shift.getApprovedBy()); result.put("approvedAt", shift.getApprovedAt());
+        result.put("paySnapshotStatus",shift.getPaySnapshotStatus());result.put("regularHourlyRateSnapshot",shift.getRegularHourlyRateSnapshot());result.put("overtimeHourlyRateSnapshot",shift.getOvertimeHourlyRateSnapshot());result.put("regularPayAmount",shift.getRegularPayAmount());result.put("overtimePayAmount",shift.getOvertimePayAmount());result.put("totalPayAmount",shift.getTotalPayAmount());
+        StaffPayRate effective="PENDING".equals(shift.getAttendanceStatus())?new StaffPayRateDAO().effective(shift.getUser().getUserId(),shift.getShiftDate()):null;result.put("effectiveRegularHourlyRate",effective==null?null:effective.getRegularHourlyRate());result.put("effectiveOvertimeHourlyRate",effective==null?null:effective.getOvertimeHourlyRate());StaffPayRateService.Pay preview=effective==null?null:StaffPayRateService.calculate(value.overlapEligibleMinutes(),value.potentialOvertimeMinutes(),effective.getRegularHourlyRate(),effective.getOvertimeHourlyRate());result.put("previewRegularPayAmount",preview==null?null:preview.regular());result.put("previewOvertimePayAmount",preview==null?null:preview.overtime());result.put("previewTotalPayAmount",preview==null?null:preview.total());result.put("updatedAt", shift.getUpdatedAt());
         result.remove("userName"); result.remove("role"); result.remove("status"); result.remove("checkInSource"); result.remove("checkOutSource");
         return result;
     }

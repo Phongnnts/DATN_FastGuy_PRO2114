@@ -383,6 +383,19 @@ CREATE TABLE dbo.LoyaltyTransaction (
     CONSTRAINT CK_LoyaltyTransaction_Points CHECK (points <> 0)
 );
 
+CREATE TABLE dbo.StaffPayRate (
+    pay_rate_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_StaffPayRate PRIMARY KEY,
+    user_id int NOT NULL CONSTRAINT FK_StaffPayRate_User REFERENCES dbo.Users(user_id),
+    effective_from date NOT NULL,
+    regular_hourly_rate decimal(18,2) NOT NULL,
+    overtime_hourly_rate decimal(18,2) NOT NULL,
+    created_by int NOT NULL CONSTRAINT FK_StaffPayRate_CreatedBy REFERENCES dbo.Users(user_id),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_StaffPayRate_CreatedAt DEFAULT SYSDATETIME(),
+    CONSTRAINT UQ_StaffPayRate_User_EffectiveFrom UNIQUE(user_id,effective_from),
+    CONSTRAINT CK_StaffPayRate_Positive CHECK(regular_hourly_rate>0 AND overtime_hourly_rate>0)
+);
+CREATE INDEX IX_StaffPayRate_User_EffectiveFrom ON dbo.StaffPayRate(user_id,effective_from DESC) INCLUDE(regular_hourly_rate,overtime_hourly_rate);
+
 -- Tạo bảng WorkShift
 CREATE TABLE dbo.WorkShift (
     shift_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_WorkShift PRIMARY KEY,
@@ -403,6 +416,12 @@ CREATE TABLE dbo.WorkShift (
     attendance_note nvarchar(500) NULL,
     approved_by int NULL CONSTRAINT FK_WorkShift_ApprovedBy REFERENCES dbo.Users(user_id),
     approved_at datetime2(0) NULL,
+    pay_snapshot_status varchar(30) NULL,
+    regular_hourly_rate_snapshot decimal(18,2) NULL,
+    overtime_hourly_rate_snapshot decimal(18,2) NULL,
+    regular_pay_amount decimal(18,2) NULL,
+    overtime_pay_amount decimal(18,2) NULL,
+    total_pay_amount decimal(18,2) NULL,
     created_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Created DEFAULT GETDATE(),
     updated_at datetime2(0) NOT NULL CONSTRAINT DF_WorkShift_Updated DEFAULT GETDATE(),
     CONSTRAINT CK_WorkShift_Time CHECK (start_time < end_time),
@@ -415,7 +434,8 @@ CREATE TABLE dbo.WorkShift (
     CONSTRAINT CK_WorkShift_CheckTimes CHECK (check_out_at IS NULL OR (check_in_at IS NOT NULL AND check_out_at >= check_in_at)),
     CONSTRAINT CK_WorkShift_AttendanceStatus CHECK (attendance_status IS NULL OR attendance_status IN ('PENDING','APPROVED')),
     CONSTRAINT CK_WorkShift_ApprovedMinutes CHECK ((approved_minutes IS NULL OR approved_minutes >= 0) AND (approved_overtime_minutes IS NULL OR approved_overtime_minutes >= 0)),
-    CONSTRAINT CK_WorkShift_AttendanceApproval CHECK ((attendance_status IS NULL AND approved_minutes IS NULL AND approved_overtime_minutes IS NULL AND attendance_note IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (attendance_status = 'PENDING' AND approved_minutes IS NULL AND approved_overtime_minutes IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (attendance_status = 'APPROVED' AND approved_minutes IS NOT NULL AND approved_overtime_minutes IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL))
+    CONSTRAINT CK_WorkShift_AttendanceApproval CHECK ((attendance_status IS NULL AND approved_minutes IS NULL AND approved_overtime_minutes IS NULL AND attendance_note IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (attendance_status = 'PENDING' AND approved_minutes IS NULL AND approved_overtime_minutes IS NULL AND approved_by IS NULL AND approved_at IS NULL) OR (attendance_status = 'APPROVED' AND approved_minutes IS NOT NULL AND approved_overtime_minutes IS NOT NULL AND approved_by IS NOT NULL AND approved_at IS NOT NULL)),
+    CONSTRAINT CK_WorkShift_PaySnapshot CHECK ((pay_snapshot_status IS NULL AND regular_hourly_rate_snapshot IS NULL AND overtime_hourly_rate_snapshot IS NULL AND regular_pay_amount IS NULL AND overtime_pay_amount IS NULL AND total_pay_amount IS NULL) OR (pay_snapshot_status='LEGACY_UNAVAILABLE' AND regular_hourly_rate_snapshot IS NULL AND overtime_hourly_rate_snapshot IS NULL AND regular_pay_amount IS NULL AND overtime_pay_amount IS NULL AND total_pay_amount IS NULL) OR (pay_snapshot_status='CALCULATED' AND regular_hourly_rate_snapshot>0 AND overtime_hourly_rate_snapshot>0 AND regular_pay_amount>=0 AND overtime_pay_amount>=0 AND total_pay_amount=regular_pay_amount+overtime_pay_amount))
 );
 
 CREATE TABLE dbo.CodSettlement (

@@ -452,6 +452,32 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/staff/{userId}/pay-rates:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: listStaffPayRates
+      summary: List append-only effective pay rates for one active Staff user
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Pay rate history, content: { application/json: { schema: { $ref: '#/components/schemas/StaffPayRateListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createStaffPayRate
+      summary: Append an effective pay rate without changing approved snapshots
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/StaffPayRateRequest' } } }
+      responses:
+        '201': { description: Pay rate created, content: { application/json: { schema: { $ref: '#/components/schemas/StaffPayRateResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /admin/shifts/{shiftId}/attendance-approval:
     put:
       operationId: approveShiftAttendance
@@ -469,6 +495,9 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: No effective pay rate exists for the shift date
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
   /admin/shifts/week:
     get:
       operationId: getAdminShiftWeek
@@ -1563,13 +1592,50 @@ components:
       oneOf:
         - $ref: '#/components/schemas/ShiftMutationSource'
         - type: 'null'
+    StaffPayRateRequest:
+      type: object
+      additionalProperties: false
+      required: [effectiveFrom, regularHourlyRate, overtimeHourlyRate]
+      properties:
+        effectiveFrom: { type: string, format: date }
+        regularHourlyRate: { type: number, format: decimal, multipleOf: 0.01, exclusiveMinimum: 0 }
+        overtimeHourlyRate: { type: number, format: decimal, multipleOf: 0.01, exclusiveMinimum: 0 }
+    StaffPayRate:
+      type: object
+      additionalProperties: false
+      required: [payRateId, userId, effectiveFrom, regularHourlyRate, overtimeHourlyRate, createdBy, createdAt]
+      properties:
+        payRateId: { type: integer, minimum: 1 }
+        userId: { type: integer, minimum: 1 }
+        effectiveFrom: { type: string, format: date }
+        regularHourlyRate: { type: number, format: decimal, exclusiveMinimum: 0 }
+        overtimeHourlyRate: { type: number, format: decimal, exclusiveMinimum: 0 }
+        createdBy: { type: integer, minimum: 1 }
+        createdAt: { type: string }
+    StaffPayRateListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/StaffPayRate' } }
+    StaffPayRateResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/StaffPayRate' }
+    PaySnapshotStatus:
+      type: string
+      enum: [LEGACY_UNAVAILABLE, CALCULATED]
     AttendanceStatus:
       type: string
       enum: [PENDING, APPROVED]
     ShiftAttendanceItem:
       type: object
       additionalProperties: false
-      required: [shiftId, userId, staffName, shiftDate, shiftCode, startTime, endTime, checkInAt, checkOutAt, attendanceStatus, actualMinutes, overlapEligibleMinutes, lateMinutes, earlyLeaveMinutes, potentialOvertimeMinutes, approvedMinutes, approvedOvertimeMinutes, attendanceNote, approvedBy, approvedAt, updatedAt]
+      required: [shiftId, userId, staffName, shiftDate, shiftCode, startTime, endTime, checkInAt, checkOutAt, attendanceStatus, actualMinutes, overlapEligibleMinutes, lateMinutes, earlyLeaveMinutes, potentialOvertimeMinutes, approvedMinutes, approvedOvertimeMinutes, attendanceNote, approvedBy, approvedAt, paySnapshotStatus, regularHourlyRateSnapshot, overtimeHourlyRateSnapshot, regularPayAmount, overtimePayAmount, totalPayAmount, effectiveRegularHourlyRate, effectiveOvertimeHourlyRate, previewRegularPayAmount, previewOvertimePayAmount, previewTotalPayAmount, updatedAt]
       properties:
         shiftId: { type: integer, minimum: 1 }
         userId: { type: integer, minimum: 1 }
@@ -1591,6 +1657,17 @@ components:
         attendanceNote: { type: [string, 'null'], maxLength: 500 }
         approvedBy: { type: [integer, 'null'], minimum: 1 }
         approvedAt: { type: [string, 'null'] }
+        paySnapshotStatus: { oneOf: [{ $ref: '#/components/schemas/PaySnapshotStatus' }, { type: 'null' }] }
+        regularHourlyRateSnapshot: { type: [number, 'null'] }
+        overtimeHourlyRateSnapshot: { type: [number, 'null'] }
+        regularPayAmount: { type: [number, 'null'] }
+        overtimePayAmount: { type: [number, 'null'] }
+        totalPayAmount: { type: [number, 'null'] }
+        effectiveRegularHourlyRate: { type: [number, 'null'] }
+        effectiveOvertimeHourlyRate: { type: [number, 'null'] }
+        previewRegularPayAmount: { type: [number, 'null'] }
+        previewOvertimePayAmount: { type: [number, 'null'] }
+        previewTotalPayAmount: { type: [number, 'null'] }
         updatedAt: { type: string }
     ShiftAttendanceResponse:
       type: object

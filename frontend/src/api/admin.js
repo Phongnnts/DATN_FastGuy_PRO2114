@@ -127,6 +127,8 @@ export default {
   approveShiftAttendance(id, data) {
     return client.put(`/admin/shifts/${id}/attendance-approval`, data);
   },
+  getStaffPayRates(userId) { return client.get(`/admin/staff/${userId}/pay-rates`); },
+  createStaffPayRate(userId, data) { return client.post(`/admin/staff/${userId}/pay-rates`, data); },
   createShift(data) {
     return client.post('/admin/shifts', data);
   },

@@ -7,6 +7,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import service.StaffPayRateService;
 import service.WorkShiftService;
 import utils.ApiResponse;
 import utils.JwtUtil;
@@ -68,6 +69,8 @@ public class AdminShiftServlet extends HttpServlet {
             ApiResponse.error(resp, "Invalid shift ID", 400);
         } catch (WorkShiftService.AttendanceNotFound e) {
             ApiResponse.error(resp, e.getMessage(), 404);
+        } catch (StaffPayRateService.MissingRate e) {
+            ApiResponse.error(resp, e.getMessage(), 422);
         } catch (WorkShiftService.ScheduleReferenceConflict | WorkShiftService.StaleAttendanceConflict | IllegalStateException e) {
             ApiResponse.error(resp, e.getMessage(), 409);
         } catch (IllegalArgumentException e) {

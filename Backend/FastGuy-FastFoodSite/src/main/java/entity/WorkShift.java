@@ -3,6 +3,7 @@ package entity;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.math.BigDecimal;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -75,6 +76,13 @@ public class WorkShift {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
+    @Column(name = "pay_snapshot_status") private String paySnapshotStatus;
+    @Column(name = "regular_hourly_rate_snapshot") private BigDecimal regularHourlyRateSnapshot;
+    @Column(name = "overtime_hourly_rate_snapshot") private BigDecimal overtimeHourlyRateSnapshot;
+    @Column(name = "regular_pay_amount") private BigDecimal regularPayAmount;
+    @Column(name = "overtime_pay_amount") private BigDecimal overtimePayAmount;
+    @Column(name = "total_pay_amount") private BigDecimal totalPayAmount;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -123,6 +131,12 @@ public class WorkShift {
     public void setApprovedBy(Integer approvedBy) { this.approvedBy = approvedBy; }
     public LocalDateTime getApprovedAt() { return approvedAt; }
     public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
+    public String getPaySnapshotStatus(){return paySnapshotStatus;} public void setPaySnapshotStatus(String v){paySnapshotStatus=v;}
+    public BigDecimal getRegularHourlyRateSnapshot(){return regularHourlyRateSnapshot;} public void setRegularHourlyRateSnapshot(BigDecimal v){regularHourlyRateSnapshot=v;}
+    public BigDecimal getOvertimeHourlyRateSnapshot(){return overtimeHourlyRateSnapshot;} public void setOvertimeHourlyRateSnapshot(BigDecimal v){overtimeHourlyRateSnapshot=v;}
+    public BigDecimal getRegularPayAmount(){return regularPayAmount;} public void setRegularPayAmount(BigDecimal v){regularPayAmount=v;}
+    public BigDecimal getOvertimePayAmount(){return overtimePayAmount;} public void setOvertimePayAmount(BigDecimal v){overtimePayAmount=v;}
+    public BigDecimal getTotalPayAmount(){return totalPayAmount;} public void setTotalPayAmount(BigDecimal v){totalPayAmount=v;}
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

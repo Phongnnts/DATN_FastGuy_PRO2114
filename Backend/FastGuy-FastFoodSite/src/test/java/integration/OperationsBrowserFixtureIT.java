@@ -17,7 +17,7 @@ import utils.DatabaseUtil;
 import utils.PasswordUtil;
 
 class OperationsBrowserFixtureIT {
-    private static final List<String> DATABASES = List.of("FastGuyDB_Operations060_Test", "FastGuyDB_Attendance061_Test");
+    private static final List<String> DATABASES = List.of("FastGuyDB_Operations060_Test", "FastGuyDB_Attendance061_Test", "FastGuyDB_PayRate062_Test");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Test
@@ -105,6 +105,7 @@ class OperationsBrowserFixtureIT {
         em.createNativeQuery("DELETE OrderStatusHistory WHERE order_id IN (SELECT order_id FROM Orders WHERE order_code LIKE :pattern)").setParameter("pattern", pattern).executeUpdate();
         em.createNativeQuery("DELETE Orders WHERE order_code LIKE :pattern").setParameter("pattern", pattern).executeUpdate();
         if (!users.isEmpty()) {
+            if (hasTable(em,"StaffPayRate")) em.createNativeQuery("DELETE StaffPayRate WHERE user_id IN (:ids) OR created_by IN (:ids)").setParameter("ids",users).executeUpdate();
             em.createNativeQuery("DELETE WorkShift WHERE user_id IN (:ids)").setParameter("ids", users).executeUpdate();
             em.createNativeQuery("DELETE CartItem WHERE cart_id IN (SELECT cart_id FROM Cart WHERE user_id IN (:ids))").setParameter("ids", users).executeUpdate();
             em.createNativeQuery("DELETE Cart WHERE user_id IN (:ids)").setParameter("ids", users).executeUpdate();
@@ -115,6 +116,7 @@ class OperationsBrowserFixtureIT {
         assertEquals(0L, remaining.longValue(), "Operations browser cleanup must remove every fixture row");
     }
 
+    private boolean hasTable(EntityManager em,String name){return ((Number)em.createNativeQuery("SELECT COUNT_BIG(*) FROM sys.tables WHERE name=:name").setParameter("name",name).getSingleResult()).longValue()>0;}
     private String requiredEnv(String name) { String value = System.getenv(name); if (value == null || value.isBlank()) throw new IllegalStateException(name + " required"); return value; }
     private String requiredProperty(String name) { String value = System.getProperty(name); if (value == null || value.isBlank()) throw new IllegalStateException(name + " required"); return value; }
 }
