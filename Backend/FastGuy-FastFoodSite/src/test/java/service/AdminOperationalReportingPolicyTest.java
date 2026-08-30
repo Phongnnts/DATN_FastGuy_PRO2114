@@ -80,7 +80,8 @@ class AdminOperationalReportingPolicyTest {
         assertEquals("AVAILABLE", availability(data).get("orders"));
         assertEquals(2L, data.get("activeOrderCount"));
         assertEquals(Map.of("PREPARING", 1L, "DELIVERY_FAILED", 1L), data.get("activeOrdersByStatus"));
-        assertEquals(0L, data.get("customerCount"));
+        assertNull(data.get("customerCount"));
+        assertNull(data.get("totalUsers"));
     }
 
     @Test
@@ -90,7 +91,7 @@ class AdminOperationalReportingPolicyTest {
 
         Map<String, Object> data = fixture.service().getDashboard();
 
-        assertEquals("UNAVAILABLE", availability(data).get("financial"));
+        assertEquals("AVAILABLE", availability(data).get("financial"));
         assertEquals(new BigDecimal("100.00"), data.get("revenueToday"));
         assertEquals(new BigDecimal("80.00"), data.get("netCashRevenueToday"));
         assertNull(data.get("grossProfitToday"));
@@ -105,10 +106,18 @@ class AdminOperationalReportingPolicyTest {
 
             Map<String, Object> data = fixture.service().getDashboard();
 
-            assertEquals("UNAVAILABLE", availability(data).get("inventory"), failed);
+            assertEquals("AVAILABLE", availability(data).get("inventory"), failed);
             assertEquals(2L, data.get("lowStockItemCount"), failed);
             assertEquals(1L, data.get("outOfStockSkuCount"), failed);
             assertEquals(1L, data.get("lowStockSkuCount"), failed);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> attentionItems = (List<Map<String, Object>>) data.get("attentionItems");
+            assertTrue(attentionItems.stream().anyMatch(item -> "LOW_STOCK_ITEMS".equals(item.get("type")) && Long.valueOf(2L).equals(item.get("count"))), failed);
+            if ("storeConfig".equals(failed)) assertNull(data.get("lowStockThreshold"));
+            if ("product".equals(failed)) {
+                assertNull(data.get("activeProductCount"));
+                assertNull(data.get("totalProducts"));
+            }
         }
     }
 
@@ -173,56 +182,53 @@ class AdminOperationalReportingPolicyTest {
     }
 
     @Test
-    void productionDaoExecutesCurrentStateAndEndExclusiveFinancialQueries() throws Exception {
-        LocalDateTime start = LocalDateTime.of(2026, 8, 31, 0, 0);
-        LocalDateTime end = start.plusDays(1);
-        List<Orders> orders = List.of(
-                order("PREPARING", "UNPAID", start.minusDays(1), null, null, null, null, null),
-                order("DELIVERY_FAILED", "UNPAID", start.minusHours(2), null, null, null, null, null),
-                order("DELIVERED", "PAID", start, start, new BigDecimal("100.00"), null, null, null),
-                order("DELIVERED", "PAID", start, end, new BigDecimal("900.00"), null, null, null),
-                order("DELIVERED", "UNPAID", start, start.plusHours(1), new BigDecimal("500.00"), null, null, null),
-                order("CANCELLED", "PAID", start.minusDays(2), null, new BigDecimal("20.00"), "REFUNDED", new BigDecimal("20.00"), start.plusHours(2)),
-                order("CANCELLED", "PAID", start.minusDays(2), null, new BigDecimal("30.00"), "REFUNDED", new BigDecimal("30.00"), end));
-        OrdersDAO dao = productionDao(orders, List.of());
+    void currentActiveQueriesHaveExactUnboundedPredicates() throws Exception {
+        QueryCapture total = new QueryCapture(2L, List.of());
+        assertEquals(2L, productionDao(total).countCurrentActiveOrders());
+        assertEquals("SELECT COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE')", total.jpql);
+        assertEquals(Map.of(), total.parameters);
 
-        assertEquals(2L, dao.countCurrentActiveOrders());
-        assertEquals(Map.of("PREPARING", 1L, "DELIVERY_FAILED", 1L), dao.countCurrentActiveOrdersByStatus());
-        assertEquals(new BigDecimal("100.00"), dao.sumDeliveredPaidRevenue(start, end));
-        assertEquals(new BigDecimal("20.00"), dao.sumProcessedRefunds(start, end));
+        QueryCapture grouped = new QueryCapture(null, List.<Object[]>of(
+                new Object[] {"PREPARING", 1L},
+                new Object[] {"DELIVERY_FAILED", 1L}));
+        assertEquals(Map.of("PREPARING", 1L, "DELIVERY_FAILED", 1L), productionDao(grouped).countCurrentActiveOrdersByStatus());
+        assertEquals("SELECT o.orderStatus, COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE') GROUP BY o.orderStatus", grouped.jpql);
+        assertEquals(Map.of(), grouped.parameters);
     }
 
     @Test
-    void productionDaoRefundAdapterDelegatesTypedRangeAndBounds() {
+    void deliveredPaidRevenueQueryHasExactPredicatesAndBindings() throws Exception {
         LocalDateTime start = LocalDateTime.of(2026, 8, 31, 0, 0);
         LocalDateTime end = start.plusDays(1);
-        LocalDateTime[] captured = new LocalDateTime[2];
-        OrdersDAO dao = new OrdersDAO() {
-            @Override
-            public BigDecimal sumRefundsDecimalInRange(LocalDateTime actualStart, LocalDateTime actualEnd) {
-                captured[0] = actualStart;
-                captured[1] = actualEnd;
-                return new BigDecimal("12.34");
-            }
-        };
+        QueryCapture capture = new QueryCapture(new BigDecimal("100.00"), List.of());
 
-        assertEquals(new BigDecimal("12.34"), dao.sumProcessedRefunds(start, end));
-        assertEquals(start, captured[0]);
-        assertEquals(end, captured[1]);
+        assertEquals(new BigDecimal("100.00"), productionDao(capture).sumDeliveredPaidRevenue(start, end));
+        assertEquals("SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end", capture.jpql);
+        assertEquals(Map.of("start", start, "end", end), capture.parameters);
+    }
+
+    @Test
+    void processedRefundQueryHasExactPredicatesAndBindings() throws Exception {
+        LocalDateTime start = LocalDateTime.of(2026, 8, 31, 0, 0);
+        LocalDateTime end = start.plusDays(1);
+        QueryCapture capture = new QueryCapture(new BigDecimal("20.00"), List.of());
+
+        assertEquals(new BigDecimal("20.00"), productionDao(capture).sumProcessedRefunds(start, end));
+        assertEquals("SELECT SUM(o.refundAmount) FROM Orders o WHERE o.refundStatus = 'REFUNDED' AND o.refundedAt >= :start AND o.refundedAt < :end", capture.jpql);
+        assertEquals(Map.of("start", start, "end", end), capture.parameters);
     }
 
     @Test
     void productionDaoKeepsAggregateAndRowMoneyTyped() throws Exception {
-        Orders delivered = order("DELIVERED", "PAID", LocalDateTime.MIN, LocalDateTime.MIN, new BigDecimal("150.00"), null, null, null);
-        OrdersDAO totals = productionDao(List.of(delivered), List.of());
+        QueryCapture totals = new QueryCapture(new BigDecimal("150.00"), List.of());
         Method method = OrdersDAO.class.getMethod("sumRevenueDecimal");
-        assertEquals(new BigDecimal("150.00"), method.invoke(totals));
+        assertEquals(new BigDecimal("150.00"), method.invoke(productionDao(totals)));
 
-        OrdersDAO monthly = productionDao(List.of(), List.<Object[]>of(new Object[] {8, 2026, new BigDecimal("150.00")}));
-        assertInstanceOf(BigDecimal.class, monthly.sumRevenueByMonth().get(0).get("revenue"));
+        QueryCapture monthly = new QueryCapture(null, List.<Object[]>of(new Object[] {8, 2026, new BigDecimal("150.00")}));
+        assertInstanceOf(BigDecimal.class, productionDao(monthly).sumRevenueByMonth().get(0).get("revenue"));
 
-        OrdersDAO products = productionDao(List.of(), List.<Object[]>of(new Object[] {1, "Burger", 2, new BigDecimal("80.00")}));
-        assertInstanceOf(BigDecimal.class, products.findTopProductsByDateRange(LocalDateTime.MIN, LocalDateTime.MAX, 5).get(0).get("revenue"));
+        QueryCapture products = new QueryCapture(null, List.<Object[]>of(new Object[] {1, "Burger", 2, new BigDecimal("80.00")}));
+        assertInstanceOf(BigDecimal.class, productionDao(products).findTopProductsByDateRange(LocalDateTime.MIN, LocalDateTime.MAX, 5).get(0).get("revenue"));
     }
 
     @SuppressWarnings("unchecked")
@@ -230,75 +236,41 @@ class AdminOperationalReportingPolicyTest {
         return (Map<String, String>) data.get("sectionAvailability");
     }
 
-    private OrdersDAO productionDao(List<Orders> orders, List<Object[]> nativeRows) throws Exception {
+    private OrdersDAO productionDao(QueryCapture capture) throws Exception {
         Constructor<OrdersDAO> constructor = OrdersDAO.class.getDeclaredConstructor(Supplier.class);
         constructor.setAccessible(true);
-        Supplier<EntityManager> supplier = () -> entityManager(orders, nativeRows);
+        Supplier<EntityManager> supplier = () -> entityManager(capture);
         return constructor.newInstance(supplier);
     }
 
-    private EntityManager entityManager(List<Orders> orders, List<Object[]> nativeRows) {
+    private EntityManager entityManager(QueryCapture capture) {
         return (EntityManager) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {EntityManager.class}, (proxy, method, args) -> switch (method.getName()) {
-            case "createQuery" -> query((String) args[0], orders, List.of());
-            case "createNativeQuery" -> query((String) args[0], orders, nativeRows);
+            case "createQuery", "createNativeQuery" -> {
+                capture.jpql = normalize((String) args[0]);
+                yield query(capture);
+            }
             case "close" -> null;
             case "isOpen" -> true;
             default -> defaultValue(method.getReturnType());
         });
     }
 
-    private Object query(String queryText, List<Orders> orders, List<Object[]> nativeRows) {
-        Map<Object, Object> parameters = new HashMap<>();
+    private Object query(QueryCapture capture) {
         Object[] query = new Object[1];
         query[0] = Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {TypedQuery.class}, (proxy, method, args) -> switch (method.getName()) {
             case "setParameter" -> {
-                parameters.put(args[0], args[1]);
+                capture.parameters.put(args[0], args[1]);
                 yield query[0];
             }
-            case "getSingleResult" -> aggregate(queryText, parameters, orders);
-            case "getResultList" -> nativeRows.isEmpty() ? rows(queryText, orders) : nativeRows;
+            case "getSingleResult" -> capture.singleResult;
+            case "getResultList" -> capture.rows;
             default -> defaultValue(method.getReturnType());
         });
         return query[0];
     }
 
-    private Object aggregate(String queryText, Map<Object, Object> parameters, List<Orders> orders) {
-        if (queryText.startsWith("SELECT COUNT(o)")) {
-            return orders.stream().filter(order -> !queryText.contains("NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE')") || active(order)).count();
-        }
-        if (queryText.startsWith("SELECT SUM(o.finalAmount)")) {
-            return orders.stream()
-                    .filter(order -> !queryText.contains("orderStatus = 'DELIVERED'") || "DELIVERED".equals(order.getOrderStatus()))
-                    .filter(order -> !queryText.contains("paymentStatus = 'PAID'") || "PAID".equals(order.getPaymentStatus()))
-                    .filter(order -> !queryText.contains("deliveredAt >= :start") || !order.getDeliveredAt().isBefore((LocalDateTime) parameters.get("start")))
-                    .filter(order -> !queryText.contains("deliveredAt < :end") || order.getDeliveredAt().isBefore((LocalDateTime) parameters.get("end")))
-                    .map(Orders::getFinalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        }
-        if (queryText.startsWith("SELECT SUM(o.refundAmount)")) {
-            return orders.stream()
-                    .filter(order -> !queryText.contains("refundStatus = 'REFUNDED'") || "REFUNDED".equals(order.getRefundStatus()))
-                    .filter(order -> !queryText.contains("refundedAt >= :start") || !order.getRefundedAt().isBefore((LocalDateTime) parameters.get("start")))
-                    .filter(order -> !queryText.contains("refundedAt < :end") || order.getRefundedAt().isBefore((LocalDateTime) parameters.get("end")))
-                    .map(Orders::getRefundAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        }
-        throw new AssertionError(queryText);
-    }
-
-    private List<Object[]> rows(String queryText, List<Orders> orders) {
-        if (!queryText.contains("GROUP BY o.orderStatus")) throw new AssertionError(queryText);
-        Map<String, Long> counts = new LinkedHashMap<>();
-        orders.stream()
-                .filter(order -> !queryText.contains("NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE')") || active(order))
-                .forEach(order -> counts.merge(order.getOrderStatus(), 1L, Long::sum));
-        return counts.entrySet().stream().map(entry -> new Object[] {entry.getKey(), entry.getValue()}).toList();
-    }
-
-    private boolean active(Orders order) {
-        return !Set.of("DELIVERED", "CANCELLED", "RETURNED_TO_STORE").contains(order.getOrderStatus());
-    }
-
-    private boolean inRange(LocalDateTime value, LocalDateTime start, LocalDateTime end) {
-        return value != null && !value.isBefore(start) && value.isBefore(end);
+    private String normalize(String value) {
+        return value.trim().replaceAll("\\s+", " ");
     }
 
     private Object defaultValue(Class<?> type) {
@@ -309,17 +281,16 @@ class AdminOperationalReportingPolicyTest {
         return null;
     }
 
-    private static Orders order(String status, String payment, LocalDateTime createdAt, LocalDateTime deliveredAt, BigDecimal finalAmount, String refundStatus, BigDecimal refundAmount, LocalDateTime refundedAt) {
-        Orders order = new Orders();
-        order.setOrderStatus(status);
-        order.setPaymentStatus(payment);
-        order.setCreatedAt(createdAt);
-        order.setDeliveredAt(deliveredAt);
-        order.setFinalAmount(finalAmount);
-        order.setRefundStatus(refundStatus);
-        order.setRefundAmount(refundAmount);
-        order.setRefundedAt(refundedAt);
-        return order;
+    private static final class QueryCapture {
+        private final Object singleResult;
+        private final List<Object[]> rows;
+        private final Map<Object, Object> parameters = new LinkedHashMap<>();
+        private String jpql;
+
+        private QueryCapture(Object singleResult, List<Object[]> rows) {
+            this.singleResult = singleResult;
+            this.rows = rows;
+        }
     }
 }
 

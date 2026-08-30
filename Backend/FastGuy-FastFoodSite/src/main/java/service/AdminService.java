@@ -43,8 +43,8 @@ public class AdminService {
         Map<String, String> sectionAvailability = new LinkedHashMap<>();
         for (String section : List.of("financial", "orders", "refunds", "cod", "inventory", "staffing")) sectionAvailability.put(section, "AVAILABLE");
 
-        data.put("customerCount", 0L);
-        data.put("totalUsers", 0L);
+        data.put("customerCount", null);
+        data.put("totalUsers", null);
         data.put("totalOrders", 0L);
         data.put("ordersByStatus", Map.of());
         data.put("pendingOrders", 0L);
@@ -70,9 +70,9 @@ public class AdminService {
         data.put("pendingCodCount", 0L);
         data.put("netCashRevenueToday", BigDecimal.ZERO);
         data.put("aovToday", BigDecimal.ZERO);
-        data.put("activeProductCount", 0L);
-        data.put("totalProducts", 0L);
-        data.put("lowStockThreshold", StoreConfigService.DEFAULT_LOW_STOCK_THRESHOLD);
+        data.put("activeProductCount", null);
+        data.put("totalProducts", null);
+        data.put("lowStockThreshold", null);
         data.put("outOfStockSkuCount", 0L);
         data.put("lowStockSkuCount", 0L);
         data.put("lowStockItemCount", 0L);
@@ -142,7 +142,6 @@ public class AdminService {
             data.put("grossProfitToday", costComplete ? decimal(menuToday.get("grossProfit")) : null);
             data.put("costComplete", costComplete);
         } catch (RuntimeException exception) {
-            sectionAvailability.put("financial", "UNAVAILABLE");
         }
 
         long pendingRefundCount = 0L;
@@ -214,11 +213,12 @@ public class AdminService {
             }
         }
 
-        int lowStockThreshold = (Integer) data.get("lowStockThreshold");
         long lowStockItemCount = 0L;
+        boolean inventoryAvailable = false;
         try {
             Map<String, Long> inventoryRiskCounts = inventoryItemDAO.inventoryRiskCounts();
             lowStockItemCount = inventoryRiskCounts.get("lowStockItemCount");
+            inventoryAvailable = true;
             data.put("outOfStockSkuCount", inventoryRiskCounts.get("outOfStock"));
             data.put("lowStockSkuCount", inventoryRiskCounts.get("lowStock"));
             data.put("lowStockItemCount", lowStockItemCount);
@@ -226,17 +226,14 @@ public class AdminService {
             sectionAvailability.put("inventory", "UNAVAILABLE");
         }
         try {
-            lowStockThreshold = storeConfigService.getLowStockThreshold();
-            data.put("lowStockThreshold", lowStockThreshold);
+            data.put("lowStockThreshold", storeConfigService.getLowStockThreshold());
         } catch (RuntimeException exception) {
-            sectionAvailability.put("inventory", "UNAVAILABLE");
         }
         try {
             long activeProductCount = productDAO.countAvailableProducts();
             data.put("activeProductCount", activeProductCount);
             data.put("totalProducts", activeProductCount);
         } catch (RuntimeException exception) {
-            sectionAvailability.put("inventory", "UNAVAILABLE");
         }
 
         long staffingGapCount = 0L;
@@ -254,7 +251,7 @@ public class AdminService {
         }
         if ("AVAILABLE".equals(sectionAvailability.get("refunds"))) addAttention(attentionItems, "PENDING_REFUNDS", "WARNING", pendingRefundCount);
         if ("AVAILABLE".equals(sectionAvailability.get("staffing"))) addAttention(attentionItems, "STAFF_COVERAGE_GAPS", "CRITICAL", staffingGapCount);
-        if ("AVAILABLE".equals(sectionAvailability.get("inventory"))) addAttention(attentionItems, "LOW_STOCK_ITEMS", "WARNING", lowStockItemCount);
+        if (inventoryAvailable) addAttention(attentionItems, "LOW_STOCK_ITEMS", "WARNING", lowStockItemCount);
         if ("AVAILABLE".equals(sectionAvailability.get("cod"))) addAttention(attentionItems, "PENDING_COD_SETTLEMENTS", "WARNING", pendingCodCount);
         data.put("attentionItems", attentionItems);
         data.put("sectionAvailability", sectionAvailability);

@@ -169,7 +169,7 @@ test('OpenAPI contracts operational dashboard and reconcilable financial reports
   const dashboardEnd = adminService.indexOf('private static void addAttention');
   const dashboardSource = adminService.slice(dashboardStart, dashboardEnd);
   const periodStart = dashboardSource.indexOf('if (period != null)');
-  const periodEnd = dashboardSource.indexOf('int lowStockThreshold');
+  const periodEnd = dashboardSource.indexOf('long lowStockItemCount');
   assert.ok(dashboardStart >= 0 && dashboardEnd > dashboardStart);
   assert.ok(periodStart >= 0 && periodEnd > periodStart);
   const emittedFields = [...new Set([...dashboardSource.matchAll(/data\.put\("([^"]+)"/g)].map((match) => match[1]))];
