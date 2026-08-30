@@ -503,6 +503,11 @@ const routes = [
         component: () => import('@/views/admin/BannersPage.vue'),
       },
       {
+        path: 'activity-logs',
+        name: 'AdminActivityLogs',
+        component: () => import('@/views/admin/ActivityLogsPage.vue'),
+      },
+      {
         path: 'settings',
         name: 'AdminSettings',
         component: () => import('@/views/admin/SettingsPage.vue'),
@@ -546,7 +551,7 @@ const pageTitles = {
    AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Tổng quan kho', AdminRecipes: 'Công thức định lượng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
   AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền', AdminCodSettlements: 'Đối soát COD',
   AdminOperatingExpenses: 'Chi phí vận hành', AdminFixedAssets: 'Tài sản cố định',
-   AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', AdminAttendance: 'Chấm công & tiền công', AdminStockCounts: 'Kiểm kê kho', NotFound: 'Không tìm thấy trang',
+   AdminActivityLogs: 'Nhật ký hoạt động', AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', AdminAttendance: 'Chấm công & tiền công', AdminStockCounts: 'Kiểm kê kho', NotFound: 'Không tìm thấy trang',
 };
 
 function applyTitles(records) {

@@ -11,6 +11,7 @@ const spec = readFileSync(new URL('frontend/tests/e2e/staff-dispatch-real-backen
 const scriptPath = new URL('../../scripts/run-staff-dispatch-real-e2e.ps1', import.meta.url).pathname.slice(1);
 const operationsScript = readFileSync(new URL('scripts/run-operations-real-e2e.ps1', root), 'utf8');
 const operationsSpec = readFileSync(new URL('frontend/tests/e2e/operations-real-backend.spec.js', root), 'utf8');
+const activityLogR7Spec = readFileSync(new URL('frontend/tests/e2e/admin-activity-log-r7-real-backend.spec.js', root), 'utf8');
 
 function runSafetyPathTest(target) {
   const command = String.raw`
@@ -114,6 +115,20 @@ test('real E2E safety self-test restores exact set and unset environment values'
   ], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stdout, /Environment restoration self-test passed/);
+});
+
+test('R7 harness targets only the disposable activity-log database and runs desktop plus mobile', () => {
+  assert.match(script, /\[switch\]\$ActivityLogR7/);
+  assert.match(script, /FastGuyDB_ActivityLog063_Test/);
+  assert.match(script, /admin-activity-log-r7-real-backend\.spec\.js/);
+  assert.match(script, /if \(\$ActivityLogR7\).*desktop-chrome.*mobile-chrome/s);
+  assert.match(script, /OperationsBrowserFixtureIT/);
+});
+
+test('R7 spec expects the contracted pay-rate creation status', () => {
+  assert.match(activityLogR7Spec, /\(await mutation\)\.status\(\)\)\.toBe\(201\)/);
+  assert.match(activityLogR7Spec, /method: 'POST', status: 201/);
+  assert.match(activityLogR7Spec, /getByRole\('region', \{ name: 'Danh sách nhật ký hoạt động' \}\)/);
 });
 
 test('operations harness is disposable, target locked, desktop role scoped, and always cleans fixtures', () => {

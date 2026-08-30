@@ -17,7 +17,7 @@ import utils.DatabaseUtil;
 import utils.PasswordUtil;
 
 class OperationsBrowserFixtureIT {
-    private static final List<String> DATABASES = List.of("FastGuyDB_Operations060_Test", "FastGuyDB_Attendance061_Test", "FastGuyDB_PayRate062_Test");
+    private static final List<String> DATABASES = List.of("FastGuyDB_Operations060_Test", "FastGuyDB_Attendance061_Test", "FastGuyDB_PayRate062_Test", "FastGuyDB_ActivityLog063_Test");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Test
@@ -105,6 +105,7 @@ class OperationsBrowserFixtureIT {
         em.createNativeQuery("DELETE OrderStatusHistory WHERE order_id IN (SELECT order_id FROM Orders WHERE order_code LIKE :pattern)").setParameter("pattern", pattern).executeUpdate();
         em.createNativeQuery("DELETE Orders WHERE order_code LIKE :pattern").setParameter("pattern", pattern).executeUpdate();
         if (!users.isEmpty()) {
+            if (hasTable(em,"ActivityLog")) em.createNativeQuery("DELETE ActivityLog WHERE actor_user_id IN (:ids)").setParameter("ids",users).executeUpdate();
             if (hasTable(em,"StaffPayRate")) em.createNativeQuery("DELETE StaffPayRate WHERE user_id IN (:ids) OR created_by IN (:ids)").setParameter("ids",users).executeUpdate();
             em.createNativeQuery("DELETE WorkShift WHERE user_id IN (:ids)").setParameter("ids", users).executeUpdate();
             em.createNativeQuery("DELETE CartItem WHERE cart_id IN (SELECT cart_id FROM Cart WHERE user_id IN (:ids))").setParameter("ids", users).executeUpdate();

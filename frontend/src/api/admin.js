@@ -4,6 +4,9 @@ export default {
   getDashboard() {
     return client.get('/admin/dashboard');
   },
+  getActivityLogs(params) {
+    return client.get('/admin/activity-logs', { params });
+  },
   getUsers(params) {
     return client.get('/admin/users', { params });
   },

@@ -39,7 +39,10 @@ const navigationGroups = [
     { label: 'Kiểm kê kho', path: '/admin/inventory/stock-counts', icon: 'bi-clipboard-check' },
   ] },
   { label: 'Báo cáo', links: [{ label: 'Báo cáo kinh doanh', path: '/admin/reports', icon: 'bi-graph-up' }] },
-  { label: 'Hệ thống', links: [{ label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' }] },
+  { label: 'Hệ thống', links: [
+    { label: 'Nhật ký hoạt động', path: '/admin/activity-logs', icon: 'bi-clock-history' },
+    { label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' },
+  ] },
 ];
 
 function isLinkActive(link) {

@@ -1143,6 +1143,24 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /admin/activity-logs:
+    get:
+      operationId: listAdminActivityLogs
+      summary: List admin activity logs
+      description: Returns matching activity logs newest first by createdAt, then activityLogId.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time }, description: Inclusive lower createdAt bound. }
+        - { name: to, in: query, schema: { type: string, format: date-time }, description: Inclusive upper createdAt bound; must not precede from. }
+        - { name: actionType, in: query, schema: { type: string, enum: [ORDER_CANCELLED, ORDER_REFUND_RECORDED, DELIVERY_ATTEMPT_OVERRIDDEN, ATTENDANCE_APPROVED, STAFF_PAY_RATE_CREATED, STOCK_COUNT_APPROVED] } }
+        - { name: actorUserId, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Paginated activity logs, content: { application/json: { schema: { $ref: '#/components/schemas/ActivityLogListResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /admin/orders:
     get:
       operationId: listAdminOrders
@@ -3783,6 +3801,57 @@ components:
           type: array
           uniqueItems: true
           items: { $ref: '#/components/schemas/AdminOrderAttentionReason' }
+    ActivityLogActionType:
+      type: string
+      enum: [ORDER_CANCELLED, ORDER_REFUND_RECORDED, DELIVERY_ATTEMPT_OVERRIDDEN, ATTENDANCE_APPROVED, STAFF_PAY_RATE_CREATED, STOCK_COUNT_APPROVED]
+    ActivityLogActor:
+      type: object
+      additionalProperties: false
+      required: [userId, fullName]
+      properties:
+        userId: { type: integer, minimum: 1 }
+        fullName: { type: string, minLength: 1 }
+    ActivityLog:
+      type: object
+      additionalProperties: false
+      required: [activityLogId, actor, actionType, targetType, targetId, summary, metadata, createdAt]
+      properties:
+        activityLogId: { type: integer, minimum: 1 }
+        actor: { $ref: '#/components/schemas/ActivityLogActor' }
+        actionType: { $ref: '#/components/schemas/ActivityLogActionType' }
+        targetType: { type: string, enum: [ORDER, DELIVERY_ATTEMPT, ATTENDANCE, STAFF_PAY_RATE, STOCK_COUNT] }
+        targetId: { type: [integer, 'null'], minimum: 1 }
+        summary: { type: string, minLength: 1, maxLength: 500 }
+        metadata:
+          type: object
+          description: Action-specific, whitelisted non-sensitive display values only; excludes credentials, tokens, payment references, contact details, addresses, and free-form private notes.
+          additionalProperties: { type: [string, number, integer, boolean, 'null'] }
+        createdAt: { type: string, format: date-time }
+    ActivityLogPagination:
+      type: object
+      additionalProperties: false
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        totalItems: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    ActivityLogListData:
+      type: object
+      additionalProperties: false
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityLog' }
+        pagination: { $ref: '#/components/schemas/ActivityLogPagination' }
+    ActivityLogListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/ActivityLogListData' }
     AdminOrderListResponse:
       type: object
       additionalProperties: false

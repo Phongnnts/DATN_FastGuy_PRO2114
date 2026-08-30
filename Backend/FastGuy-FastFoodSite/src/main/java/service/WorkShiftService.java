@@ -420,6 +420,8 @@ public class WorkShiftService {
         } finally { em.close(); }
     }
 
+    private final ActivityLogService activityLogService = new ActivityLogService();
+
     public Map<String, Object> approveAttendance(int shiftId, int adminId, Map<String, Object> data) {
         if (data == null || !data.keySet().equals(java.util.Set.of("expectedUpdatedAt", "approvedMinutes", "approvedOvertimeMinutes", "attendanceNote")) && !data.keySet().equals(java.util.Set.of("expectedUpdatedAt", "approvedMinutes", "approvedOvertimeMinutes"))) throw new IllegalArgumentException("Invalid attendance approval payload");
         int minutes = exactInt(data.get("approvedMinutes"), "approvedMinutes");
@@ -442,6 +444,7 @@ public class WorkShiftService {
             StaffPayRateService.Pay pay=StaffPayRateService.calculate(minutes,overtime,rate.getRegularHourlyRate(),rate.getOvertimeHourlyRate());
             shift.setApprovedMinutes(minutes); shift.setApprovedOvertimeMinutes(overtime); shift.setAttendanceNote(note == null || note.isBlank() ? null : note); shift.setApprovedBy(adminId); shift.setApprovedAt(businessNow()); shift.setAttendanceStatus("APPROVED");
             shift.setPaySnapshotStatus("CALCULATED");shift.setRegularHourlyRateSnapshot(rate.getRegularHourlyRate());shift.setOvertimeHourlyRateSnapshot(rate.getOvertimeHourlyRate());shift.setRegularPayAmount(pay.regular());shift.setOvertimePayAmount(pay.overtime());shift.setTotalPayAmount(pay.total());
+            activityLogService.append(em,adminId,"ATTENDANCE_APPROVED","ATTENDANCE",shiftId,Map.of("approvedMinutes",minutes,"approvedOvertimeMinutes",overtime));
             em.getTransaction().commit();
             return attendanceMap(shift);
         } catch (RuntimeException e) { if (em.getTransaction().isActive()) em.getTransaction().rollback(); throw e; }

@@ -5,6 +5,7 @@
              version="3.0">
     <persistence-unit name="FastGuyPU" transaction-type="RESOURCE_LOCAL">
         <class>entity.User</class>
+        <class>entity.ActivityLog</class>
         <class>entity.PasswordResetToken</class>
         <class>entity.Address</class>
         <class>entity.Category</class>

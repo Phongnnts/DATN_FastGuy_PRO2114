@@ -11,6 +11,7 @@ import utils.DatabaseUtil;
 
 public class RefundService {
     private LoyaltyService loyaltyService = new LoyaltyService();
+    private final ActivityLogService activityLogService = new ActivityLogService();
 
     public void update(int orderId, String status, BigDecimal amount, String note, String reference, int adminId) {
         EntityManager em = DatabaseUtil.getEntityManager();
@@ -44,6 +45,7 @@ public class RefundService {
                 order.setRefundReference(null);
             }
             order.setRefundProcessedBy(adminId);
+            activityLogService.append(em,adminId,"ORDER_REFUND_RECORDED","ORDER",orderId,java.util.Map.of("refundStatus",status,"refundAmount",amount==null?"0":amount.toPlainString()));
             em.getTransaction().commit();
         } catch (RuntimeException e) {
             if (em.getTransaction().isActive()) em.getTransaction().rollback();

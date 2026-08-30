@@ -35,7 +35,8 @@ INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
     ('042_login_bruteforce_lock', N'Canonical fresh schema baseline'),
     ('059_shift_schedule_order_timeout', N'Canonical fresh schema baseline'),
     ('060_operating_finance', N'Canonical fresh schema baseline'),
-    ('061_work_shift_attendance_approval', N'Canonical fresh schema baseline');
+    ('061_work_shift_attendance_approval', N'Canonical fresh schema baseline'),
+    ('063_activity_log', N'Canonical fresh schema baseline');
 
 CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
@@ -138,6 +139,20 @@ CREATE TABLE dbo.Users (
     CONSTRAINT CK_Users_Status CHECK (status IN ('ACTIVE', 'INACTIVE', 'BLOCKED')),
     CONSTRAINT CK_Users_Loyalty CHECK (loyalty_points >= 0)
 );
+
+CREATE TABLE dbo.ActivityLog (
+    activity_log_id bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_ActivityLog PRIMARY KEY,
+    actor_user_id int NOT NULL CONSTRAINT FK_ActivityLog_ActorUser REFERENCES dbo.Users(user_id),
+    action_type varchar(100) NOT NULL CONSTRAINT CK_ActivityLog_ActionType CHECK (LEN(LTRIM(RTRIM(action_type))) BETWEEN 1 AND 100),
+    target_type varchar(100) NOT NULL CONSTRAINT CK_ActivityLog_TargetType CHECK (LEN(LTRIM(RTRIM(target_type))) BETWEEN 1 AND 100),
+    target_id nvarchar(255) NULL CONSTRAINT CK_ActivityLog_TargetId CHECK (target_id IS NULL OR LEN(LTRIM(RTRIM(target_id))) BETWEEN 1 AND 255),
+    summary nvarchar(500) NOT NULL CONSTRAINT CK_ActivityLog_Summary CHECK (LEN(LTRIM(RTRIM(summary))) BETWEEN 1 AND 500),
+    metadata_json nvarchar(max) NULL CONSTRAINT CK_ActivityLog_MetadataJson CHECK (metadata_json IS NULL OR ISJSON(metadata_json) = 1),
+    created_at datetime2(0) NOT NULL CONSTRAINT DF_ActivityLog_CreatedAt DEFAULT SYSUTCDATETIME()
+);
+CREATE INDEX IX_ActivityLog_CreatedAt ON dbo.ActivityLog(created_at DESC, activity_log_id DESC);
+CREATE INDEX IX_ActivityLog_ActionType_CreatedAt ON dbo.ActivityLog(action_type, created_at DESC, activity_log_id DESC);
+CREATE INDEX IX_ActivityLog_ActorUser_CreatedAt ON dbo.ActivityLog(actor_user_id, created_at DESC, activity_log_id DESC);
 
 CREATE TABLE dbo.PasswordResetToken (
     reset_token_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_PasswordResetToken PRIMARY KEY,
@@ -942,7 +957,7 @@ GO
 
 DECLARE @RequiredTables TABLE (table_name sysname PRIMARY KEY);
 INSERT @RequiredTables (table_name) VALUES
-    ('SchemaMigrationHistory'), ('Users'), ('PasswordResetToken'), ('Address'), ('Category'), ('Product'), ('ProductVariant'),
+    ('SchemaMigrationHistory'), ('Users'), ('ActivityLog'), ('PasswordResetToken'), ('Address'), ('Category'), ('Product'), ('ProductVariant'),
     ('ProductModifierGroup'), ('ProductModifierOption'), ('Cart'), ('CartItem'), ('Orders'), ('OrderItem'),
     ('Coupon'), ('CouponRedemption'), ('Banner'), ('Review'), ('OrderStatusHistory'), ('LoyaltyTransaction'), ('WorkShift'),
     ('PaymentAttempt'), ('InventoryItem'), ('VariantInventoryItem'), ('Recipe'), ('RecipeItem'), ('InventoryReservation'), ('InventoryReservationLegacyHistory'), ('InventoryReservationItem'), ('GoodsReceipt'), ('GoodsReceiptItem'), ('StockCount'), ('StockCountItem'), ('InventoryTransaction'), ('OperatingExpense'), ('FixedAsset'), ('CodSettlement'), ('ShippingConfig');

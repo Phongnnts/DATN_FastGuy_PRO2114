@@ -16,6 +16,7 @@ import java.util.*;
 import java.util.function.Predicate;
 
 public class OrderTransitionService {
+    private final ActivityLogService activityLogService = new ActivityLogService();
     private final InventoryReservationService inventoryReservationService = new InventoryReservationService();
     private static final Map<String, Set<String>> TRANSITIONS = Map.of(
             "PENDING", Set.of("CONFIRMED", "CANCELLED"),
@@ -87,6 +88,7 @@ public class OrderTransitionService {
                 em.getTransaction().rollback();
                 return null;
             }
+            if(actorUserId!=null)activityLogService.append(em,actorUserId,"ORDER_CANCELLED","ORDER",orderId,Map.of("orderCode",orderCode,"reason",reason==null?"":reason));
             em.getTransaction().commit();
             return new CancellationResult(orderCode, orderUserId);
         } catch (RuntimeException e) {
@@ -368,6 +370,7 @@ public class OrderTransitionService {
             order.setDeliveryAttemptLimit(order.getDeliveryAttemptLimit() + 1);
             String status = order.getOrderStatus();
             em.persist(new OrderStatusHistory(orderId, adminId, "ADMIN", status, status, normalizedNote, LocalDateTime.now()));
+            activityLogService.append(em,adminId,"DELIVERY_ATTEMPT_OVERRIDDEN","DELIVERY_ATTEMPT",orderId,Map.of("deliveryAttemptLimit",order.getDeliveryAttemptLimit()));
             em.getTransaction().commit();
             return MutationResult.SUCCESS;
         } catch (RuntimeException e) {

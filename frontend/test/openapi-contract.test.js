@@ -397,3 +397,42 @@ test('OpenAPI requires optimistic recipe and inventory settings versions', async
   assert.match(variant, /required: \[[^\]]*updatedAt[^\]]*\]/);
   assert.match(variant, /^        updatedAt: \{ type: string \}$/m);
 });
+
+test('OpenAPI contracts paginated R7 admin activity logs', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const operation = contract.paths['/admin/activity-logs']?.get;
+  const parameters = Object.fromEntries(operation.parameters.map((parameter) => [parameter.name, parameter]));
+  const schemas = contract.components.schemas;
+  const actions = ['ORDER_CANCELLED', 'ORDER_REFUND_RECORDED', 'DELIVERY_ATTEMPT_OVERRIDDEN', 'ATTENDANCE_APPROVED', 'STAFF_PAY_RATE_CREATED', 'STOCK_COUNT_APPROVED'];
+  const itemFields = ['activityLogId', 'actor', 'actionType', 'targetType', 'targetId', 'summary', 'metadata', 'createdAt'];
+
+  assert.equal(operation.operationId, 'listAdminActivityLogs');
+  assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+  assert.deepEqual(Object.keys(parameters), ['from', 'to', 'actionType', 'actorUserId', 'page', 'pageSize']);
+  assert.equal(parameters.from.schema.format, 'date-time');
+  assert.equal(parameters.to.schema.format, 'date-time');
+  assert.deepEqual(parameters.actionType.schema.enum, actions);
+  assert.equal(parameters.actorUserId.schema.minimum, 1);
+  assert.equal(parameters.page.schema.minimum, 1);
+  assert.equal(parameters.page.schema.default, 1);
+  assert.equal(parameters.pageSize.schema.minimum, 1);
+  assert.ok(parameters.pageSize.schema.maximum);
+  assert.ok(parameters.pageSize.schema.default);
+  assert.match(operation.description, /newest first/i);
+  assert.equal(operation.responses['200'].content['application/json'].schema.$ref, '#/components/schemas/ActivityLogListResponse');
+  for (const [status, response] of Object.entries({ 400: 'BadRequest', 401: 'Unauthorized', 403: 'Forbidden' })) {
+    assert.equal(operation.responses[status].$ref, `#/components/responses/${response}`);
+  }
+  assert.deepEqual(schemas.ActivityLogActionType.enum, actions);
+  assert.equal(schemas.ActivityLog.additionalProperties, false);
+  assert.deepEqual(schemas.ActivityLog.required, itemFields);
+  assert.deepEqual(Object.keys(schemas.ActivityLog.properties), itemFields);
+  assert.deepEqual(schemas.ActivityLogActor.required, ['userId', 'fullName']);
+  assert.deepEqual(schemas.ActivityLog.properties.targetId.type, ['integer', 'null']);
+  assert.deepEqual(schemas.ActivityLog.properties.metadata.additionalProperties.type, ['string', 'number', 'integer', 'boolean', 'null']);
+  assert.deepEqual(schemas.ActivityLogPagination.required, ['page', 'pageSize', 'totalItems', 'totalPages']);
+  assert.deepEqual(schemas.ActivityLogListData.required, ['items', 'pagination']);
+  assert.deepEqual(schemas.ActivityLogListResponse.required, ['status', 'data']);
+});
