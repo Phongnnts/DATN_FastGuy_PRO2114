@@ -2650,33 +2650,105 @@ components:
         message: { type: string, const: Shipper assigned }
     AdminDashboardData:
       type: object
-      additionalProperties: true
-      required: [customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, pendingCodCount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete, attentionItems]
+      additionalProperties: false
+      required: [netCashRevenueToday, activeOrderCount, pendingRefundCount, pendingCodCount, lowStockItemCount, staffingGapCount, activeOrdersByStatus, operationalOrderCountToday, operationalCompletedCountToday, completionRateToday, attentionItems, sectionAvailability, customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete]
       properties:
-        customerCount: { type: integer, minimum: 0 }
-        activeProductCount: { type: integer, minimum: 0 }
-        ordersByStatus:
+        netCashRevenueToday:
+          type: number
+          description: Delivered-and-paid revenue recorded today minus refunds processed today.
+        activeOrderCount:
+          type: integer
+          minimum: 0
+          description: All currently non-terminal operational orders, including orders created before today.
+        pendingRefundCount: { type: integer, minimum: 0 }
+        pendingCodCount: { type: integer, minimum: 0 }
+        lowStockItemCount: { type: integer, minimum: 0 }
+        staffingGapCount: { type: integer, minimum: 0 }
+        activeOrdersByStatus:
           type: object
           additionalProperties: { type: integer, minimum: 0 }
-        operationalOrderCount: { type: integer, minimum: 0 }
-        operationalCompletedCount: { type: integer, minimum: 0 }
-        completionRate: { type: number, minimum: 0, maximum: 100 }
-        totalRevenue: { type: number, minimum: 0 }
-        revenueToday: { type: number, minimum: 0 }
-        ordersToday: { type: integer, minimum: 0 }
-        pendingCodAmount: { type: number, minimum: 0 }
-        pendingCodCount: { type: integer, minimum: 0 }
-        lowStockThreshold: { type: integer, minimum: 1 }
-        outOfStockSkuCount: { type: integer, minimum: 0 }
-        lowStockSkuCount: { type: integer, minimum: 0 }
-        deliveredOrdersToday: { type: integer, minimum: 0 }
-        activeOrdersToday: { type: integer, minimum: 0 }
-        aovToday: { type: number, minimum: 0 }
-        grossProfitToday: { type: [number, 'null'] }
-        costComplete: { type: boolean }
+        operationalOrderCountToday: { type: integer, minimum: 0 }
+        operationalCompletedCountToday: { type: integer, minimum: 0 }
+        completionRateToday: { type: number, minimum: 0, maximum: 100 }
         attentionItems:
           type: array
           items: { $ref: '#/components/schemas/AdminAttentionItem' }
+        sectionAvailability: { $ref: '#/components/schemas/AdminDashboardSectionAvailability' }
+        customerCount: { type: integer, minimum: 0, deprecated: true }
+        totalUsers: { type: integer, minimum: 0, deprecated: true }
+        totalOrders: { type: integer, minimum: 0, deprecated: true }
+        activeProductCount: { type: integer, minimum: 0, deprecated: true }
+        totalProducts: { type: integer, minimum: 0, deprecated: true }
+        operationalOrderCount: { type: integer, minimum: 0, deprecated: true }
+        operationalCompletedCount: { type: integer, minimum: 0, deprecated: true }
+        completionRate: { type: number, minimum: 0, maximum: 100, deprecated: true }
+        totalRevenue: { type: number, minimum: 0, deprecated: true }
+        ordersByStatus:
+          type: object
+          deprecated: true
+          additionalProperties: { type: integer, minimum: 0 }
+        pendingOrders: { type: integer, minimum: 0, deprecated: true }
+        pendingCodAmount: { type: number, minimum: 0, deprecated: true }
+        ordersToday: { type: integer, minimum: 0, deprecated: true }
+        revenueToday: { type: number, minimum: 0, deprecated: true }
+        revenueByMonth:
+          type: array
+          deprecated: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [month, year, revenue]
+            properties:
+              month: { type: integer, minimum: 1, maximum: 12 }
+              year: { type: integer, minimum: 2000 }
+              revenue: { type: number, minimum: 0 }
+        topProducts:
+          type: array
+          deprecated: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, sold]
+            properties:
+              name: { type: string }
+              sold: { type: integer, minimum: 0 }
+        grossRevenue: { type: number, minimum: 0, deprecated: true }
+        periodRevenue: { type: number, minimum: 0, deprecated: true }
+        refundTotal: { type: number, minimum: 0, deprecated: true }
+        refundCount: { type: integer, minimum: 0, deprecated: true }
+        netRevenue: { type: number, deprecated: true }
+        periodOrders: { type: integer, minimum: 0, deprecated: true }
+        periodTopProducts:
+          type: array
+          deprecated: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [productId, name, sold, revenue]
+            properties:
+              productId: { type: integer, minimum: 1 }
+              name: { type: string }
+              sold: { type: integer, minimum: 0 }
+              revenue: { type: number, minimum: 0 }
+        lowStockThreshold: { type: integer, minimum: 1, deprecated: true }
+        outOfStockSkuCount: { type: integer, minimum: 0, deprecated: true }
+        lowStockSkuCount: { type: integer, minimum: 0, deprecated: true }
+        deliveredOrdersToday: { type: integer, minimum: 0, deprecated: true }
+        activeOrdersToday: { type: integer, minimum: 0, deprecated: true }
+        aovToday: { type: number, minimum: 0, deprecated: true }
+        grossProfitToday: { type: [number, 'null'], deprecated: true }
+        costComplete: { type: boolean, deprecated: true }
+    AdminDashboardSectionAvailability:
+      type: object
+      additionalProperties: false
+      required: [financial, orders, refunds, cod, inventory, staffing]
+      properties:
+        financial: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        orders: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        refunds: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        cod: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        inventory: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        staffing: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
     AdminAttentionItem:
       type: object
       additionalProperties: false
