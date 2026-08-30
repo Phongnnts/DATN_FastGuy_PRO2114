@@ -2651,7 +2651,7 @@ components:
     AdminDashboardData:
       type: object
       additionalProperties: false
-      required: [netCashRevenueToday, activeOrderCount, pendingRefundCount, pendingCodCount, lowStockItemCount, staffingGapCount, activeOrdersByStatus, operationalOrderCountToday, operationalCompletedCountToday, completionRateToday, attentionItems, sectionAvailability, customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete]
+      required: [netCashRevenueToday, activeOrderCount, pendingRefundCount, pendingCodCount, lowStockItemCount, staffingGapCount, activeOrdersByStatus, operationalOrderCountToday, operationalCompletedCountToday, completionRateToday, attentionItems, sectionAvailability, customerCount, totalUsers, totalOrders, activeProductCount, totalProducts, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, pendingOrders, revenueToday, ordersToday, pendingCodAmount, revenueByMonth, topProducts, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete]
       properties:
         netCashRevenueToday:
           type: number

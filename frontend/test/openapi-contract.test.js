@@ -143,6 +143,7 @@ test('OpenAPI contracts shared profiles and admin user avatar CRUD', async () =>
 
 test('OpenAPI contracts operational dashboard and reconcilable financial reports', async () => {
   const contract = await readFile(contractUrl, 'utf8');
+  const adminService = await readFile(new URL('../../Backend/FastGuy-FastFoodSite/src/main/java/service/AdminService.java', import.meta.url), 'utf8');
   assert.match(contract, /^  \/admin\/dashboard:$/m);
   assert.match(contract, /^      operationId: getAdminDashboard$/m);
   assert.match(contract, /^  \/admin\/reports\/full:$/m);
@@ -151,32 +152,53 @@ test('OpenAPI contracts operational dashboard and reconcilable financial reports
   const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
   const document = JSON.parse(stdout);
   const schema = document.components.schemas.AdminDashboardData;
-  const canonicalFields = [
-    'netCashRevenueToday', 'activeOrderCount', 'pendingRefundCount',
-    'pendingCodCount', 'lowStockItemCount', 'staffingGapCount',
-    'activeOrdersByStatus', 'operationalOrderCountToday',
-    'operationalCompletedCountToday', 'completionRateToday',
-    'attentionItems', 'sectionAvailability',
-  ];
+  const canonicalTypes = {
+    netCashRevenueToday: 'number',
+    activeOrderCount: 'integer',
+    pendingRefundCount: 'integer',
+    pendingCodCount: 'integer',
+    lowStockItemCount: 'integer',
+    staffingGapCount: 'integer',
+    activeOrdersByStatus: 'object',
+    operationalOrderCountToday: 'integer',
+    operationalCompletedCountToday: 'integer',
+    completionRateToday: 'number',
+  };
+  const canonicalFields = [...Object.keys(canonicalTypes), 'attentionItems', 'sectionAvailability'];
+  const dashboardStart = adminService.indexOf('public Map<String, Object> getDashboardWithPeriod');
+  const dashboardEnd = adminService.indexOf('private static void addAttention');
+  const dashboardSource = adminService.slice(dashboardStart, dashboardEnd);
+  const periodStart = dashboardSource.indexOf('if (period != null)');
+  const periodEnd = dashboardSource.indexOf('int lowStockThreshold');
+  assert.ok(dashboardStart >= 0 && dashboardEnd > dashboardStart);
+  assert.ok(periodStart >= 0 && periodEnd > periodStart);
+  const emittedFields = [...new Set([...dashboardSource.matchAll(/data\.put\("([^"]+)"/g)].map((match) => match[1]))];
+  const periodFields = new Set([...dashboardSource.slice(periodStart, periodEnd).matchAll(/data\.put\("([^"]+)"/g)].map((match) => match[1]));
+  const alwaysEmittedFields = emittedFields.filter((field) => !periodFields.has(field));
+  const compatibilityFields = emittedFields.filter((field) => !canonicalFields.includes(field));
+  const expectedProperties = [...new Set([...canonicalFields, ...emittedFields])].sort();
+  const expectedRequired = [...new Set([...canonicalFields, ...alwaysEmittedFields])].sort();
+
   assert.equal(schema.additionalProperties, false);
-  for (const field of canonicalFields) assert.ok(schema.required.includes(field));
+  assert.deepEqual(Object.keys(schema.properties).sort(), expectedProperties);
+  assert.deepEqual([...schema.required].sort(), expectedRequired);
+  assert.deepEqual(Object.keys(schema.properties).filter((field) => schema.properties[field].deprecated !== true).sort(), [...canonicalFields].sort());
+  assert.deepEqual(Object.keys(schema.properties).filter((field) => !canonicalFields.includes(field)).sort(), compatibilityFields.sort());
+  for (const [field, type] of Object.entries(canonicalTypes)) assert.equal(schema.properties[field].type, type, field);
+  assert.deepEqual(schema.properties.activeOrdersByStatus.additionalProperties, { type: 'integer', minimum: 0 });
+  assert.deepEqual(schema.properties.attentionItems, { type: 'array', items: { $ref: '#/components/schemas/AdminAttentionItem' } });
+  assert.deepEqual(schema.properties.sectionAvailability, { $ref: '#/components/schemas/AdminDashboardSectionAvailability' });
   assert.equal(schema.properties.netCashRevenueToday.description, 'Delivered-and-paid revenue recorded today minus refunds processed today.');
   assert.equal(schema.properties.activeOrderCount.description, 'All currently non-terminal operational orders, including orders created before today.');
+  for (const field of canonicalFields) assert.notEqual(schema.properties[field].deprecated, true, field);
+  for (const field of compatibilityFields) assert.equal(schema.properties[field].deprecated, true, field);
+
   const availability = document.components.schemas.AdminDashboardSectionAvailability;
   const sections = ['financial', 'orders', 'refunds', 'cod', 'inventory', 'staffing'];
   assert.equal(availability.additionalProperties, false);
   assert.deepEqual(availability.required, sections);
-  for (const section of sections) assert.deepEqual(availability.properties[section].enum, ['AVAILABLE', 'UNAVAILABLE']);
-  const compatibilityFields = [
-    'customerCount', 'totalUsers', 'totalOrders', 'activeProductCount', 'totalProducts',
-    'operationalOrderCount', 'operationalCompletedCount', 'completionRate', 'totalRevenue',
-    'ordersByStatus', 'pendingOrders', 'pendingCodAmount', 'ordersToday', 'revenueToday',
-    'revenueByMonth', 'topProducts', 'grossRevenue', 'periodRevenue', 'refundTotal',
-    'refundCount', 'netRevenue', 'periodOrders', 'periodTopProducts', 'lowStockThreshold',
-    'outOfStockSkuCount', 'lowStockSkuCount', 'deliveredOrdersToday', 'activeOrdersToday',
-    'aovToday', 'grossProfitToday', 'costComplete',
-  ];
-  for (const field of compatibilityFields) assert.equal(schema.properties[field].deprecated, true, field);
+  assert.deepEqual(Object.keys(availability.properties), sections);
+  for (const section of sections) assert.deepEqual(availability.properties[section], { type: 'string', enum: ['AVAILABLE', 'UNAVAILABLE'] });
   const report = schemaSection(contract, 'AdminFullReportData', 'AdminFullReportResponse');
   for (const field of ['itemRevenue', 'shippingRevenue', 'serviceFeeRevenue', 'discountTotal', 'grossRevenue', 'refundTotal', 'netCashRevenue', 'operationalOrderCount', 'operationalCompletedCount', 'completionRate', 'revenueByHour', 'performanceByWeekday', 'refundTrend', 'exceptionReasons', 'monthlyFinancialTrend']) assert.match(report, new RegExp(`^        ${field}:`, 'm'));
 });
