@@ -51,15 +51,20 @@ export const useAdminStore = defineStore('admin', () => {
     };
   }
 
-  async function fetchDashboard() {
+  let dashboardRequestGeneration = 0;
+  async function fetchDashboard({ silent = false } = {}) {
+    const requestGeneration = ++dashboardRequestGeneration;
+    loading.value = !silent;
     error.value = '';
     try {
       const data = await adminApi.getDashboard();
-      dashboard.value = data;
+      if (requestGeneration === dashboardRequestGeneration) dashboard.value = data;
       return data;
     } catch (e) {
-      error.value = e.message;
+      if (requestGeneration === dashboardRequestGeneration) error.value = e.message;
       throw e;
+    } finally {
+      if (requestGeneration === dashboardRequestGeneration) loading.value = false;
     }
   }
 

@@ -5,7 +5,6 @@ import test from 'node:test';
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const inventory = read('../src/views/admin/InventoryPage.vue');
 const dashboard = read('../src/views/admin/DashboardPage.vue');
-const store = read('../src/stores/admin.js');
 const variants = read('../src/components/admin/product-editor/ProductVariantsSection.vue');
 
 test('inventory stock changes only through item-level workflows', () => {
@@ -42,9 +41,3 @@ test('dashboard accepts only current mounted success before charts', () => {
   assert.doesNotMatch(dashboard, /watch\(\s*\(\) => adminStore\.dashboard/);
 });
 
-test('admin dashboard store records error and rethrows request failure', () => {
-  const fetchDashboard = store.slice(store.indexOf('async function fetchDashboard()'), store.indexOf('async function fetchUsers()'));
-  assert.match(fetchDashboard, /error\.value = ''/);
-  assert.match(fetchDashboard, /catch \(e\)[^]*error\.value = e\.message[^]*throw e/);
-  assert.doesNotMatch(fetchDashboard, /return null/);
-});

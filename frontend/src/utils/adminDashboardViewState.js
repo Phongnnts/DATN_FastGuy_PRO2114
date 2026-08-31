@@ -1,14 +1,9 @@
-export function dashboardViewState(data, loadState, loadError) {
-  const showContent = Boolean(data);
-  let banner = null;
-  if (showContent && loadState === 'loading') {
-    banner = { role: 'status', message: 'Đang cập nhật tổng quan...' };
-  } else if (showContent && loadState === 'error') {
-    banner = { role: 'alert', message: loadError || 'Không thể tải tổng quan' };
+export function dashboardViewState(data, loadState, loadError, availability) {
+  if (data) {
+    if (Object.values(availability || {}).includes('UNAVAILABLE')) return 'partial';
+    return loadState === 'loading' ? 'refreshing' : 'ready';
   }
-  return {
-    showContent,
-    showInitialLoading: !showContent && loadState === 'loading',
-    banner,
-  };
+  if (loadState === 'loading') return 'loading';
+  if (loadError?.status === 403 || loadError?.response?.status === 403) return 'forbidden';
+  return 'error';
 }
