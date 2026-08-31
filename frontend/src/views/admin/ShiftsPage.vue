@@ -1,13 +1,18 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '@/api';
 import { useToast } from '@/stores/toast';
 
 const SHIFT_CODES = ['MORNING', 'AFTERNOON', 'EVENING'];
+const TAB_KEYS = ['schedule', 'monitoring'];
 const CODE_LABELS = { MORNING: 'Sáng', AFTERNOON: 'Chiều', EVENING: 'Tối' };
 const STATE_LABELS = { SCHEDULED: 'Đã lên lịch', CHECK_IN_WINDOW: 'Có thể check-in thủ công', LATE: 'Chưa check-in', ACTIVE_MANUAL: 'Đang làm · thủ công', ACTIVE_AUTO: 'Đang làm · tự động trước đây', CHECK_OUT_WINDOW: 'Có thể check-out thủ công', COMPLETED_MANUAL: 'Hoàn tất · thủ công', COMPLETED_AUTO: 'Hoàn tất · tự động trước đây', MISSING_STAFF: 'Thiếu nhân viên', MISSING_NEXT_SHIFT: 'Thiếu ca kế tiếp', ROLLOVER_BLOCKED: 'Bị chặn bàn giao' };
 const toast = useToast();
-const tab = ref('schedule');
+const route = useRoute();
+const router = useRouter();
+const tabFromQuery = raw => TAB_KEYS.includes(raw) ? raw : 'schedule';
+const tab = ref(tabFromQuery(route.query.tab));
 const users = ref([]);
 const shifts = ref([]);
 const selections = ref({});
@@ -69,10 +74,19 @@ async function loadMonitoring() {
   catch (error) { if (generation !== monitorGeneration) return; monitorError.value = error.message || 'Không thể tải giám sát'; }
   finally { if (generation === monitorGeneration) monitorLoading.value = false; }
 }
-function selectTab(value) { tab.value = value; if (value === 'monitoring') loadMonitoring(); }
+function selectTab(value) {
+  if (!TAB_KEYS.includes(value)) return;
+  if (tab.value !== value) tab.value = value;
+  if (route.query.tab !== value) router.replace({ query: { ...route.query, tab: value } });
+}
 function handleTabKeydown(event, index) { const keys = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: 1 }; if (!(event.key in keys)) return; event.preventDefault(); const next = (keys[event.key] + 2) % 2; selectTab(['schedule', 'monitoring'][next]); tabRefs.value[next]?.focus(); }
 
-onMounted(() => { initialize(); monitorTimer = setInterval(() => { if (tab.value === 'monitoring') loadMonitoring(); }, 30000); });
+watch(() => route.query.tab, (raw) => {
+  const next = tabFromQuery(raw);
+  if (tab.value !== next) tab.value = next;
+});
+watch(tab, (value, previous) => { if (value === 'monitoring' && previous !== 'monitoring') loadMonitoring(); });
+onMounted(() => { initialize(); if (tab.value === 'monitoring') loadMonitoring(); monitorTimer = setInterval(() => { if (tab.value === 'monitoring') loadMonitoring(); }, 30000); });
 onUnmounted(() => { monitorGeneration++; clearInterval(monitorTimer); });
 </script>
 

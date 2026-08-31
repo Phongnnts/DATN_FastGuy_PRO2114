@@ -1,16 +1,21 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { codSettlementApi } from '@/api';
 import { formatPrice } from '@/utils/format';
 import { acceptsAdminCodRequest, canVerifySettlement, createModalLifecycle, focusCycleTarget, submitVerification, validateVerification } from './cod-settlement-state';
 
+const STATUS_KEYS = ['SUBMITTED', 'SHORT', 'OVER', 'SETTLED'];
 const filters = [
   { value: 'SUBMITTED', label: 'Chờ xác nhận' },
   { value: 'SHORT', label: 'Thiếu tiền' },
   { value: 'OVER', label: 'Thừa tiền' },
   { value: 'SETTLED', label: 'Đã khớp' },
 ];
-const filter = ref('SUBMITTED');
+const route = useRoute();
+const router = useRouter();
+const statusFromQuery = raw => STATUS_KEYS.includes(raw) ? raw : 'SUBMITTED';
+const filter = ref(statusFromQuery(route.query.status));
 const rows = ref([]);
 const loading = ref(true);
 const error = ref('');
@@ -129,7 +134,14 @@ function formatDate(value) {
 
 function updateMobile(event) { mobile.value = event.matches; }
 
-watch(filter, load);
+watch(filter, (value) => {
+  if (route.query.status !== value) router.replace({ query: { ...route.query, status: value } });
+  load();
+});
+watch(() => route.query.status, (raw) => {
+  const next = statusFromQuery(raw);
+  if (filter.value !== next) filter.value = next;
+});
 watch(outcome, () => { formError.value = ''; if (outcome.value === 'SETTLED') reason.value = ''; });
 onMounted(() => { modalLifecycle.attach(); load(); media.addEventListener('change', updateMobile); });
 onBeforeUnmount(() => { stopped = true; requestGeneration += 1; modalLifecycle.detach(); media.removeEventListener('change', updateMobile); });

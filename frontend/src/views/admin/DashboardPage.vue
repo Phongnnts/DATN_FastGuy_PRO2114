@@ -1,182 +1,95 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { Chart, registerables } from 'chart.js';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice } from '@/utils/format';
 import { dashboardViewState } from '@/utils/adminDashboardViewState';
-import { Chart, registerables } from 'chart.js';
 
 Chart.register(...registerables);
 
 const adminStore = useAdminStore();
-const revenueChartRef = ref(null);
-const topChartRef = ref(null);
-const statusChartRef = ref(null);
-let revenueChart = null;
-let topChart = null;
-let statusChart = null;
-let requestGeneration = 0;
-let stopped = false;
+const activeOrderChartRef = ref(null);
 const loadState = ref('loading');
 const loadError = ref(null);
+let activeOrderChart = null;
+let requestGeneration = 0;
+let stopped = false;
 
-const orderStatusLabels = {
-  PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận',
-  PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper',
-  PICKED_UP: 'Đang giao', DELIVERY_FAILED: 'Giao thất bại', RETURNED_TO_STORE: 'Đã hoàn kho', DELIVERED: 'Đã giao', CANCELLED: 'Đã hủy',
-};
-
-const statusColors = {
-  PENDING: '#F59E0B', CONFIRMED: '#3B82F6', PREPARING: '#8B5CF6',
-  READY: '#10B981', ASSIGNED: '#3B82F6', PICKED_UP: '#06B6D4', DELIVERY_FAILED: '#F97316', RETURNED_TO_STORE: '#64748B', DELIVERED: '#22C55E', CANCELLED: '#EF4444',
-};
-
-const data = computed(() => adminStore.dashboard);
-const viewState = computed(() => dashboardViewState(data.value, loadState.value, loadError.value, data.value?.sectionAvailability));
-const showContent = computed(() => ['ready', 'refreshing', 'partial'].includes(viewState.value));
-const errorMessage = computed(() => loadError.value?.message || 'Không thể tải tổng quan');
-const banner = computed(() => {
-  if (loadError.value && showContent.value) return { role: 'alert', message: errorMessage.value };
-  if (viewState.value === 'refreshing') return { role: 'status', message: 'Đang cập nhật tổng quan...' };
-  if (viewState.value === 'partial') return { role: 'status', message: 'Một số dữ liệu tạm thời chưa khả dụng.' };
-  return null;
-});
-const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
+const ACTIVE_ORDER_STATUSES = [
+  { key: 'PENDING', label: 'Chờ xác nhận', color: '--admin-warning' },
+  { key: 'CONFIRMED', label: 'Đã xác nhận', color: '--admin-info' },
+  { key: 'PREPARING', label: 'Đang chế biến', color: '--admin-brand' },
+  { key: 'READY', label: 'Sẵn sàng giao', color: '--admin-success' },
+  { key: 'ASSIGNED', label: 'Đã gán shipper', color: '--admin-info' },
+  { key: 'PICKED_UP', label: 'Đang giao', color: '--admin-brand' },
+  { key: 'DELIVERY_FAILED', label: 'Giao thất bại', color: '--admin-danger' },
+];
 const ATTENTION = {
   OVERDUE_PENDING_ORDERS: { label: 'Đơn chờ xác nhận quá lâu', to: { path: '/admin/orders', query: { status: 'ATTENTION' } } },
   DELIVERY_FAILED_ORDERS: { label: 'Đơn giao thất bại', to: { path: '/admin/orders', query: { status: 'ATTENTION' } } },
   PENDING_REFUNDS: { label: 'Yêu cầu hoàn tiền đang chờ', to: { path: '/admin/refunds', query: { status: 'PENDING' } } },
   STAFF_COVERAGE_GAPS: { label: 'Ca làm cần bổ sung nhân viên', to: { path: '/admin/shifts', query: { tab: 'monitoring' } } },
   LOW_STOCK_ITEMS: { label: 'Mặt hàng dưới mức an toàn', to: { path: '/admin/inventory', query: { filter: 'LOW' } } },
-  PENDING_COD_SETTLEMENTS: { label: 'Bàn giao COD đang chờ', to: { path: '/admin/cod-settlements', query: { status: 'PENDING' } } },
+  PENDING_COD_SETTLEMENTS: { label: 'Bàn giao COD đang chờ', to: { path: '/admin/cod-settlements', query: { status: 'SUBMITTED' } } },
 };
-const attentionItems = computed(() => (data.value.attentionItems || []).map(item => ({ ...item, ...ATTENTION[item.type] })).filter(item => item.label));
+
+const data = computed(() => adminStore.dashboard);
+const viewState = computed(() => dashboardViewState(data.value, loadState.value, loadError.value, data.value?.sectionAvailability));
+const showContent = computed(() => ['ready', 'refreshing', 'partial'].includes(viewState.value));
+const errorMessage = computed(() => loadError.value?.message || adminStore.error || 'Không thể tải tổng quan');
+const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
+const attentionItems = computed(() => (data.value?.attentionItems || []).map(item => ({ ...item, ...ATTENTION[item.type] })).filter(item => item.label));
+const activeOrderSeries = computed(() => ACTIVE_ORDER_STATUSES.map(status => ({ ...status, count: Number(data.value?.activeOrdersByStatus?.[status.key]) })).filter(item => Number.isFinite(item.count) && item.count > 0));
+const chartAriaLabel = computed(() => `Luồng đơn đang hoạt động. ${activeOrderSeries.value.map(item => `${item.label}: ${item.count}`).join('; ')}`);
+const banner = computed(() => {
+  if (loadError.value && showContent.value) return { role: 'alert', message: errorMessage.value };
+  if (viewState.value === 'refreshing') return { role: 'status', message: 'Đang cập nhật tổng quan...' };
+  if (viewState.value === 'partial') return { role: 'status', message: 'Một số dữ liệu tạm thời chưa khả dụng.' };
+  return null;
+});
+
+function available(section) {
+  return data.value?.sectionAvailability?.[section] === 'AVAILABLE';
+}
 
 function getCSSVar(name) {
-  return getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 function buildCharts() {
-  if (!adminStore.dashboard) return;
   destroyCharts();
-  const d = adminStore.dashboard;
-  const primary = getCSSVar('--primary') || '#E8734A';
-  const border = 'rgba(23,23,23,.07)';
-  const textMid = getCSSVar('--text-mid') || '#6B6B6B';
-
-  const chartFont = { family: "'Be Vietnam Pro', sans-serif", size: 12 };
-  const chartDefaults = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: {
-        grid: { display: false },
-        ticks: { font: chartFont, color: textMid },
-      },
-      y: {
-        grid: { color: border },
-        ticks: { font: chartFont, color: textMid },
+  if (!available('orders') || !activeOrderChartRef.value || !activeOrderSeries.value.length) return;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const text = getCSSVar('--admin-muted');
+  const border = getCSSVar('--admin-border');
+  activeOrderChart = new Chart(activeOrderChartRef.value, {
+    type: 'bar',
+    data: {
+      labels: activeOrderSeries.value.map(item => item.label),
+      datasets: [{
+        label: 'Số đơn',
+        data: activeOrderSeries.value.map(item => item.count),
+        backgroundColor: activeOrderSeries.value.map(item => getCSSVar(item.color)),
+        borderWidth: 0,
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: reducedMotion ? false : { duration: 240 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: text, font: { family: "'Be Vietnam Pro', sans-serif", size: 11 } } },
+        y: { beginAtZero: true, grid: { color: border }, ticks: { color: text, precision: 0, font: { family: "'Be Vietnam Pro', sans-serif", size: 11 } } },
       },
     },
-  };
-
-  const months = d.revenueByMonth || [];
-  const tops = d.topProducts || [];
-  const obs = d.ordersByStatus || {};
-
-  if (revenueChartRef.value && months.length) {
-    revenueChart = new Chart(revenueChartRef.value, {
-      type: 'line',
-      data: {
-        labels: months.map((m) => m.month || m.label),
-        datasets: [
-          {
-            label: 'Doanh thu',
-            data: months.map((m) => m.revenue || m.value),
-            backgroundColor: primary + '18',
-            borderColor: primary,
-            borderWidth: 3,
-            pointRadius: 0,
-            pointHoverRadius: 5,
-            fill: true,
-            tension: 0.38,
-          },
-        ],
-      },
-      options: {
-        ...chartDefaults,
-        scales: {
-          x: { ...chartDefaults.scales.x },
-          y: {
-            ...chartDefaults.scales.y,
-            beginAtZero: true,
-            ticks: {
-              ...chartDefaults.scales.y.ticks,
-              callback: (v) => (v / 1000000).toFixed(0) + 'tr',
-            },
-          },
-        },
-      },
-    });
-  }
-
-  if (topChartRef.value && tops.length) {
-    topChart = new Chart(topChartRef.value, {
-      type: 'bar',
-      data: {
-        labels: tops.slice(0, 5).map((p) => p.name),
-        datasets: [
-          {
-            label: 'Đã bán',
-            data: tops.slice(0, 5).map((p) => p.sold || p.value),
-            backgroundColor: [primary, '#F09A73', '#F5B99D', '#F9D6C5', '#FCE8DE'],
-            borderWidth: 0,
-            borderRadius: 8,
-          },
-        ],
-      },
-      options: {
-        ...chartDefaults,
-        indexAxis: 'y',
-        scales: {
-          x: { ...chartDefaults.scales.x, beginAtZero: true },
-          y: { ...chartDefaults.scales.y },
-        },
-      },
-    });
-  }
-
-  const statusLabels = Object.keys(obs).filter((k) => obs[k] > 0);
-  const statusValues = statusLabels.map((k) => obs[k]);
-  if (statusChartRef.value && statusValues.length) {
-    statusChart = new Chart(statusChartRef.value, {
-      type: 'doughnut',
-      data: {
-        labels: statusLabels.map((k) => orderStatusLabels[k] || k),
-        datasets: [{
-          label: 'Số đơn',
-          data: statusValues,
-          backgroundColor: statusLabels.map((k) => statusColors[k] || '#999'),
-          borderColor: '#fff',
-          borderWidth: 4,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '68%',
-        plugins: { legend: { display: false }, tooltip: { bodyFont: chartFont, titleFont: chartFont } },
-      },
-    });
-  }
+  });
 }
 
 function destroyCharts() {
-  revenueChart?.destroy(); revenueChart = null;
-  topChart?.destroy(); topChart = null;
-  statusChart?.destroy(); statusChart = null;
+  activeOrderChart?.destroy();
+  activeOrderChart = null;
 }
 
 async function loadDashboard() {
@@ -199,7 +112,6 @@ async function loadDashboard() {
 }
 
 onMounted(loadDashboard);
-
 onUnmounted(() => {
   stopped = true;
   requestGeneration += 1;
@@ -209,41 +121,84 @@ onUnmounted(() => {
 
 <template>
   <div class="dashboard">
-    <section v-if="viewState === 'loading'" class="dashboard-state" role="status">Đang tải tổng quan...</section>
-    <section v-else-if="!showContent" class="dashboard-state error-state" role="alert">
+    <section v-if="viewState === 'loading'" class="dashboard-skeleton" role="status" aria-label="Đang tải tổng quan">
+      <span class="sr-only">Đang tải tổng quan...</span>
+      <div class="skeleton-heading"><i></i><i></i></div>
+      <div class="skeleton-attention"></div>
+      <div class="skeleton-metrics"><i v-for="index in 6" :key="index"></i></div>
+      <div class="skeleton-flow"></div>
+    </section>
+    <section v-else-if="viewState === 'forbidden'" class="dashboard-state permission-state" role="alert">
+      <i class="bi bi-shield-lock" aria-hidden="true"></i>
+      <strong>Bạn không có quyền xem tổng quan vận hành.</strong>
+      <span>Liên hệ quản trị viên nếu bạn cần quyền truy cập.</span>
+    </section>
+    <section v-else-if="viewState === 'error'" class="dashboard-state error-state" role="alert">
+      <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
       <strong>{{ errorMessage }}</strong>
       <button class="btn btn-outline" type="button" @click="loadDashboard">Thử lại</button>
     </section>
     <template v-else>
-    <section v-if="banner" class="dashboard-banner" :class="{ 'error-state': banner.role === 'alert' }" :role="banner.role">
-      <span>{{ banner.message }}</span>
-      <button v-if="banner.role === 'alert'" class="btn btn-outline" type="button" @click="loadDashboard">Thử lại</button>
-    </section>
-    <header class="dashboard-heading"><div><span>TRUNG TÂM ĐIỀU HÀNH</span><h1>Hoạt động hôm nay</h1><p>{{ today }}</p></div><button class="btn btn-outline" type="button" :disabled="loadState === 'loading'" @click="loadDashboard">Làm mới</button></header>
+      <header class="dashboard-heading" data-dashboard-section="header">
+        <div><h1>Hoạt động hôm nay</h1><p>{{ today }}</p></div>
+        <button class="btn btn-outline" type="button" :disabled="loadState === 'loading'" @click="loadDashboard"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Làm mới</button>
+        <div v-if="banner" class="dashboard-banner" :class="{ 'error-state': banner.role === 'alert' }" :role="banner.role" :data-store-error="adminStore.error || undefined">{{ banner.message }}</div>
+      </header>
 
-    <section class="today-kpis" aria-label="Kết quả hôm nay">
-      <article><span>Doanh thu hôm nay</span><strong>{{ formatPrice(data.revenueToday || 0) }}</strong></article>
-      <article><span>Đơn đã giao</span><strong>{{ Number(data.deliveredOrdersToday || 0).toLocaleString('vi-VN') }}</strong></article>
-      <article><span>Đơn đang xử lý</span><strong>{{ Number(data.activeOrdersToday || 0).toLocaleString('vi-VN') }}</strong></article>
-      <article><span>Giá trị đơn trung bình</span><strong>{{ formatPrice(data.aovToday || 0) }}</strong></article>
-      <article><span>Lợi nhuận gộp</span><strong>{{ data.costComplete ? formatPrice(data.grossProfitToday || 0) : 'Chưa đủ dữ liệu' }}</strong></article>
-    </section>
+      <section class="attention-panel" data-dashboard-section="attention" aria-labelledby="attention-title">
+        <header><h2 id="attention-title">Cần xử lý ngay</h2><strong>{{ attentionItems.length }}</strong></header>
+        <div v-if="attentionItems.length" class="attention-list">
+          <router-link v-for="item in attentionItems" :key="item.type" :to="item.to" :class="item.severity.toLowerCase()">
+            <span class="status-rail" aria-hidden="true"></span>
+            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+            <span class="attention-copy"><strong>{{ item.label }}</strong><small>{{ item.severity === 'CRITICAL' ? 'Khẩn cấp' : 'Cảnh báo' }}</small></span>
+            <strong class="attention-count">{{ item.count }}</strong>
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+          </router-link>
+        </div>
+        <p v-else class="attention-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i>Không có việc cần xử lý ngay.</p>
+      </section>
 
-    <section class="attention-panel" aria-labelledby="attention-title"><header><div><span>Ưu tiên xử lý</span><h2 id="attention-title">Cần chú ý</h2></div><strong>{{ attentionItems.length }}</strong></header><div v-if="attentionItems.length" class="attention-list"><router-link v-for="item in attentionItems" :key="item.type" :to="item.to" :class="item.severity.toLowerCase()"><span><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ item.label }}</span><strong>{{ item.count }}</strong></router-link></div><p v-else class="attention-empty"><i class="bi bi-check2-circle" aria-hidden="true"></i>Không có vấn đề cần xử lý ngay.</p></section>
+      <section class="operating-metrics" data-dashboard-section="metrics" aria-label="Chỉ số vận hành">
+        <article role="group" aria-label="Doanh thu thuần hôm nay"><span>Doanh thu thuần hôm nay</span><strong>{{ available('financial') ? formatPrice(data.netCashRevenueToday) : 'Không khả dụng' }}</strong></article>
+        <article role="group" aria-label="Đơn đang hoạt động"><span>Đơn đang hoạt động</span><strong>{{ available('orders') ? Number(data.activeOrderCount).toLocaleString('vi-VN') : 'Không khả dụng' }}</strong></article>
+        <article role="group" aria-label="Hoàn tiền chờ xử lý"><span>Hoàn tiền chờ xử lý</span><strong>{{ available('refunds') ? Number(data.pendingRefundCount).toLocaleString('vi-VN') : 'Không khả dụng' }}</strong></article>
+        <article role="group" aria-label="COD chờ xác nhận"><span>COD chờ xác nhận</span><strong>{{ available('cod') ? Number(data.pendingCodCount).toLocaleString('vi-VN') : 'Không khả dụng' }}</strong></article>
+        <article role="group" aria-label="Mặt hàng sắp hết"><span>Mặt hàng sắp hết</span><strong>{{ available('inventory') ? Number(data.lowStockItemCount).toLocaleString('vi-VN') : 'Không khả dụng' }}</strong></article>
+        <article role="group" aria-label="Ca thiếu nhân sự"><span>Ca thiếu nhân sự</span><strong>{{ available('staffing') ? Number(data.staffingGapCount).toLocaleString('vi-VN') : 'Không khả dụng' }}</strong></article>
+      </section>
 
-    <section class="analytics-grid" aria-label="Xu hướng vận hành">
-      <div class="chart-card revenue-chart"><div class="chart-head"><div><span>Xu hướng</span><h2>Doanh thu gần đây</h2></div></div><div class="chart-canvas large"><canvas ref="revenueChartRef"></canvas></div></div>
-      <div class="chart-card status-chart"><div class="chart-head"><div><span>Vận hành</span><h2>Trạng thái đơn</h2></div></div><div class="chart-canvas compact"><canvas ref="statusChartRef"></canvas></div></div>
-      <div class="chart-card top-chart"><div class="chart-head"><div><span>Sản phẩm</span><h2>Món bán chạy</h2></div></div><div class="chart-canvas medium"><canvas ref="topChartRef"></canvas></div></div>
-    </section>
+      <section class="active-flow" data-dashboard-section="flow" aria-labelledby="active-flow-title">
+        <header><div><h2 id="active-flow-title">Luồng đơn đang hoạt động</h2><p>Chỉ gồm trạng thái đang cần vận hành.</p></div><strong v-if="available('orders')">{{ Number(data.activeOrderCount).toLocaleString('vi-VN') }} đơn</strong></header>
+        <div v-if="!available('orders')" class="flow-state">Dữ liệu luồng đơn không khả dụng.</div>
+        <div v-else-if="activeOrderSeries.length" class="chart-canvas"><canvas ref="activeOrderChartRef" role="img" :aria-label="chartAriaLabel" aria-describedby="active-flow-data"></canvas></div>
+        <div v-else class="flow-state"><i class="bi bi-inbox" aria-hidden="true"></i>Không có đơn đang hoạt động.</div>
+      </section>
+
+      <section v-if="available('orders')" id="active-flow-data" class="flow-data" data-dashboard-section="flow-data" aria-label="Dữ liệu thay thế biểu đồ">
+        <details open>
+          <summary>Dữ liệu chi tiết</summary>
+          <table aria-label="Dữ liệu luồng đơn đang hoạt động">
+            <thead><tr><th scope="col">Trạng thái</th><th scope="col">Số đơn</th></tr></thead>
+            <tbody v-if="activeOrderSeries.length"><tr v-for="item in activeOrderSeries" :key="item.key"><th scope="row">{{ item.label }}</th><td>{{ item.count }}</td></tr></tbody>
+            <tbody v-else><tr><td colspan="2">Không có đơn đang hoạt động.</td></tr></tbody>
+          </table>
+        </details>
+      </section>
     </template>
   </div>
 </template>
 
 <style scoped>
-.dashboard{color:var(--text-dark)}.dashboard-heading{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:20px}.dashboard-heading span,.attention-panel header span{color:var(--role-admin);font-size:10px;font-weight:800;letter-spacing:.13em}.dashboard-heading h1{margin:4px 0;font-size:32px}.dashboard-heading p{margin:0;color:var(--text-mid);text-transform:capitalize}.today-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}.today-kpis article{display:grid;gap:8px;padding:18px;border:1px solid var(--border-light);border-radius:16px;background:#fff}.today-kpis span{color:var(--text-mid);font-size:12px}.today-kpis strong{font-size:20px}.attention-panel{margin-bottom:16px;overflow:hidden;border:1px solid #fed7aa;border-radius:18px;background:#fff}.attention-panel>header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #ffedd5}.attention-panel h2{margin:3px 0 0;font-size:20px}.attention-panel>header>strong{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#fff7ed;color:#c2410c}.attention-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--border-light)}.attention-list a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;padding:13px 16px;background:#fff;color:inherit}.attention-list a:hover{background:#fffaf6}.attention-list a>span{display:flex;align-items:center;gap:9px}.attention-list a.warning i{color:#d97706}.attention-list a.critical i{color:#dc2626}.attention-empty{display:flex;align-items:center;gap:8px;margin:0;padding:18px;color:#047857}.dashboard-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;padding:12px 16px;border:1px solid var(--border-light);border-radius:14px;background:#fff}.dashboard-state{min-height:360px;display:flex;align-items:center;justify-content:center;gap:14px;flex-direction:column;text-align:center}.error-state{color:var(--danger,#dc2626)}.dashboard-hero{position:relative;display:flex;align-items:end;justify-content:space-between;gap:30px;min-height:220px;margin-bottom:22px;padding:34px 38px;overflow:hidden;border-radius:28px;color:#fff;background:linear-gradient(125deg,#1b1714 0%,#2a211c 65%,#41271d 100%);box-shadow:0 22px 55px rgba(39,25,18,.15)}.hero-copy{position:relative;z-index:1}.hero-copy>span{color:var(--route-amber);font-size:10px;font-weight:800;letter-spacing:.18em}.hero-copy h1{margin:10px 0 8px;font-size:clamp(30px,4vw,48px);line-height:1.05;letter-spacing:-.05em}.hero-copy p{color:rgba(255,255,255,.5);font-size:12px;text-transform:capitalize}.hero-today{position:relative;z-index:1;display:flex;align-items:end;gap:28px;padding:20px 22px;border:1px solid rgba(255,255,255,.1);border-radius:20px;background:rgba(255,255,255,.06);backdrop-filter:blur(10px)}.hero-today div{display:flex;flex-direction:column;gap:5px}.hero-today span{color:rgba(255,255,255,.5);font-size:10px;font-weight:700;text-transform:uppercase}.hero-today strong{font-size:24px}.hero-today a{display:flex;align-items:center;gap:6px;color:var(--route-amber);font-size:11px;font-weight:700}.hero-orbit{position:absolute;right:-120px;top:-230px;width:500px;height:500px;border:1px solid rgba(255,255,255,.09);border-radius:50%}.hero-orbit::after{position:absolute;inset:80px;border:1px solid rgba(232,115,74,.18);border-radius:50%;content:""}.primary-stats{display:grid;grid-template-columns:1.35fr repeat(3,1fr);gap:14px;margin-bottom:14px}.metric-card{min-width:0;padding:22px;border:1px solid rgba(23,23,23,.06);border-radius:20px;background:#fff;box-shadow:0 8px 28px rgba(42,28,20,.05);transition:transform var(--transition-normal),box-shadow var(--transition-normal)}.metric-card:hover{box-shadow:0 14px 35px rgba(42,28,20,.09);transform:translateY(-3px)}.metric-card.revenue{color:#fff;background:linear-gradient(135deg,var(--primary),#f09a73);border-color:transparent}.metric-top{display:flex;align-items:center;justify-content:space-between;color:var(--text-mid);font-size:11px;font-weight:700}.metric-card.revenue .metric-top{color:rgba(255,255,255,.72)}.metric-top i{display:grid;width:36px;height:36px;place-items:center;border-radius:12px;color:var(--primary);background:var(--primary-50);font-size:15px}.metric-card.revenue .metric-top i{color:#fff;background:rgba(255,255,255,.15)}.metric-card>strong{display:block;margin:18px 0 5px;overflow:hidden;font-size:clamp(23px,2.4vw,34px);line-height:1.1;letter-spacing:-.04em;text-overflow:ellipsis;white-space:nowrap}.metric-card>small{color:var(--text-light);font-size:10px}.metric-card.revenue>small{color:rgba(255,255,255,.65)}.operation-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:14px;border:1px solid rgba(23,23,23,.06);border-radius:20px;background:#fff;box-shadow:0 8px 28px rgba(42,28,20,.04)}.operation-strip>div{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:13px;padding:17px 20px;border-right:1px solid var(--border-light)}.operation-strip>div:last-child{border:0}.signal{display:grid;width:38px;height:38px;place-items:center;border-radius:12px;color:var(--primary);background:var(--primary-50)}.signal.warning{color:#b45309;background:#fff7e6}.signal.success{color:#15803d;background:#ecfdf3}.operation-strip p{display:flex;flex-direction:column;color:var(--text-light);font-size:9px;font-weight:700;text-transform:uppercase}.operation-strip strong{margin-top:2px;color:var(--text-dark);font-size:15px;text-transform:none}.operation-strip a{color:var(--primary);font-size:10px;font-weight:800}.operation-strip small{color:var(--text-light);font-size:9px}.analytics-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:14px}.chart-card{min-width:0;padding:24px;border:1px solid rgba(23,23,23,.06);border-radius:22px;background:#fff;box-shadow:0 8px 30px rgba(42,28,20,.05)}.top-chart{grid-column:1/-1}.chart-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}.chart-head span{color:var(--primary);font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.chart-head h2{margin-top:4px;font-size:17px;letter-spacing:-.025em}.chart-head a{display:flex;align-items:center;gap:6px;color:var(--text-mid);font-size:10px;font-weight:700}.chart-canvas{position:relative}.chart-canvas.large{height:310px}.chart-canvas.medium{height:280px}.chart-canvas.compact{height:310px}.donut-center{position:absolute;top:50%;left:50%;display:flex;flex-direction:column;align-items:center;pointer-events:none;transform:translate(-50%,-50%)}.donut-center strong{font-size:25px}.donut-center span{color:var(--text-light);font-size:9px;text-transform:uppercase}
-@media(max-width:1100px){.today-kpis{grid-template-columns:repeat(2,1fr)}.analytics-grid{grid-template-columns:1fr}.top-chart{grid-column:auto}}
-@media(max-width:760px){.dashboard-heading{align-items:flex-start;flex-direction:column}.attention-list{grid-template-columns:1fr}.analytics-grid{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:520px){.today-kpis{grid-template-columns:1fr}.chart-card{padding:18px}.chart-canvas.large,.chart-canvas.medium,.chart-canvas.compact{height:260px}}
-@media(prefers-reduced-motion:reduce){.metric-card{transition:none}}
+.dashboard{display:grid;gap:14px;color:var(--admin-foreground)}
+.dashboard-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px 16px}.dashboard-heading h1{margin:0;font-size:28px;line-height:1.2}.dashboard-heading p{margin:5px 0 0;color:var(--admin-muted);text-transform:capitalize}.dashboard-heading .btn{gap:7px}.dashboard-banner{grid-column:1/-1;padding:9px 12px;border:1px solid var(--admin-border);border-radius:var(--radius-sm);background:var(--admin-surface);color:var(--admin-muted);font-size:13px}.dashboard-banner.error-state{border-color:color-mix(in srgb,var(--admin-danger) 35%,var(--admin-border));color:var(--admin-danger)}
+.attention-panel,.active-flow,.flow-data{border:1px solid var(--admin-border);border-radius:var(--radius-lg);background:var(--admin-surface)}.attention-panel>header,.active-flow>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid var(--admin-border)}.attention-panel h2,.active-flow h2{margin:0;font-size:18px}.attention-panel>header>strong{min-width:28px;padding:3px 8px;border-radius:999px;background:var(--admin-brand-soft);color:var(--admin-brand);text-align:center}.attention-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.attention-list a{position:relative;display:grid;grid-template-columns:3px 20px minmax(0,1fr) auto 16px;align-items:center;gap:9px;min-height:56px;padding:9px 13px;color:inherit;border-bottom:1px solid var(--admin-border)}.attention-list a:nth-child(odd){border-right:1px solid var(--admin-border)}.attention-list a:hover{background:var(--admin-brand-soft)}.status-rail{align-self:stretch;border-radius:2px;background:var(--admin-warning)}.attention-list a.critical .status-rail{background:var(--admin-danger)}.attention-list a>i{color:var(--admin-warning)}.attention-list a.critical>i{color:var(--admin-danger)}.attention-copy{display:grid;gap:1px}.attention-copy strong{font-size:13px}.attention-copy small{color:var(--admin-muted);font-size:11px}.attention-count{font-variant-numeric:tabular-nums}.attention-empty{display:flex;align-items:center;gap:8px;margin:0;padding:13px 16px;color:var(--admin-success)}
+.operating-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-block:1px solid var(--admin-border);background:var(--admin-surface)}.operating-metrics article{display:grid;align-content:center;gap:5px;min-height:86px;padding:12px 14px;border-right:1px solid var(--admin-border)}.operating-metrics article:last-child{border-right:0}.operating-metrics span{color:var(--admin-muted);font-size:11px;line-height:1.35}.operating-metrics strong{font-size:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.active-flow>header p{margin:3px 0 0;color:var(--admin-muted);font-size:12px}.active-flow>header>strong{color:var(--admin-brand);font-size:14px}.chart-canvas{height:260px;padding:14px 16px}.flow-state{display:flex;min-height:160px;align-items:center;justify-content:center;gap:8px;color:var(--admin-muted)}.flow-data{padding:0 16px 14px}.flow-data summary{display:flex;min-height:40px;align-items:center;width:max-content;color:var(--admin-brand);font-size:12px;font-weight:700;cursor:pointer}.flow-data table{width:100%;border-collapse:collapse}.flow-data th,.flow-data td{padding:8px 10px;border-top:1px solid var(--admin-border);text-align:left;font-size:12px}.flow-data td:last-child,.flow-data thead th:last-child{text-align:right;font-variant-numeric:tabular-nums}.flow-data tbody th{font-weight:600}
+.dashboard-state{display:flex;min-height:360px;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--admin-muted);text-align:center}.dashboard-state>i{font-size:28px}.dashboard-state.error-state{color:var(--admin-danger)}.permission-state>i{color:var(--admin-warning)}.dashboard-skeleton{display:grid;gap:14px}.skeleton-heading,.skeleton-attention,.skeleton-metrics i,.skeleton-flow{background:var(--admin-border);border-radius:var(--radius-sm);animation:skeleton-pulse 1.2s ease-in-out infinite}.skeleton-heading{display:flex;justify-content:space-between;height:54px;background:transparent}.skeleton-heading i{display:block;width:32%;height:38px;border-radius:var(--radius-sm);background:var(--admin-border)}.skeleton-heading i:last-child{width:90px}.skeleton-attention{height:126px}.skeleton-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px}.skeleton-metrics i{height:86px}.skeleton-flow{height:330px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@keyframes skeleton-pulse{50%{opacity:.55}}
+.dashboard :is(button,a,summary):focus-visible{outline:3px solid var(--admin-brand);outline-offset:2px}
+@media(max-width:1100px){.operating-metrics,.skeleton-metrics{grid-template-columns:repeat(3,1fr)}.operating-metrics article:nth-child(3){border-right:0}.operating-metrics article:nth-child(-n+3){border-bottom:1px solid var(--admin-border)}}
+@media(max-width:760px){.dashboard-heading{align-items:start}.attention-list{grid-template-columns:1fr}.attention-list a:nth-child(odd){border-right:0}.operating-metrics,.skeleton-metrics{grid-template-columns:repeat(2,1fr)}.operating-metrics article:nth-child(3){border-right:1px solid var(--admin-border)}.operating-metrics article:nth-child(2n){border-right:0}.operating-metrics article:nth-child(-n+4){border-bottom:1px solid var(--admin-border)}.chart-canvas{height:240px;padding:10px}.flow-data{padding-inline:10px}}
+@media(max-width:480px){.dashboard-heading{grid-template-columns:1fr}.dashboard-heading .btn{justify-self:start}.operating-metrics article{min-height:82px;padding:10px}.operating-metrics strong{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.skeleton-heading,.skeleton-attention,.skeleton-metrics i,.skeleton-flow{animation:none}}
 </style>

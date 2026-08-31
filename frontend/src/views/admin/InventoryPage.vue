@@ -55,6 +55,7 @@ const STATUS_FILTERS = [
   { value: 'OUT', label: 'Hết hàng' },
   { value: 'INACTIVE', label: 'Ngừng theo dõi' },
 ];
+const statusFromQuery = raw => STATUS_FILTERS.some(({ value }) => value === raw) ? raw : 'ALL';
 const TYPE_LABELS = Object.fromEntries(ITEM_TYPES.map(({ value, label }) => [value, label]));
 const UNIT_LABELS = Object.fromEntries(UNITS.map(({ value, label }) => [value, label.split(' ')[0]]));
 const STATE_LABELS = { OK: 'Còn hàng', LOW: 'Dưới tối thiểu', OUT: 'Hết hàng', INACTIVE: 'Ngừng theo dõi' };
@@ -64,7 +65,7 @@ const items = ref([]);
 const loading = ref(true);
 const loadError = ref('');
 const searchTerm = ref('');
-const statusFilter = ref('ALL');
+const statusFilter = ref(statusFromQuery(route.query.filter));
 const unavailableVariants = ref(null);
 const recentTransactions = ref([]);
 const saving = ref(false);
@@ -245,6 +246,14 @@ function showFormError(message) {
 }
 
 watch(activeTab, (tab) => { if (tab === 'current') loadCurrentTab(); });
+watch(() => route.query.filter, (raw) => {
+  const next = statusFromQuery(raw);
+  if (statusFilter.value !== next) statusFilter.value = next;
+});
+watch(statusFilter, (value) => {
+  if (!STATUS_FILTERS.some(filter => filter.value === value) || value === statusFromQuery(route.query.filter)) return;
+  router.push({ query: { ...route.query, filter: value === 'ALL' ? undefined : value } });
+});
 onMounted(() => {
   if (activeTab.value === 'current') loadCurrentTab();
 });

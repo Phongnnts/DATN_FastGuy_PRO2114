@@ -54,11 +54,18 @@ async function authenticate(page) {
   await page.addInitScript(({ value }) => { localStorage.setItem('token', value); localStorage.setItem('user', JSON.stringify({ id: 1, fullName: 'Admin', role: 'ADMIN' })); }, { value: token });
 }
 
-function observeBrowser(page) {
+function observeBrowser(page, { expectedStatuses = [] } = {}) {
   const errors = [];
   page.on('pageerror', error => errors.push(`page: ${error.message}`));
-  page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
+  page.on('console', message => {
+    if (message.type() !== 'error') return;
+    if (expectedStatuses.some(status => message.text().includes(`server responded with a status of ${status}`))) return;
+    errors.push(`console: ${message.text()}`);
+  });
   page.on('requestfailed', request => errors.push(`request: ${request.method()} ${request.url()} ${request.failure()?.errorText}`));
+  page.on('response', response => {
+    if (response.status() >= 400 && !expectedStatuses.includes(response.status())) errors.push(`response: ${response.status()} ${response.request().method()} ${response.url()}`);
+  });
   return errors;
 }
 
@@ -147,7 +154,7 @@ test('all attention destinations hydrate exact query state and reject invalid va
   await page.goto('/admin');
   await page.getByRole('link', { name: /Yêu cầu hoàn tiền đang chờ/ }).click();
   await expect(page).toHaveURL(/\/admin\/refunds\?status=PENDING$/);
-  await expect(page.locator('.status-filter button.active')).toContainText('Chờ hoàn');
+  await expect(page.getByRole('button', { name: /Chờ hoàn/ })).toHaveAttribute('aria-pressed', 'true');
 
   await page.goto('/admin');
   await page.getByRole('link', { name: /Ca làm cần bổ sung nhân viên/ }).click();
@@ -165,13 +172,17 @@ test('all attention destinations hydrate exact query state and reject invalid va
   await page.getByRole('tab', { name: 'Tồn hiện tại' }).click();
   await expect(page.getByLabel('Trạng thái')).toHaveValue('ALL');
   await expect(page).toHaveURL(/filter=INVALID/);
+  await page.goto('/admin/inventory?tab=current&filter=ALL');
+  await page.getByLabel('Trạng thái').selectOption('LOW');
+  await expect(page).toHaveURL(/tab=current/);
+  await expect(page).toHaveURL(/filter=LOW/);
 
   await page.goto('/admin');
   await page.getByRole('link', { name: /Bàn giao COD đang chờ/ }).click();
   await expect(page).toHaveURL(/\/admin\/cod-settlements\?status=SUBMITTED$/);
-  await expect(page.getByRole('button', { name: 'Chờ xác nhận' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#cod-status-filter')).toHaveValue('SUBMITTED');
   await page.goto('/admin/cod-settlements?status=INVALID');
-  await expect(page.getByRole('button', { name: 'Chờ xác nhận' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#cod-status-filter')).toHaveValue('SUBMITTED');
   await expect(page).toHaveURL(/status=INVALID/);
 
   expect(errors).toEqual([]);
@@ -179,7 +190,7 @@ test('all attention destinations hydrate exact query state and reject invalid va
 
 test('initial loading uses a layout-matched skeleton and forbidden has a permission state', async ({ page }) => {
   await authenticate(page);
-  const errors = observeBrowser(page);
+  const errors = observeBrowser(page, { expectedStatuses: [403] });
   let release;
   const responseGate = new Promise(resolve => { release = resolve; });
   await page.route('**/api/admin/dashboard*', async route => {
@@ -201,7 +212,7 @@ test('initial loading uses a layout-matched skeleton and forbidden has a permiss
 
 test('initial error retries while refresh remains nonblocking and exposes store error', async ({ page }) => {
   await authenticate(page);
-  const errors = observeBrowser(page);
+  const errors = observeBrowser(page, { expectedStatuses: [500] });
   let calls = 0;
   let releaseRefresh;
   const refreshGate = new Promise(resolve => { releaseRefresh = resolve; });
