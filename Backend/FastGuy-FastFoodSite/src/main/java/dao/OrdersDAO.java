@@ -260,8 +260,8 @@ public class OrdersDAO {
         try {
             StringBuilder jpql = new StringBuilder("SELECT o FROM Orders o WHERE o.refundStatus IS NOT NULL");
             if (status != null && !status.isBlank()) jpql.append(" AND o.refundStatus = :status");
-            if (from != null) jpql.append(" AND o.createdAt >= :from");
-            if (to != null) jpql.append(" AND o.createdAt < :to");
+            if (from != null) jpql.append(" AND COALESCE(o.refundedAt,o.cancelledAt,o.createdAt) >= :from");
+            if (to != null) jpql.append(" AND COALESCE(o.refundedAt,o.cancelledAt,o.createdAt) < :to");
             if (search != null && !search.isBlank()) {
                 jpql.append(" AND (LOWER(o.orderCode) LIKE :search OR LOWER(o.customerName) LIKE :search OR LOWER(o.customerPhone) LIKE :search)");
             }

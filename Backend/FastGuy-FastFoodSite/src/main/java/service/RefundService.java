@@ -2,7 +2,10 @@ package service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import entity.Orders;
 import jakarta.persistence.EntityManager;
@@ -12,17 +15,29 @@ import utils.DatabaseUtil;
 public class RefundService {
     private LoyaltyService loyaltyService = new LoyaltyService();
     private final ActivityLogService activityLogService = new ActivityLogService();
+    private final Supplier<EntityManager> entityManagers;
+    private final RefundProofStorage proofStorage;
+
+    public RefundService() { this(DatabaseUtil::getEntityManager, null); }
+    RefundService(Supplier<EntityManager> entityManagers, RefundProofStorage proofStorage) { this.entityManagers = entityManagers; this.proofStorage = proofStorage; }
 
     public void update(int orderId, String status, BigDecimal amount, String note, String reference, int adminId) {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        update(orderId, null, status, amount, note, reference, null, adminId);
+    }
+
+    public void update(int orderId, String expectedStatus, String status, BigDecimal amount, String note, String reference,
+                       RefundProofStorage.UploadedProof proof, int adminId) {
+        EntityManager em = entityManagers.get();
         try {
             em.getTransaction().begin();
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
             if (order == null) throw new IllegalArgumentException("Order not found");
+            if (expectedStatus != null && !java.util.Objects.equals(expectedStatus, order.getRefundStatus())) throw new RefundConflictException("Refund request changed");
             String normalizedNote = normalize(note);
             String normalizedReference = normalize(reference);
             if (isTerminal(order.getRefundStatus())) {
-                if (matchesTerminalRequest(order, status, amount, normalizedNote, normalizedReference)) {
+                if (matchesTerminalRequest(order, status, amount, normalizedNote, normalizedReference)
+                        && (!"REFUNDED".equals(status) || proof != null && java.util.Objects.equals(proof.publicId(), order.getRefundProofPublicId()))) {
                     em.getTransaction().commit();
                     return;
                 }
@@ -30,12 +45,17 @@ public class RefundService {
             }
             String error = validate(status, order.getRefundStatus(), order.getPaymentStatus(), order.getOrderStatus(), amount, order.getFinalAmount(), normalizedNote, normalizedReference);
             if (error != null) throw new IllegalArgumentException(error);
+            if ("REFUNDED".equals(status) && proof == null) throw new IllegalArgumentException("Refund proof is required");
+            if ("REJECTED".equals(status) && proof != null) throw new IllegalArgumentException("Rejected refund must not include proof");
             if (reverseForStatus(status)) {
                 order.setPaymentStatus(paymentStatusFor(status));
                 order.setRefundStatus(status);
                 order.setRefundAmount(amount);
                 order.setRefundNote(normalizedNote);
                 order.setRefundReference(normalizedReference);
+                order.setRefundProofPublicId(proof.publicId());
+                order.setRefundProofContentType(proof.contentType());
+                order.setRefundProofUploadedAt(LocalDateTime.ofInstant(proof.uploadedAt(), ZoneOffset.UTC));
                 order.setRefundedAt(LocalDateTime.now());
                 loyaltyService.reverseForRefund(em, order);
             } else {
@@ -43,6 +63,9 @@ public class RefundService {
                 order.setRefundAmount(null);
                 order.setRefundNote(normalizedNote);
                 order.setRefundReference(null);
+                order.setRefundProofPublicId(null);
+                order.setRefundProofContentType(null);
+                order.setRefundProofUploadedAt(null);
             }
             order.setRefundProcessedBy(adminId);
             activityLogService.append(em,adminId,"ORDER_REFUND_RECORDED","ORDER",orderId,java.util.Map.of("refundStatus",status,"refundAmount",amount==null?"0":amount.toPlainString()));
@@ -53,6 +76,18 @@ public class RefundService {
         } finally {
             em.close();
         }
+    }
+
+    public RefundProofStorage.SignedProofUrl proofViewUrl(int orderId) { return proofViewUrl(orderId, proofStorage); }
+
+    public RefundProofStorage.SignedProofUrl proofViewUrl(int orderId, RefundProofStorage storage) {
+        EntityManager em = entityManagers.get();
+        try {
+            Orders order = em.find(Orders.class, orderId);
+            if (order == null) throw new IllegalArgumentException("Order not found");
+            if (storage == null) throw new IllegalStateException("Refund proof storage unavailable");
+            return storage.signedViewUrl(order.getRefundProofPublicId(), Duration.ofMinutes(5));
+        } finally { em.close(); }
     }
 
     static boolean isTerminal(String refundStatus) {
