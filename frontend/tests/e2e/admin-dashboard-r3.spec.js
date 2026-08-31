@@ -126,6 +126,33 @@ async function clickAndCapture(page, linkName, apiPath) {
   return requestEvidence(await requestPromise);
 }
 
+test('dashboard disables chart animation for reduced motion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.addInitScript(() => {
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    window.__chartAnimationFrames = 0;
+    window.requestAnimationFrame = callback => {
+      window.__chartAnimationFrames += 1;
+      return originalRequestAnimationFrame(callback);
+    };
+  });
+  await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin');
+
+  await expect(page.getByRole('img', { name: /Luồng đơn đang hoạt động/ })).toBeVisible();
+  let previousFrames = -1;
+  let stableSamples = 0;
+  await expect.poll(async () => {
+    const frames = await page.evaluate(() => window.__chartAnimationFrames);
+    stableSamples = frames === previousFrames ? stableSamples + 1 : 0;
+    previousFrames = frames;
+    return stableSamples;
+  }, { intervals: [50, 100, 100], timeout: 1000 }).toBeGreaterThanOrEqual(2);
+  expect(previousFrames).toBeLessThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
 test('dashboard hierarchy, canonical metrics, attention routes, and chart data are decision-first', async ({ page }) => {
   await setup(page);
   const errors = observeBrowser(page);

@@ -905,6 +905,10 @@ textarea:focus-visible {
   --blue: var(--admin-info);
   --yellow: var(--admin-warning);
 }
+.fg-shell-admin :is(.btn-primary, .verify-button) {
+  background: var(--admin-action);
+  border-color: var(--admin-action);
+}
 .fg-shell-staff { --role-accent: var(--role-staff); --role-soft: var(--role-staff-soft); }
 .fg-shell-shipper { --role-accent: var(--role-shipper); --role-soft: var(--role-shipper-soft); }
 .fg-shell-admin.fg-shell {

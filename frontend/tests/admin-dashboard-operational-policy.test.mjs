@@ -167,6 +167,28 @@ test('newest non-silent request owns loading when an older silent request settle
   assert.deepEqual(store.dashboard, { activeOrderCount: 2 });
 });
 
+test('newest silent request owns non-loading state when an older non-silent request settles', async () => {
+  const oldest = deferred();
+  const newest = deferred();
+  let calls = 0;
+  adminApi.getDashboard = () => (++calls === 1 ? oldest.promise : newest.promise);
+  const store = useAdminStore();
+
+  const oldestRequest = store.fetchDashboard();
+  const newestRequest = store.fetchDashboard({ silent: true });
+  assert.equal(store.loading, false);
+
+  oldest.resolve({ activeOrderCount: 1 });
+  await oldestRequest;
+  assert.equal(store.loading, false);
+  assert.equal(store.dashboard, null);
+
+  newest.resolve({ activeOrderCount: 2 });
+  await newestRequest;
+  assert.equal(store.loading, false);
+  assert.deepEqual(store.dashboard, { activeOrderCount: 2 });
+});
+
 test('dashboardViewState returns the exact dashboard state enum', () => {
   const data = { activeOrderCount: 2 };
   const available = { financial: 'AVAILABLE', orders: 'AVAILABLE' };

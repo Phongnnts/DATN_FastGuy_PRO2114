@@ -40,4 +40,3 @@ test('dashboard accepts only current mounted success before charts', () => {
   assert.match(dashboard, /loadState\.value = 'ready'[^]*buildCharts\(\)/);
   assert.doesNotMatch(dashboard, /watch\(\s*\(\) => adminStore\.dashboard/);
 });
-
