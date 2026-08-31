@@ -60,6 +60,16 @@ class AdminDashboardTargetSafetyTest {
     }
 
     @Test
+    void rejectsMalformedMatchingServerAuthorities() {
+        for (String server : List.of("FAST..SQL", "FAST.-SQL", "FAST-.SQL", "FAST_SQL")) {
+            Map<String, String> env = validEnv();
+            env.put("FASTGUY_E2E_DB_SERVER", server);
+            env.put("DB_URL", "jdbc:sqlserver://" + server + ";databaseName=" + DATABASE);
+            assertPreBootstrapRejected(env);
+        }
+    }
+
+    @Test
     void rejectsJdbcDatabaseAndServerAliasBypasses() {
         for (String property : List.of(
                 "database=FastGuyDB",
@@ -175,12 +185,12 @@ class AdminDashboardTargetSafetyTest {
     }
 
     @Test
-    void dashboardFailureClosesEntityManagerAndDatabaseCleanup() {
+    void dashboardAssertionFailureClosesEntityManagerAndDatabaseCleanup() {
         Target target = validTarget();
-        RuntimeException original = new RuntimeException("dashboard");
+        AssertionError original = new AssertionError("dashboard");
         AtomicBoolean databaseClosed = new AtomicBoolean();
 
-        RuntimeException thrown = assertThrows(RuntimeException.class, () -> AdminDashboardIT.runIntegration(target::open, () -> {
+        AssertionError thrown = assertThrows(AssertionError.class, () -> AdminDashboardIT.runIntegration(target::open, () -> {
             throw original;
         }, validEnv()::get, () -> databaseClosed.set(true)));
 
