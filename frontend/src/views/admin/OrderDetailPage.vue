@@ -21,7 +21,7 @@ const noteText = ref('');
 const overrideNote = ref('');
 const overrideError = ref('');
 
-const canCancel = computed(() => order.value && !['CANCELLED', 'DELIVERED'].includes(order.value.status));
+const canCancel = computed(() => order.value?.allowedActions?.includes('CANCELLED'));
 const canPrint = computed(() => true);
 
 async function load() {
@@ -41,7 +41,7 @@ async function cancelOrder() {
   if (!cancelReason.value.trim()) return;
   saving.value = true;
   try {
-    await adminApi.cancelOrder(order.value.orderId, { reason: cancelReason.value.trim() });
+    await adminApi.cancelOrder(order.value.orderId, { expectedStatus: order.value.status, reason: cancelReason.value.trim() });
     toast.success('Đã hủy đơn hàng');
     showCancelModal.value = false;
     await load();
@@ -67,7 +67,7 @@ async function saveNote() {
   if (!noteText.value.trim()) return;
   saving.value = true;
   try {
-    await adminApi.addOrderNote(order.value.orderId, noteText.value.trim());
+    await adminApi.addOrderNote(order.value.orderId, order.value.status, noteText.value.trim());
     toast.success('Đã lưu ghi chú');
     showNoteModal.value = false;
     noteText.value = '';

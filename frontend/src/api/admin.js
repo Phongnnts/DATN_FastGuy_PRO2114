@@ -153,8 +153,8 @@ export default {
   updateOrderStatus(orderId, data) {
     return client.put(`/admin/orders/${orderId}/status`, data);
   },
-  addOrderNote(orderId, note) {
-    return client.post(`/admin/orders/${orderId}/notes`, { note });
+  addOrderNote(orderId, expectedStatus, note) {
+    return client.post(`/admin/orders/${orderId}/notes`, { expectedStatus, note });
   },
   updateFeaturedReview(orderId, featured) {
     return client.put(`/admin/orders/${orderId}/featured-review`, { featured });

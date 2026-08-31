@@ -19,7 +19,7 @@ test('R4 exposes backend-defined attention tab and reason badges', () => {
 test('R4 attention requests ignore date controls and reject stale responses', () => {
   assert.match(store, /ordersRequestGeneration/);
   assert.match(store, /requestGeneration !== ordersRequestGeneration/);
-  assert.match(page, /attentionOnly[^\n]*true/);
+  assert.match(page, /attentionOnly:\s*attentionActive\.value/);
   assert.match(page, /:disabled=".*attention/i);
 });
 
