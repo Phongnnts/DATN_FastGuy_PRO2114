@@ -166,11 +166,11 @@ function isLinkActive(link) {
 <style scoped>
 .fg-shell-admin{--role-accent:var(--primary);--role-soft:var(--primary-50)}
 .main-content{min-width:0}
-.fg-shell-admin :deep(.sidebar){border-right:1px solid rgba(23,23,23,.06);background:linear-gradient(180deg,#fff 0%,#fffaf6 100%)}
+.fg-shell-admin :deep(.sidebar){border-right:1px solid var(--admin-border);background:var(--admin-surface)}
 .sidebar-brand{border-bottom-color:rgba(232,115,74,.12)}
 .sidebar-brand-title{letter-spacing:-.04em}
 .sidebar-nav a{border-radius:12px}
-.sidebar-nav a.router-link-active{color:#fff;background:linear-gradient(135deg,var(--primary),#ef956f);box-shadow:0 8px 20px rgba(232,115,74,.24)}
+.sidebar-nav a.router-link-active{color:#fff;background:var(--admin-brand);box-shadow:none}
 .sidebar-nav a.router-link-active i{color:#fff}
 .topbar{height:64px;border-bottom-color:rgba(23,23,23,.06);background:rgba(250,250,250,.88)}
 .topbar h2{font-size:15px;letter-spacing:-.02em}
