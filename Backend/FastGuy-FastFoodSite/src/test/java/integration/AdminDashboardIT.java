@@ -25,6 +25,7 @@ class AdminDashboardIT {
     private static final Set<String> ATTENTION_TYPES = Set.of("OVERDUE_PENDING_ORDERS", "DELIVERY_FAILED_ORDERS", "PENDING_REFUNDS", "STAFF_COVERAGE_GAPS", "LOW_STOCK_ITEMS", "PENDING_COD_SETTLEMENTS");
     private static final Set<String> ATTENTION_SEVERITIES = Set.of("WARNING", "CRITICAL");
     private static final Set<String> JDBC_PROPERTIES = Set.of("databaseName", "encrypt", "trustServerCertificate", "sendTimeAsDatetime");
+    private static final String SERVER_PATTERN = "[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*";
 
     @Test
     void dashboardBuildsDecisionKpisOnDisposableDatabase() {
@@ -73,7 +74,7 @@ class AdminDashboardIT {
         if (!"true".equals(env.get("FASTGUY_DISPOSABLE_DB"))) throw new IllegalStateException("FASTGUY_DISPOSABLE_DB must be exactly true");
         if (!DATABASE.equals(env.get("FASTGUY_E2E_DB_NAME"))) throw new IllegalStateException("FASTGUY_E2E_DB_NAME must identify the disposable database");
         String expectedServer = env.get("FASTGUY_E2E_DB_SERVER");
-        if (expectedServer == null || !expectedServer.matches("[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?")) throw new IllegalStateException("FASTGUY_E2E_DB_SERVER must be an exact nonblank server name");
+        if (expectedServer == null || !expectedServer.matches(SERVER_PATTERN)) throw new IllegalStateException("FASTGUY_E2E_DB_SERVER must be an exact nonblank server name");
         verifyJdbcUrl(env.get("DB_URL"), expectedServer);
     }
 
@@ -98,7 +99,7 @@ class AdminDashboardIT {
             }
             if (port < 1 || port > 65535) throw new IllegalStateException("DB_URL port is invalid");
         }
-        if (!server.matches("[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?") || !expectedServer.equals(server)) throw new IllegalStateException("DB_URL server does not match FASTGUY_E2E_DB_SERVER");
+        if (!server.matches(SERVER_PATTERN) || !expectedServer.equals(server)) throw new IllegalStateException("DB_URL server does not match FASTGUY_E2E_DB_SERVER");
 
         Set<String> keys = new HashSet<>();
         String database = null;
