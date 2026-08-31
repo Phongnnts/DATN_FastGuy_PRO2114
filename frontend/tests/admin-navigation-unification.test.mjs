@@ -89,9 +89,11 @@ test('admin shell exposes the approved semantic palette through scoped aliases',
 
 test('admin visual foundation uses semantic surfaces and accessible active navigation', () => {
   assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{border-right:1px solid var\(--admin-border\);background:var\(--admin-surface\)\}/);
-  assert.match(layout, /\.sidebar-brand\{border-bottom-color:var\(--admin-border\)\}/);
-  assert.match(layout, /\.topbar\{height:64px;border-bottom-color:var\(--admin-border\);background:var\(--admin-surface\)\}/);
-  assert.match(layout, /\.page-content\{background:var\(--admin-canvas\)\}/);
+  assert.match(layout, /\.sidebar\{width:248px\}/);
+  assert.match(layout, /\.main-content\{min-width:0;margin-left:248px\}/);
+  assert.match(layout, /\.sidebar-brand\{[^}]*border-bottom-color:var\(--admin-border\)\}/);
+  assert.match(layout, /\.topbar\{height:60px;border-bottom-color:var\(--admin-border\);background:var\(--admin-surface\)\}/);
+  assert.match(layout, /\.page-content\{max-width:1600px;background:var\(--admin-canvas\)\}/);
   assert.match(layout, /\.sidebar-nav a\.router-link-active\{color:var\(--admin-foreground\);background:var\(--admin-brand-soft\);box-shadow:none\}/);
   assert.match(layout, /\.sidebar-nav a\.router-link-active i\{color:var\(--admin-brand\)\}/);
   assert.doesNotMatch(layout, /\.sidebar-nav a\.router-link-active\{[^}]*(?:#fff|var\(--admin-brand\)|linear-gradient|box-shadow:(?!none))/);

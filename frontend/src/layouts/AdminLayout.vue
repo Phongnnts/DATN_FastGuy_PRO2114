@@ -1,18 +1,100 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth';
 import { useRoute, useRouter } from 'vue-router';
-import { ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppBreadcrumbs from '@/components/common/AppBreadcrumbs.vue';
 
 const auth = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
+const isDrawerViewport = ref(false);
+const sidebar = ref(null);
+const drawerTrigger = ref(null);
+const drawerClose = ref(null);
+let drawerMedia;
+let triggerToRestore;
+let previousBodyOverflow = '';
+
+const userInitials = computed(() => {
+  const words = auth.user?.fullName?.trim().split(/\s+/).filter(Boolean) || [];
+  if (!words.length) return 'FG';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0][0]}${words.at(-1)[0]}`.toUpperCase();
+});
+
+function drawerFocusableElements() {
+  return [...sidebar.value.querySelectorAll('button:not([disabled]),a[href]')].filter(element => element.offsetParent !== null);
+}
+
+function handleDrawerKeydown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeDrawer();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const elements = drawerFocusableElements();
+  const first = elements[0];
+  const last = elements.at(-1);
+  if (event.shiftKey && (document.activeElement === first || !sidebar.value.contains(document.activeElement))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (document.activeElement === last || !sidebar.value.contains(document.activeElement))) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+async function openDrawer(event) {
+  if (!isDrawerViewport.value || sidebarOpen.value) return;
+  triggerToRestore = event?.currentTarget || drawerTrigger.value;
+  previousBodyOverflow = document.body.style.overflow;
+  sidebarOpen.value = true;
+  document.body.style.overflow = 'hidden';
+  document.addEventListener('keydown', handleDrawerKeydown);
+  await nextTick();
+  drawerClose.value?.focus();
+}
+
+async function closeDrawer(restoreFocus = true) {
+  if (!sidebarOpen.value) return;
+  sidebarOpen.value = false;
+  document.removeEventListener('keydown', handleDrawerKeydown);
+  document.body.style.overflow = previousBodyOverflow;
+  await nextTick();
+  if (restoreFocus && triggerToRestore?.isConnected) triggerToRestore.focus();
+  triggerToRestore = undefined;
+}
+
+function toggleDrawer(event) {
+  if (sidebarOpen.value) closeDrawer();
+  else openDrawer(event);
+}
+
+function syncDrawerViewport(event) {
+  isDrawerViewport.value = event.matches;
+  if (!event.matches && sidebarOpen.value) closeDrawer(false);
+}
 
 function logout() {
   auth.logout();
   router.push('/');
 }
+
+watch(() => route.fullPath, () => closeDrawer());
+
+onMounted(() => {
+  drawerMedia = window.matchMedia('(max-width: 1279px)');
+  syncDrawerViewport(drawerMedia);
+  drawerMedia.addEventListener('change', syncDrawerViewport);
+});
+
+onBeforeUnmount(() => {
+  drawerMedia?.removeEventListener('change', syncDrawerViewport);
+  document.removeEventListener('keydown', handleDrawerKeydown);
+  if (sidebarOpen.value) document.body.style.overflow = previousBodyOverflow;
+});
 
 const navigationGroups = [
   { label: 'Tổng quan', links: [{ label: 'Dashboard', path: '/admin', icon: 'bi-speedometer2' }] },
@@ -54,10 +136,12 @@ function isLinkActive(link) {
 
 <template>
   <div class="sidebar-layout fg-shell fg-shell-admin">
-    <aside id="admin-sidebar" class="sidebar" :class="{ open: sidebarOpen }">
+    <aside id="admin-sidebar" ref="sidebar" class="sidebar" :class="{ open: sidebarOpen }" aria-label="Menu quản trị" :role="isDrawerViewport && sidebarOpen ? 'dialog' : undefined" :aria-modal="isDrawerViewport && sidebarOpen ? 'true' : undefined" :inert="isDrawerViewport && !sidebarOpen ? '' : undefined">
       <div class="sidebar-brand">
-        <span class="sidebar-brand-title">Fast<span class="sidebar-brand-highlight">Guy</span></span>
-        <span class="sidebar-brand-subtitle">Quản trị</span>
+        <span class="sidebar-brand-title">Fast<span class="sidebar-brand-highlight">Guy</span> Admin</span>
+        <button ref="drawerClose" class="drawer-close" type="button" aria-label="Đóng điều hướng quản trị" @click="closeDrawer">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
       </div>
       <nav class="sidebar-nav" aria-label="Điều hướng quản trị">
         <section v-for="(group, index) in navigationGroups" :key="group.label" class="nav-group" :aria-labelledby="`admin-nav-group-${index}`">
@@ -67,7 +151,7 @@ function isLinkActive(link) {
             :key="link.path"
             :to="link.path"
             :class="{ 'router-link-active': isLinkActive(link) }"
-            @click="sidebarOpen = false"
+            @click="closeDrawer"
           >
             <i :class="link.icon" aria-hidden="true"></i><span>{{ link.label }}</span>
           </router-link>
@@ -75,7 +159,8 @@ function isLinkActive(link) {
       </nav>
       <div class="sidebar-footer">
         <div class="user-info">
-          <img :src="auth.user?.avatarUrl || 'https://i.pravatar.cc/150?u=default'" :alt="auth.user?.fullName || 'Quản trị viên'" class="user-avatar" />
+          <img v-if="auth.user?.avatarUrl" :src="auth.user.avatarUrl" alt="" class="user-avatar" />
+          <span v-else class="user-avatar avatar-initials" aria-hidden="true">{{ userInitials }}</span>
           <div>
             <div class="user-name">{{ auth.user?.fullName }}</div>
             <div class="user-role">Quản trị viên</div>
@@ -83,49 +168,51 @@ function isLinkActive(link) {
         </div>
       </div>
     </aside>
-    <div class="main-content">
-      <div class="topbar">
+    <div class="main-content" :inert="isDrawerViewport && sidebarOpen ? '' : undefined" :aria-hidden="isDrawerViewport && sidebarOpen ? 'true' : undefined">
+      <header class="topbar" role="banner">
         <div class="topbar-left">
-          <button class="mobile-toggle-sidebar" aria-label="Mở menu quản trị" :aria-expanded="sidebarOpen" aria-controls="admin-sidebar" @click="sidebarOpen = !sidebarOpen">
-            <i class="bi bi-list"></i>
+          <button ref="drawerTrigger" class="mobile-toggle-sidebar" type="button" aria-label="Mở menu quản trị" :aria-expanded="sidebarOpen" aria-controls="admin-sidebar" @click="toggleDrawer">
+            <i class="bi bi-list" aria-hidden="true"></i>
           </button>
-          <h2>Admin</h2>
-          <span class="fg-status-chip">Trung tâm quản trị</span>
+          <h1>{{ route.meta.title }}</h1>
         </div>
         <div class="topbar-right">
-          <router-link to="/home" class="icon-btn" title="Website">
-            <i class="bi bi-house"></i>
+          <router-link to="/home" class="icon-btn" aria-label="Mở website FastGuy">
+            <i class="bi bi-house" aria-hidden="true"></i>
           </router-link>
           <button class="logout-btn" @click="logout">
             <i class="bi bi-arrow-right-from-bracket"></i><span>Đăng xuất</span>
           </button>
         </div>
-      </div>
+      </header>
       <div class="page-content fg-page">
         <AppBreadcrumbs />
         <router-view />
       </div>
     </div>
-    <button v-if="sidebarOpen" class="sidebar-overlay" aria-label="Đóng menu quản trị" @click="sidebarOpen = false"></button>
+    <button v-if="isDrawerViewport && sidebarOpen" class="sidebar-overlay" type="button" aria-label="Đóng menu quản trị" @click="closeDrawer"></button>
   </div>
 </template>
 
 <style scoped>
-.mobile-toggle-sidebar {
+.mobile-toggle-sidebar,
+.drawer-close {
   display: none;
-  background: none;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
   border: none;
-  font-size: 20px;
-  padding: 4px;
-  cursor: pointer;
-  color: var(--text-mid);
-  width: 40px;
-  height: 40px;
   border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-mid);
+  font-size: 20px;
+  cursor: pointer;
   align-items: center;
   justify-content: center;
 }
-.mobile-toggle-sidebar:hover { background: var(--surface); }
+.mobile-toggle-sidebar:hover,
+.drawer-close:hover { background: var(--surface); }
 .icon-btn {
   width: 40px;
   height: 40px;
@@ -143,37 +230,39 @@ function isLinkActive(link) {
 .icon-btn:hover { background: var(--surface); color: var(--text-dark); }
 .logout-btn { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:13px; font-weight:650; }
 .logout-btn:hover { border-color:var(--red-active); color:var(--red-active); }
-.mobile-toggle-sidebar:focus-visible,.icon-btn:focus-visible,.logout-btn:focus-visible,.sidebar-nav a:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.mobile-toggle-sidebar:focus-visible,.drawer-close:focus-visible,.icon-btn:focus-visible,.logout-btn:focus-visible,.sidebar-nav a:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 .nav-group{display:grid;gap:3px;margin:8px 0;padding:10px 0;border-block:1px solid var(--border-light)}
 .nav-group h2{margin:0;padding:4px 14px;color:var(--text-mid);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
 .nav-group .nav-child{margin-left:18px;font-size:12px}
-.sidebar-overlay {
-  display: none;
+.avatar-initials{display:grid;place-items:center;flex:0 0 36px;background:var(--admin-brand-soft);color:var(--admin-brand);font-size:12px;font-weight:800}
+.sidebar-overlay{display:none}
+@media (max-width: 1279px) {
+  .mobile-toggle-sidebar,.drawer-close{display:flex}
+  .sidebar{transform:translateX(-100%)}
+  .sidebar-overlay{display:block;position:fixed;inset:0;border:0;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);z-index:99}
 }
-@media (max-width: 768px) {
-  .mobile-toggle-sidebar { display: flex; }
-  .sidebar-overlay {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    backdrop-filter: blur(4px);
-    z-index: 99;
-  }
+@media (max-width: 767px) {
+  .topbar{padding-inline:16px}
+  .page-content{padding:20px 16px}
+}
+@media (max-width: 360px) {
+  .page-content{padding:16px 12px}
 }
 </style>
 
 <style scoped>
 .fg-shell-admin{--role-accent:var(--primary);--role-soft:var(--primary-50)}
-.main-content{min-width:0}
+.sidebar{width:248px}
+.main-content{min-width:0;margin-left:248px}
 .fg-shell-admin :deep(.sidebar){border-right:1px solid var(--admin-border);background:var(--admin-surface)}
-.sidebar-brand{border-bottom-color:var(--admin-border)}
+.sidebar-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom-color:var(--admin-border)}
 .sidebar-brand-title{letter-spacing:-.04em}
+.sidebar-nav{scroll-behavior:auto}
 .sidebar-nav a{border-radius:12px}
 .sidebar-nav a.router-link-active{color:var(--admin-foreground);background:var(--admin-brand-soft);box-shadow:none}
 .sidebar-nav a.router-link-active i{color:var(--admin-brand)}
-.topbar{height:64px;border-bottom-color:var(--admin-border);background:var(--admin-surface)}
-.topbar h2{font-size:15px;letter-spacing:-.02em}
-.fg-status-chip{color:var(--primary-dark);background:var(--primary-50);border-color:var(--primary-100)}
-.page-content{background:var(--admin-canvas)}
+.topbar{height:60px;border-bottom-color:var(--admin-border);background:var(--admin-surface)}
+.topbar h1{font-size:15px;letter-spacing:-.02em}
+.page-content{max-width:1600px;background:var(--admin-canvas)}
+@media (max-width:1279px){.main-content{margin-left:0}}
 </style>

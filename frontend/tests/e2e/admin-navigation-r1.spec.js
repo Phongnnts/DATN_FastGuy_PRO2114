@@ -33,6 +33,7 @@ test('admin shell exposes one identity and current page title', async ({ page },
   await page.goto('/admin');
 
   const banner = page.getByRole('banner');
+  const sidebar = page.locator('#admin-sidebar');
   const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
   await expect(page.getByText('FastGuy Admin', { exact: true })).toHaveCount(1);
   await expect(page.getByText('FastGuy Admin', { exact: true })).toBeVisible();
@@ -46,7 +47,11 @@ test('admin shell exposes one identity and current page title', async ({ page },
   await page.goto('/admin/inventory');
   await expect(banner.getByRole('heading', { level: 1, name: 'Tổng quan kho' })).toBeVisible();
   if (isMobileProject(testInfo)) await expect(trigger).toBeVisible();
-  else await expect(trigger).toBeHidden();
+  else {
+    await expect(trigger).toBeHidden();
+    await expect(sidebar).not.toHaveAttribute('role', 'dialog');
+    await expect(sidebar).not.toHaveAttribute('aria-modal', 'true');
+  }
   expect(errors).toEqual([]);
 });
 
@@ -56,13 +61,15 @@ test('mobile drawer closes with Escape and restores trigger focus', async ({ pag
   const errors = captureErrors(page);
   await page.goto('/admin');
 
-  const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
-  const main = page.getByRole('main');
+  const trigger = page.getByRole('button', { name: 'Mở menu quản trị', includeHidden: true });
+  const main = page.locator('.main-content');
   const box = await trigger.boundingBox();
   expect(box.width).toBeGreaterThanOrEqual(44);
   expect(box.height).toBeGreaterThanOrEqual(44);
   await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#admin-sidebar')).toHaveAttribute('role', 'dialog');
+  await expect(page.locator('#admin-sidebar')).toHaveAttribute('aria-modal', 'true');
   await expect(page.getByRole('button', { name: 'Đóng điều hướng quản trị' })).toBeFocused();
   await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
   await expect(main).toHaveAttribute('inert', '');
@@ -93,14 +100,23 @@ test('mobile drawer contains focus and closes through overlay and route change',
   await page.keyboard.press('Tab');
   await expect(close).toBeFocused();
 
-  await page.getByRole('button', { name: 'Đóng menu quản trị' }).click({ position: { x: 1, y: 1 } });
+  await page.getByRole('button', { name: 'Đóng menu quản trị' }).click({ position: { x: 300, y: 300 } });
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(trigger).toBeFocused();
   await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
 
   await trigger.click();
-  await page.getByRole('link', { name: 'Tồn kho' }).click();
+  const inventoryLink = page.getByRole('link', { name: 'Tồn kho' });
+  await inventoryLink.scrollIntoViewIfNeeded();
+  await inventoryLink.click();
   await expect(page).toHaveURL(/\/admin\/inventory$/);
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+
+  await trigger.click();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/admin$/);
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(trigger).toBeFocused();
   await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
@@ -115,11 +131,14 @@ test('tablet uses the accessible drawer at 1024px', async ({ page }, testInfo) =
   await page.goto('/admin');
 
   const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
-  const sidebar = page.getByRole('complementary', { name: 'Menu quản trị' });
+  const sidebar = page.locator('#admin-sidebar');
   await expect(trigger).toBeVisible();
+  await expect(page.locator('.main-content')).toHaveCSS('margin-left', '0px');
   await expect(sidebar).not.toBeInViewport();
   await trigger.click();
   await expect(sidebar).toBeInViewport();
+  await expect(sidebar).toHaveAttribute('role', 'dialog');
+  await expect(sidebar).toHaveAttribute('aria-modal', 'true');
   await expect(page.getByRole('button', { name: 'Đóng điều hướng quản trị' })).toBeFocused();
   await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
   await page.keyboard.press('Escape');
@@ -167,7 +186,9 @@ test('R1 mobile sidebar exposes task groups without hidden legacy entries', asyn
   await page.getByRole('button', { name: 'Mở menu quản trị' }).click();
   for (const group of ['Tổng quan', 'Vận hành', 'Bán hàng', 'Nhân sự', 'Kho hàng', 'Báo cáo', 'Hệ thống']) await expect(page.getByRole('heading', { name: group, exact: true })).toBeVisible();
   for (const label of ['Tài sản cố định', 'Lịch sử kho', 'Báo cáo theo món', 'Chi phí vận hành']) await expect(page.getByRole('link', { name: label })).toHaveCount(0);
-  await page.getByRole('link', { name: 'Tồn kho' }).click();
+  const inventoryLink = page.getByRole('link', { name: 'Tồn kho' });
+  await inventoryLink.focus();
+  await inventoryLink.press('Enter');
   await expect(page.getByRole('tab', { name: 'Tồn hiện tại' })).toBeVisible();
   expect(errors).toEqual([]);
 });
