@@ -53,6 +53,11 @@ class CodSettlementPolicyTest {
         assertEquals(new BigDecimal("9999999999999999.99"), CodSettlementService.normalizeAmount(new BigDecimal("9999999999999999.99"), "invalid"));
     }
 
+    @Test void differenceIsSubmittedMinusExpected() {
+        assertEquals(new BigDecimal("-20.00"), CodSettlementService.difference(new BigDecimal("80"), new BigDecimal("100")));
+        assertEquals(new BigDecimal("20.00"), CodSettlementService.difference(new BigDecimal("120"), new BigDecimal("100")));
+    }
+
     @Test void mismatchReasonIsTrimmedNonblankAndAtMost500Characters() {
         String exact500 = "x".repeat(500);
         assertDoesNotThrow(() -> CodSettlementService.validateVerification("SHORT", BigDecimal.TEN, BigDecimal.ONE, "  " + exact500 + "  "));

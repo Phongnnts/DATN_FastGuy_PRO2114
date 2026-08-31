@@ -137,6 +137,10 @@ public class CodSettlementServlet extends HttpServlet {
             if (adminId < 0) return;
             int settlementId = Integer.parseInt(path.substring(1, path.indexOf('/', 1)));
             Map<?, ?> body = readBody(req);
+            if (!Set.of("expectedStatus", "status", "verifiedAmount", "reason").containsAll(body.keySet())
+                    || !body.keySet().containsAll(Set.of("expectedStatus", "status", "verifiedAmount"))) {
+                throw new IllegalArgumentException("Invalid verification fields");
+            }
             String expectedStatus = string(body.get("expectedStatus"), "Invalid expectedStatus");
             if (!"SUBMITTED".equals(expectedStatus)) throw new IllegalArgumentException("Invalid expectedStatus");
             String status = string(body.get("status"), "Invalid status");
