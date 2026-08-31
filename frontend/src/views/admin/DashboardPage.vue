@@ -17,7 +17,7 @@ let statusChart = null;
 let requestGeneration = 0;
 let stopped = false;
 const loadState = ref('loading');
-const loadError = ref('');
+const loadError = ref(null);
 
 const orderStatusLabels = {
   PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận',
@@ -31,7 +31,15 @@ const statusColors = {
 };
 
 const data = computed(() => adminStore.dashboard);
-const viewState = computed(() => dashboardViewState(data.value, loadState.value, loadError.value));
+const viewState = computed(() => dashboardViewState(data.value, loadState.value, loadError.value, data.value?.sectionAvailability));
+const showContent = computed(() => ['ready', 'refreshing', 'partial'].includes(viewState.value));
+const errorMessage = computed(() => loadError.value?.message || 'Không thể tải tổng quan');
+const banner = computed(() => {
+  if (loadError.value && showContent.value) return { role: 'alert', message: errorMessage.value };
+  if (viewState.value === 'refreshing') return { role: 'status', message: 'Đang cập nhật tổng quan...' };
+  if (viewState.value === 'partial') return { role: 'status', message: 'Một số dữ liệu tạm thời chưa khả dụng.' };
+  return null;
+});
 const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
 const ATTENTION = {
   OVERDUE_PENDING_ORDERS: { label: 'Đơn chờ xác nhận quá lâu', to: { path: '/admin/orders', query: { status: 'ATTENTION' } } },
@@ -174,7 +182,7 @@ function destroyCharts() {
 async function loadDashboard() {
   const request = { generation: ++requestGeneration };
   loadState.value = 'loading';
-  loadError.value = '';
+  loadError.value = null;
   if (!adminStore.dashboard) destroyCharts();
   try {
     await adminStore.fetchDashboard();
@@ -185,7 +193,7 @@ async function loadDashboard() {
     buildCharts();
   } catch (error) {
     if (stopped || request.generation !== requestGeneration) return;
-    loadError.value = error.message || 'Không thể tải tổng quan';
+    loadError.value = error;
     loadState.value = 'error';
   }
 }
@@ -201,15 +209,15 @@ onUnmounted(() => {
 
 <template>
   <div class="dashboard">
-    <section v-if="viewState.showInitialLoading" class="dashboard-state" role="status">Đang tải tổng quan...</section>
-    <section v-else-if="!viewState.showContent" class="dashboard-state error-state" role="alert">
-      <strong>{{ loadError }}</strong>
+    <section v-if="viewState === 'loading'" class="dashboard-state" role="status">Đang tải tổng quan...</section>
+    <section v-else-if="!showContent" class="dashboard-state error-state" role="alert">
+      <strong>{{ errorMessage }}</strong>
       <button class="btn btn-outline" type="button" @click="loadDashboard">Thử lại</button>
     </section>
     <template v-else>
-    <section v-if="viewState.banner" class="dashboard-banner" :class="{ 'error-state': viewState.banner.role === 'alert' }" :role="viewState.banner.role">
-      <span>{{ viewState.banner.message }}</span>
-      <button v-if="viewState.banner.role === 'alert'" class="btn btn-outline" type="button" @click="loadDashboard">Thử lại</button>
+    <section v-if="banner" class="dashboard-banner" :class="{ 'error-state': banner.role === 'alert' }" :role="banner.role">
+      <span>{{ banner.message }}</span>
+      <button v-if="banner.role === 'alert'" class="btn btn-outline" type="button" @click="loadDashboard">Thử lại</button>
     </section>
     <header class="dashboard-heading"><div><span>TRUNG TÂM ĐIỀU HÀNH</span><h1>Hoạt động hôm nay</h1><p>{{ today }}</p></div><button class="btn btn-outline" type="button" :disabled="loadState === 'loading'" @click="loadDashboard">Làm mới</button></header>
 

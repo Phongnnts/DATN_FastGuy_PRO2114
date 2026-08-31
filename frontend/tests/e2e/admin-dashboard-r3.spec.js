@@ -34,7 +34,7 @@ test('ready enum renders dashboard content instead of the initial error branch',
   await page.goto('/admin');
 
   await expect(page.getByRole('heading', { name: 'Hoạt động hôm nay' })).toBeVisible();
-  await expect(page.getByText('250.000 ₫')).toBeVisible();
+  await expect(page.getByText('250.000₫')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Thử lại' })).toHaveCount(0);
 });
 
