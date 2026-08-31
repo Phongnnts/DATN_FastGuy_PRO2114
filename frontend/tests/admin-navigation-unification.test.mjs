@@ -90,7 +90,7 @@ test('admin shell exposes the approved semantic palette through scoped aliases',
 test('admin visual foundation uses flat active navigation and tabular metrics', () => {
   assert.match(layout, /\.sidebar-nav a\.router-link-active\{[^}]*background:var\(--admin-brand\);[^}]*box-shadow:none[^}]*\}/);
   assert.doesNotMatch(layout, /\.sidebar-nav a\.router-link-active\{[^}]*(?:linear-gradient|box-shadow:(?!none))/);
-  assert.match(globalStyles, /\.fg-shell-admin\s+:is\(\.stat-value,\s*\.fg-metric-card\s+strong,\s*td\.numeric,\s*\.numeric\)\s*\{\s*font-variant-numeric:\s*tabular-nums;\s*\}/);
+  assert.match(globalStyles, /\.fg-shell-admin\s+:is\(\.stat-value,\s*\.fg-metric-card\s+strong,\s*\.today-kpis\s+strong,\s*\.stats\s+strong,\s*\.stats-grid\s+strong,\s*\.kpi-grid\s+strong,\s*\.receipt-kpis\s+strong,\s*td\.numeric,\s*\.numeric\)\s*\{\s*font-variant-numeric:\s*tabular-nums;\s*\}/);
   assert.match(globalStyles, /\.fg-shell-admin\.fg-shell\s*\{\s*background:\s*var\(--admin-canvas\);\s*\}/);
   assert.match(globalStyles, /\.fg-shell-admin\s+\.fg-panel\s*\{[^}]*background:\s*var\(--admin-surface\);[^}]*border:\s*1px solid var\(--admin-border\);[^}]*border-radius:\s*var\(--radius-lg\);[^}]*box-shadow:\s*none;/s);
 });
