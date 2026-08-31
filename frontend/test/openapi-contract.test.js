@@ -492,7 +492,167 @@ test('OpenAPI contracts paginated R7 admin activity logs', async () => {
   assert.deepEqual(schemas.ActivityLogActor.required, ['userId', 'fullName']);
   assert.deepEqual(schemas.ActivityLog.properties.targetId.type, ['integer', 'null']);
   assert.deepEqual(schemas.ActivityLog.properties.metadata.additionalProperties.type, ['string', 'number', 'integer', 'boolean', 'null']);
-  assert.deepEqual(schemas.ActivityLogPagination.required, ['page', 'pageSize', 'totalItems', 'totalPages']);
+  assert.deepEqual(schemas.Pagination.required, ['page', 'pageSize', 'totalItems', 'totalPages']);
   assert.deepEqual(schemas.ActivityLogListData.required, ['items', 'pagination']);
   assert.deepEqual(schemas.ActivityLogListResponse.required, ['status', 'data']);
+});
+
+test('OpenAPI contracts Slice 2 admin Operations APIs', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const schemas = contract.components.schemas;
+  const paths = contract.paths;
+  const orderStatuses = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERY_FAILED', 'RETURNED_TO_STORE', 'DELIVERED', 'CANCELLED'];
+  const orderActions = ['CONFIRMED', 'CANCELLED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'DELIVERED', 'DELIVERY_FAILED', 'RETURNED_TO_STORE'];
+  const responseRef = operation => operation.responses['200'].content['application/json'].schema.$ref;
+  const requestRef = operation => operation.requestBody.content['application/json'].schema.$ref;
+  const assertErrors = (operation, expected) => {
+    assert.deepEqual(Object.keys(operation.responses).filter(status => status !== '200'), expected);
+    const names = { 400: 'BadRequest', 401: 'Unauthorized', 403: 'Forbidden', 404: 'NotFound', 409: 'Conflict', 422: 'UnprocessableEntity', 500: 'InternalServerError' };
+    for (const status of expected) assert.equal(operation.responses[status].$ref, `#/components/responses/${names[status]}`);
+  };
+
+  const orders = paths['/admin/orders']?.get;
+  const detail = paths['/admin/orders/{orderId}']?.get;
+  const cancel = paths['/admin/orders/{orderId}/cancel']?.put;
+  const status = paths['/admin/orders/{orderId}/status']?.put;
+  const notes = paths['/admin/orders/{orderId}/notes']?.post;
+  const override = paths['/admin/orders/{orderId}/delivery-attempt-override']?.post;
+  const codList = paths['/cod-settlements/admin']?.get;
+  const codVerify = paths['/cod-settlements/{settlementId}/verify']?.put;
+  const refundList = paths['/admin/refunds']?.get;
+  const refundMutation = paths['/admin/refunds/{orderId}']?.put;
+  const refundProof = paths['/admin/refunds/{orderId}/proof-url']?.get;
+
+  assert.equal(orders.operationId, 'listAdminOrders');
+  assert.equal(detail.operationId, 'getAdminOrderDetail');
+  assert.equal(cancel.operationId, 'cancelAdminOrder');
+  assert.equal(status.operationId, 'updateAdminOrderStatus');
+  assert.equal(notes.operationId, 'addAdminOrderNote');
+  assert.equal(override.operationId, 'overrideAdminOrderDeliveryAttempt');
+  assert.equal(codList.operationId, 'listAdminCodSettlements');
+  assert.equal(codVerify.operationId, 'verifyCodSettlement');
+  assert.equal(refundList.operationId, 'listAdminRefunds');
+  assert.equal(refundMutation.operationId, 'updateAdminRefund');
+  assert.equal(refundProof.operationId, 'getAdminRefundProofUrl');
+  for (const operation of [orders, detail, cancel, status, notes, override, codList, codVerify, refundList, refundMutation, refundProof]) {
+    assert.deepEqual(operation.security, [{ bearerAuth: [] }]);
+  }
+
+  const orderParameters = Object.fromEntries(orders.parameters.map(parameter => [parameter.name, parameter]));
+  assert.deepEqual(Object.keys(orderParameters), ['search', 'status', 'attentionOnly', 'paymentStatus', 'refundStatus', 'fromDate', 'toDate', 'sort', 'page', 'pageSize']);
+  assert.deepEqual(orderParameters.status.schema.enum, orderStatuses);
+  assert.deepEqual(orderParameters.paymentStatus.schema.enum, ['UNPAID', 'PAID', 'FAILED', 'REFUNDED']);
+  assert.deepEqual(orderParameters.refundStatus.schema.enum, ['PENDING', 'REFUNDED', 'REJECTED']);
+  assert.deepEqual(orderParameters.sort.schema.enum, ['WAITING_DESC', 'CREATED_DESC']);
+  assert.equal(orderParameters.page.schema.minimum, 1);
+  assert.equal(orderParameters.pageSize.schema.minimum, 1);
+  assert.equal(orderParameters.pageSize.schema.maximum, 100);
+  assert.equal(responseRef(orders), '#/components/schemas/AdminOrderListResponse');
+  assert.equal(responseRef(detail), '#/components/schemas/AdminOrderDetailResponse');
+  assertErrors(orders, ['400', '401', '403', '500']);
+  assertErrors(detail, ['401', '403', '404', '500']);
+
+  assert.deepEqual(schemas.OrderStatus.enum, orderStatuses);
+  assert.deepEqual(schemas.AdminOrderAction.enum, orderActions);
+  assert.equal(schemas.AdminOrderListItem.additionalProperties, false);
+  assert.ok(schemas.AdminOrderListItem.required.includes('waitingMinutes'));
+  assert.ok(schemas.AdminOrderListItem.required.includes('allowedActions'));
+  assert.deepEqual(schemas.AdminOrderListItem.properties.waitingMinutes, { type: 'integer', minimum: 0 });
+  assert.equal(schemas.AdminOrderListItem.properties.allowedActions.items.$ref, '#/components/schemas/AdminOrderAction');
+  assert.equal(schemas.AdminOrderListData.additionalProperties, false);
+  assert.deepEqual(schemas.AdminOrderListData.required, ['items', 'pagination']);
+  assert.equal(schemas.AdminOrderListData.properties.items.items.$ref, '#/components/schemas/AdminOrderListItem');
+  assert.equal(schemas.AdminOrderListData.properties.pagination.$ref, '#/components/schemas/Pagination');
+  assert.equal(schemas.AdminOrderListResponse.properties.data.$ref, '#/components/schemas/AdminOrderListData');
+  assert.equal(schemas.Pagination.additionalProperties, false);
+  assert.deepEqual(schemas.Pagination.required, ['page', 'pageSize', 'totalItems', 'totalPages']);
+
+  const orderMutations = [
+    [cancel, 'AdminOrderCancelRequest', ['expectedStatus', 'reason']],
+    [status, 'AdminOrderStatusRequest', ['expectedStatus', 'status']],
+    [notes, 'AdminOrderNoteRequest', ['note']],
+    [override, 'AdminOrderDeliveryAttemptOverrideRequest', ['expectedStatus', 'note']],
+  ];
+  for (const [operation, schemaName, required] of orderMutations) {
+    assert.equal(requestRef(operation), `#/components/schemas/${schemaName}`);
+    assert.equal(schemas[schemaName].additionalProperties, false);
+    assert.deepEqual(schemas[schemaName].required, required);
+    assert.equal(responseRef(operation), '#/components/schemas/AdminMutationResponse');
+  }
+  assert.equal(schemas.AdminOrderCancelRequest.properties.expectedStatus.$ref, '#/components/schemas/OrderStatus');
+  assert.equal(schemas.AdminOrderStatusRequest.properties.expectedStatus.$ref, '#/components/schemas/OrderStatus');
+  assert.equal(schemas.AdminOrderStatusRequest.properties.status.$ref, '#/components/schemas/OrderStatus');
+  assert.equal(schemas.AdminOrderDeliveryAttemptOverrideRequest.properties.expectedStatus.$ref, '#/components/schemas/OrderStatus');
+  assertErrors(cancel, ['400', '401', '403', '404', '409', '422', '500']);
+  assertErrors(status, ['400', '401', '403', '404', '409', '422', '500']);
+  assertErrors(notes, ['400', '401', '403', '404', '500']);
+  assertErrors(override, ['400', '401', '403', '404', '409', '422', '500']);
+
+  const codParameters = Object.fromEntries(codList.parameters.map(parameter => [parameter.name, parameter]));
+  assert.deepEqual(Object.keys(codParameters), ['status']);
+  assert.equal(codParameters.status.required, true);
+  assert.deepEqual(codParameters.status.schema.enum, ['SUBMITTED', 'SHORT', 'OVER', 'SETTLED']);
+  assert.equal(responseRef(codList), '#/components/schemas/AdminCodSettlementListResponse');
+  assert.equal(requestRef(codVerify), '#/components/schemas/CodSettlementVerifyRequest');
+  assertErrors(codList, ['400', '401', '403', '500']);
+  assertErrors(codVerify, ['400', '401', '403', '404', '409', '500']);
+  const codFields = ['settlementId', 'shipperId', 'shipperName', 'shiftId', 'shiftDate', 'startTime', 'endTime', 'status', 'expectedAmount', 'submittedAmount', 'differenceAmount', 'verifiedAmount', 'reason', 'receivedByName', 'submittedAt', 'verifiedAt'];
+  assert.equal(schemas.AdminCodSettlement.additionalProperties, false);
+  assert.deepEqual(schemas.AdminCodSettlement.required, codFields);
+  assert.deepEqual(Object.keys(schemas.AdminCodSettlement.properties), codFields);
+  assert.match(schemas.AdminCodSettlement.properties.differenceAmount.description, /submittedAmount - expectedAmount/);
+  assert.match(schemas.AdminCodSettlement.properties.differenceAmount.description, /negative.*short.*positive.*over/i);
+  assert.equal(schemas.CodSettlementVerifyRequest.additionalProperties, false);
+  assert.deepEqual(schemas.CodSettlementVerifyRequest.required, ['expectedStatus', 'status', 'verifiedAmount']);
+  assert.equal(schemas.CodSettlementVerifyRequest.properties.expectedStatus.const, 'SUBMITTED');
+  assert.deepEqual(schemas.CodSettlementVerifyRequest.properties.status.enum, ['SETTLED', 'SHORT', 'OVER']);
+  assert.equal(schemas.CodSettlementVerifyRequest.properties.reason.maxLength, 500);
+
+  const refundParameters = Object.fromEntries(refundList.parameters.map(parameter => [parameter.name, parameter]));
+  assert.deepEqual(Object.keys(refundParameters), ['fromDate', 'toDate']);
+  assert.equal(refundParameters.fromDate.schema.format, 'date');
+  assert.equal(refundParameters.toDate.schema.format, 'date');
+  assert.equal(responseRef(refundList), '#/components/schemas/AdminRefundListResponse');
+  assertErrors(refundList, ['400', '401', '403', '500']);
+  const refundFields = ['orderId', 'orderCode', 'customerName', 'customerPhone', 'finalAmount', 'paymentMethod', 'paymentStatus', 'refundStatus', 'refundAmount', 'refundNote', 'refundReference', 'refundProcessedBy', 'refundProcessedByName', 'cancelledAt', 'paidAt', 'refundedAt', 'failureReason', 'createdAt', 'proofAvailable'];
+  assert.equal(schemas.AdminRefund.additionalProperties, false);
+  assert.deepEqual(schemas.AdminRefund.required, refundFields);
+  assert.deepEqual(Object.keys(schemas.AdminRefund.properties), refundFields);
+  assert.deepEqual(schemas.AdminRefund.properties.proofAvailable, { type: 'boolean' });
+
+  const multipart = refundMutation.requestBody.content['multipart/form-data'];
+  assert.ok(multipart);
+  assert.deepEqual(Object.keys(refundMutation.requestBody.content), ['multipart/form-data']);
+  assert.equal(multipart.schema.$ref, '#/components/schemas/RefundMutation');
+  assert.equal(multipart.encoding.proof.contentType, 'image/jpeg, image/png, image/webp');
+  assert.equal(schemas.RefundMutation.additionalProperties, false);
+  assert.deepEqual(schemas.RefundMutation.required, ['expectedStatus', 'status']);
+  assert.deepEqual(Object.keys(schemas.RefundMutation.properties), ['expectedStatus', 'status', 'refundAmount', 'refundNote', 'refundReference', 'proof']);
+  assert.equal(schemas.RefundMutation.properties.expectedStatus.const, 'PENDING');
+  assert.deepEqual(schemas.RefundMutation.properties.status.enum, ['REFUNDED', 'REJECTED']);
+  assert.equal(schemas.RefundMutation.properties.proof.format, 'binary');
+  assert.equal(schemas.RefundMutation.properties.proof.maxLength, 5 * 1024 * 1024);
+  assert.match(schemas.RefundMutation.description, /REFUNDED.*full amount.*reference.*proof/is);
+  assert.match(schemas.RefundMutation.description, /REJECTED.*note.*no proof/is);
+  assert.equal(responseRef(refundMutation), '#/components/schemas/AdminMutationResponse');
+  assertErrors(refundMutation, ['400', '401', '403', '404', '409', '422', '500']);
+
+  assert.match(refundProof.description, /five minutes/i);
+  assert.equal(responseRef(refundProof), '#/components/schemas/RefundProofViewResponse');
+  assertErrors(refundProof, ['401', '403', '404', '500']);
+  assert.equal(schemas.RefundProofViewData.additionalProperties, false);
+  assert.deepEqual(schemas.RefundProofViewData.required, ['viewUrl', 'expiresAt']);
+  assert.equal(schemas.RefundProofViewData.properties.viewUrl.format, 'uri');
+  assert.equal(schemas.RefundProofViewData.properties.expiresAt.format, 'date-time');
+  assert.equal(schemas.RefundProofViewResponse.properties.data.$ref, '#/components/schemas/RefundProofViewData');
+  assert.equal(schemas.ErrorResponse.additionalProperties, false);
+
+  const refs = [];
+  JSON.stringify(contract, (key, value) => {
+    if (key === '$ref') refs.push(value);
+    return value;
+  });
+  assert.ok(refs.every(ref => ref.startsWith('#/')));
 });
