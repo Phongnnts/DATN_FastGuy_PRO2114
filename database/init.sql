@@ -36,7 +36,9 @@ INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
     ('059_shift_schedule_order_timeout', N'Canonical fresh schema baseline'),
     ('060_operating_finance', N'Canonical fresh schema baseline'),
     ('061_work_shift_attendance_approval', N'Canonical fresh schema baseline'),
-    ('063_activity_log', N'Canonical fresh schema baseline');
+    ('062_staff_pay_rate_snapshot', N'Canonical fresh schema baseline'),
+    ('063_activity_log', N'Canonical fresh schema baseline'),
+    ('064_refund_private_proof', N'Canonical fresh schema baseline');
 
 CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
@@ -298,6 +300,9 @@ CREATE TABLE dbo.Orders (
     refund_note nvarchar(500) NULL,
     refund_processed_by int NULL CONSTRAINT FK_Orders_RefundProcessedBy REFERENCES dbo.Users(user_id),
     refund_reference nvarchar(200) NULL,
+    refund_proof_public_id nvarchar(255) NULL,
+    refund_proof_content_type varchar(50) NULL,
+    refund_proof_uploaded_at datetime2(0) NULL,
     internal_note nvarchar(1000) NULL,
     coupon_code varchar(50) NULL,
     discount_amount decimal(18,2) NOT NULL CONSTRAINT DF_Orders_Discount DEFAULT 0,
