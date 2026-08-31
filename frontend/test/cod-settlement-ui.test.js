@@ -53,5 +53,8 @@ test('admin COD page has queue states accessible verify dialog and conflict relo
   assert.match(page, /modalLifecycle\.attach\(\)/);
   assert.match(page, /modalLifecycle\.detach\(\)/);
   assert.match(page, /v-if="canVerifySettlement\(row\)"[^>]*@click="openVerify/);
+  assert.match(page, /row\.differenceAmount/);
+  assert.match(page, /Chênh lệch/);
+  assert.match(page, /differenceClass/);
   assert.match(page, /window\.matchMedia\('\(max-width: 760px\)'\)/);
 });
