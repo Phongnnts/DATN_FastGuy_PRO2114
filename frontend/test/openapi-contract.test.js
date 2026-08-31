@@ -151,6 +151,7 @@ test('OpenAPI contracts operational dashboard and reconcilable financial reports
   const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
   const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
   const document = JSON.parse(stdout);
+  assert.deepEqual(document.paths['/admin/dashboard'].get.responses['500'], { $ref: '#/components/responses/InternalServerError' });
   const schema = document.components.schemas.AdminDashboardData;
   const canonicalTypes = {
     netCashRevenueToday: 'number',
