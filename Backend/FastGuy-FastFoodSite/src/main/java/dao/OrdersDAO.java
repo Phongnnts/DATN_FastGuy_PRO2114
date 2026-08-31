@@ -83,6 +83,55 @@ public class OrdersDAO {
         }
     }
 
+    public record AdminOrderQuery(String search, String status, String paymentStatus, String refundStatus,
+                                  LocalDateTime from, LocalDateTime to, boolean attentionOnly,
+                                  String sort, int page, int pageSize) {}
+
+    public record OrdersPageResult(List<Orders> items, long totalItems, int page, int pageSize) {}
+
+    public OrdersPageResult findAdminQueue(AdminOrderQuery query) {
+        EntityManager em = entityManagers.get();
+        try {
+            String where = adminQueueWhere(query);
+            var itemsQuery = em.createQuery("SELECT o FROM Orders o" + where + adminQueueOrder(query.sort()), Orders.class);
+            bindAdminQueue(itemsQuery, query);
+            List<Orders> items = itemsQuery.setFirstResult((query.page() - 1) * query.pageSize())
+                    .setMaxResults(query.pageSize()).getResultList();
+            var countQuery = em.createQuery("SELECT COUNT(o) FROM Orders o" + where, Long.class);
+            bindAdminQueue(countQuery, query);
+            return new OrdersPageResult(items, countQuery.getSingleResult(), query.page(), query.pageSize());
+        } finally {
+            em.close();
+        }
+    }
+
+    private static String adminQueueWhere(AdminOrderQuery query) {
+        StringBuilder where = new StringBuilder(" WHERE 1=1");
+        if (query.attentionOnly()) where.append(" AND (o.orderStatus IN ('PENDING','CONFIRMED','PREPARING','READY','DELIVERY_FAILED') OR o.refundStatus='PENDING')");
+        if (query.search() != null) where.append(" AND (LOWER(o.orderCode) LIKE :search OR LOWER(o.customerName) LIKE :search OR LOWER(o.customerPhone) LIKE :search)");
+        if (query.status() != null) where.append(" AND o.orderStatus=:status");
+        if (query.paymentStatus() != null) where.append(" AND o.paymentStatus=:paymentStatus");
+        if (query.refundStatus() != null) where.append(" AND o.refundStatus=:refundStatus");
+        if (query.from() != null) where.append(" AND o.createdAt>=:from");
+        if (query.to() != null) where.append(" AND o.createdAt<:to");
+        return where.toString();
+    }
+
+    private static String adminQueueOrder(String sort) {
+        return "CREATED_DESC".equals(sort)
+                ? " ORDER BY o.createdAt DESC,o.orderId DESC"
+                : " ORDER BY COALESCE(o.statusEnteredAt,o.createdAt) ASC,o.orderId ASC";
+    }
+
+    private static void bindAdminQueue(Query query, AdminOrderQuery value) {
+        if (value.search() != null) query.setParameter("search", "%" + value.search().toLowerCase(Locale.ROOT) + "%");
+        if (value.status() != null) query.setParameter("status", value.status());
+        if (value.paymentStatus() != null) query.setParameter("paymentStatus", value.paymentStatus());
+        if (value.refundStatus() != null) query.setParameter("refundStatus", value.refundStatus());
+        if (value.from() != null) query.setParameter("from", value.from());
+        if (value.to() != null) query.setParameter("to", value.to());
+    }
+
     public List<Orders> findByStatus(String status) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {

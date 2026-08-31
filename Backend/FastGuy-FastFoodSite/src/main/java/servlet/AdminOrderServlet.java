@@ -52,11 +52,18 @@ public class AdminOrderServlet extends HttpServlet {
         return true;
     }
 
+    private static final java.util.Set<String> ORDER_STATUSES = java.util.Set.of("PENDING", "CONFIRMED", "PREPARING", "READY", "ASSIGNED", "PICKED_UP", "DELIVERY_FAILED", "RETURNED_TO_STORE", "DELIVERED", "CANCELLED");
+    private static final java.util.Set<String> PAYMENT_STATUSES = java.util.Set.of("UNPAID", "PAID", "FAILED", "REFUNDED");
+    private static final java.util.Set<String> REFUND_STATUSES = java.util.Set.of("PENDING", "REFUNDED", "REJECTED");
+
     public List<Map<String, Object>> getOrdersData() {
-        return ordersDAO.findAll().stream().map(this::toListItem).collect(Collectors.toList());
+        List<Orders> orders = ordersDAO.findAll();
+        Map<Integer,Integer> counts = orderItemDAO.countItemsByOrderIds(orders.stream().map(Orders::getOrderId).toList());
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+        return orders.stream().map(order -> toListItem(order, counts.getOrDefault(order.getOrderId(), 0), now)).collect(Collectors.toList());
     }
 
-    private Map<String, Object> toListItem(Orders o) {
+    private Map<String, Object> toListItem(Orders o, int itemCount, LocalDateTime now) {
             Map<String, Object> m = new HashMap<>();
             m.put("orderId", o.getOrderId());
             m.put("orderCode", o.getOrderCode());
@@ -64,7 +71,7 @@ public class AdminOrderServlet extends HttpServlet {
             m.put("customerName", o.getCustomerName());
             m.put("paymentMethod", o.getPaymentMethod());
             m.put("paymentStatus", o.getPaymentStatus());
-            m.put("itemCount", orderItemDAO.findByOrderId(o.getOrderId()).stream().mapToInt(item -> item.getQuantity()).sum());
+            m.put("itemCount", itemCount);
             m.put("finalAmount", o.getFinalAmount());
             m.put("serviceFee", o.getServiceFee());
             m.put("cancelledBy", o.getCancelledBy());
@@ -80,7 +87,10 @@ public class AdminOrderServlet extends HttpServlet {
             m.put("refundedAt", o.getRefundedAt());
             m.put("refundNote", o.getRefundNote());
             m.put("createdAt", o.getCreatedAt() != null ? o.getCreatedAt().toString() : null);
-            m.put("attentionReasons", AdminOrderAttentionPolicy.reasons(o, LocalDateTime.now(BUSINESS_ZONE)));
+            m.put("attentionReasons", AdminOrderAttentionPolicy.reasons(o, now));
+            LocalDateTime entered = o.getStatusEnteredAt() != null ? o.getStatusEnteredAt() : o.getCreatedAt();
+            m.put("waitingMinutes", entered == null ? 0L : Math.max(0L, java.time.Duration.between(entered, now).toMinutes()));
+            m.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "ADMIN", o.getPaymentStatus()));
             return m;
     }
 
@@ -91,47 +101,37 @@ public class AdminOrderServlet extends HttpServlet {
 
         String path = req.getPathInfo();
         if (path == null || path.equals("/")) {
-            String fromDate = req.getParameter("fromDate");
-            String toDate = req.getParameter("toDate");
-            String attentionValue = req.getParameter("attentionOnly");
             try {
-                boolean attentionOnly = parseAttentionOnly(attentionValue);
-                if (attentionOnly && (fromDate != null || toDate != null)) {
-                    ApiResponse.error(resp, "attentionOnly cannot be combined with date parameters", 400);
-                    return;
-                }
-                if (attentionOnly) {
-                    LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
-                    List<Map<String, Object>> attentionData = AdminOrderAttentionPolicy.sort(ordersDAO.findAttentionCandidates(), now)
-                            .stream().map(this::toListItem).collect(Collectors.toList());
-                    ApiResponse.ok(resp, attentionData);
-                    return;
-                }
-                LocalDate from = fromDate == null || fromDate.isBlank() ? null : LocalDate.parse(fromDate);
-                LocalDate to = toDate == null || toDate.isBlank() ? null : LocalDate.parse(toDate);
-                if (from != null && to != null && from.isAfter(to)) {
-                    ApiResponse.error(resp, "fromDate must not be after toDate", 400);
-                    return;
-                }
-                LocalDateTime start = from == null ? null : from.atStartOfDay();
-                LocalDateTime end = to == null ? null : to.plusDays(1).atStartOfDay();
-                List<Map<String, Object>> allData = ordersDAO.findAllByCreatedAtRange(start, end).stream().map(this::toListItem).collect(Collectors.toList());
-                ApiResponse.ok(resp, allData);
+                OrdersDAO.AdminOrderQuery query = adminOrderQuery(req);
+                OrdersDAO.OrdersPageResult result = ordersDAO.findAdminQueue(query);
+                Map<Integer,Integer> counts = orderItemDAO.countItemsByOrderIds(result.items().stream().map(Orders::getOrderId).toList());
+                LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE);
+                List<Map<String,Object>> items = result.items().stream()
+                        .map(order -> toListItem(order, counts.getOrDefault(order.getOrderId(), 0), now)).toList();
+                long totalPages = result.totalItems() == 0 ? 0 : (result.totalItems() + result.pageSize() - 1) / result.pageSize();
+                ApiResponse.ok(resp, Map.of("items", items, "pagination", Map.of(
+                        "page", result.page(), "pageSize", result.pageSize(),
+                        "totalItems", result.totalItems(), "totalPages", totalPages)));
             } catch (DateTimeParseException e) {
                 ApiResponse.error(resp, "Invalid date format, expected yyyy-MM-dd", 400);
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, e.getMessage(), 400);
+            } catch (RuntimeException e) {
+                ApiResponse.error(resp, "Internal server error", 500);
             }
             return;
         }
 
         try {
+            if (!path.matches("/[1-9]\\d*")) { ApiResponse.error(resp, "Not found", 404); return; }
             int orderId = Integer.parseInt(path.substring(1));
             Orders order = ordersDAO.findById(orderId);
             if (order == null) { ApiResponse.error(resp, "Order not found", 404); return; }
             ApiResponse.ok(resp, toDetail(order));
         } catch (NumberFormatException e) {
-            resp.sendError(404);
+            ApiResponse.error(resp, "Not found", 404);
+        } catch (RuntimeException e) {
+            ApiResponse.error(resp, "Internal server error", 500);
         }
     }
 
@@ -139,6 +139,38 @@ public class AdminOrderServlet extends HttpServlet {
         if (value == null || value.isBlank() || "false".equals(value)) return false;
         if ("true".equals(value)) return true;
         throw new IllegalArgumentException("attentionOnly must be true or false");
+    }
+
+    static OrdersDAO.AdminOrderQuery adminOrderQuery(HttpServletRequest req) {
+        String search = optional(req.getParameter("search"));
+        String status = enumValue(req.getParameter("status"), ORDER_STATUSES, "status");
+        String paymentStatus = enumValue(req.getParameter("paymentStatus"), PAYMENT_STATUSES, "paymentStatus");
+        String refundStatus = enumValue(req.getParameter("refundStatus"), REFUND_STATUSES, "refundStatus");
+        boolean attentionOnly = parseAttentionOnly(req.getParameter("attentionOnly"));
+        LocalDate from = date(req.getParameter("fromDate"));
+        LocalDate to = date(req.getParameter("toDate"));
+        if (from != null && to != null && from.isAfter(to)) throw new IllegalArgumentException("fromDate must not be after toDate");
+        String sort = optional(req.getParameter("sort"));
+        if (sort == null) sort = "WAITING_DESC";
+        if (!java.util.Set.of("WAITING_DESC", "CREATED_DESC").contains(sort)) throw new IllegalArgumentException("Invalid sort");
+        int page = positiveInt(req.getParameter("page"), 1, Integer.MAX_VALUE, 1, "page");
+        int pageSize = positiveInt(req.getParameter("pageSize"), 1, 100, 20, "pageSize");
+        return new OrdersDAO.AdminOrderQuery(search, status, paymentStatus, refundStatus,
+                from == null ? null : from.atStartOfDay(), to == null ? null : to.plusDays(1).atStartOfDay(),
+                attentionOnly, sort, page, pageSize);
+    }
+
+    private static String optional(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+    private static String enumValue(String value, java.util.Set<String> allowed, String name) {
+        String normalized = optional(value);
+        if (normalized != null && !allowed.contains(normalized)) throw new IllegalArgumentException("Invalid " + name);
+        return normalized;
+    }
+    private static LocalDate date(String value) { String normalized = optional(value); return normalized == null ? null : LocalDate.parse(normalized); }
+    private static int positiveInt(String value, int minimum, int maximum, int fallback, String name) {
+        if (value == null || value.isBlank()) return fallback;
+        try { int parsed = Integer.parseInt(value); if (parsed < minimum || parsed > maximum) throw new IllegalArgumentException("Invalid " + name); return parsed; }
+        catch (NumberFormatException e) { throw new IllegalArgumentException("Invalid " + name); }
     }
 
     private int getAdminId(HttpServletRequest req) {
@@ -210,14 +242,15 @@ public class AdminOrderServlet extends HttpServlet {
 
             if ("notes".equals(action)) {
                 Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-                String note = body != null ? (String) body.get("note") : null;
-                if (note == null || note.isBlank()) { ApiResponse.error(resp, "Missing note", 400); return; }
-                Orders order = ordersDAO.findById(orderId);
-                if (order == null) { ApiResponse.error(resp, "Order not found", 404); return; }
-                String existing = order.getInternalNote();
-                order.setInternalNote(existing != null && !existing.isBlank() ? existing + "\n---\n[Admin] " + note : "[Admin] " + note);
-                ordersDAO.save(order);
-                ApiResponse.ok(resp, null, "Note saved");
+                if (body == null || !body.keySet().equals(java.util.Set.of("expectedStatus", "note"))
+                        || !(body.get("expectedStatus") instanceof String expectedStatus)
+                        || !(body.get("note") instanceof String note) || note.isBlank()) {
+                    ApiResponse.error(resp, "Invalid note payload", 400); return;
+                }
+                OrderTransitionService.MutationResult result = transitionService.appendAdminNote(orderId, JwtUtil.getUserId(token), expectedStatus, note);
+                int status = statusFor(result);
+                if (status == 200) ApiResponse.ok(resp, null, "Note saved");
+                else ApiResponse.error(resp, status == 409 ? "Order changed" : status == 404 ? "Order not found" : "Cannot save note", status);
             } else {
                 resp.sendError(404);
             }
@@ -246,21 +279,29 @@ public class AdminOrderServlet extends HttpServlet {
 
             if ("cancel".equals(action)) {
                 Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-                String reason = body != null ? (String) body.get("reason") : "Admin hủy đơn";
-                boolean ok = transitionService.transition(orderId, "CANCELLED", "ADMIN", adminId, reason, null, null);
-                if (!ok) { ApiResponse.error(resp, "Cannot cancel order", 400); return; }
-                Orders order = ordersDAO.findById(orderId);
-                if (order != null && order.getUser() != null) {
+                if (body == null || !body.keySet().equals(java.util.Set.of("expectedStatus", "reason"))
+                        || !(body.get("expectedStatus") instanceof String expectedStatus)
+                        || !(body.get("reason") instanceof String reason) || reason.isBlank()) {
+                    ApiResponse.error(resp, "Invalid cancel payload", 400); return;
                 }
-                ApiResponse.ok(resp, null, "Order cancelled");
+                OrderTransitionService.MutationResult result = transitionService.transition(orderId, "CANCELLED", "ADMIN", adminId, reason, null, null, expectedStatus);
+                int resultStatus = statusFor(result);
+                if (resultStatus == 200) ApiResponse.ok(resp, null, "Order cancelled");
+                else ApiResponse.error(resp, resultStatus == 409 ? "Order changed" : resultStatus == 404 ? "Order not found" : "Cannot cancel order", resultStatus);
             } else if ("status".equals(action)) {
                 Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-                String status = body != null ? (String) body.get("status") : null;
-                if (status == null) { ApiResponse.error(resp, "Missing status", 400); return; }
-                if (!OrderTransitionService.canUseGenericTransition(status)) { ApiResponse.error(resp, "Use cancel action", 400); return; }
-                boolean ok = transitionService.transition(orderId, status, "ADMIN", adminId, body != null ? (String) body.get("note") : null);
-                if (!ok) { ApiResponse.error(resp, "Invalid status transition", 400); return; }
-                ApiResponse.ok(resp, null, "Status updated");
+                if (body == null || !java.util.Set.of("expectedStatus", "status", "note").containsAll(body.keySet())
+                        || body.size() < 2 || !(body.get("expectedStatus") instanceof String expectedStatus)
+                        || !(body.get("status") instanceof String status)
+                        || body.containsKey("note") && body.get("note") != null && !(body.get("note") instanceof String)) {
+                    ApiResponse.error(resp, "Invalid status payload", 400); return;
+                }
+                if (!OrderTransitionService.canUseGenericTransition(status)) { ApiResponse.error(resp, "Use dedicated action", 400); return; }
+                String note = body.get("note") instanceof String value ? value : null;
+                OrderTransitionService.MutationResult result = transitionService.transition(orderId, status, "ADMIN", adminId, note, null, null, expectedStatus);
+                int resultStatus = statusFor(result);
+                if (resultStatus == 200) ApiResponse.ok(resp, null, "Status updated");
+                else ApiResponse.error(resp, resultStatus == 409 ? "Order changed" : resultStatus == 404 ? "Order not found" : "Invalid status transition", resultStatus);
             } else if ("featured-review".equals(action)) {
                 Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
                 updateFeaturedReview(orderId, body, resp);
@@ -360,6 +401,7 @@ public class AdminOrderServlet extends HttpServlet {
         data.put("remainingSeconds", metadata.remainingSeconds());
         data.put("timeoutPolicy", metadata.timeoutPolicy());
         data.put("ownerShiftCode", o.getStaffShift() == null ? null : o.getStaffShift().getShiftCode());
+        data.put("allowedActions", transitionService.getAllowedActions(o.getOrderStatus(), "ADMIN", o.getPaymentStatus()));
 
         return data;
     }
