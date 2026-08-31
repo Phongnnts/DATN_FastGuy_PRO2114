@@ -70,8 +70,8 @@ class AdminDashboardServletContractTest {
         assertTrue(data.path("revenueByMonth").isArray());
         assertTrue(data.path("topProducts").isArray());
         assertTrue(data.path("costComplete").isBoolean());
-        assertEquals(new BigDecimal("275.20"), data.path("netCashRevenueToday").decimalValue());
-        assertEquals(new BigDecimal("1250.50"), data.path("totalRevenue").decimalValue());
+        assertEquals(0, new BigDecimal("275.20").compareTo(data.path("netCashRevenueToday").decimalValue()));
+        assertEquals(0, new BigDecimal("1250.50").compareTo(data.path("totalRevenue").decimalValue()));
         assertEquals(Set.of("type", "severity", "count"), fields(data.path("attentionItems").get(0)));
         assertEquals("OVERDUE_PENDING_ORDERS", data.path("attentionItems").get(0).path("type").asText());
         assertEquals("WARNING", data.path("attentionItems").get(0).path("severity").asText());
