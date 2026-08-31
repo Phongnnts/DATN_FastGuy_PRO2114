@@ -309,7 +309,7 @@ test('OpenAPI contracts the exact admin order-detail serializer and review field
   assert.match(contract, /^      operationId: getAdminOrderDetail$/m);
   const review = schemaSection(contract, 'AdminOrderReview', 'AdminOrderItem');
   const detail = schemaSection(contract, 'AdminOrderDetail', 'AdminOrderDetailResponse');
-  const detailFields = ['orderId', 'orderCode', 'status', 'customerName', 'customerPhone', 'customerAddress', 'totalAmount', 'shippingFee', 'serviceFee', 'finalAmount', 'discountAmount', 'paymentMethod', 'paymentStatus', 'deliveryNote', 'cancelledBy', 'failureNote', 'failureReason', 'deliveryFailureCode', 'deliveryAttemptCount', 'deliveryAttemptLimit', 'deliveryFailedAt', 'retryScheduledAt', 'returnedToStoreAt', 'refundStatus', 'refundAmount', 'refundNote', 'refundedAt', 'createdAt', 'confirmedAt', 'cancelledAt', 'deliveredAt', 'staffName', 'shipperName', 'internalNote', 'review', 'payment', 'items', 'statusHistory', 'statusEnteredAt', 'expiresAt', 'remainingSeconds', 'timeoutPolicy', 'ownerShiftCode'];
+  const detailFields = ['orderId', 'orderCode', 'status', 'customerName', 'customerPhone', 'customerAddress', 'totalAmount', 'shippingFee', 'serviceFee', 'finalAmount', 'discountAmount', 'paymentMethod', 'paymentStatus', 'deliveryNote', 'cancelledBy', 'failureNote', 'failureReason', 'deliveryFailureCode', 'deliveryAttemptCount', 'deliveryAttemptLimit', 'deliveryFailedAt', 'retryScheduledAt', 'returnedToStoreAt', 'refundStatus', 'refundAmount', 'refundNote', 'refundedAt', 'createdAt', 'confirmedAt', 'cancelledAt', 'deliveredAt', 'staffName', 'shipperName', 'internalNote', 'review', 'payment', 'items', 'statusHistory', 'statusEnteredAt', 'expiresAt', 'remainingSeconds', 'timeoutPolicy', 'ownerShiftCode', 'allowedActions'];
   for (const field of detailFields) assert.match(detail, new RegExp(`^        ${field}:`, 'm'));
   assert.match(detail, /additionalProperties: false/);
   assert.deepEqual(detail.match(/required: \[([^\]]+)\]/)[1].split(', '), detailFields);
@@ -572,7 +572,7 @@ test('OpenAPI contracts Slice 2 admin Operations APIs', async () => {
   const orderMutations = [
     [cancel, 'AdminOrderCancelRequest', ['expectedStatus', 'reason']],
     [status, 'AdminOrderStatusRequest', ['expectedStatus', 'status']],
-    [notes, 'AdminOrderNoteRequest', ['note']],
+    [notes, 'AdminOrderNoteRequest', ['expectedStatus', 'note']],
     [override, 'AdminOrderDeliveryAttemptOverrideRequest', ['expectedStatus', 'note']],
   ];
   for (const [operation, schemaName, required] of orderMutations) {
@@ -584,10 +584,11 @@ test('OpenAPI contracts Slice 2 admin Operations APIs', async () => {
   assert.equal(schemas.AdminOrderCancelRequest.properties.expectedStatus.$ref, '#/components/schemas/OrderStatus');
   assert.equal(schemas.AdminOrderStatusRequest.properties.expectedStatus.$ref, '#/components/schemas/OrderStatus');
   assert.equal(schemas.AdminOrderStatusRequest.properties.status.$ref, '#/components/schemas/OrderStatus');
+  assert.equal(schemas.AdminOrderNoteRequest.properties.expectedStatus.$ref, '#/components/schemas/OrderStatus');
   assert.equal(schemas.AdminOrderDeliveryAttemptOverrideRequest.properties.expectedStatus.$ref, '#/components/schemas/OrderStatus');
   assertErrors(cancel, ['400', '401', '403', '404', '409', '422', '500']);
   assertErrors(status, ['400', '401', '403', '404', '409', '422', '500']);
-  assertErrors(notes, ['400', '401', '403', '404', '500']);
+  assertErrors(notes, ['400', '401', '403', '404', '409', '500']);
   assertErrors(override, ['400', '401', '403', '404', '409', '422', '500']);
 
   const codParameters = Object.fromEntries(codList.parameters.map(parameter => [parameter.name, parameter]));
@@ -602,6 +603,9 @@ test('OpenAPI contracts Slice 2 admin Operations APIs', async () => {
   assert.equal(schemas.AdminCodSettlement.additionalProperties, false);
   assert.deepEqual(schemas.AdminCodSettlement.required, codFields);
   assert.deepEqual(Object.keys(schemas.AdminCodSettlement.properties), codFields);
+  assert.equal(schemas.AdminCodSettlement.properties.expectedAmount.$ref, '#/components/schemas/Money');
+  assert.equal(schemas.AdminCodSettlement.properties.submittedAmount.$ref, '#/components/schemas/Money');
+  assert.equal(schemas.AdminCodSettlement.properties.verifiedAmount.oneOf[0].$ref, '#/components/schemas/Money');
   assert.match(schemas.AdminCodSettlement.properties.differenceAmount.description, /submittedAmount - expectedAmount/);
   assert.match(schemas.AdminCodSettlement.properties.differenceAmount.description, /negative.*short.*positive.*over/i);
   assert.equal(schemas.CodSettlementVerifyRequest.additionalProperties, false);
@@ -630,6 +634,8 @@ test('OpenAPI contracts Slice 2 admin Operations APIs', async () => {
   assert.equal(schemas.RefundMutation.additionalProperties, false);
   assert.deepEqual(schemas.RefundMutation.required, ['expectedStatus', 'status']);
   assert.deepEqual(Object.keys(schemas.RefundMutation.properties), ['expectedStatus', 'status', 'refundAmount', 'refundNote', 'refundReference', 'proof']);
+  assert.equal(schemas.AdminRefund.properties.finalAmount.oneOf[0].$ref, '#/components/schemas/Money');
+  assert.equal(schemas.AdminRefund.properties.refundAmount.oneOf[0].$ref, '#/components/schemas/Money');
   assert.equal(schemas.RefundMutation.properties.expectedStatus.const, 'PENDING');
   assert.deepEqual(schemas.RefundMutation.properties.status.enum, ['REFUNDED', 'REJECTED']);
   assert.equal(schemas.RefundMutation.properties.proof.format, 'binary');
