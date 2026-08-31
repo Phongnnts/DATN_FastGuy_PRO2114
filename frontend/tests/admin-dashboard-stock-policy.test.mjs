@@ -31,15 +31,16 @@ test('stock risk is one actionable attention item', () => {
   assert.match(page, /filter: 'LOW'/);
 });
 
-test('dashboard keeps today revenue and COD attention destinations', () => {
-  assert.match(page, /data\.revenueToday/);
+test('dashboard keeps canonical today revenue and COD attention destinations', () => {
+  assert.match(page, /data\.netCashRevenueToday/);
+  assert.doesNotMatch(page, /data\.revenueToday/);
   assert.match(page, /PENDING_COD_SETTLEMENTS/);
   assert.match(page, /\/admin\/cod-settlements/);
 });
 
 test('attention icons are decorative and responsive source policy remains', () => {
   assert.match(page, /bi bi-exclamation-circle" aria-hidden="true"/);
-  assert.match(page, /repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(page, /repeat\(6,minmax\(0,1fr\)\)/);
   assert.match(page, /@media\(max-width:760px\).*\.attention-list\{grid-template-columns:1fr\}/s);
 });
 
