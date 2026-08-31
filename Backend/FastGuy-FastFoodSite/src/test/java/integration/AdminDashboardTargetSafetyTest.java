@@ -138,23 +138,21 @@ class AdminDashboardTargetSafetyTest {
 
     @Test
     void rejectsWrongDashboardMetricTypes() {
-        Map<String, Object> data = healthyDashboard();
-        data.put("netCashRevenueToday", 0L);
-        assertThrows(AssertionError.class, () -> AdminDashboardIT.assertHealthyDashboard(data));
-        data = healthyDashboard();
-        data.put("activeOrderCount", "0");
-        Map<String, Object> invalidCounts = data;
+        Map<String, Object> invalidMoney = healthyDashboard();
+        invalidMoney.put("netCashRevenueToday", 0L);
+        assertThrows(AssertionError.class, () -> AdminDashboardIT.assertHealthyDashboard(invalidMoney));
+        Map<String, Object> invalidCounts = healthyDashboard();
+        invalidCounts.put("activeOrderCount", "0");
         assertThrows(AssertionError.class, () -> AdminDashboardIT.assertHealthyDashboard(invalidCounts));
     }
 
     @Test
     void rejectsNegativeDashboardMetrics() {
-        Map<String, Object> data = healthyDashboard();
-        data.put("pendingRefundCount", -1L);
-        assertThrows(AssertionError.class, () -> AdminDashboardIT.assertHealthyDashboard(data));
-        data = healthyDashboard();
-        data.put("activeOrdersByStatus", Map.of("PENDING", -1L));
-        Map<String, Object> invalidStatusCounts = data;
+        Map<String, Object> invalidCount = healthyDashboard();
+        invalidCount.put("pendingRefundCount", -1L);
+        assertThrows(AssertionError.class, () -> AdminDashboardIT.assertHealthyDashboard(invalidCount));
+        Map<String, Object> invalidStatusCounts = healthyDashboard();
+        invalidStatusCounts.put("activeOrdersByStatus", Map.of("PENDING", -1L));
         assertThrows(AssertionError.class, () -> AdminDashboardIT.assertHealthyDashboard(invalidStatusCounts));
     }
 
