@@ -2,14 +2,14 @@ import { expect, test } from '@playwright/test';
 
 const ok = (data) => ({ status: 'success', data });
 
-async function mockAdmin(page) {
+async function mockAdmin(page, user = { id: 1, fullName: 'Quản trị viên', role: 'ADMIN', email: 'admin@example.com' }) {
   const token = `x.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.x`;
-  await page.addInitScript(({ value }) => {
+  await page.addInitScript(({ value, storedUser }) => {
     localStorage.setItem('token', value);
-    localStorage.setItem('user', JSON.stringify({ id: 1, fullName: 'Quản trị viên', role: 'ADMIN', email: 'admin@example.com' }));
-  }, { value: token });
+    localStorage.setItem('user', JSON.stringify(storedUser));
+  }, { value: token, storedUser: user });
   const fixtures = new Map([
-    ['/api/auth/profile', ok({ id: 1, userId: 1, fullName: 'Quản trị viên', role: 'ADMIN', email: 'admin@example.com', avatarUrl: null })],
+    ['/api/auth/profile', ok({ ...user, userId: user.id, avatarUrl: null })],
     ['/api/admin/dashboard', ok({ customerCount: 0, activeProductCount: 0, totalOrders: 0, totalRevenue: 0, operationalOrderCount: 0, operationalCompletedCount: 0, completionRate: 0, ordersByStatus: {}, pendingCodAmount: 0, pendingCodCount: 0, ordersToday: 0, revenueToday: 0, revenueByMonth: [], topProducts: [], lowStockThreshold: 5, outOfStockSkuCount: 0, lowStockSkuCount: 0 })],
     ['/api/admin/inventory/items', ok([])],
     ['/api/admin/inventory/transactions', ok({ items: [], totalItems: 0 })],
@@ -18,6 +18,10 @@ async function mockAdmin(page) {
     ['/api/admin/reports/operating-profit', ok({ costComplete: true, netRevenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, profitBeforeDepreciation: 0, depreciation: 0, operatingProfit: 0, missingCostItemCount: 0 })],
     ['/api/admin/inventory/reports/menu-performance', ok({ netRevenue: 0, cost: 0, grossProfit: 0, foodCostPercent: 0, grossMarginPercent: 0, costComplete: true, missingCostItemCount: 0, items: [] })],
     ['/api/admin/operating-expenses', ok([])],
+    ['/api/shifts/current', ok({ state: 'NOT_CHECKED_IN', shift: null })],
+    ['/api/shifts/week', ok({ shifts: [] })],
+    ['/api/shifts/attendance', ok([])],
+    ['/api/staff/orders/ownership-count', ok({ activeOwnershipCount: 0 })],
   ]);
   await page.route('**/*', route => {
     const path = new URL(route.request().url()).pathname;
@@ -212,6 +216,23 @@ test('768px keeps tablet spacing while retaining the drawer', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Mở menu quản trị' })).toBeVisible();
   await expect(page.locator('.topbar')).toHaveCSS('padding-left', '32px');
   await expect(page.locator('.page-content')).toHaveCSS('padding-left', '32px');
+  expect(errors).toEqual([]);
+});
+
+test('staff keeps its coherent mobile shell at 768px', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await mockAdmin(page, { id: 2, fullName: 'Nhân viên', role: 'STAFF', email: 'staff@example.com' });
+  const { errors } = captureTraffic(page);
+  await page.goto('/staff/shifts');
+
+  const trigger = page.getByRole('button', { name: 'Mở menu nhân viên' });
+  const sidebar = page.locator('#staff-sidebar');
+  await expect(trigger).toBeVisible();
+  await expect(page.locator('.main-content')).toHaveCSS('margin-left', '0px');
+  expect((await sidebar.boundingBox()).x).toBeLessThan(0);
+  await trigger.click();
+  await expect.poll(async () => (await sidebar.boundingBox()).x).toBe(0);
+  await expect(page.getByRole('button', { name: 'Đóng menu nhân viên' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

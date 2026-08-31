@@ -260,6 +260,10 @@ function isLinkActive(link) {
   .topbar{padding-inline:16px}
   .page-content{padding:20px 16px}
 }
+@media (min-width:768px) and (max-width:768px) {
+  .topbar{padding-inline:32px}
+  .page-content{padding:28px 32px}
+}
 @media (max-width: 360px) {
   .page-content{padding:16px 12px}
 }
