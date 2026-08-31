@@ -2,25 +2,87 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const page = readFileSync(new URL('../src/views/admin/DashboardPage.vue', import.meta.url), 'utf8');
+const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+const dashboard = read('../src/views/admin/DashboardPage.vue');
+const shifts = read('../src/views/admin/ShiftsPage.vue');
+const inventory = read('../src/views/admin/InventoryPage.vue');
+const cod = read('../src/views/admin/CodSettlementsPage.vue');
 
-test('R3 dashboard presents five today KPIs and truthful incomplete profit', () => {
-  for (const field of ['revenueToday', 'deliveredOrdersToday', 'activeOrdersToday', 'aovToday', 'grossProfitToday', 'costComplete']) assert.match(page, new RegExp(`data\\.${field}`));
-  for (const label of ['Doanh thu hôm nay', 'Đơn đã giao', 'Đơn đang xử lý', 'Giá trị đơn trung bình', 'Lợi nhuận gộp']) assert.match(page, new RegExp(label));
-  assert.match(page, /costComplete[^]*Chưa đủ dữ liệu|Chưa đủ dữ liệu[^]*costComplete/);
-  assert.doesNotMatch(page, /Tổng doanh thu|Tổng đơn hàng|Khách hàng|Sản phẩm đang bán/);
+function ordered(source, values) {
+  let cursor = -1;
+  for (const value of values) {
+    const next = source.indexOf(value);
+    assert.ok(next > cursor, `${value} must appear after the previous dashboard section`);
+    cursor = next;
+  }
+}
+
+test('R3 dashboard uses only the six canonical operating metrics', () => {
+  for (const field of ['netCashRevenueToday', 'activeOrderCount', 'pendingRefundCount', 'pendingCodCount', 'lowStockItemCount', 'staffingGapCount']) assert.match(dashboard, new RegExp(`data\\.${field}`));
+  for (const field of ['revenueToday', 'deliveredOrdersToday', 'activeOrdersToday', 'aovToday', 'grossProfitToday', 'costComplete']) assert.doesNotMatch(dashboard, new RegExp(`data\\.${field}`));
+  for (const label of ['Doanh thu thuần hôm nay', 'Đơn đang hoạt động', 'Hoàn tiền chờ xử lý', 'COD chờ xác nhận', 'Mặt hàng sắp hết', 'Ca thiếu nhân sự']) assert.match(dashboard, new RegExp(label));
 });
 
-test('R3 attention area maps six backend types to actionable destinations', () => {
-  for (const type of ['OVERDUE_PENDING_ORDERS', 'DELIVERY_FAILED_ORDERS', 'PENDING_REFUNDS', 'STAFF_COVERAGE_GAPS', 'LOW_STOCK_ITEMS', 'PENDING_COD_SETTLEMENTS']) assert.match(page, new RegExp(type));
-  for (const destination of ['/admin/orders', '/admin/refunds', '/admin/shifts', '/admin/inventory', '/admin/cod-settlements']) assert.match(page, new RegExp(destination.replaceAll('/', '\\/')));
-  assert.match(page, /Cần chú ý/);
-  assert.match(page, /attentionItems/);
+test('R3 dashboard source follows the decision-first section order', () => {
+  ordered(dashboard, ['<header class="dashboard-heading"', 'id="attention-title">Cần xử lý ngay', 'class="operating-metrics"', 'id="active-flow-title"', 'class="flow-data"']);
+  assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý|<p class="eyebrow"/);
 });
 
-test('R3 trend section keeps only revenue status and top product charts', () => {
-  assert.match(page, /revenueChartRef/);
-  assert.match(page, /statusChartRef/);
-  assert.match(page, /topChartRef/);
-  for (const label of ['Doanh thu gần đây', 'Trạng thái đơn', 'Món bán chạy']) assert.match(page, new RegExp(label));
+test('R3 attention maps all six types to exact destination queries', () => {
+  for (const type of ['OVERDUE_PENDING_ORDERS', 'DELIVERY_FAILED_ORDERS', 'PENDING_REFUNDS', 'STAFF_COVERAGE_GAPS', 'LOW_STOCK_ITEMS', 'PENDING_COD_SETTLEMENTS']) assert.match(dashboard, new RegExp(type));
+  for (const destination of [
+    "/admin/orders', query: { status: 'ATTENTION' }",
+    "/admin/refunds', query: { status: 'PENDING' }",
+    "/admin/shifts', query: { tab: 'monitoring' }",
+    "/admin/inventory', query: { filter: 'LOW' }",
+    "/admin/cod-settlements', query: { status: 'SUBMITTED' }",
+  ]) assert.match(dashboard, new RegExp(destination.replace(/[/?{}']/g, '\\$&')));
+  assert.match(dashboard, /Không có việc cần xử lý ngay/);
+});
+
+test('R3 dashboard keeps one active-order chart with an equivalent semantic table', () => {
+  assert.match(dashboard, /activeOrdersByStatus/);
+  assert.match(dashboard, /activeOrderChartRef/);
+  assert.match(dashboard, /<table[^>]*aria-label="Dữ liệu luồng đơn đang hoạt động"/);
+  assert.match(dashboard, /v-for="item in activeOrderSeries"/);
+  assert.match(dashboard, /aria-describedby="active-flow-data"/);
+  assert.match(dashboard, /prefers-reduced-motion/);
+  assert.match(dashboard, /animation: reducedMotion/);
+  assert.doesNotMatch(dashboard, /revenueChartRef|topChartRef|statusChartRef|revenueByMonth|topProducts|ordersByStatus/);
+  for (const [status, label] of Object.entries({ PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận', PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper', PICKED_UP: 'Đang giao', DELIVERY_FAILED: 'Giao thất bại' })) {
+    assert.match(dashboard, new RegExp(`${status}[^\\n]+${label}`));
+  }
+  for (const terminal of ['DELIVERED', 'CANCELLED', 'RETURNED_TO_STORE']) assert.doesNotMatch(dashboard, new RegExp(`${terminal}:`));
+});
+
+test('R3 dashboard exposes Task 5 states, store error, unavailable sections, and matched skeletons', () => {
+  for (const state of ['loading', 'ready', 'refreshing', 'partial', 'forbidden', 'error']) assert.match(dashboard, new RegExp(`['"]${state}['"]`));
+  assert.match(dashboard, /adminStore\.error/);
+  assert.match(dashboard, /sectionAvailability/);
+  assert.match(dashboard, /Không khả dụng/);
+  assert.match(dashboard, /dashboard-skeleton/);
+  assert.match(dashboard, /skeleton-attention/);
+  assert.match(dashboard, /skeleton-metrics/);
+  assert.match(dashboard, /skeleton-flow/);
+});
+
+test('R3 destination pages validate and synchronize exact query enums', () => {
+  assert.match(shifts, /useRoute/);
+  assert.match(shifts, /useRouter/);
+  assert.match(shifts, /\['schedule', 'monitoring'\]/);
+  assert.match(shifts, /watch\(\(\) => route\.query\.tab/);
+  assert.match(shifts, /router\.replace/);
+
+  assert.match(inventory, /STATUS_FILTERS\.some/);
+  assert.match(inventory, /route\.query\.filter/);
+  assert.match(inventory, /watch\(\(\) => route\.query\.filter/);
+  assert.match(inventory, /\.\.\.route\.query/);
+  assert.match(inventory, /'ALL'/);
+
+  assert.match(cod, /useRoute/);
+  assert.match(cod, /useRouter/);
+  assert.match(cod, /\['SUBMITTED', 'SHORT', 'OVER', 'SETTLED'\]/);
+  assert.match(cod, /route\.query\.status/);
+  assert.match(cod, /watch\(\(\) => route\.query\.status/);
+  assert.match(cod, /router\.replace/);
 });
