@@ -77,7 +77,7 @@ test('R3 destination pages validate and synchronize exact query enums', () => {
   assert.match(inventory, /route\.query\.filter/);
   assert.match(inventory, /watch\(\(\) => route\.query\.filter/);
   assert.match(inventory, /watch\(statusFilter/);
-  assert.match(inventory, /router\.replace\(\{ query: \{ \.\.\.route\.query, filter:/);
+  assert.match(inventory, /router\.push\(\{ query: \{ \.\.\.route\.query, filter:/);
   assert.match(inventory, /'ALL'/);
 
   assert.match(cod, /useRoute/);
