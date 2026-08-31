@@ -28,7 +28,7 @@ test('dashboard exposes loading error retry and ready without failure KPI fallba
   assert.match(dashboard, /loadState\.value = 'ready'/);
   assert.match(dashboard, /role="status"[^]*Đang tải/);
   assert.match(dashboard, /role="alert"[^]*@click="loadDashboard"[^]*Thử lại/);
-  assert.match(dashboard, /dashboardViewState\(data\.value, loadState\.value, loadError\.value\)/);
+  assert.match(dashboard, /dashboardViewState\(data\.value, loadState\.value, loadError\.value, data\.value\?\.sectionAvailability\)/);
   assert.match(dashboard, /<template v-else>/);
   assert.doesNotMatch(dashboard, /adminStore\.dashboard \|\| \{[^]*totalUsers: 0/);
 });
