@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,7 +28,6 @@ class AdminDashboardTargetSafetyTest {
     private static final String IDENTITY_SQL = "SELECT @@SERVERNAME,DB_NAME(),DATABASEPROPERTYEX(DB_NAME(),'Status'),CAST(compatibility_level AS int) FROM sys.databases WHERE name=DB_NAME()";
     private static final String MIGRATION_SQL = "SELECT migration_id FROM dbo.SchemaMigrationHistory WHERE migration_id IN ('059_shift_schedule_order_timeout','060_operating_finance') ORDER BY migration_id";
     private static final List<String> MIGRATIONS = List.of("059_shift_schedule_order_timeout", "060_operating_finance");
-    private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "CONFIRMED", "PREPARING", "READY", "ASSIGNED", "PICKED_UP", "DELIVERY_FAILED");
 
     @Test
     void requiresCaseSensitiveExactDisposableFlagBeforeBootstrap() {
@@ -86,7 +84,7 @@ class AdminDashboardTargetSafetyTest {
                 "ENCRYPT=true",
                 "trustServerCertificate=false",
                 "TRUSTSERVERCERTIFICATE=true",
-                "sendTimeAsDatetime=true",
+                "sendTimeAsDatetime=true;sendTimeAsDatetime=false",
                 "SENDTIMEASDATETIME=false",
                 "DatabaseName=" + DATABASE)) {
             Map<String, String> env = validEnv();
@@ -215,6 +213,34 @@ class AdminDashboardTargetSafetyTest {
         Map<String, Object> negativeCash = healthyDashboard();
         negativeCash.put("netCashRevenueToday", new BigDecimal("-12.34"));
         assertDoesNotThrow(() -> AdminDashboardIT.assertHealthyDashboard(negativeCash));
+    }
+
+    @Test
+    void acceptsReconciledNonzeroDashboard() {
+        Map<String, Object> data = healthyDashboard();
+        data.put("activeOrderCount", 3L);
+        data.put("activeOrdersByStatus", Map.of("PENDING", 2L, "READY", 1L));
+        data.put("operationalOrderCountToday", 3L);
+        data.put("operationalCompletedCountToday", 1L);
+        data.put("completionRateToday", 100.0 / 3.0);
+        data.put("attentionItems", List.of(Map.of("type", "LOW_STOCK_ITEMS", "severity", "WARNING", "count", 1L)));
+        assertDoesNotThrow(() -> AdminDashboardIT.assertHealthyDashboard(data));
+    }
+
+    @Test
+    void rejectsWrongDashboardTopLevelTypes() {
+        for (Object[] mutation : List.of(
+                new Object[] { "netCashRevenueToday", 0L },
+                new Object[] { "operationalOrderCountToday", "0" },
+                new Object[] { "operationalCompletedCountToday", 0.0 },
+                new Object[] { "completionRateToday", "0" },
+                new Object[] { "activeOrdersByStatus", List.of() },
+                new Object[] { "sectionAvailability", List.of() },
+                new Object[] { "attentionItems", Map.of() })) {
+            Map<String, Object> data = healthyDashboard();
+            data.put((String) mutation[0], mutation[1]);
+            assertDashboardRejected(data);
+        }
     }
 
     @Test
