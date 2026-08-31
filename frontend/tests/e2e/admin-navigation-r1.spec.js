@@ -25,6 +25,109 @@ function captureErrors(page) {
   return errors;
 }
 
+const isMobileProject = testInfo => testInfo.project.name.includes('mobile');
+
+test('admin shell exposes one identity and current page title', async ({ page }, testInfo) => {
+  await mockAdmin(page);
+  const errors = captureErrors(page);
+  await page.goto('/admin');
+
+  const banner = page.getByRole('banner');
+  const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
+  await expect(page.getByText('FastGuy Admin', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('FastGuy Admin', { exact: true })).toBeVisible();
+  await expect(page.getByText('Admin', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Trung tâm quản trị', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Quản trị', { exact: true })).toHaveCount(0);
+  await expect(banner.getByRole('heading', { level: 1, name: 'Tổng quan quản trị' })).toBeVisible();
+  await expect(page.getByLabel('Mở website FastGuy')).toBeVisible();
+  await expect(page.getByText('QV', { exact: true })).toHaveCount(1);
+
+  await page.goto('/admin/inventory');
+  await expect(banner.getByRole('heading', { level: 1, name: 'Tổng quan kho' })).toBeVisible();
+  if (isMobileProject(testInfo)) await expect(trigger).toBeVisible();
+  else await expect(trigger).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('mobile drawer closes with Escape and restores trigger focus', async ({ page }, testInfo) => {
+  test.skip(!isMobileProject(testInfo), 'Mobile drawer gate');
+  await mockAdmin(page);
+  const errors = captureErrors(page);
+  await page.goto('/admin');
+
+  const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
+  const main = page.getByRole('main');
+  const box = await trigger.boundingBox();
+  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: 'Đóng điều hướng quản trị' })).toBeFocused();
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
+  await expect(main).toHaveAttribute('inert', '');
+  await expect(main).toHaveAttribute('aria-hidden', 'true');
+
+  await page.keyboard.press('Escape');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+  await expect(main).not.toHaveAttribute('inert', '');
+  await expect(main).not.toHaveAttribute('aria-hidden', 'true');
+  expect(errors).toEqual([]);
+});
+
+test('mobile drawer contains focus and closes through overlay and route change', async ({ page }, testInfo) => {
+  test.skip(!isMobileProject(testInfo), 'Mobile drawer gate');
+  await mockAdmin(page);
+  const errors = captureErrors(page);
+  await page.goto('/admin');
+
+  const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
+  const close = page.getByRole('button', { name: 'Đóng điều hướng quản trị' });
+  const lastLink = page.getByRole('link', { name: 'Cài đặt' });
+  await trigger.click();
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(lastLink).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+
+  await page.getByRole('button', { name: 'Đóng menu quản trị' }).click({ position: { x: 1, y: 1 } });
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+
+  await trigger.click();
+  await page.getByRole('link', { name: 'Tồn kho' }).click();
+  await expect(page).toHaveURL(/\/admin\/inventory$/);
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+  expect(errors).toEqual([]);
+});
+
+test('tablet uses the accessible drawer at 1024px', async ({ page }, testInfo) => {
+  test.skip(isMobileProject(testInfo), 'Explicit tablet viewport runs once');
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await mockAdmin(page);
+  const errors = captureErrors(page);
+  await page.goto('/admin');
+
+  const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
+  const sidebar = page.getByRole('complementary', { name: 'Menu quản trị' });
+  await expect(trigger).toBeVisible();
+  await expect(sidebar).not.toBeInViewport();
+  await trigger.click();
+  await expect(sidebar).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Đóng điều hướng quản trị' })).toBeFocused();
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+  expect(errors).toEqual([]);
+});
+
 test('R1 inventory and report tabs preserve history, redirects and keyboard access', async ({ page }) => {
   await mockAdmin(page);
   const errors = captureErrors(page);
