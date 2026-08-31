@@ -809,7 +809,7 @@ textarea:focus-visible {
   .grid-5 { grid-template-columns: repeat(3, 1fr); }
   .stat-grid { grid-template-columns: repeat(3, 1fr); }
 }
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .sidebar {
     width: 260px;
     transform: translateX(-100%);

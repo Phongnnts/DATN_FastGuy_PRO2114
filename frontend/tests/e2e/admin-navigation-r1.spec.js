@@ -8,28 +8,47 @@ async function mockAdmin(page) {
     localStorage.setItem('token', value);
     localStorage.setItem('user', JSON.stringify({ id: 1, fullName: 'Quản trị viên', role: 'ADMIN', email: 'admin@example.com' }));
   }, { value: token });
-  await page.route('**/api/admin/dashboard*', route => route.fulfill({ json: ok({ customerCount: 0, activeProductCount: 0, totalOrders: 0, totalRevenue: 0, operationalOrderCount: 0, operationalCompletedCount: 0, completionRate: 0, ordersByStatus: {}, pendingCodAmount: 0, pendingCodCount: 0, ordersToday: 0, revenueToday: 0, revenueByMonth: [], topProducts: [], lowStockThreshold: 5, outOfStockSkuCount: 0, lowStockSkuCount: 0 }) }));
-  await page.route('**/api/admin/inventory/items', route => route.fulfill({ json: ok([]) }));
-  await page.route('**/api/admin/inventory/transactions*', route => route.fulfill({ json: ok({ items: [], totalItems: 0 }) }));
-  await page.route('**/api/admin/products*', route => route.fulfill({ json: ok([]) }));
-  await page.route('**/api/admin/reports/full*', route => route.fulfill({ json: ok({ revenueByDay: [], monthlyFinancialTrend: [], ordersByStatus: [], topProducts: [], revenueByCategory: [], paymentMethodStats: [], revenueByHour: [], performanceByWeekday: [], refundTrend: [], exceptionReasons: [] }) }));
-  await page.route('**/api/admin/reports/operating-profit*', route => route.fulfill({ json: ok({ costComplete: true, netRevenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, profitBeforeDepreciation: 0, depreciation: 0, operatingProfit: 0, missingCostItemCount: 0 }) }));
-  await page.route('**/api/admin/inventory/reports/menu-performance*', route => route.fulfill({ json: ok({ netRevenue: 0, cost: 0, grossProfit: 0, foodCostPercent: 0, grossMarginPercent: 0, costComplete: true, missingCostItemCount: 0, items: [] }) }));
-  await page.route('**/api/admin/operating-expenses*', route => route.fulfill({ json: ok([]) }));
+  const fixtures = new Map([
+    ['/api/auth/profile', ok({ id: 1, userId: 1, fullName: 'Quản trị viên', role: 'ADMIN', email: 'admin@example.com', avatarUrl: null })],
+    ['/api/admin/dashboard', ok({ customerCount: 0, activeProductCount: 0, totalOrders: 0, totalRevenue: 0, operationalOrderCount: 0, operationalCompletedCount: 0, completionRate: 0, ordersByStatus: {}, pendingCodAmount: 0, pendingCodCount: 0, ordersToday: 0, revenueToday: 0, revenueByMonth: [], topProducts: [], lowStockThreshold: 5, outOfStockSkuCount: 0, lowStockSkuCount: 0 })],
+    ['/api/admin/inventory/items', ok([])],
+    ['/api/admin/inventory/transactions', ok({ items: [], totalItems: 0 })],
+    ['/api/admin/products', ok([])],
+    ['/api/admin/reports/full', ok({ revenueByDay: [], monthlyFinancialTrend: [], ordersByStatus: [], topProducts: [], revenueByCategory: [], paymentMethodStats: [], revenueByHour: [], performanceByWeekday: [], refundTrend: [], exceptionReasons: [] })],
+    ['/api/admin/reports/operating-profit', ok({ costComplete: true, netRevenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, profitBeforeDepreciation: 0, depreciation: 0, operatingProfit: 0, missingCostItemCount: 0 })],
+    ['/api/admin/inventory/reports/menu-performance', ok({ netRevenue: 0, cost: 0, grossProfit: 0, foodCostPercent: 0, grossMarginPercent: 0, costComplete: true, missingCostItemCount: 0, items: [] })],
+    ['/api/admin/operating-expenses', ok([])],
+  ]);
+  await page.route('**/*', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (!path.startsWith('/api/')) return route.continue();
+    const fixture = fixtures.get(path);
+    if (fixture) return route.fulfill({ status: 200, json: fixture });
+    return route.fulfill({ status: 501, json: { status: 'error', message: `Missing E2E fixture for ${path}` } });
+  });
 }
 
-function captureErrors(page) {
+function captureTraffic(page) {
   const errors = [];
+  const successfulApiPaths = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  return errors;
+  page.on('requestfailed', request => errors.push(`requestfailed ${request.method()} ${request.url()}: ${request.failure()?.errorText || 'unknown'}`));
+  page.on('response', response => {
+    if (response.status() < 200 || response.status() >= 300) {
+      errors.push(`HTTP ${response.status()} ${response.request().method()} ${response.url()}`);
+      return;
+    }
+    if (response.url().includes('/api/')) successfulApiPaths.push(new URL(response.url()).pathname);
+  });
+  return { errors, successfulApiPaths };
 }
 
 const isMobileProject = testInfo => testInfo.project.name.includes('mobile');
 
 test('admin shell exposes one identity and current page title', async ({ page }, testInfo) => {
   await mockAdmin(page);
-  const errors = captureErrors(page);
+  const { errors, successfulApiPaths } = captureTraffic(page);
   await page.goto('/admin');
 
   const banner = page.getByRole('banner');
@@ -52,13 +71,17 @@ test('admin shell exposes one identity and current page title', async ({ page },
     await expect(sidebar).not.toHaveAttribute('role', 'dialog');
     await expect(sidebar).not.toHaveAttribute('aria-modal', 'true');
   }
+  await expect.poll(() => successfulApiPaths.includes('/api/admin/dashboard')).toBe(true);
+  await expect.poll(() => successfulApiPaths.includes('/api/admin/inventory/items')).toBe(true);
+  await expect.poll(() => successfulApiPaths.includes('/api/admin/inventory/transactions')).toBe(true);
+  await expect.poll(() => successfulApiPaths.includes('/api/admin/products')).toBe(true);
   expect(errors).toEqual([]);
 });
 
 test('mobile drawer closes with Escape and restores trigger focus', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile drawer gate');
   await mockAdmin(page);
-  const errors = captureErrors(page);
+  const { errors, successfulApiPaths } = captureTraffic(page);
   await page.goto('/admin');
 
   const trigger = page.getByRole('button', { name: 'Mở menu quản trị', includeHidden: true });
@@ -73,7 +96,7 @@ test('mobile drawer closes with Escape and restores trigger focus', async ({ pag
   await expect(page.getByRole('button', { name: 'Đóng điều hướng quản trị' })).toBeFocused();
   await expect(page.locator('body')).toHaveCSS('overflow', 'hidden');
   await expect(main).toHaveAttribute('inert', '');
-  await expect(main).toHaveAttribute('aria-hidden', 'true');
+  await expect(main).not.toHaveAttribute('aria-hidden', 'true');
 
   await page.keyboard.press('Escape');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
@@ -87,7 +110,7 @@ test('mobile drawer closes with Escape and restores trigger focus', async ({ pag
 test('mobile drawer contains focus and closes through overlay and route change', async ({ page }, testInfo) => {
   test.skip(!isMobileProject(testInfo), 'Mobile drawer gate');
   await mockAdmin(page);
-  const errors = captureErrors(page);
+  const { errors, successfulApiPaths } = captureTraffic(page);
   await page.goto('/admin');
 
   const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
@@ -127,7 +150,7 @@ test('tablet uses the accessible drawer at 1024px', async ({ page }, testInfo) =
   test.skip(isMobileProject(testInfo), 'Explicit tablet viewport runs once');
   await page.setViewportSize({ width: 1024, height: 768 });
   await mockAdmin(page);
-  const errors = captureErrors(page);
+  const { errors, successfulApiPaths } = captureTraffic(page);
   await page.goto('/admin');
 
   const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
@@ -147,9 +170,54 @@ test('tablet uses the accessible drawer at 1024px', async ({ page }, testInfo) =
   expect(errors).toEqual([]);
 });
 
+test('resize transfers focus from open drawer to a visible desktop control', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await mockAdmin(page);
+  const { errors } = captureTraffic(page);
+  await page.goto('/admin');
+
+  await page.getByRole('button', { name: 'Mở menu quản trị' }).click();
+  await expect(page.getByRole('button', { name: 'Đóng điều hướng quản trị' })).toBeFocused();
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  await expect(page.getByLabel('Mở website FastGuy')).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Mở menu quản trị' })).toBeHidden();
+  await expect(page.locator('#admin-sidebar')).not.toHaveAttribute('role', 'dialog');
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+  expect(errors).toEqual([]);
+});
+
+test('resize transfers focus from desktop sidebar to the drawer trigger', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await mockAdmin(page);
+  const { errors } = captureTraffic(page);
+  await page.goto('/admin');
+
+  await page.getByRole('link', { name: 'Dashboard' }).focus();
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeFocused();
+  await page.setViewportSize({ width: 1024, height: 768 });
+
+  await expect(page.getByRole('button', { name: 'Mở menu quản trị' })).toBeFocused();
+  await expect(page.locator('#admin-sidebar')).toHaveAttribute('inert', '');
+  await expect(page.locator('.main-content')).not.toHaveAttribute('inert', '');
+  expect(errors).toEqual([]);
+});
+
+test('768px keeps tablet spacing while retaining the drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await mockAdmin(page);
+  const { errors } = captureTraffic(page);
+  await page.goto('/admin');
+
+  await expect(page.getByRole('button', { name: 'Mở menu quản trị' })).toBeVisible();
+  await expect(page.locator('.topbar')).toHaveCSS('padding-left', '32px');
+  await expect(page.locator('.page-content')).toHaveCSS('padding-left', '32px');
+  expect(errors).toEqual([]);
+});
+
 test('R1 inventory and report tabs preserve history, redirects and keyboard access', async ({ page }) => {
   await mockAdmin(page);
-  const errors = captureErrors(page);
+  const { errors, successfulApiPaths } = captureTraffic(page);
 
   await page.goto('/admin/inventory');
   await expect(page.getByRole('tab', { name: 'Tồn hiện tại' })).toHaveAttribute('aria-selected', 'true');
@@ -181,7 +249,7 @@ test('R1 inventory and report tabs preserve history, redirects and keyboard acce
 test('R1 mobile sidebar exposes task groups without hidden legacy entries', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.includes('mobile'), 'Mobile navigation gate');
   await mockAdmin(page);
-  const errors = captureErrors(page);
+  const { errors, successfulApiPaths } = captureTraffic(page);
   await page.goto('/admin');
   await page.getByRole('button', { name: 'Mở menu quản trị' }).click();
   for (const group of ['Tổng quan', 'Vận hành', 'Bán hàng', 'Nhân sự', 'Kho hàng', 'Báo cáo', 'Hệ thống']) await expect(page.getByRole('heading', { name: group, exact: true })).toBeVisible();

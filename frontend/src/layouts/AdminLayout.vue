@@ -9,9 +9,12 @@ const route = useRoute();
 const router = useRouter();
 const sidebarOpen = ref(false);
 const isDrawerViewport = ref(false);
+const sidebarInert = ref(false);
+const backgroundInert = ref(false);
 const sidebar = ref(null);
 const drawerTrigger = ref(null);
 const drawerClose = ref(null);
+const websiteLink = ref(null);
 let drawerMedia;
 let triggerToRestore;
 let previousBodyOverflow = '';
@@ -50,20 +53,25 @@ async function openDrawer(event) {
   if (!isDrawerViewport.value || sidebarOpen.value) return;
   triggerToRestore = event?.currentTarget || drawerTrigger.value;
   previousBodyOverflow = document.body.style.overflow;
+  sidebarInert.value = false;
   sidebarOpen.value = true;
-  document.body.style.overflow = 'hidden';
-  document.addEventListener('keydown', handleDrawerKeydown);
   await nextTick();
   drawerClose.value?.focus();
+  backgroundInert.value = true;
+  document.body.style.overflow = 'hidden';
+  document.addEventListener('keydown', handleDrawerKeydown);
 }
 
-async function closeDrawer(restoreFocus = true) {
+async function closeDrawer(restoreFocus = true, fallbackFocus = null) {
   if (!sidebarOpen.value) return;
+  backgroundInert.value = false;
+  await nextTick();
+  const focusTarget = fallbackFocus?.$el || fallbackFocus || (restoreFocus && triggerToRestore?.isConnected ? triggerToRestore : null);
+  focusTarget?.focus?.();
   sidebarOpen.value = false;
+  sidebarInert.value = isDrawerViewport.value;
   document.removeEventListener('keydown', handleDrawerKeydown);
   document.body.style.overflow = previousBodyOverflow;
-  await nextTick();
-  if (restoreFocus && triggerToRestore?.isConnected) triggerToRestore.focus();
   triggerToRestore = undefined;
 }
 
@@ -72,9 +80,16 @@ function toggleDrawer(event) {
   else openDrawer(event);
 }
 
-function syncDrawerViewport(event) {
-  isDrawerViewport.value = event.matches;
-  if (!event.matches && sidebarOpen.value) closeDrawer(false);
+async function syncDrawerViewport(event) {
+  const enteringDrawer = event.matches;
+  if (enteringDrawer && sidebar.value?.contains(document.activeElement)) drawerTrigger.value?.focus();
+  isDrawerViewport.value = enteringDrawer;
+  if (!enteringDrawer && sidebarOpen.value) {
+    await closeDrawer(false, websiteLink.value);
+    sidebarInert.value = false;
+    return;
+  }
+  sidebarInert.value = enteringDrawer && !sidebarOpen.value;
 }
 
 function logout() {
@@ -136,7 +151,7 @@ function isLinkActive(link) {
 
 <template>
   <div class="sidebar-layout fg-shell fg-shell-admin">
-    <aside id="admin-sidebar" ref="sidebar" class="sidebar" :class="{ open: sidebarOpen }" aria-label="Menu quản trị" :role="isDrawerViewport && sidebarOpen ? 'dialog' : undefined" :aria-modal="isDrawerViewport && sidebarOpen ? 'true' : undefined" :inert="isDrawerViewport && !sidebarOpen ? '' : undefined">
+    <aside id="admin-sidebar" ref="sidebar" class="sidebar" :class="{ open: sidebarOpen }" aria-label="Menu quản trị" :role="isDrawerViewport && sidebarOpen ? 'dialog' : undefined" :aria-modal="isDrawerViewport && sidebarOpen ? 'true' : undefined" :inert="sidebarInert ? '' : undefined">
       <div class="sidebar-brand">
         <span class="sidebar-brand-title">Fast<span class="sidebar-brand-highlight">Guy</span> Admin</span>
         <button ref="drawerClose" class="drawer-close" type="button" aria-label="Đóng điều hướng quản trị" @click="closeDrawer">
@@ -168,7 +183,7 @@ function isLinkActive(link) {
         </div>
       </div>
     </aside>
-    <div class="main-content" :inert="isDrawerViewport && sidebarOpen ? '' : undefined" :aria-hidden="isDrawerViewport && sidebarOpen ? 'true' : undefined">
+    <div class="main-content" :inert="backgroundInert ? '' : undefined">
       <header class="topbar" role="banner">
         <div class="topbar-left">
           <button ref="drawerTrigger" class="mobile-toggle-sidebar" type="button" aria-label="Mở menu quản trị" :aria-expanded="sidebarOpen" aria-controls="admin-sidebar" @click="toggleDrawer">
@@ -177,7 +192,7 @@ function isLinkActive(link) {
           <h1>{{ route.meta.title }}</h1>
         </div>
         <div class="topbar-right">
-          <router-link to="/home" class="icon-btn" aria-label="Mở website FastGuy">
+          <router-link ref="websiteLink" to="/home" class="icon-btn" aria-label="Mở website FastGuy">
             <i class="bi bi-house" aria-hidden="true"></i>
           </router-link>
           <button class="logout-btn" @click="logout">
