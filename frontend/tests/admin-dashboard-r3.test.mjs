@@ -7,6 +7,7 @@ const dashboard = read('../src/views/admin/DashboardPage.vue');
 const shifts = read('../src/views/admin/ShiftsPage.vue');
 const inventory = read('../src/views/admin/InventoryPage.vue');
 const cod = read('../src/views/admin/CodSettlementsPage.vue');
+const openapi = read('../../openapi/fastguy.yaml');
 
 function ordered(source, values) {
   let cursor = -1;
@@ -17,9 +18,28 @@ function ordered(source, values) {
   }
 }
 
-test('R3 dashboard uses only the six canonical operating metrics', () => {
+function deprecatedDashboardProperties(contract) {
+  const marker = '    AdminDashboardData:';
+  const start = contract.indexOf(marker);
+  assert.notEqual(start, -1, 'AdminDashboardData schema must exist');
+  const tail = contract.slice(start + marker.length);
+  const nextSchema = tail.search(/\r?\n    [A-Za-z][A-Za-z0-9]*:\r?\n/);
+  const schema = tail.slice(0, nextSchema === -1 ? undefined : nextSchema);
+  const properties = [...schema.matchAll(/^        ([A-Za-z][A-Za-z0-9]*):/gm)];
+  return properties
+    .filter((match, index) => {
+      const end = properties[index + 1]?.index ?? schema.length;
+      return /\bdeprecated:\s*true\b/.test(schema.slice(match.index, end));
+    })
+    .map(match => match[1]);
+}
+
+test('R3 dashboard uses only the six canonical operating metrics and consumes no deprecated contract property', () => {
   for (const field of ['netCashRevenueToday', 'activeOrderCount', 'pendingRefundCount', 'pendingCodCount', 'lowStockItemCount', 'staffingGapCount']) assert.match(dashboard, new RegExp(`data\\.${field}`));
-  for (const field of ['revenueToday', 'deliveredOrdersToday', 'activeOrdersToday', 'aovToday', 'grossProfitToday', 'costComplete']) assert.doesNotMatch(dashboard, new RegExp(`data\\.${field}`));
+  const deprecated = deprecatedDashboardProperties(openapi);
+  assert.ok(deprecated.length > 0, 'AdminDashboardData must expose deprecated compatibility properties');
+  const dashboardConsumer = dashboard.slice(0, dashboard.indexOf('<style scoped>'));
+  for (const field of deprecated) assert.doesNotMatch(dashboardConsumer, new RegExp(`\\b${field}\\b`), `DashboardPage consumes deprecated AdminDashboardData.${field}`);
   for (const label of ['Doanh thu thuần hôm nay', 'Đơn đang hoạt động', 'Hoàn tiền chờ xử lý', 'COD chờ xác nhận', 'Mặt hàng sắp hết', 'Ca thiếu nhân sự']) assert.match(dashboard, new RegExp(label));
 });
 
@@ -48,7 +68,7 @@ test('R3 dashboard keeps one active-order chart with an equivalent semantic tabl
   assert.match(dashboard, /aria-describedby="active-flow-data"/);
   assert.match(dashboard, /prefers-reduced-motion/);
   assert.match(dashboard, /animation: reducedMotion/);
-  assert.doesNotMatch(dashboard, /revenueChartRef|topChartRef|statusChartRef|revenueByMonth|topProducts|ordersByStatus/);
+  assert.doesNotMatch(dashboard, /revenueChartRef|topChartRef|statusChartRef/);
   for (const [status, label] of Object.entries({ PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận', PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper', PICKED_UP: 'Đang giao', DELIVERY_FAILED: 'Giao thất bại' })) {
     assert.match(dashboard, new RegExp(`${status}[^\\n]+${label}`));
   }

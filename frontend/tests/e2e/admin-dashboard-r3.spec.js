@@ -49,6 +49,24 @@ const dashboardData = (overrides = {}) => ({
   ...overrides,
 });
 
+const metrics = [
+  { section: 'financial', label: 'Doanh thu thuần hôm nay', value: '420.000₫' },
+  { section: 'orders', label: 'Đơn đang hoạt động', value: '14' },
+  { section: 'refunds', label: 'Hoàn tiền chờ xử lý', value: '3' },
+  { section: 'cod', label: 'COD chờ xác nhận', value: '4' },
+  { section: 'inventory', label: 'Mặt hàng sắp hết', value: '5' },
+  { section: 'staffing', label: 'Ca thiếu nhân sự', value: '2' },
+];
+const flow = [
+  ['Chờ xác nhận', '2'],
+  ['Đã xác nhận', '1'],
+  ['Đang chế biến', '3'],
+  ['Sẵn sàng giao', '4'],
+  ['Đã gán shipper', '1'],
+  ['Đang giao', '2'],
+  ['Giao thất bại', '1'],
+];
+
 async function authenticate(page) {
   const token = `x.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.x`;
   await page.addInitScript(({ value }) => { localStorage.setItem('token', value); localStorage.setItem('user', JSON.stringify({ id: 1, fullName: 'Admin', role: 'ADMIN' })); }, { value: token });
@@ -69,41 +87,44 @@ function observeBrowser(page, { expectedStatuses = [] } = {}) {
   return errors;
 }
 
+function requestEvidence(request) {
+  const url = new URL(request.url());
+  return { method: request.method(), path: url.pathname, query: [...url.searchParams.entries()].sort(([left], [right]) => left.localeCompare(right)) };
+}
+
 async function mockDestinations(page) {
-  await page.route('**/api/admin/orders*', route => route.fulfill({ json: ok([]) }));
-  await page.route('**/api/admin/refunds*', route => route.fulfill({ json: ok([]) }));
+  const calls = { orders: [], refunds: [], monitoring: [], inventory: [], cod: [] };
+  const exact = (name, expected, data) => route => {
+    const evidence = requestEvidence(route.request());
+    calls[name].push(evidence);
+    return JSON.stringify(evidence) === JSON.stringify(expected)
+      ? route.fulfill({ json: ok(data) })
+      : route.fulfill({ status: 501, json: { status: 'error', message: `Unexpected ${name} request` } });
+  };
+  await page.route('**/api/admin/orders*', exact('orders', { method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] }, []));
+  await page.route('**/api/admin/refunds*', exact('refunds', { method: 'GET', path: '/api/admin/refunds', query: [] }, []));
   await page.route('**/api/admin/users*', route => route.fulfill({ json: ok([]) }));
   await page.route('**/api/admin/shifts/week*', route => route.fulfill({ json: ok({ weekStart: '2026-08-31', shifts: [] }) }));
-  await page.route('**/api/admin/shifts/monitoring*', route => route.fulfill({ json: ok([]) }));
-  await page.route('**/api/admin/inventory/items*', route => route.fulfill({ json: ok([]) }));
+  await page.route('**/api/admin/shifts/monitoring*', exact('monitoring', { method: 'GET', path: '/api/admin/shifts/monitoring', query: [] }, []));
+  await page.route('**/api/admin/inventory/items*', exact('inventory', { method: 'GET', path: '/api/admin/inventory/items', query: [] }, []));
   await page.route('**/api/admin/inventory/transactions*', route => route.fulfill({ json: ok({ items: [], totalItems: 0, totalPages: 0 }) }));
   await page.route('**/api/admin/products*', route => route.fulfill({ json: ok([]) }));
-  await page.route('**/api/cod-settlements/admin*', route => route.fulfill({ json: ok([]) }));
+  await page.route('**/api/cod-settlements/admin*', exact('cod', { method: 'GET', path: '/api/cod-settlements/admin', query: [['status', 'SUBMITTED']] }, []));
+  return calls;
 }
 
 async function setup(page, data = dashboardData()) {
   await authenticate(page);
-  await mockDestinations(page);
+  const calls = await mockDestinations(page);
   await page.route('**/api/admin/dashboard*', route => route.fulfill({ json: ok(data) }));
+  return calls;
 }
 
-const metrics = [
-  ['Doanh thu thuần hôm nay', '420.000₫'],
-  ['Đơn đang hoạt động', '14'],
-  ['Hoàn tiền chờ xử lý', '3'],
-  ['COD chờ xác nhận', '4'],
-  ['Mặt hàng sắp hết', '5'],
-  ['Ca thiếu nhân sự', '2'],
-];
-const flow = [
-  ['Chờ xác nhận', '2'],
-  ['Đã xác nhận', '1'],
-  ['Đang chế biến', '3'],
-  ['Sẵn sàng giao', '4'],
-  ['Đã gán shipper', '1'],
-  ['Đang giao', '2'],
-  ['Giao thất bại', '1'],
-];
+async function clickAndCapture(page, linkName, apiPath) {
+  const requestPromise = page.waitForRequest(request => new URL(request.url()).pathname === apiPath);
+  await page.getByRole('link', { name: new RegExp(linkName) }).click();
+  return requestEvidence(await requestPromise);
+}
 
 test('dashboard hierarchy, canonical metrics, attention routes, and chart data are decision-first', async ({ page }) => {
   await setup(page);
@@ -116,10 +137,7 @@ test('dashboard hierarchy, canonical metrics, attention routes, and chart data a
   expect(await sections.evaluateAll(nodes => nodes.map(node => node.dataset.dashboardSection))).toEqual(['header', 'attention', 'metrics', 'flow', 'flow-data']);
   await expect(page.getByRole('heading', { name: 'Cần xử lý ngay' })).toBeVisible();
 
-  for (const [label, value] of metrics) {
-    const metric = page.getByRole('group', { name: label });
-    await expect(metric).toContainText(value);
-  }
+  for (const metric of metrics) await expect(page.getByRole('group', { name: metric.label })).toContainText(metric.value);
 
   const links = [
     ['Đơn chờ xác nhận quá lâu', '/admin/orders?status=ATTENTION'],
@@ -142,49 +160,75 @@ test('dashboard hierarchy, canonical metrics, attention routes, and chart data a
   expect(errors).toEqual([]);
 });
 
-test('all attention destinations hydrate exact query state and reject invalid values safely', async ({ page }) => {
-  await setup(page);
+test('attention destinations issue each exact critical request once', async ({ page }) => {
+  const calls = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin');
 
-  await page.getByRole('link', { name: /Đơn chờ xác nhận quá lâu/ }).click();
-  await expect(page).toHaveURL(/\/admin\/orders\?status=ATTENTION$/);
+  expect(await clickAndCapture(page, 'Đơn chờ xác nhận quá lâu', '/api/admin/orders')).toEqual({ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] });
   await expect(page.getByRole('tab', { name: /Cần xử lý/ })).toHaveAttribute('aria-selected', 'true');
+  expect(calls.orders).toEqual([{ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] }]);
 
   await page.goto('/admin');
-  await page.getByRole('link', { name: /Yêu cầu hoàn tiền đang chờ/ }).click();
-  await expect(page).toHaveURL(/\/admin\/refunds\?status=PENDING$/);
+  expect(await clickAndCapture(page, 'Yêu cầu hoàn tiền đang chờ', '/api/admin/refunds')).toEqual({ method: 'GET', path: '/api/admin/refunds', query: [] });
   await expect(page.getByRole('button', { name: /Chờ hoàn/ })).toHaveAttribute('aria-pressed', 'true');
+  expect(calls.refunds).toEqual([{ method: 'GET', path: '/api/admin/refunds', query: [] }]);
 
   await page.goto('/admin');
-  await page.getByRole('link', { name: /Ca làm cần bổ sung nhân viên/ }).click();
-  await expect(page).toHaveURL(/\/admin\/shifts\?tab=monitoring$/);
+  expect(await clickAndCapture(page, 'Ca làm cần bổ sung nhân viên', '/api/admin/shifts/monitoring')).toEqual({ method: 'GET', path: '/api/admin/shifts/monitoring', query: [] });
   await expect(page.getByRole('tab', { name: 'Giám sát' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: 'Lịch tuần' }).click();
-  await expect(page).toHaveURL(/\/admin\/shifts\?tab=schedule$/);
+  expect(calls.monitoring).toEqual([{ method: 'GET', path: '/api/admin/shifts/monitoring', query: [] }]);
 
   await page.goto('/admin');
-  await page.getByRole('link', { name: /Mặt hàng dưới mức an toàn/ }).click();
-  await expect(page).toHaveURL(/\/admin\/inventory\?filter=LOW$/);
+  expect(await clickAndCapture(page, 'Mặt hàng dưới mức an toàn', '/api/admin/inventory/items')).toEqual({ method: 'GET', path: '/api/admin/inventory/items', query: [] });
   await expect(page.getByLabel('Trạng thái')).toHaveValue('LOW');
+  expect(calls.inventory).toEqual([{ method: 'GET', path: '/api/admin/inventory/items', query: [] }]);
+
+  await page.goto('/admin');
+  expect(await clickAndCapture(page, 'Bàn giao COD đang chờ', '/api/cod-settlements/admin')).toEqual({ method: 'GET', path: '/api/cod-settlements/admin', query: [['status', 'SUBMITTED']] });
+  await expect(page.locator('#cod-status-filter')).toHaveValue('SUBMITTED');
+  expect(calls.cod).toEqual([{ method: 'GET', path: '/api/cod-settlements/admin', query: [['status', 'SUBMITTED']] }]);
+
+  expect(errors).toEqual([]);
+});
+
+test('destination query values reject invalid input safely', async ({ page }) => {
+  await setup(page);
+  const errors = observeBrowser(page);
+
   await page.goto('/admin/inventory?filter=INVALID&tab=history');
   await expect(page).toHaveURL(/tab=history/);
   await page.getByRole('tab', { name: 'Tồn hiện tại' }).click();
   await expect(page.getByLabel('Trạng thái')).toHaveValue('ALL');
   await expect(page).toHaveURL(/filter=INVALID/);
-  await page.goto('/admin/inventory?tab=current&filter=ALL');
-  await page.getByLabel('Trạng thái').selectOption('LOW');
-  await expect(page).toHaveURL(/tab=current/);
-  await expect(page).toHaveURL(/filter=LOW/);
 
-  await page.goto('/admin');
-  await page.getByRole('link', { name: /Bàn giao COD đang chờ/ }).click();
-  await expect(page).toHaveURL(/\/admin\/cod-settlements\?status=SUBMITTED$/);
-  await expect(page.locator('#cod-status-filter')).toHaveValue('SUBMITTED');
   await page.goto('/admin/cod-settlements?status=INVALID');
   await expect(page.locator('#cod-status-filter')).toHaveValue('SUBMITTED');
   await expect(page).toHaveURL(/status=INVALID/);
+  expect(errors).toEqual([]);
+});
 
+test('Inventory Back and Forward restore filter history without dropping tab', async ({ page }) => {
+  await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/inventory?tab=current&filter=LOW');
+  const filter = page.getByLabel('Trạng thái');
+  await expect(filter).toHaveValue('LOW');
+
+  await filter.selectOption('OUT');
+  await expect(page).toHaveURL(/tab=current/);
+  await expect(page).toHaveURL(/filter=OUT/);
+  await expect(filter).toHaveValue('OUT');
+
+  await page.goBack();
+  await expect(page).toHaveURL(/tab=current/);
+  await expect(page).toHaveURL(/filter=LOW/);
+  await expect(filter).toHaveValue('LOW');
+
+  await page.goForward();
+  await expect(page).toHaveURL(/tab=current/);
+  await expect(page).toHaveURL(/filter=OUT/);
+  await expect(filter).toHaveValue('OUT');
   expect(errors).toEqual([]);
 });
 
@@ -238,26 +282,35 @@ test('initial error retries while refresh remains nonblocking and exposes store 
   expect(errors).toEqual([]);
 });
 
-test('partial response marks affected metrics and flow unavailable instead of rendering false zero', async ({ page }) => {
-  await setup(page, dashboardData({
-    netCashRevenueToday: 0,
-    activeOrderCount: 0,
-    pendingRefundCount: 0,
-    pendingCodCount: 0,
-    lowStockItemCount: 0,
-    staffingGapCount: 0,
-    activeOrdersByStatus: {},
-    sectionAvailability: { financial: 'UNAVAILABLE', orders: 'UNAVAILABLE', refunds: 'UNAVAILABLE', cod: 'UNAVAILABLE', inventory: 'UNAVAILABLE', staffing: 'UNAVAILABLE' },
-  }));
-  const errors = observeBrowser(page);
-  await page.goto('/admin');
+for (const unavailable of Object.keys(availableSections)) {
+  test(`partial response isolates ${unavailable} unavailability`, async ({ page }) => {
+    const sectionAvailability = { ...availableSections, [unavailable]: 'UNAVAILABLE' };
+    expect(Object.values(sectionAvailability).filter(value => value === 'UNAVAILABLE')).toHaveLength(1);
+    await setup(page, dashboardData({ sectionAvailability }));
+    const errors = observeBrowser(page);
+    await page.goto('/admin');
 
-  await expect(page.getByRole('status')).toContainText('Một số dữ liệu tạm thời chưa khả dụng');
-  for (const [label] of metrics) await expect(page.getByRole('group', { name: label })).toContainText('Không khả dụng');
-  await expect(page.getByRole('region', { name: 'Luồng đơn đang hoạt động' })).toContainText('Dữ liệu luồng đơn không khả dụng');
-  await expect(page.getByRole('table', { name: 'Dữ liệu luồng đơn đang hoạt động' })).toHaveCount(0);
-  expect(errors).toEqual([]);
-});
+    await expect(page.getByRole('status')).toContainText('Một số dữ liệu tạm thời chưa khả dụng');
+    for (const metric of metrics) {
+      const group = page.getByRole('group', { name: metric.label });
+      if (metric.section === unavailable) await expect(group).toContainText('Không khả dụng');
+      else {
+        await expect(group).toContainText(metric.value);
+        await expect(group).not.toContainText('Không khả dụng');
+      }
+    }
+    const flowRegion = page.getByRole('region', { name: 'Luồng đơn đang hoạt động' });
+    if (unavailable === 'orders') {
+      await expect(flowRegion).toContainText('Dữ liệu luồng đơn không khả dụng');
+      await expect(page.getByRole('table', { name: 'Dữ liệu luồng đơn đang hoạt động' })).toHaveCount(0);
+    } else {
+      await expect(flowRegion).toContainText('14 đơn');
+      const table = page.getByRole('table', { name: 'Dữ liệu luồng đơn đang hoạt động' });
+      for (const [label, value] of flow) await expect(table.getByRole('row', { name: new RegExp(`${label} ${value}`) })).toBeVisible();
+    }
+    expect(errors).toEqual([]);
+  });
+}
 
 test('zero state is compact and chart alternative states no active orders clearly', async ({ page }) => {
   await setup(page, dashboardData({ attentionItems: [], activeOrderCount: 0, activeOrdersByStatus: {} }));
