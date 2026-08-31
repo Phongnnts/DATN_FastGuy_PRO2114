@@ -41,7 +41,8 @@ class AdminDashboardServletContractTest {
 
         assertError(invoke(servlet, "/dashboard", null, Map.of()), 401, "Missing or invalid token");
         assertError(invoke(servlet, "/dashboard", "Bearer ", Map.of()), 401, "Missing or invalid token");
-        assertError(invoke(servlet, "/dashboard", "Bearer invalid-identity", Map.of()), 401, "Missing or invalid token");
+        assertError(invoke(servlet, "/dashboard", "Bearer missing-role", Map.of()), 401, "Missing or invalid token");
+        assertError(invoke(servlet, "/dashboard", "Bearer invalid-user", Map.of()), 401, "Missing or invalid token");
         assertError(invoke(servlet, "/dashboard", "Bearer inactive", Map.of()), 403, "Forbidden");
     }
 
@@ -279,12 +280,12 @@ class AdminDashboardServletContractTest {
     private static final class StubTokenReader implements AdminApiAuth.TokenReader {
         @Override
         public String role(String token) {
-            return "invalid-identity".equals(token) ? null : "ADMIN";
+            return "missing-role".equals(token) ? null : "ADMIN";
         }
 
         @Override
         public int userId(String token) {
-            return "invalid-identity".equals(token) ? -1 : "inactive".equals(token) ? 3 : 1;
+            return "invalid-user".equals(token) ? -1 : "inactive".equals(token) ? 3 : 1;
         }
 
         @Override
