@@ -35,12 +35,14 @@ public class AdminServlet extends HttpServlet {
         String period = req.getParameter("period");
 
         if (path == null || path.equals("/") || path.equals("/dashboard")) {
+            Object data;
             try {
-                var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
-                ApiResponse.ok(resp, data);
+                data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
             } catch (RuntimeException e) {
                 ApiResponse.error(resp, "Internal server error", 500);
+                return;
             }
+            ApiResponse.ok(resp, data);
         } else if (path.equals("/reports/full")) {
             String startDate = req.getParameter("startDate");
             String endDate = req.getParameter("endDate");

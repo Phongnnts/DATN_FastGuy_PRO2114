@@ -2,6 +2,7 @@ package servlet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.PrintWriter;
@@ -22,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.AdminService;
 import utils.JsonUtil;
+import utils.JwtUtil;
 
 class AdminDashboardServletContractTest {
     private static final Set<String> DASHBOARD_KEYS = Set.of(
@@ -38,9 +40,17 @@ class AdminDashboardServletContractTest {
         AdminServlet servlet = new AdminServlet(new StubAdminService(dashboard()), new StubTokenReader());
 
         assertError(invoke(servlet, "/dashboard", null, Map.of()), 401, "Missing or invalid token");
-        assertError(invoke(servlet, "/dashboard", "Bearer malformed", Map.of()), 401, "Missing or invalid token");
-        assertError(invoke(servlet, "/dashboard", "Bearer user", Map.of()), 403, "Forbidden");
+        assertError(invoke(servlet, "/dashboard", "Bearer ", Map.of()), 401, "Missing or invalid token");
+        assertError(invoke(servlet, "/dashboard", "Bearer invalid-identity", Map.of()), 401, "Missing or invalid token");
         assertError(invoke(servlet, "/dashboard", "Bearer inactive", Map.of()), 403, "Forbidden");
+    }
+
+    @Test
+    void dashboardUsesProductionJwtSemanticsForMalformedAndNonAdminTokens() throws Exception {
+        AdminServlet servlet = new AdminServlet(new StubAdminService(dashboard()), AdminApiAuth.jwt());
+
+        assertError(invoke(servlet, "/dashboard", "Bearer not-a-jwt", Map.of()), 401, "Missing or invalid token");
+        assertError(invoke(servlet, "/dashboard", "Bearer " + JwtUtil.generate(11, "USER"), Map.of()), 403, "Forbidden");
     }
 
     @Test
@@ -109,6 +119,19 @@ class AdminDashboardServletContractTest {
     }
 
     @Test
+    void dashboardWriterFailurePropagatesWithoutSecondWrite() {
+        AdminServlet servlet = new AdminServlet(new StubAdminService(dashboard()), new StubTokenReader());
+        ResponseCapture capture = new ResponseCapture();
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> servlet.doGet(request("/dashboard", "Bearer admin", Map.of()), failingWriterResponse(capture)));
+
+        assertEquals("writer failed", failure.getMessage());
+        assertEquals(1, capture.writerRequests);
+        assertEquals(200, capture.status);
+    }
+
+    @Test
     void fullReportRetainsSuccessAndValidationBehavior() throws Exception {
         StubAdminService service = new StubAdminService(dashboard());
         AdminServlet servlet = new AdminServlet(service, new StubTokenReader());
@@ -167,6 +190,18 @@ class AdminDashboardServletContractTest {
                     if ("setStatus".equals(method.getName())) capture.status = (int) args[0];
                     if ("setContentType".equals(method.getName())) capture.contentType = (String) args[0];
                     if ("getWriter".equals(method.getName())) return capture.writer;
+                    return defaultValue(method.getReturnType());
+                });
+    }
+
+    private HttpServletResponse failingWriterResponse(ResponseCapture capture) {
+        return (HttpServletResponse) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {HttpServletResponse.class},
+                (proxy, method, args) -> {
+                    if ("setStatus".equals(method.getName())) capture.status = (int) args[0];
+                    if ("getWriter".equals(method.getName())) {
+                        capture.writerRequests++;
+                        throw new IllegalStateException("writer failed");
+                    }
                     return defaultValue(method.getReturnType());
                 });
     }
@@ -244,13 +279,12 @@ class AdminDashboardServletContractTest {
     private static final class StubTokenReader implements AdminApiAuth.TokenReader {
         @Override
         public String role(String token) {
-            if ("malformed".equals(token)) throw new IllegalArgumentException("bad token");
-            return "user".equals(token) ? "USER" : "ADMIN";
+            return "invalid-identity".equals(token) ? null : "ADMIN";
         }
 
         @Override
         public int userId(String token) {
-            return "inactive".equals(token) ? 3 : 1;
+            return "invalid-identity".equals(token) ? -1 : "inactive".equals(token) ? 3 : 1;
         }
 
         @Override
@@ -295,6 +329,7 @@ class AdminDashboardServletContractTest {
 
     private static final class ResponseCapture {
         private int status = 200;
+        private int writerRequests;
         private String contentType;
         private final StringWriter body = new StringWriter();
         private final PrintWriter writer = new PrintWriter(body);
