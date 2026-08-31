@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { compile } from 'tailwindcss';
 
 const root = new URL('../', import.meta.url);
 const read = path => readFileSync(new URL(path, root), 'utf8');
@@ -28,4 +32,20 @@ test('Tailwind v4 setup stays prefixed incremental and reproducibly locked', () 
     '@import "tailwindcss/theme.css" layer(theme) prefix(tw);\n@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);\n',
   );
   assert.doesNotMatch(read('src/assets/styles/tailwind.css'), /preflight/i);
+});
+
+test('Tailwind compiles only prefixed candidates without Preflight', async () => {
+  const entry = new URL('src/assets/styles/tailwind.css', root);
+  const compiler = await compile(await readFile(entry, 'utf8'), {
+    base: dirname(fileURLToPath(entry)),
+    loadStylesheet: async id => {
+      const path = fileURLToPath(import.meta.resolve(id));
+      return { content: await readFile(path, 'utf8'), base: dirname(path) };
+    },
+  });
+  const css = compiler.build(['tw:flex', 'flex']);
+
+  assert.match(css, /\.tw\\:flex\s*\{\s*display:\s*flex;/);
+  assert.doesNotMatch(css, /(?:^|\})\s*\.flex\s*\{/);
+  assert.doesNotMatch(css, /box-sizing|::before|::after/);
 });

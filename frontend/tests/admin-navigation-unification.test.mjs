@@ -87,11 +87,19 @@ test('admin shell exposes the approved semantic palette through scoped aliases',
   assert.match(globalStyles, /\.fg-shell-admin\s*\{[^}]*--bg:\s*var\(--admin-canvas\);[^}]*--bg-card:\s*var\(--admin-surface\);[^}]*--text-dark:\s*var\(--admin-foreground\);[^}]*--text-mid:\s*var\(--admin-muted\);[^}]*--border:\s*var\(--admin-border\);[^}]*--role-accent:\s*var\(--admin-brand\);[^}]*--role-soft:\s*var\(--admin-brand-soft\);[^}]*--radius-sm:\s*8px;[^}]*--radius:\s*10px;[^}]*--radius-lg:\s*12px;/s);
 });
 
-test('admin visual foundation uses flat active navigation and tabular metrics', () => {
-  assert.match(layout, /\.sidebar-nav a\.router-link-active\{[^}]*background:var\(--admin-brand\);[^}]*box-shadow:none[^}]*\}/);
-  assert.doesNotMatch(layout, /\.sidebar-nav a\.router-link-active\{[^}]*(?:linear-gradient|box-shadow:(?!none))/);
-  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*background:var\(--admin-surface\)/);
-  assert.doesNotMatch(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*linear-gradient/);
+test('admin visual foundation uses semantic surfaces and accessible active navigation', () => {
+  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{border-right:1px solid var\(--admin-border\);background:var\(--admin-surface\)\}/);
+  assert.match(layout, /\.sidebar-brand\{border-bottom-color:var\(--admin-border\)\}/);
+  assert.match(layout, /\.topbar\{height:64px;border-bottom-color:var\(--admin-border\);background:var\(--admin-surface\)\}/);
+  assert.match(layout, /\.page-content\{background:var\(--admin-canvas\)\}/);
+  assert.match(layout, /\.sidebar-nav a\.router-link-active\{color:var\(--admin-foreground\);background:var\(--admin-brand-soft\);box-shadow:none\}/);
+  assert.match(layout, /\.sidebar-nav a\.router-link-active i\{color:var\(--admin-brand\)\}/);
+  assert.doesNotMatch(layout, /\.sidebar-nav a\.router-link-active\{[^}]*(?:#fff|var\(--admin-brand\)|linear-gradient|box-shadow:(?!none))/);
+  assert.match(globalStyles, /\.sidebar-nav a\.router-link-active\s*\{[^}]*font-weight:\s*700;/s);
+  assert.match(globalStyles, /\.sidebar-nav a\.router-link-active::before\s*\{[^}]*width:\s*3px;/s);
+});
+
+test('admin visual foundation uses tabular metrics and flat semantic foundations', () => {
   assert.match(globalStyles, /\.fg-shell-admin\s+:is\(\.stat-value,\s*\.fg-metric-card\s+strong,\s*\.today-kpis\s+strong,\s*\.stats\s+strong,\s*\.stats-grid\s+strong,\s*\.kpi-grid\s+strong,\s*\.receipt-kpis\s+strong,\s*td\.numeric,\s*\.numeric\)\s*\{\s*font-variant-numeric:\s*tabular-nums;\s*\}/);
   assert.match(globalStyles, /\.fg-shell-admin\.fg-shell\s*\{\s*background:\s*var\(--admin-canvas\);\s*\}/);
   assert.match(globalStyles, /\.fg-shell-admin\s+\.fg-panel\s*\{[^}]*background:\s*var\(--admin-surface\);[^}]*border:\s*1px solid var\(--admin-border\);[^}]*border-radius:\s*var\(--radius-lg\);[^}]*box-shadow:\s*none;/s);

@@ -167,13 +167,13 @@ function isLinkActive(link) {
 .fg-shell-admin{--role-accent:var(--primary);--role-soft:var(--primary-50)}
 .main-content{min-width:0}
 .fg-shell-admin :deep(.sidebar){border-right:1px solid var(--admin-border);background:var(--admin-surface)}
-.sidebar-brand{border-bottom-color:rgba(232,115,74,.12)}
+.sidebar-brand{border-bottom-color:var(--admin-border)}
 .sidebar-brand-title{letter-spacing:-.04em}
 .sidebar-nav a{border-radius:12px}
-.sidebar-nav a.router-link-active{color:#fff;background:var(--admin-brand);box-shadow:none}
-.sidebar-nav a.router-link-active i{color:#fff}
-.topbar{height:64px;border-bottom-color:rgba(23,23,23,.06);background:rgba(250,250,250,.88)}
+.sidebar-nav a.router-link-active{color:var(--admin-foreground);background:var(--admin-brand-soft);box-shadow:none}
+.sidebar-nav a.router-link-active i{color:var(--admin-brand)}
+.topbar{height:64px;border-bottom-color:var(--admin-border);background:var(--admin-surface)}
 .topbar h2{font-size:15px;letter-spacing:-.02em}
 .fg-status-chip{color:var(--primary-dark);background:var(--primary-50);border-color:var(--primary-100)}
-.page-content{background:#f7f5f2}
+.page-content{background:var(--admin-canvas)}
 </style>
