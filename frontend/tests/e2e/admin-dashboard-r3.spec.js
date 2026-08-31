@@ -192,6 +192,21 @@ test('attention destinations issue each exact critical request once', async ({ p
   expect(errors).toEqual([]);
 });
 
+test('delivery-failed attention independently opens and requests the attention queue once', async ({ page }) => {
+  const calls = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin');
+
+  const requestPromise = page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/orders');
+  await page.getByRole('link', { name: /Đơn giao thất bại/ }).click();
+  await expect(page).toHaveURL('/admin/orders?status=ATTENTION');
+  await expect(page.getByRole('tab', { name: /Cần xử lý/ })).toHaveAttribute('aria-selected', 'true');
+  expect(requestEvidence(await requestPromise)).toEqual({ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] });
+  expect(calls.orders).toEqual([{ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] }]);
+  expect(calls.refunds).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test('destination query values reject invalid input safely', async ({ page }) => {
   await setup(page);
   const errors = observeBrowser(page);
