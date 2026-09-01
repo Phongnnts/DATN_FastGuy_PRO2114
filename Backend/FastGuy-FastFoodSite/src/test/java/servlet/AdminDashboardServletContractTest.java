@@ -32,7 +32,7 @@ class AdminDashboardServletContractTest {
             "customerCount", "totalUsers", "totalOrders", "activeProductCount", "totalProducts", "ordersByStatus", "operationalOrderCount",
             "operationalCompletedCount", "completionRate", "totalRevenue", "pendingOrders", "revenueToday", "ordersToday", "pendingCodAmount",
             "revenueByMonth", "topProducts", "lowStockThreshold", "outOfStockSkuCount", "lowStockSkuCount", "deliveredOrdersToday",
-            "activeOrdersToday", "aovToday", "grossProfitToday", "costComplete");
+            "activeOrdersToday", "aovToday", "grossProfitToday", "costComplete", "revenueLast7Days", "topProductsLast7Days", "lowStockProducts");
     private static final Set<String> SECTION_KEYS = Set.of("financial", "orders", "refunds", "cod", "inventory", "staffing");
 
     @Test
@@ -80,6 +80,10 @@ class AdminDashboardServletContractTest {
         assertTrue(data.path("attentionItems").isArray());
         assertTrue(data.path("revenueByMonth").isArray());
         assertTrue(data.path("topProducts").isArray());
+        assertEquals(7, data.path("revenueLast7Days").size());
+        assertEquals(Set.of("date", "revenue"), fields(data.path("revenueLast7Days").get(0)));
+        assertEquals(Set.of("productId", "name", "sold", "revenue"), fields(data.path("topProductsLast7Days").get(0)));
+        assertEquals(Set.of("productId", "name", "remainingServings"), fields(data.path("lowStockProducts").get(0)));
         assertTrue(data.path("costComplete").isBoolean());
         assertEquals(0, new BigDecimal("275.20").compareTo(data.path("netCashRevenueToday").decimalValue()));
         assertEquals(0, new BigDecimal("1250.50").compareTo(data.path("totalRevenue").decimalValue()));
@@ -264,6 +268,16 @@ class AdminDashboardServletContractTest {
         data.put("lowStockSkuCount", 2L);
         data.put("lowStockItemCount", 3L);
         data.put("staffingGapCount", 1L);
+        data.put("revenueLast7Days", List.of(
+                Map.of("date", "2026-08-26", "revenue", BigDecimal.ZERO),
+                Map.of("date", "2026-08-27", "revenue", BigDecimal.ZERO),
+                Map.of("date", "2026-08-28", "revenue", BigDecimal.ZERO),
+                Map.of("date", "2026-08-29", "revenue", BigDecimal.ZERO),
+                Map.of("date", "2026-08-30", "revenue", BigDecimal.ZERO),
+                Map.of("date", "2026-08-31", "revenue", BigDecimal.ZERO),
+                Map.of("date", "2026-09-01", "revenue", new BigDecimal("300.20"))));
+        data.put("topProductsLast7Days", List.of(Map.of("productId", 1, "name", "Burger", "sold", 3, "revenue", new BigDecimal("180.00"))));
+        data.put("lowStockProducts", List.of(Map.of("productId", 1, "name", "Burger", "remainingServings", 8)));
         data.put("attentionItems", List.of(Map.of("type", "OVERDUE_PENDING_ORDERS", "severity", "WARNING", "count", 2L)));
         data.put("sectionAvailability", availability(Map.of()));
         return data;

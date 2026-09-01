@@ -34,17 +34,13 @@ function deprecatedDashboardProperties(contract) {
     .map(match => match[1]);
 }
 
-test('R3 dashboard uses only the six canonical operating metrics and consumes no deprecated contract property', () => {
-  for (const field of ['netCashRevenueToday', 'activeOrderCount', 'pendingRefundCount', 'pendingCodCount', 'lowStockItemCount', 'staffingGapCount']) assert.match(dashboard, new RegExp(`data\\.${field}`));
-  const deprecated = deprecatedDashboardProperties(openapi);
-  assert.ok(deprecated.length > 0, 'AdminDashboardData must expose deprecated compatibility properties');
-  const dashboardConsumer = dashboard.slice(0, dashboard.indexOf('<style scoped>'));
-  for (const field of deprecated) assert.doesNotMatch(dashboardConsumer, new RegExp(`\\b${field}\\b`), `DashboardPage consumes deprecated AdminDashboardData.${field}`);
-  for (const label of ['Doanh thu thuần hôm nay', 'Đơn đang hoạt động', 'Hoàn tiền chờ xử lý', 'COD chờ xác nhận', 'Mặt hàng sắp hết', 'Ca thiếu nhân sự']) assert.match(dashboard, new RegExp(label));
+test('R3 dashboard uses the four approved cockpit KPIs and new canonical analytics', () => {
+  for (const field of ['netCashRevenueToday', 'operationalOrderCountToday', 'aovToday', 'completionRateToday', 'revenueLast7Days', 'topProductsLast7Days', 'lowStockProducts']) assert.match(dashboard, new RegExp(`data(?:\\.value)?\\?\\.${field}|data\\.${field}`));
+  for (const label of ['Doanh thu thuần hôm nay', 'Đơn hàng hôm nay', 'Giá trị đơn trung bình', 'Tỷ lệ hoàn thành']) assert.match(dashboard, new RegExp(label));
 });
 
-test('R3 dashboard source follows the decision-first section order', () => {
-  ordered(dashboard, ['<header class="dashboard-heading"', 'id="attention-title">Cần xử lý ngay', 'class="operating-metrics"', 'id="active-flow-title"', 'class="flow-data"']);
+test('R3 dashboard source follows the approved cockpit section order', () => {
+  ordered(dashboard, ['<header class="dashboard-heading"', 'class="operating-metrics', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết']);
   assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý|<p class="eyebrow"/);
 });
 
@@ -60,15 +56,17 @@ test('R3 attention maps all six types to exact destination queries', () => {
   assert.match(dashboard, /Không có việc cần xử lý ngay/);
 });
 
-test('R3 dashboard keeps one active-order chart with an equivalent semantic table', () => {
+test('R3 dashboard renders three statistical charts with semantic alternatives', () => {
   assert.match(dashboard, /activeOrdersByStatus/);
-  assert.match(dashboard, /activeOrderChartRef/);
-  assert.match(dashboard, /<table[^>]*aria-label="Dữ liệu luồng đơn đang hoạt động"/);
-  assert.match(dashboard, /v-for="item in activeOrderSeries"/);
-  assert.match(dashboard, /aria-describedby="active-flow-data"/);
+  assert.match(dashboard, /revenueChartRef/);
+  assert.match(dashboard, /statusChartRef/);
+  assert.match(dashboard, /topProductsChartRef/);
+  assert.match(dashboard, /type: 'line'/);
+  assert.match(dashboard, /type: 'doughnut'/);
+  assert.match(dashboard, /indexAxis: 'y'/);
+  for (const label of ['Doanh thu 7 ngày', 'Trạng thái đơn hàng', 'Món bán chạy', 'Món sắp tạm hết']) assert.match(dashboard, new RegExp(label));
   assert.match(dashboard, /prefers-reduced-motion/);
-  assert.match(dashboard, /animation: reducedMotion/);
-  assert.doesNotMatch(dashboard, /revenueChartRef|topChartRef|statusChartRef/);
+  assert.match(dashboard, /const animation = reducedMotion \? false/);
   for (const [status, label] of Object.entries({ PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận', PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper', PICKED_UP: 'Đang giao', DELIVERY_FAILED: 'Giao thất bại' })) {
     assert.match(dashboard, new RegExp(`${status}[^\\n]+${label}`));
   }

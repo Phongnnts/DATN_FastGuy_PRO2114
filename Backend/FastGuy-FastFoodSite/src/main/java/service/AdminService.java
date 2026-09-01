@@ -17,6 +17,8 @@ import dao.InventoryItemDAO;
 import dao.OrdersDAO;
 import dao.ProductDAO;
 import dao.UserDAO;
+import entity.Product;
+import entity.ProductVariant;
 
 public class AdminService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -30,6 +32,7 @@ public class AdminService {
     private StoreConfigService storeConfigService = new StoreConfigService();
     private MenuPerformanceReportService menuPerformanceReportService = new MenuPerformanceReportService();
     private WorkShiftService workShiftService = new WorkShiftService();
+    private InventoryAvailabilityService inventoryAvailabilityService = new InventoryAvailabilityService();
 
     public Map<String, Object> getDashboard() {
         return getDashboardWithPeriod(null);
@@ -77,6 +80,9 @@ public class AdminService {
         data.put("lowStockSkuCount", 0L);
         data.put("lowStockItemCount", 0L);
         data.put("staffingGapCount", 0L);
+        data.put("revenueLast7Days", List.of());
+        data.put("topProductsLast7Days", List.of());
+        data.put("lowStockProducts", List.of());
 
         try {
             long customerCount = userDAO.countByRole("USER");
@@ -172,6 +178,23 @@ public class AdminService {
         if (revenueAvailable && refundsAvailable) data.put("netCashRevenueToday", revenueToday.subtract(refundsToday));
         if (revenueAvailable && deliveredToday > 0) data.put("aovToday", revenueToday.divide(BigDecimal.valueOf(deliveredToday), 2, RoundingMode.HALF_UP));
 
+        LocalDate weekStart = today.minusDays(6);
+        try {
+            List<Map<String, Object>> revenueLast7Days = new ArrayList<>();
+            for (int day = 0; day < 7; day++) {
+                LocalDate date = weekStart.plusDays(day);
+                revenueLast7Days.add(Map.of("date", date.toString(), "revenue", ordersDAO.sumDeliveredPaidRevenue(date.atStartOfDay(), date.plusDays(1).atStartOfDay())));
+            }
+            data.put("revenueLast7Days", revenueLast7Days);
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("financial", "UNAVAILABLE");
+        }
+        try {
+            data.put("topProductsLast7Days", moneyRows(ordersDAO.findTopProductsByDateRange(weekStart.atStartOfDay(), today.plusDays(1).atStartOfDay(), 5)));
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("orders", "UNAVAILABLE");
+        }
+
         if (period != null) {
             LocalDate now = LocalDate.now(BUSINESS_ZONE);
             LocalDateTime start, end = now.plusDays(1).atStartOfDay();
@@ -235,6 +258,11 @@ public class AdminService {
             data.put("totalProducts", activeProductCount);
         } catch (RuntimeException exception) {
         }
+        try {
+            data.put("lowStockProducts", lowestProductCapacities());
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("inventory", "UNAVAILABLE");
+        }
 
         long staffingGapCount = 0L;
         try {
@@ -256,6 +284,35 @@ public class AdminService {
         data.put("attentionItems", attentionItems);
         data.put("sectionAvailability", sectionAvailability);
         return data;
+    }
+
+    private List<Map<String, Object>> lowestProductCapacities() {
+        List<Product> products = productDAO.findAll().stream().filter(product -> "AVAILABLE".equals(product.getStatus())).toList();
+        Map<Integer, Product> productByVariant = new LinkedHashMap<>();
+        List<Integer> variantIds = new ArrayList<>();
+        for (Product product : products) {
+            for (ProductVariant variant : productDAO.findVariantsByProductId(product.getProductId())) {
+                if ("AVAILABLE".equals(variant.getStatus()) && "INGREDIENT".equals(variant.getInventoryMode())) {
+                    variantIds.add(variant.getVariantId());
+                    productByVariant.put(variant.getVariantId(), product);
+                }
+            }
+        }
+        Map<Integer, Map<String, Object>> availability = inventoryAvailabilityService.publicAvailability(variantIds);
+        Map<Integer, Map<String, Object>> byProduct = new LinkedHashMap<>();
+        for (int variantId : variantIds) {
+            Object remaining = availability.getOrDefault(variantId, Map.of()).get("remainingServings");
+            if (!(remaining instanceof Number number)) continue;
+            Product product = productByVariant.get(variantId);
+            int servings = number.intValue();
+            Map<String, Object> current = byProduct.get(product.getProductId());
+            if (current == null || servings < ((Number) current.get("remainingServings")).intValue()) {
+                byProduct.put(product.getProductId(), Map.of("productId", product.getProductId(), "name", product.getName(), "remainingServings", servings));
+            }
+        }
+        return byProduct.values().stream()
+                .sorted((left, right) -> Integer.compare(((Number) left.get("remainingServings")).intValue(), ((Number) right.get("remainingServings")).intValue()))
+                .limit(5).toList();
     }
 
     private static List<Map<String, Object>> moneyRows(List<Map<String, Object>> rows) {

@@ -38,10 +38,11 @@ test('dashboard keeps canonical today revenue and COD attention destinations', (
   assert.match(page, /\/admin\/cod-settlements/);
 });
 
-test('attention icons are decorative and responsive source policy remains', () => {
-  assert.match(page, /bi bi-exclamation-circle" aria-hidden="true"/);
-  assert.match(page, /repeat\(6,minmax\(0,1fr\)\)/);
-  assert.match(page, /@media\(max-width:760px\).*\.attention-list\{grid-template-columns:1fr\}/s);
+test('dashboard presents product capacity in natural Vietnamese and remains responsive', () => {
+  assert.match(page, /Món sắp tạm hết/);
+  assert.match(page, /Còn đủ nguyên liệu cho khoảng/);
+  assert.match(page, /lowStockProducts/);
+  assert.match(page, /@media\(max-width:760px\)/);
 });
 
 test('admin stock alerts remain current response UI only', () => {

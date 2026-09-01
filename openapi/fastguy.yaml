@@ -2785,7 +2785,7 @@ components:
     AdminDashboardData:
       type: object
       additionalProperties: false
-      required: [netCashRevenueToday, activeOrderCount, pendingRefundCount, pendingCodCount, lowStockItemCount, staffingGapCount, activeOrdersByStatus, operationalOrderCountToday, operationalCompletedCountToday, completionRateToday, attentionItems, sectionAvailability, customerCount, totalUsers, totalOrders, activeProductCount, totalProducts, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, pendingOrders, revenueToday, ordersToday, pendingCodAmount, revenueByMonth, topProducts, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete]
+      required: [netCashRevenueToday, activeOrderCount, pendingRefundCount, pendingCodCount, lowStockItemCount, staffingGapCount, activeOrdersByStatus, operationalOrderCountToday, operationalCompletedCountToday, completionRateToday, attentionItems, sectionAvailability, revenueLast7Days, topProductsLast7Days, lowStockProducts, customerCount, totalUsers, totalOrders, activeProductCount, totalProducts, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, pendingOrders, revenueToday, ordersToday, pendingCodAmount, revenueByMonth, topProducts, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete]
       properties:
         netCashRevenueToday:
           type: number
@@ -2808,6 +2808,19 @@ components:
           type: array
           items: { $ref: '#/components/schemas/AdminAttentionItem' }
         sectionAvailability: { $ref: '#/components/schemas/AdminDashboardSectionAvailability' }
+        revenueLast7Days:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items: { $ref: '#/components/schemas/AdminDashboardDailyRevenue' }
+        topProductsLast7Days:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/AdminDashboardTopProduct' }
+        lowStockProducts:
+          type: array
+          maxItems: 5
+          items: { $ref: '#/components/schemas/AdminDashboardLowStockProduct' }
         customerCount: { type: [integer, 'null'], minimum: 0, deprecated: true }
         totalUsers: { type: [integer, 'null'], minimum: 0, deprecated: true }
         totalOrders: { type: integer, minimum: 0, deprecated: true }
@@ -2872,6 +2885,30 @@ components:
         aovToday: { type: number, minimum: 0, deprecated: true }
         grossProfitToday: { type: [number, 'null'], deprecated: true }
         costComplete: { type: boolean, deprecated: true }
+    AdminDashboardDailyRevenue:
+      type: object
+      additionalProperties: false
+      required: [date, revenue]
+      properties:
+        date: { type: string, format: date }
+        revenue: { type: number, minimum: 0 }
+    AdminDashboardTopProduct:
+      type: object
+      additionalProperties: false
+      required: [productId, name, sold, revenue]
+      properties:
+        productId: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1 }
+        sold: { type: integer, minimum: 0 }
+        revenue: { type: number, minimum: 0 }
+    AdminDashboardLowStockProduct:
+      type: object
+      additionalProperties: false
+      required: [productId, name, remainingServings]
+      properties:
+        productId: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1 }
+        remainingServings: { type: integer, minimum: 0 }
     AdminDashboardSectionAvailability:
       type: object
       additionalProperties: false

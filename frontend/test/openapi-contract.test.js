@@ -164,6 +164,9 @@ test('OpenAPI contracts operational dashboard and reconcilable financial reports
     operationalOrderCountToday: 'integer',
     operationalCompletedCountToday: 'integer',
     completionRateToday: 'number',
+    revenueLast7Days: 'array',
+    topProductsLast7Days: 'array',
+    lowStockProducts: 'array',
   };
   const canonicalFields = [...Object.keys(canonicalTypes), 'attentionItems', 'sectionAvailability'];
   const dashboardStart = adminService.indexOf('public Map<String, Object> getDashboardWithPeriod');

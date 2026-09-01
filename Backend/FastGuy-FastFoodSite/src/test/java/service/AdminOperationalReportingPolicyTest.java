@@ -31,6 +31,8 @@ import dao.ProductDAO;
 import dao.UserDAO;
 import entity.InventoryItem;
 import entity.Orders;
+import entity.Product;
+import entity.ProductVariant;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 
@@ -174,7 +176,7 @@ class AdminOperationalReportingPolicyTest {
                 "customerCount", "totalUsers", "totalOrders", "activeProductCount", "totalProducts", "ordersByStatus", "operationalOrderCount",
                 "operationalCompletedCount", "completionRate", "totalRevenue", "pendingOrders", "revenueToday", "ordersToday", "pendingCodAmount",
                 "revenueByMonth", "topProducts", "lowStockThreshold", "outOfStockSkuCount", "lowStockSkuCount", "deliveredOrdersToday",
-                "activeOrdersToday", "aovToday", "grossProfitToday", "costComplete");
+                "activeOrdersToday", "aovToday", "grossProfitToday", "costComplete", "revenueLast7Days", "topProductsLast7Days", "lowStockProducts");
 
         assertTrue(data.keySet().containsAll(required));
         Map<String, Object> period = new AdminDashboardTestFixture().service().getDashboardWithPeriod("7d");
@@ -323,6 +325,7 @@ class AdminDashboardTestFixture {
         set(service, "storeConfigService", new StubStoreConfigService());
         set(service, "menuPerformanceReportService", new StubMenuPerformanceReportService());
         set(service, "workShiftService", new StubWorkShiftService());
+        set(service, "inventoryAvailabilityService", new StubInventoryAvailabilityService());
         return service;
     }
 
@@ -447,6 +450,32 @@ class AdminDashboardTestFixture {
         public long countAvailableProducts() {
             if ("product".equals(failedProvider)) throw new IllegalStateException("product unavailable");
             return 7L;
+        }
+
+        @Override
+        public List<Product> findAll() {
+            Product product = new Product();
+            product.setProductId(1);
+            product.setName("Burger");
+            product.setStatus("AVAILABLE");
+            return List.of(product);
+        }
+
+        @Override
+        public List<ProductVariant> findVariantsByProductId(int productId) {
+            ProductVariant variant = new ProductVariant();
+            variant.setVariantId(1);
+            variant.setStatus("AVAILABLE");
+            variant.setInventoryMode("INGREDIENT");
+            return List.of(variant);
+        }
+    }
+
+    class StubInventoryAvailabilityService extends InventoryAvailabilityService {
+        @Override
+        public Map<Integer, Map<String, Object>> publicAvailability(List<Integer> variantIds) {
+            if ("inventory".equals(failedProvider)) throw new IllegalStateException("inventory unavailable");
+            return Map.of(1, Map.of("availabilityStatus", "LOW_STOCK", "remainingServings", 3));
         }
     }
 
