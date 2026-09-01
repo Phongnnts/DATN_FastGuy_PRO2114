@@ -37,7 +37,11 @@ test('HR dashboard composes existing operations with independent resilient secti
   assert.match(hrDashboard, /let loadGeneration = 0/);
   assert.match(hrDashboard, /generation !== loadGeneration/);
   assert.match(hrDashboard, /onBeforeUnmount\(\(\) => \{ loadGeneration\+\+/);
-  assert.match(hrDashboard, /Dashboard nhân sự/);
+  assert.match(hrDashboard, /Nhân sự vận hành/);
+  assert.match(hrDashboard, /class="hr-command-grid"/);
+  assert.match(hrDashboard, /class="[^"]*shift-timeline[^"]*"/);
+  assert.match(hrDashboard, /class="[^"]*attention-rail[^"]*"/);
+  assert.match(hrDashboard, /aria-label="Tình hình nhân sự hôm nay"/);
   assert.match(hrDashboard, /Ca hôm nay/);
   assert.match(hrDashboard, /Cần chú ý/);
 });

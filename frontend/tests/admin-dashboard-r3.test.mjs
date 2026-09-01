@@ -40,16 +40,18 @@ test('R3 dashboard uses the four approved cockpit KPIs and new canonical analyti
 });
 
 test('R3 dashboard source follows the approved cockpit section order', () => {
-  ordered(dashboard, ['<header class="dashboard-hero"', 'class="operating-metrics', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết', 'class="panel priority-orders-panel']);
+  ordered(dashboard, ['<header class="operations-hero"', 'class="dashboard-kpi-grid', 'class="primary-operations-grid"', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'class="secondary-insights-grid"', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết', 'class="panel priority-workspace']);
   assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý/);
 });
 
 test('dashboard uses the approved Apple-inspired hierarchy without decorative fake data', () => {
-  for (const className of ['dashboard-hero', 'metric-card', 'revenue-panel', 'attention-panel', 'status-panel', 'products-panel', 'stock-panel', 'priority-orders-panel']) {
+  for (const className of ['operations-hero', 'dashboard-kpi-grid', 'primary-operations-grid', 'secondary-insights-grid', 'revenue-panel', 'attention-panel', 'status-panel', 'products-panel', 'stock-panel', 'priority-workspace']) {
     assert.match(dashboard, new RegExp(className));
   }
+  assert.match(dashboard, /FASTGUY LIVE OPERATIONS/);
+  assert.match(dashboard, /aria-label="Chỉ số điều hành hôm nay"/);
   assert.match(dashboard, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
-  assert.doesNotMatch(dashboard, /sparkline|fakeTrend|notification-bell|global-search/);
+  assert.doesNotMatch(dashboard, /sparkline|fakeTrend|notification-bell|global-search|so với hôm qua/);
 });
 
 test('R3 attention maps all six types to exact destination queries', () => {

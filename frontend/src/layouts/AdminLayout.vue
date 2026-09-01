@@ -275,9 +275,9 @@ function isLinkActive(link) {
 
 <style scoped>
 .fg-shell-admin{--role-accent:var(--admin-brand);--role-soft:var(--admin-brand-soft);background:var(--admin-canvas)}
-.sidebar{width:248px}
-.main-content{min-width:0;margin-left:248px}
-.fg-shell-admin :deep(.sidebar){inset:10px auto 10px 10px;height:calc(100vh - 20px);border:1px solid var(--admin-hairline);border-radius:16px;background:rgba(255,255,255,.96);box-shadow:var(--admin-shell-shadow)}
+.sidebar{width:224px}
+.main-content{min-width:0;margin-left:224px}
+.fg-shell-admin :deep(.sidebar){inset:12px auto 12px 12px;height:calc(100vh - 24px);border:1px solid var(--admin-hairline);border-radius:var(--admin-shell-radius);background:rgba(255,255,255,.97);box-shadow:var(--admin-shell-shadow)}
 .fg-shell-admin :deep(.main-content){background:var(--admin-canvas)}
 .sidebar-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:0;padding:14px 16px 18px}
 .sidebar-brand-identity{display:flex;align-items:center;gap:10px;min-width:0}

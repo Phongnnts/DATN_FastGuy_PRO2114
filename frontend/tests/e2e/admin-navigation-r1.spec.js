@@ -10,7 +10,8 @@ async function mockAdmin(page, user = { id: 1, fullName: 'Quản trị viên', r
   }, { value: token, storedUser: user });
   const fixtures = new Map([
     ['/api/auth/profile', ok({ ...user, userId: user.id, avatarUrl: null })],
-    ['/api/admin/dashboard', ok({ customerCount: 0, activeProductCount: 0, totalOrders: 0, totalRevenue: 0, operationalOrderCount: 0, operationalCompletedCount: 0, completionRate: 0, ordersByStatus: {}, pendingCodAmount: 0, pendingCodCount: 0, ordersToday: 0, revenueToday: 0, revenueByMonth: [], topProducts: [], lowStockThreshold: 5, outOfStockSkuCount: 0, lowStockSkuCount: 0 })],
+    ['/api/admin/dashboard', ok({ netCashRevenueToday: 0, operationalOrderCountToday: 0, aovToday: 0, completionRateToday: 0, activeOrderCount: 0, activeOrdersByStatus: {}, revenueLast7Days: [], topProductsLast7Days: [], lowStockProducts: [], attentionItems: [], sectionAvailability: { financial: 'AVAILABLE', orders: 'AVAILABLE', refunds: 'AVAILABLE', cod: 'AVAILABLE', inventory: 'AVAILABLE', staffing: 'AVAILABLE' } })],
+    ['/api/admin/orders', ok({ items: [], pagination: { page: 1, pageSize: 8, totalItems: 0, totalPages: 0 } })],
     ['/api/admin/inventory/items', ok([])],
     ['/api/admin/inventory/transactions', ok({ items: [], totalItems: 0 })],
     ['/api/admin/products', ok([])],
@@ -58,8 +59,8 @@ test('admin shell exposes one identity and current page title', async ({ page },
   const banner = page.getByRole('banner');
   const sidebar = page.locator('#admin-sidebar');
   const trigger = page.getByRole('button', { name: 'Mở menu quản trị' });
-  await expect(page.getByText('FastGuy Admin', { exact: true })).toHaveCount(1);
-  await expect(page.getByText('FastGuy Admin', { exact: true })).toBeVisible();
+  await expect(page.getByText('FastGuy', { exact: true })).toHaveCount(1);
+  await expect(page.getByText('Operations Admin', { exact: true })).toBeVisible();
   await expect(page.getByText('Admin', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Trung tâm quản trị', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Quản trị', { exact: true })).toHaveCount(0);
@@ -197,8 +198,8 @@ test('resize transfers focus from desktop sidebar to the drawer trigger', async 
   const { errors } = captureTraffic(page);
   await page.goto('/admin');
 
-  await page.getByRole('link', { name: 'Dashboard' }).focus();
-  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeFocused();
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).focus();
+  await expect(page.getByRole('link', { name: 'Dashboard', exact: true })).toBeFocused();
   await page.setViewportSize({ width: 1024, height: 768 });
 
   await expect(page.getByRole('button', { name: 'Mở menu quản trị' })).toBeFocused();

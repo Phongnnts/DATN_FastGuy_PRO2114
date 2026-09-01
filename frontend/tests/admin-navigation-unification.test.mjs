@@ -80,15 +80,15 @@ test('legacy routes redirect to unified query tabs while fixed assets remain add
 
 test('admin shell exposes the approved semantic palette through scoped aliases', () => {
   const expectedTokens = {
-    '--admin-canvas': '#FFFFFF',
+    '--admin-canvas': '#F4F6F8',
     '--admin-surface': '#FFFFFF',
-    '--admin-surface-subtle': '#FAFAFD',
-    '--admin-foreground': '#20212B',
-    '--admin-muted': '#858794',
-    '--admin-subtle': '#A6A6AE',
-    '--admin-brand': '#FF7448',
-    '--admin-brand-dark': '#C94F2A',
-    '--admin-brand-soft': '#FFF1EB',
+    '--admin-surface-subtle': '#F8F9FB',
+    '--admin-foreground': '#182230',
+    '--admin-muted': '#667085',
+    '--admin-subtle': '#98A2B3',
+    '--admin-brand': '#F45B2A',
+    '--admin-brand-dark': '#C43F16',
+    '--admin-brand-soft': '#FFF0EA',
     '--admin-info': '#635C96',
     '--admin-success': '#16845B',
     '--admin-warning': '#946000',
@@ -106,16 +106,16 @@ test('admin text-bearing primary controls use a scoped WCAG AA orange pairing', 
   const action = variables.match(/--admin-action:\s*(#[\dA-F]{6});/i)?.[1];
   assert.ok(action, 'missing --admin-action');
   assert.ok(contrastRatio('#FFFFFF', action) >= 4.5, `${action} must have at least 4.5:1 contrast with white`);
-  assert.match(variables, /--admin-brand:\s*#FF7448;/);
+  assert.match(variables, /--admin-brand:\s*#F45B2A;/);
   assert.match(globalStyles, /\.fg-shell-admin :is\(\.btn-primary, \.verify-button\)\s*\{[^}]*background:\s*var\(--admin-action\);[^}]*border-color:\s*var\(--admin-action\);/s);
   assert.match(codSettlements, /\.verify-button\{[^}]*color:#fff;[^}]*background:var\(--admin-action\)/);
   assert.doesNotMatch(codSettlements, /\.verify-button\{[^}]*background:var\(--role-admin\)/);
 });
 
 test('admin visual foundation uses semantic surfaces and accessible active navigation', () => {
-  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*border:1px solid var\(--admin-hairline\);[^}]*border-radius:16px;[^}]*box-shadow:var\(--admin-shell-shadow\)/);
-  assert.match(layout, /\.sidebar\{width:248px\}/);
-  assert.match(layout, /\.main-content\{min-width:0;margin-left:248px\}/);
+  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*border:1px solid var\(--admin-hairline\);[^}]*border-radius:var\(--admin-shell-radius\);[^}]*box-shadow:var\(--admin-shell-shadow\)/);
+  assert.match(layout, /\.sidebar\{width:224px\}/);
+  assert.match(layout, /\.main-content\{min-width:0;margin-left:224px\}/);
   assert.match(layout, /\.sidebar-brand\{[^}]*border-bottom:0/);
   assert.match(layout, /\.topbar\{height:64px;[^}]*border:1px solid var\(--admin-hairline\);[^}]*border-radius:14px;[^}]*box-shadow:var\(--admin-shell-shadow\);backdrop-filter:blur\(18px\)\}/);
   assert.match(layout, /\.page-content\{max-width:1600px;background:var\(--admin-canvas\)\}/);

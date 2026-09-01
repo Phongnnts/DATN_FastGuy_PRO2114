@@ -22,7 +22,8 @@ test('status mutation reloads canonical users', () => {
 });
 
 test('users summaries expose icons proportions and truthful account context', () => {
-  for (const token of ['stat-context', 'stat-meter', 'activePercent', 'workforcePercent', 'inactivePercent']) assert.match(page, new RegExp(token));
+  for (const token of ['users-summary-grid', 'users-workspace', 'users-toolbar', 'users-table', 'users-mobile-list', 'stat-context', 'stat-meter', 'activePercent', 'workforcePercent', 'inactivePercent']) assert.match(page, new RegExp(token));
+  assert.match(page, /aria-label="Lọc người dùng theo vai trò"/);
   assert.match(page, /Nhân viên và shipper/);
   assert.doesNotMatch(page, /tăng|giảm|so với tháng/i);
 });

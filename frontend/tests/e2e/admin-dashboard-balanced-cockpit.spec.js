@@ -33,7 +33,7 @@ const dashboard = {
   sectionAvailability: { financial: 'AVAILABLE', orders: 'AVAILABLE', refunds: 'AVAILABLE', cod: 'AVAILABLE', inventory: 'AVAILABLE', staffing: 'AVAILABLE' },
 };
 
-test('admin balanced cockpit renders desktop analytics without browser errors', async ({ page }) => {
+test('admin balanced cockpit renders analytics without browser errors', async ({ page }, testInfo) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -77,9 +77,11 @@ test('admin balanced cockpit renders desktop analytics without browser errors', 
     await control.focus();
     await expect(control).toBeFocused();
   }
-  const analyticsGrid = page.locator('.analytics-grid');
-  const [gridBox, revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all([analyticsGrid, ...['.revenue-panel', '.attention-panel', '.status-panel', '.products-panel', '.stock-panel'].map(selector => analyticsGrid.locator(selector))].map(locator => locator.boundingBox()));
-  const gap = 16;
+  const primaryGrid = page.locator('.primary-operations-grid');
+  const secondaryGrid = page.locator('.secondary-insights-grid');
+  if (!testInfo.project.name.includes('mobile')) {
+  const [primaryBox, secondaryBox, revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all([primaryGrid, secondaryGrid, primaryGrid.locator('.revenue-panel'), primaryGrid.locator('.attention-panel'), secondaryGrid.locator('.status-panel'), secondaryGrid.locator('.products-panel'), secondaryGrid.locator('.stock-panel')].map(locator => locator.boundingBox()));
+  const gap = 14;
   const tolerance = 2;
   const revenueTracks = revenueBox.width - (7 * gap);
   const attentionTracks = attentionBox.width - (3 * gap);
@@ -87,19 +89,22 @@ test('admin balanced cockpit renders desktop analytics without browser errors', 
   const productTracks = productsBox.width - (4 * gap);
   const stockTracks = stockBox.width - (2 * gap);
   expect(Math.abs(revenueBox.y - attentionBox.y)).toBeLessThan(tolerance);
-  expect(Math.abs(revenueBox.x - gridBox.x)).toBeLessThan(tolerance);
+  expect(Math.abs(revenueBox.x - primaryBox.x)).toBeLessThan(tolerance);
   expect(Math.abs(attentionBox.x - (revenueBox.x + revenueBox.width + gap))).toBeLessThan(tolerance);
-  expect(Math.abs((attentionBox.x + attentionBox.width) - (gridBox.x + gridBox.width))).toBeLessThan(tolerance);
-  expect(revenueBox.width + attentionBox.width + gap).toBeCloseTo(gridBox.width, 0);
+  expect(Math.abs((attentionBox.x + attentionBox.width) - (primaryBox.x + primaryBox.width))).toBeLessThan(tolerance);
+  expect(revenueBox.width + attentionBox.width + gap).toBeCloseTo(primaryBox.width, 0);
   expect(revenueTracks / attentionTracks).toBeCloseTo(2, 1);
   expect(Math.max(statusBox.y, productsBox.y, stockBox.y) - Math.min(statusBox.y, productsBox.y, stockBox.y)).toBeLessThan(tolerance);
-  expect(Math.abs(statusBox.x - gridBox.x)).toBeLessThan(tolerance);
+  expect(Math.abs(statusBox.x - secondaryBox.x)).toBeLessThan(tolerance);
   expect(Math.abs(productsBox.x - (statusBox.x + statusBox.width + gap))).toBeLessThan(tolerance);
   expect(Math.abs(stockBox.x - (productsBox.x + productsBox.width + gap))).toBeLessThan(tolerance);
-  expect(Math.abs((stockBox.x + stockBox.width) - (gridBox.x + gridBox.width))).toBeLessThan(tolerance);
-  expect(statusBox.width + productsBox.width + stockBox.width + (2 * gap)).toBeCloseTo(gridBox.width, 0);
+  expect(Math.abs((stockBox.x + stockBox.width) - (secondaryBox.x + secondaryBox.width))).toBeLessThan(tolerance);
+  expect(statusBox.width + productsBox.width + stockBox.width + (2 * gap)).toBeCloseTo(secondaryBox.width, 0);
   expect(statusTracks / stockTracks).toBeCloseTo(4 / 3, 1);
   expect(productTracks / stockTracks).toBeCloseTo(5 / 3, 1);
+  }
+  await expect(primaryGrid).toBeVisible();
+  await expect(secondaryGrid).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   await priorityAction.click();
   await expect(page).toHaveURL(/\/admin\/orders\?status=ATTENTION&orderId=1|\/admin\/orders\?orderId=1&status=ATTENTION/);

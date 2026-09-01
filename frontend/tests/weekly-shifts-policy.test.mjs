@@ -16,6 +16,7 @@ test('weekly APIs match OpenAPI paths, query, and replacement body', () => {
 });
 
 test('admin schedule renders seven days by three fixed Staff slots and exact payload', () => {
+  for (const token of ['shift-mode-tabs', 'schedule-toolbar', 'week-calendar-shell', 'assignment-cell', 'month-inspector', 'monitoring-workspace']) assert.match(adminPage, new RegExp(token));
   assert.match(adminPage, /SHIFT_CODES\s*=\s*\['MORNING', 'AFTERNOON', 'EVENING'\]/);
   assert.match(adminPage, /v-for="day in days"/);
   assert.match(adminPage, /v-for="code in SHIFT_CODES"/);
@@ -25,6 +26,7 @@ test('admin schedule renders seven days by three fixed Staff slots and exact pay
   assert.match(adminPage, /baseline/);
   assert.match(adminPage, /roleName === 'STAFF'/);
   assert.match(adminPage, /:disabled="isCurrentWeek"/);
+  assert.doesNotMatch(adminPage, /transition:\s*all/);
 });
 
 test('admin attendance filters by existing staff and includes userId in request identity', () => {
@@ -57,7 +59,7 @@ test('admin schedule restores week and month calendar state from URL', () => {
   for (const token of ["VIEW_KEYS = ['week', 'month']", 'viewFromQuery', 'selectedDate', 'route.query.view', 'route.query.date']) assert.match(adminPage, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(adminPage, /const view = ref\(viewFromQuery\(route.query.view\)\)/);
   assert.match(adminPage, /class="month-grid"/);
-  assert.match(adminPage, /class="day-inspector"/);
+  assert.match(adminPage, /class="[^"]*day-inspector[^"]*"/);
 });
 
 test('admin month overview uses at most six contracted week reads and blocks future dates', () => {

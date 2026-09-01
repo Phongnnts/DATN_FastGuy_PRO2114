@@ -279,20 +279,20 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleOverlayKeydo
       <button class="btn btn-primary add-button" @click="openAdd"><i class="bi bi-person-plus"></i> Thêm người dùng</button>
     </div>
 
-    <div class="stats-grid">
+    <div class="users-summary-grid stats-grid">
       <article class="user-stat stat-total"><div class="stat-heading"><span>Tổng tài khoản</span><span class="stat-icon"><i class="bi bi-people-fill" aria-hidden="true"></i></span></div><strong>{{ stats.total }}</strong><div class="stat-context"><span>Toàn hệ thống</span><b>100%</b></div><span class="stat-meter"><i :style="{ width: stats.total ? '100%' : '0%' }"></i></span></article>
       <article class="user-stat stat-active"><div class="stat-heading"><span>Đang hoạt động</span><span class="stat-icon"><i class="bi bi-person-check-fill" aria-hidden="true"></i></span></div><strong>{{ stats.active }}</strong><div class="stat-context"><span>Tài khoản khả dụng</span><b>{{ activePercent }}%</b></div><span class="stat-meter"><i :style="{ width: `${activePercent}%` }"></i></span></article>
       <article class="user-stat stat-staff"><div class="stat-heading"><span>Nhân sự vận hành</span><span class="stat-icon"><i class="bi bi-person-workspace" aria-hidden="true"></i></span></div><strong>{{ stats.staff }}</strong><div class="stat-context"><span>Nhân viên và shipper</span><b>{{ workforcePercent }}%</b></div><span class="stat-meter"><i :style="{ width: `${workforcePercent}%` }"></i></span></article>
       <article class="user-stat stat-inactive"><div class="stat-heading"><span>Đã vô hiệu hóa</span><span class="stat-icon"><i class="bi bi-person-dash-fill" aria-hidden="true"></i></span></div><strong>{{ stats.inactive }}</strong><div class="stat-context"><span>Không thể đăng nhập</span><b>{{ inactivePercent }}%</b></div><span class="stat-meter"><i :style="{ width: `${inactivePercent}%` }"></i></span></article>
     </div>
 
-    <div class="users-panel">
-      <div class="toolbar">
+    <div class="users-workspace users-panel">
+      <div class="users-toolbar toolbar">
         <label class="user-search"><i class="bi bi-search"></i><input v-model="searchTerm" placeholder="Tìm tên, email, SĐT hoặc ID"><button v-if="searchTerm" type="button" aria-label="Xóa tìm kiếm" @click="searchTerm = ''"><i class="bi bi-x-circle-fill"></i></button></label>
         <span class="result-count">{{ filtered.length }} kết quả</span>
       </div>
 
-      <div class="role-tabs" role="tablist" aria-label="Lọc theo vai trò">
+      <div class="role-tabs" role="tablist" aria-label="Lọc người dùng theo vai trò">
         <button v-for="filter in roleFilters" :key="filter.key" class="role-tab" :class="{ active: activeRole === filter.key }" @click="setRole(filter.key)"><i class="bi" :class="filter.icon"></i><span>{{ filter.label }}</span><b>{{ roleCount(filter.key) }}</b></button>
       </div>
 
@@ -314,6 +314,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleOverlayKeydo
             </tr>
           </tbody>
         </table>
+      </div>
+      <div v-if="!loading && paged.length" class="users-mobile-list" aria-label="Danh sách người dùng trên thiết bị nhỏ">
+        <article v-for="user in paged" :key="`mobile-${user.userId}`" class="user-mobile-card" :class="{ muted: user.status === 'INACTIVE' }">
+          <div class="mobile-user-head"><div class="identity"><img v-if="user.avatarUrl" :src="user.avatarUrl" alt="" class="avatar avatar-image" /><div v-else class="avatar" :class="roleMeta[user.roleName]?.className">{{ initials(user.fullName) }}</div><div><strong>{{ user.fullName }}</strong><span>#{{ user.userId }} · {{ user.email }}</span></div></div><button class="icon-button details" type="button" :aria-label="`Xem chi tiết ${user.fullName}`" @click="openDetail(user, $event)"><i class="bi bi-chevron-right" aria-hidden="true"></i></button></div>
+          <div class="mobile-user-meta"><span class="role-pill" :class="roleMeta[user.roleName]?.className"><i class="bi" :class="roleMeta[user.roleName]?.icon" aria-hidden="true"></i>{{ roleMeta[user.roleName]?.label || user.roleName }}</span><span class="status-pill" :class="user.status === 'INACTIVE' ? 'inactive' : 'active'"><span></span>{{ user.status === 'INACTIVE' ? 'Vô hiệu hóa' : 'Hoạt động' }}</span><span class="points"><i class="bi bi-star-fill" aria-hidden="true"></i>{{ Number(user.loyaltyPoints || 0).toLocaleString() }}</span></div>
+          <div class="mobile-user-actions"><button type="button" @click="viewOrders(user)"><i class="bi bi-receipt" aria-hidden="true"></i>Đơn hàng</button><button type="button" @click="openEdit(user)"><i class="bi bi-pencil-square" aria-hidden="true"></i>Chỉnh sửa</button></div>
+        </article>
       </div>
 
       <div v-if="!loading && filtered.length" class="pagination"><span>Trang {{ currentPage }} / {{ totalPages }}</span><div><button :disabled="currentPage === 1" @click="currentPage--"><i class="bi bi-chevron-left"></i></button><button :disabled="currentPage === totalPages" @click="currentPage++"><i class="bi bi-chevron-right"></i></button></div></div>
@@ -446,4 +453,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleOverlayKeydo
 .order-status { padding: 5px 8px; border-radius: 8px; color: #1d4ed8; background: #dbeafe; font-size: 11px; font-weight: 700; }
 @media (max-width: 1050px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .page-header { align-items: flex-start; } .add-button { width: 100%; justify-content: center; } .stats-grid { grid-template-columns: 1fr 1fr; gap: 9px; } .user-stat { min-height: 84px; padding: 12px; } .user-stat .stat-icon { width: 38px; height: 38px; flex-basis: 38px; } .user-stat strong { font-size: 20px; } .user-stat span { font-size: 10px; } .toolbar { padding: 14px; } .result-count { display: none; } .role-tabs { padding: 0 14px 14px; } .form-grid { grid-template-columns: 1fr; } .form-grid .full { grid-column: auto; } .modal-footer { margin: 8px -16px -16px; padding: 14px 16px; } }
+</style>
+
+<style scoped>
+.users-page{display:grid;gap:18px}.page-header{position:relative;padding:14px 4px 8px}.page-header h1{font-size:clamp(30px,3vw,40px);line-height:1.08;letter-spacing:-.05em}.add-button{min-height:44px;border-radius:var(--admin-control-radius);background:var(--admin-action);box-shadow:0 9px 22px rgba(196,63,22,.2)}.users-summary-grid{gap:14px;margin:0}.users-summary-grid .user-stat{min-height:140px;padding:20px;border-radius:var(--admin-panel-radius);box-shadow:var(--admin-card-shadow)}.users-summary-grid .stat-meter{height:4px}.users-workspace{border-color:var(--admin-hairline);border-radius:var(--admin-panel-radius);background:var(--admin-surface);box-shadow:var(--admin-card-shadow)}.users-toolbar{padding:20px 20px 14px}.user-search{height:46px;border-color:var(--admin-hairline);border-radius:var(--admin-control-radius);background:var(--admin-surface-subtle)}.role-tabs{padding:0 20px 17px;border-color:var(--admin-hairline)}.role-tab{min-height:40px}.table-wrapper{border-top:1px solid var(--admin-hairline)}.users-table th{padding:13px 18px;background:var(--admin-surface-subtle);color:var(--admin-muted)}.users-table td{padding:15px 18px;border-color:var(--admin-hairline)}.users-table tbody tr:hover{background:#fff8f4}.users-mobile-list{display:none}.pagination{border-color:var(--admin-hairline)}.pagination button{width:40px;height:40px;border-color:var(--admin-hairline);background:var(--admin-surface)}@media(max-width:760px){.table-wrapper{display:none}.users-mobile-list{display:grid;gap:10px;padding:12px;border-top:1px solid var(--admin-hairline)}.user-mobile-card{display:grid;gap:13px;padding:15px;border:1px solid var(--admin-hairline);border-radius:14px;background:var(--admin-surface)}.user-mobile-card.muted{opacity:.68}.mobile-user-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.mobile-user-head .identity{min-width:0}.mobile-user-head .identity>div:last-child{min-width:0}.mobile-user-head .identity strong,.mobile-user-head .identity span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobile-user-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.mobile-user-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mobile-user-actions button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;border:1px solid var(--admin-hairline);border-radius:10px;color:var(--admin-foreground);background:var(--admin-surface-subtle);font-weight:650}.users-toolbar{align-items:stretch;flex-direction:column}.result-count{margin:0}.user-search{width:100%}}@media(max-width:430px){.users-summary-grid{grid-template-columns:1fr}.users-summary-grid .user-stat{min-height:112px}.role-tabs{padding-inline:14px}.users-mobile-list{padding:10px}}
 </style>
