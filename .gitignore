@@ -60,7 +60,6 @@ frontend/.auth/
 /.codegraph/
 /.playwright-mcp/
 /.superpowers/
-/docs/
 /openapi/
 /scripts/
 /*.md
