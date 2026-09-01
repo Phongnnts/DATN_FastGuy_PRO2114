@@ -227,6 +227,7 @@ async function openOrder(order, event) {
 }
 function openOrderFromRow(order, event) {
   if (event.target.closest('button,a,input,select,textarea')) return;
+  if (event.type === 'keydown') event.preventDefault();
   openOrder(order, event);
 }
 function closeOrder() {
@@ -322,7 +323,7 @@ const paged = computed(() => adminStore.allOrders);
 
     <section class="panel queue-workspace">
       <nav class="status-segments" role="tablist" aria-label="Lọc trạng thái đơn hàng">
-        <button v-for="(item, index) in PRIMARY_ORDER_STATUSES" :id="`order-status-tab-${index}`" :key="item.key" :ref="element => primaryTabButtons[index] = element" role="tab" aria-controls="order-queue-panel" :aria-selected="activeStatus === item.key" :tabindex="activeStatus === item.key || (activeStatus === 'ATTENTION' && index === 0) ? 0 : -1" :class="{ active: activeStatus === item.key }" @keydown="handlePrimaryTabKeydown($event, index)" @click="selectStatus(item.key)">{{ item.label }}</button>
+        <button v-for="(item, index) in PRIMARY_ORDER_STATUSES" :id="`order-status-tab-${index}`" :key="item.key" :ref="element => primaryTabButtons[index] = element" role="tab" aria-controls="order-queue-panel" :aria-selected="activeStatus === item.key" :tabindex="activeStatus === item.key ? 0 : -1" :class="{ active: activeStatus === item.key }" @keydown="handlePrimaryTabKeydown($event, index)" @click="selectStatus(item.key)">{{ item.label }}</button>
         <div class="other-status-menu"><button id="order-status-tab-other" ref="otherTrigger" type="button" role="tab" aria-controls="order-queue-panel" aria-haspopup="menu" :aria-expanded="otherMenuOpen" :aria-selected="isOtherOrderStatus(activeStatus)" :tabindex="isOtherOrderStatus(activeStatus) ? 0 : -1" :class="{ active: isOtherOrderStatus(activeStatus) }" @keydown="handleOtherTriggerKeydown" @click="otherMenuOpen ? closeOtherMenu() : openOtherMenu()">{{ OTHER_ORDER_STATUSES.find(item => item.key === activeStatus)?.label || 'Khác' }} <i class="bi bi-chevron-down" aria-hidden="true"></i></button><div v-if="otherMenuOpen" role="menu" aria-label="Trạng thái khác"><button v-for="(item, index) in OTHER_ORDER_STATUSES" :key="item.key" :ref="element => otherItems[index] = element" role="menuitemradio" :aria-checked="activeStatus === item.key" type="button" @keydown="handleOtherMenuKeydown($event, index)" @click="selectOtherStatus(item.key)">{{ item.label }}</button></div></div>
       </nav>
 
@@ -343,7 +344,7 @@ const paged = computed(() => adminStore.allOrders);
         <div class="desktop-order-table">
           <table class="table" aria-label="Danh sách đơn hàng">
             <thead><tr><th>Đơn hàng</th><th>Khách hàng</th><th>Đã chờ</th><th>Sản phẩm</th><th>Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th><th>Hoàn tiền</th></tr></thead>
-            <tbody><tr v-for="order in paged" :key="order.orderId" class="order-row-trigger" :class="{ attention: order.attentionReasons?.length }" tabindex="0" :aria-label="`Xem chi tiết đơn hàng ${order.orderCode}`" @click="openOrderFromRow(order, $event)" @keydown.enter.prevent="openOrder(order, $event)" @keydown.space.prevent="openOrder(order, $event)">
+            <tbody><tr v-for="order in paged" :key="order.orderId" class="order-row-trigger" :class="{ attention: order.attentionReasons?.length }" tabindex="0" :aria-label="`Xem chi tiết đơn hàng ${order.orderCode}`" @click="openOrderFromRow(order, $event)" @keydown.enter="openOrderFromRow(order, $event)" @keydown.space="openOrderFromRow(order, $event)">
               <td><button class="order-link" type="button" :aria-label="`Xem chi tiết đơn hàng ${order.orderCode}`" @click="openOrder(order, $event)">{{ order.orderCode }}</button></td><td><strong>{{ order.customerName || 'Khách' }}</strong></td><td><strong>{{ order.waitingMinutes }} phút</strong><small class="muted">{{ formatDate(order.createdAt) }}</small></td><td>{{ order.itemCount || 0 }} món</td><td><strong>{{ formatPrice(order.finalAmount || 0) }}</strong></td><td><span class="payment-method">{{ paymentMethodLabel(order.paymentMethod) }}</span><small :class="['payment-state', String(order.paymentStatus).toLowerCase()]">{{ paymentStatusLabel(order.paymentStatus) }}</small></td><td><OrderStatusBadge :status="order.status" /><div v-if="order.attentionReasons?.length" class="attention-reasons"><span v-for="reason in order.attentionReasons" :key="reason">{{ ATTENTION_REASON_LABELS[reason] }}</span></div></td><td><span v-if="order.refundStatus === 'REFUNDED'" class="refund-badge refund-done">Đã hoàn {{ formatPrice(order.refundAmount) }}</span><span v-else-if="order.refundStatus === 'REJECTED'" class="refund-badge refund-rejected">Đã từ chối</span><router-link v-else-if="order.refundStatus === 'PENDING'" class="refund-action" :to="{ path: '/admin/refunds', query: { status: 'PENDING' } }">Xử lý hoàn</router-link><span v-else class="muted">—</span></td>
             </tr></tbody>
           </table>

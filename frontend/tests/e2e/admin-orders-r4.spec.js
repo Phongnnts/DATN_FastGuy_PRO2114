@@ -88,6 +88,9 @@ test('friendly queue keeps compact filters, tabs, and responsive order presentat
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=ATTENTION');
+  await expect(page.getByRole('tab', { name: 'Cần xử lý' })).toHaveAttribute('tabindex', '0');
+  await expect(page.getByRole('tab', { name: 'Tất cả' })).toHaveAttribute('tabindex', '-1');
+  await expect(page.locator('[role="tab"][tabindex="0"]')).toHaveCount(1);
   await expect(page.locator('.filter-toolbar')).toBeVisible();
   await expect(page.getByRole('tab', { name: /Khác/ })).toBeVisible();
   await page.getByRole('tab', { name: /Khác/ }).click();
@@ -156,6 +159,20 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   await expect.poll(() => calls.status.length).toBe(1);
   expect(calls.status[0]).toEqual({ method: 'PUT', path: '/api/admin/orders/9/status', query: [], body: { expectedStatus: 'PENDING', status: 'CONFIRMED', note: null } });
   await expect(drawer.getByText('Đã cập nhật đơn hàng.')).toBeVisible();
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
+test('nested row controls do not bubble keyboard activation into a second detail request', async ({ page }, testInfo) => {
+  const { calls } = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=PENDING');
+  const orderButton = page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first();
+  await orderButton.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'FG-0009' })).toBeVisible();
+  await expect.poll(() => calls.detail.length).toBe(1);
+  await orderButton.dispatchEvent('keydown', { key: ' ', bubbles: true });
+  await expect.poll(() => calls.detail.length).toBe(1);
   expect(errors, testInfo.project.name).toEqual([]);
 });
 

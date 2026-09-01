@@ -42,7 +42,10 @@ test('friendly workspace exposes compact filters, lifecycle navigation, and whol
   assert.match(page, /class="advanced-filter-panel"/);
   assert.match(page, /class="active-filters"/);
   assert.match(page, /class="order-row-trigger"/);
-  assert.match(page, /@keydown\.enter\.prevent="openOrder/);
+  assert.match(page, /@keydown\.enter="openOrderFromRow/);
+  assert.match(page, /@keydown\.space="openOrderFromRow/);
+  assert.match(page, /event\.type === 'keydown'\) event\.preventDefault/);
+  assert.doesNotMatch(page, /activeStatus === 'ATTENTION' && index === 0/);
   assert.match(page, /position:sticky/);
   assert.doesNotMatch(page, /order-shortcuts/);
 });

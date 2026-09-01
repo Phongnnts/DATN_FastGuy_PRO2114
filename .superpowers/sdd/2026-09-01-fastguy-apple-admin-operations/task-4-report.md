@@ -47,6 +47,18 @@ Completed.
 - `npm run build`: PASS, Vite built 351 modules in 2.03s.
 - `git diff --check`: PASS.
 
+## Fix Round 1
+
+- Diagnostic: with `status=ATTENTION`, both the real `Cần xử lý` tab and obsolete index-zero fallback produced `tabindex="0"`. Removed the fallback; E2E now asserts one roving tab stop, `Cần xử lý=0`, `Tất cả=-1`.
+- Diagnostic: row Enter/Space called `openOrder` directly, bypassing the nested-interactive guard. Initial shared-handler wiring exposed that Vue `.prevent` canceled the nested button's native Enter click before the guard returned.
+- Fix: click, Enter, and Space now share `openOrderFromRow`; the guard returns for nested controls, then calls `preventDefault()` only for accepted row-origin keydowns.
+- Proof: source policy RED then PASS; E2E dispatches a bubbled nested Space keydown and verifies detail requests remain exactly one.
+- `node --test tests/admin-order-workspace.test.mjs tests/admin-orders-r4.test.mjs tests/admin-order-drawer.test.mjs`: PASS, 24/24.
+- `$env:PLAYWRIGHT_API_TARGET='http://127.0.0.1:1'; npx playwright test tests/e2e/admin-orders-r4.spec.js --project=desktop-chrome --config=playwright.config.js --reporter=list`: PASS, 7/7.
+- `npm test`: PASS, 698/698.
+- `npm run build`: PASS, Vite built 351 modules in 1.85s.
+- `git diff --check`: PASS.
+
 ## Concerns
 
 None.
