@@ -48,7 +48,7 @@ test('OrdersPage delegates drawer presentation without moving request ownership'
 
 test('OrdersPage consumes positive orderId deep-links and removes only orderId on close', () => {
   assert.match(page, /function routeOrderId\(\)/);
-  assert.match(page, /Number\.parseInt\(route\.query\.orderId, 10\)/);
+  assert.match(page, /parseOrderIdQuery\(route\.query\.orderId\)/);
   assert.match(page, /router\.replace\(\{ query: \{ \.\.\.route\.query, orderId: undefined \} \}\)/);
 });
 

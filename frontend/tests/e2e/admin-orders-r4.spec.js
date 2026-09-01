@@ -162,6 +162,16 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
+test('malformed orderId deep-link does not request or open detail', async ({ page }, testInfo) => {
+  const { calls } = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=ATTENTION&orderId=9abc');
+  await expect(page.getByRole('table', { name: 'Danh sách đơn hàng' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(() => calls.detail.length).toBe(0);
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
 test('orderId deep-link opens one modal and Escape preserves route filters', async ({ page }, testInfo) => {
   const { calls } = await setup(page);
   const errors = observeBrowser(page);

@@ -4,6 +4,7 @@ import {
   PRIMARY_ORDER_STATUSES,
   OTHER_ORDER_STATUSES,
   normalizeOrderStatus,
+  parseOrderIdQuery,
   isOtherOrderStatus,
   paymentMethodLabel,
   paymentStatusLabel,
@@ -21,6 +22,14 @@ test('status navigation keeps primary values visible and secondary values in KhÃ
   assert.equal(normalizeOrderStatus(['PENDING']), '');
   assert.equal(isOtherOrderStatus('DELIVERY_FAILED'), true);
   assert.equal(isOtherOrderStatus('PENDING'), false);
+});
+
+test('orderId query accepts only one positive safe integer string', () => {
+  assert.equal(parseOrderIdQuery('9'), 9);
+  assert.equal(parseOrderIdQuery(String(Number.MAX_SAFE_INTEGER)), Number.MAX_SAFE_INTEGER);
+  for (const value of [undefined, null, '', '0', '-9', '9.5', '9abc', '01', ['9'], ['9', '10'], String(Number.MAX_SAFE_INTEGER + 1)]) {
+    assert.equal(parseOrderIdQuery(value), null, String(value));
+  }
 });
 
 test('payment labels never expose raw known enums', () => {

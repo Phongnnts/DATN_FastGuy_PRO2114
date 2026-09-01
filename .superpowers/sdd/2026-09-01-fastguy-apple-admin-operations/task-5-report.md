@@ -24,3 +24,17 @@ Completed centered desktop order modal, full-screen mobile sheet, Dashboard `ord
 ## Concerns
 
 None. E2E uses the approved mocked API target; all expected order requests are intercepted by the spec.
+
+## Fix Round 1
+
+- Replaced permissive prefix parsing with `parseOrderIdQuery`, accepting only one string matching `/^[1-9]\d*$/` whose numeric value is a safe integer.
+- Regression coverage rejects arrays, decimals, suffixes, zero, negatives, leading zeroes, empty values, and overflow; accepts `9` and `Number.MAX_SAFE_INTEGER`.
+- Desktop E2E proves `orderId=9abc` makes no detail request and opens no dialog; the valid `orderId=9` flow remains covered.
+
+### Verification
+
+- `node --test tests/admin-order-workspace.test.mjs tests/admin-order-drawer.test.mjs tests/admin-orders-r4.test.mjs` — 26 passed.
+- `$env:PLAYWRIGHT_API_TARGET='http://127.0.0.1:1'; npx playwright test tests/e2e/admin-orders-r4.spec.js --project=desktop-chrome --config=playwright.config.js` — 9 passed.
+- `npm test` — 700 passed.
+- `npm run build` — passed.
+- Concerns: none.

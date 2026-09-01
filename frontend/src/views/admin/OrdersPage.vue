@@ -10,6 +10,7 @@ import {
   PRIMARY_ORDER_STATUSES,
   OTHER_ORDER_STATUSES,
   normalizeOrderStatus,
+  parseOrderIdQuery,
   isOtherOrderStatus,
   activeOrderFilterChips,
   paymentMethodLabel,
@@ -62,8 +63,7 @@ const ATTENTION_REASON_LABELS = {
   PENDING_REFUND: 'Chờ hoàn tiền',
 };
 function routeOrderId() {
-  const value = Number.parseInt(route.query.orderId, 10);
-  return Number.isInteger(value) && value > 0 ? value : null;
+  return parseOrderIdQuery(route.query.orderId);
 }
 function buildOrderParams() {
   return {

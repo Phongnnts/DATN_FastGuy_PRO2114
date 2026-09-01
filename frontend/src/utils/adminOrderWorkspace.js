@@ -33,6 +33,12 @@ export function normalizeOrderStatus(raw) {
   return typeof raw === 'string' && VALID_STATUS_KEYS.has(raw) ? raw : '';
 }
 
+export function parseOrderIdQuery(raw) {
+  if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
 export function isOtherOrderStatus(status) {
   return OTHER_ORDER_STATUSES.some(item => item.key === status);
 }
