@@ -33,6 +33,11 @@ function requestClose() {
 function handleKeydown(event) {
   if (event.key === 'Escape') {
     event.preventDefault();
+    if (props.busy) return;
+    if (props.pendingAction) {
+      emit('cancel-action');
+      return;
+    }
     requestClose();
     return;
   }

@@ -162,6 +162,29 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
+test('Escape cancels cancellation confirmation before closing modal and restores trigger focus', async ({ page }, testInfo) => {
+  await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=PENDING');
+  const trigger = page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first();
+  await trigger.click();
+  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  await drawer.getByRole('button', { name: 'Hủy đơn' }).click();
+  await drawer.getByLabel('Lý do hủy đơn').fill('Khách yêu cầu đổi đơn');
+
+  await page.keyboard.press('Escape');
+
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByLabel('Lý do hủy đơn')).toHaveCount(0);
+  await expect(drawer.getByText('Xác nhận: Hủy đơn?')).toHaveCount(0);
+
+  await page.keyboard.press('Escape');
+
+  await expect(drawer).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
 test('malformed orderId deep-link does not request or open detail', async ({ page }, testInfo) => {
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
