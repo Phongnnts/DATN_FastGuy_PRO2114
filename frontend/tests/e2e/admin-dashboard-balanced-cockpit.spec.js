@@ -70,7 +70,20 @@ test('admin balanced cockpit renders desktop analytics without browser errors', 
   await expect(page.getByRole('img', { name: 'Biểu đồ doanh thu 7 ngày' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Biểu đồ trạng thái đơn hàng' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Biểu đồ món bán chạy' })).toBeVisible();
-  await page.getByRole('button', { name: /FG-PRIORITY-01/ }).click();
+  const primaryAction = page.getByRole('link', { name: 'Xem đơn cần xử lý' });
+  const revenueDisclosure = page.getByText('Xem dữ liệu biểu đồ doanh thu', { exact: true });
+  const priorityAction = page.getByRole('button', { name: /FG-PRIORITY-01/ });
+  for (const control of [primaryAction, revenueDisclosure, priorityAction]) {
+    await control.focus();
+    await expect(control).toBeFocused();
+  }
+  const [revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all(['.revenue-panel', '.attention-panel', '.status-panel', '.products-panel', '.stock-panel'].map(selector => page.locator(selector).boundingBox()));
+  expect(Math.abs(revenueBox.y - attentionBox.y)).toBeLessThan(2);
+  expect(revenueBox.width / attentionBox.width).toBeGreaterThan(1.8);
+  expect(Math.max(statusBox.y, productsBox.y, stockBox.y) - Math.min(statusBox.y, productsBox.y, stockBox.y)).toBeLessThan(2);
+  expect(statusBox.width < productsBox.width && stockBox.width < statusBox.width).toBeTruthy();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
+  await priorityAction.click();
   await expect(page).toHaveURL(/\/admin\/orders\?status=ATTENTION&orderId=1|\/admin\/orders\?orderId=1&status=ATTENTION/);
   expect(dashboardRequests).toBe(1);
   expect(priorityRequests).toBe(1);
