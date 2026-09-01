@@ -38,7 +38,8 @@ The pre-existing modified `frontend/package-lock.json` was not touched or staged
 
 ## Commit hashes
 
-To be recorded after commit.
+- `398cff8` — `feat(admin): define operations studio tokens`
+- Follow-up report-only commit records this hash.
 
 ## Concerns
 
