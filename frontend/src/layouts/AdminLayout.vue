@@ -151,7 +151,7 @@ function isLinkActive(link) {
 
 <template>
   <div class="sidebar-layout fg-shell fg-shell-admin">
-    <aside id="admin-sidebar" ref="sidebar" class="sidebar" :class="{ open: sidebarOpen }" aria-label="Menu quản trị" role="dialog" :aria-modal="isDrawerViewport && sidebarOpen ? 'true' : undefined" :inert="sidebarInert ? '' : undefined">
+    <aside id="admin-sidebar" ref="sidebar" class="sidebar" :class="{ open: sidebarOpen }" aria-label="Menu quản trị" :role="isDrawerViewport && sidebarOpen ? 'dialog' : undefined" :aria-modal="isDrawerViewport && sidebarOpen ? 'true' : undefined" :inert="sidebarInert ? '' : undefined">
       <div class="sidebar-brand">
         <span class="sidebar-brand-title">Fast<span class="sidebar-brand-highlight">Guy</span> Admin</span>
         <button ref="drawerClose" class="drawer-close" type="button" aria-label="Đóng điều hướng quản trị" @click="closeDrawer">

@@ -20,5 +20,7 @@ test('admin tokens expose the approved Apple-inspired FastGuy palette', () => {
 });
 
 test('responsive navigation retains dialog semantics and focus recovery', () => {
-  for (const source of ['role="dialog"', 'aria-modal', 'event.key === \'Escape\'', 'triggerToRestore', 'backgroundInert']) assert.match(layout, new RegExp(source));
+  assert.match(layout, /:role="isDrawerViewport && sidebarOpen \? 'dialog' : undefined"/);
+  assert.match(layout, /:aria-modal="isDrawerViewport && sidebarOpen \? 'true' : undefined"/);
+  for (const source of ['event.key === \'Escape\'', 'triggerToRestore', 'backgroundInert']) assert.match(layout, new RegExp(source));
 });
