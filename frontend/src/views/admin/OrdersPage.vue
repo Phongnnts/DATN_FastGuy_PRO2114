@@ -57,7 +57,7 @@ async function loadOrders({ silent = false } = {}) {
   try {
     const params = {
       search: searchTerm.value.trim() || undefined,
-      status: !attentionActive.value && activeStatus.value ? activeStatus.value : undefined,
+      status: !attentionActive.value && activeStatus.value && activeStatus.value !== 'REFUND_PENDING' ? activeStatus.value : undefined,
       attentionOnly: attentionActive.value || undefined,
       paymentStatus: paymentStatus.value || undefined,
       refundStatus: activeStatus.value === 'REFUND_PENDING' ? 'PENDING' : refundStatus.value || undefined,
