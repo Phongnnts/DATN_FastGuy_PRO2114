@@ -162,6 +162,18 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
+test('orderId deep-link opens one modal and Escape preserves route filters', async ({ page }, testInfo) => {
+  const { calls } = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=ATTENTION&orderId=9');
+  await expect(page.getByRole('dialog', { name: 'FG-0009' })).toBeVisible();
+  await expect.poll(() => calls.detail.length).toBe(1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page).toHaveURL('/admin/orders?status=ATTENTION');
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
 test('nested row controls do not bubble keyboard activation into a second detail request', async ({ page }, testInfo) => {
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
@@ -169,10 +181,13 @@ test('nested row controls do not bubble keyboard activation into a second detail
   const orderButton = page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first();
   await orderButton.focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('dialog', { name: 'FG-0009' })).toBeVisible();
+  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  await expect(drawer).toBeVisible();
   await expect.poll(() => calls.detail.length).toBe(1);
   await orderButton.dispatchEvent('keydown', { key: ' ', bubbles: true });
   await expect.poll(() => calls.detail.length).toBe(1);
+  await drawer.getByRole('button', { name: 'Đóng chi tiết đơn hàng' }).click();
+  await expect(orderButton).toBeFocused();
   expect(errors, testInfo.project.name).toEqual([]);
 });
 

@@ -49,8 +49,10 @@ const actionMessage = ref('');
 const pendingAction = ref('');
 const actionNote = ref('');
 let detailTrigger = null;
+let detailTriggerOrderId = null;
 let listRequestGeneration = 0;
 let detailRequestGeneration = 0;
+let detailRequestOrderId = null;
 let stopped = false;
 
 const dateError = computed(() => filterFromDate.value && filterToDate.value && filterFromDate.value > filterToDate.value ? 'Từ ngày không được sau đến ngày.' : '');
@@ -59,6 +61,10 @@ const ATTENTION_REASON_LABELS = {
   DELIVERY_FAILED: 'Giao thất bại',
   PENDING_REFUND: 'Chờ hoàn tiền',
 };
+function routeOrderId() {
+  const value = Number.parseInt(route.query.orderId, 10);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
 function buildOrderParams() {
   return {
     search: searchTerm.value.trim() || undefined,
@@ -82,6 +88,8 @@ async function loadOrders({ silent = false } = {}) {
   loadError.value = '';
   try {
     await adminStore.fetchOrders(buildOrderParams(), { silent });
+    const orderId = routeOrderId();
+    if (orderId && detailRequestOrderId !== orderId && selectedOrder.value?.orderId !== orderId) loadOrderDetail(orderId);
   } catch (e) {
     if (requestGeneration === listRequestGeneration) loadError.value = e?.response?.data?.message || e.message || 'Không thể tải danh sách đơn hàng.';
   } finally {
@@ -205,6 +213,7 @@ function applyFilters() {
 function goPage(page) { router.push({ query: { ...route.query, page: page === 1 ? undefined : page } }); }
 async function loadOrderDetail(orderId) {
   const requestGeneration = ++detailRequestGeneration;
+  detailRequestOrderId = orderId;
   detailLoading.value = true;
   detailError.value = '';
   try {
@@ -216,11 +225,15 @@ async function loadOrderDetail(orderId) {
     if (!stopped && requestGeneration === detailRequestGeneration) detailError.value = error.message || 'Không thể tải chi tiết đơn hàng';
     return null;
   } finally {
-    if (!stopped && requestGeneration === detailRequestGeneration) detailLoading.value = false;
+    if (!stopped && requestGeneration === detailRequestGeneration) {
+      detailLoading.value = false;
+      detailRequestOrderId = null;
+    }
   }
 }
 async function openOrder(order, event) {
   detailTrigger = event?.currentTarget || null;
+  detailTriggerOrderId = order.orderId;
   selectedOrder.value = null;
   clearDrawerAction();
   await loadOrderDetail(order.orderId);
@@ -232,11 +245,16 @@ function openOrderFromRow(order, event) {
 }
 function closeOrder() {
   ++detailRequestGeneration;
+  detailRequestOrderId = null;
   selectedOrder.value = null;
   detailError.value = '';
   detailLoading.value = false;
   clearDrawerAction();
-  nextTick(() => detailTrigger?.isConnected && detailTrigger.focus());
+  if (route.query.orderId !== undefined) router.replace({ query: { ...route.query, orderId: undefined } });
+  nextTick(() => {
+    const trigger = detailTrigger?.isConnected ? detailTrigger : document.querySelector(`[data-order-id="${detailTriggerOrderId}"]`);
+    trigger?.focus();
+  });
 }
 function selectedAllowedActionKeys() {
   return new Set(inlineOrderActions(selectedOrder.value?.allowedActions).map(action => action.key));
@@ -344,7 +362,7 @@ const paged = computed(() => adminStore.allOrders);
         <div class="desktop-order-table">
           <table class="table" aria-label="Danh sách đơn hàng">
             <thead><tr><th>Đơn hàng</th><th>Khách hàng</th><th>Đã chờ</th><th>Sản phẩm</th><th>Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th><th>Hoàn tiền</th></tr></thead>
-            <tbody><tr v-for="order in paged" :key="order.orderId" class="order-row-trigger" :class="{ attention: order.attentionReasons?.length }" tabindex="0" :aria-label="`Xem chi tiết đơn hàng ${order.orderCode}`" @click="openOrderFromRow(order, $event)" @keydown.enter="openOrderFromRow(order, $event)" @keydown.space="openOrderFromRow(order, $event)">
+            <tbody><tr v-for="order in paged" :key="order.orderId" class="order-row-trigger" :class="{ attention: order.attentionReasons?.length }" :data-order-id="order.orderId" tabindex="0" :aria-label="`Xem chi tiết đơn hàng ${order.orderCode}`" @click="openOrderFromRow(order, $event)" @keydown.enter="openOrderFromRow(order, $event)" @keydown.space="openOrderFromRow(order, $event)">
               <td><button class="order-link" type="button" :aria-label="`Xem chi tiết đơn hàng ${order.orderCode}`" @click="openOrder(order, $event)">{{ order.orderCode }}</button></td><td><strong>{{ order.customerName || 'Khách' }}</strong></td><td><strong>{{ order.waitingMinutes }} phút</strong><small class="muted">{{ formatDate(order.createdAt) }}</small></td><td>{{ order.itemCount || 0 }} món</td><td><strong>{{ formatPrice(order.finalAmount || 0) }}</strong></td><td><span class="payment-method">{{ paymentMethodLabel(order.paymentMethod) }}</span><small :class="['payment-state', String(order.paymentStatus).toLowerCase()]">{{ paymentStatusLabel(order.paymentStatus) }}</small></td><td><OrderStatusBadge :status="order.status" /><div v-if="order.attentionReasons?.length" class="attention-reasons"><span v-for="reason in order.attentionReasons" :key="reason">{{ ATTENTION_REASON_LABELS[reason] }}</span></div></td><td><span v-if="order.refundStatus === 'REFUNDED'" class="refund-badge refund-done">Đã hoàn {{ formatPrice(order.refundAmount) }}</span><span v-else-if="order.refundStatus === 'REJECTED'" class="refund-badge refund-rejected">Đã từ chối</span><router-link v-else-if="order.refundStatus === 'PENDING'" class="refund-action" :to="{ path: '/admin/refunds', query: { status: 'PENDING' } }">Xử lý hoàn</router-link><span v-else class="muted">—</span></td>
             </tr></tbody>
           </table>

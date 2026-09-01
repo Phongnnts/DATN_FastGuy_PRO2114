@@ -18,9 +18,15 @@ test('drawer is modal, focus-contained, escapable, and responsive', () => {
   assert.match(drawer, /event\.key === 'Escape'/);
   assert.match(drawer, /event\.key !== 'Tab'/);
   assert.match(drawer, /document\.body\.style\.overflow = 'hidden'/);
-  assert.match(drawer, /order-drawer-close/);
-  assert.match(drawer, /width:min\(460px,100%\)/);
+  assert.match(drawer, /order-modal-close/);
+  assert.match(drawer, /class="order-modal-backdrop"/);
+  assert.match(drawer, /class="order-modal"/);
+  assert.match(drawer, /width:880px/);
+  assert.match(drawer, /max-width:calc\(100vw - 48px\)/);
+  assert.match(drawer, /max-height:85dvh/);
   assert.match(drawer, /@media\(max-width:640px\)/);
+  assert.match(drawer, /height:100dvh/);
+  assert.doesNotMatch(drawer, /justify-content:flex-end/);
 });
 
 test('drawer actions are controlled by allowedActions and keep refund processing external', () => {
@@ -36,6 +42,14 @@ test('OrdersPage delegates drawer presentation without moving request ownership'
   assert.match(page, /AdminOrderDrawer/);
   assert.match(page, /adminApi\.getOrderById/);
   assert.match(page, /detailTrigger/);
+  assert.match(page, /detailTriggerOrderId/);
+  assert.match(page, /data-order-id/);
+});
+
+test('OrdersPage consumes positive orderId deep-links and removes only orderId on close', () => {
+  assert.match(page, /function routeOrderId\(\)/);
+  assert.match(page, /Number\.parseInt\(route\.query\.orderId, 10\)/);
+  assert.match(page, /router\.replace\(\{ query: \{ \.\.\.route\.query, orderId: undefined \} \}\)/);
 });
 
 test('conflict presentation is controlled so cancellation reason survives canonical reload', () => {
