@@ -1,7 +1,7 @@
 <template>
   <section class="admin-workspace" aria-label="Không gian làm việc">
-    <div class="admin-workspace__toolbar" aria-label="Thanh công cụ"><slot name="toolbar" /></div>
-    <div class="admin-workspace__content" aria-label="Nội dung làm việc"><slot /></div>
+    <section class="admin-workspace__toolbar" aria-label="Thanh công cụ"><slot name="toolbar" /></section>
+    <section class="admin-workspace__content" aria-label="Nội dung làm việc"><slot /></section>
     <footer class="admin-workspace__footer" aria-label="Thông tin bổ sung"><slot name="footer" /></footer>
   </section>
 </template>

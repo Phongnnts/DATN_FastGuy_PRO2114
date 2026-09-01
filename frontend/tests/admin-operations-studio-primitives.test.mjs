@@ -25,8 +25,8 @@ test('state panel assigns live-region semantics only to loading and error', () =
 
 test('workspace exposes labelled toolbar content and footer regions', () => {
   assert.match(workspace, /<section class="admin-workspace" aria-label="Không gian làm việc">/);
-  assert.match(workspace, /class="admin-workspace__toolbar"[^>]*aria-label="Thanh công cụ"[^>]*>[\s\S]*<slot name="toolbar"\s*\/>/);
-  assert.match(workspace, /class="admin-workspace__content"[^>]*aria-label="Nội dung làm việc"[^>]*>[\s\S]*<slot\s*\/>/);
+  assert.match(workspace, /<section class="admin-workspace__toolbar" aria-label="Thanh công cụ">[\s\S]*<slot name="toolbar"\s*\/>[\s\S]*<\/section>/);
+  assert.match(workspace, /<section class="admin-workspace__content" aria-label="Nội dung làm việc">[\s\S]*<slot\s*\/>[\s\S]*<\/section>/);
   assert.match(workspace, /<footer class="admin-workspace__footer" aria-label="Thông tin bổ sung">[\s\S]*<slot name="footer"\s*\/>/);
 });
 
