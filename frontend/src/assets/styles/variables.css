@@ -11,15 +11,16 @@
   --charcoal: #171717;
   --map-line: rgba(232, 115, 74, 0.1);
 
-  --admin-canvas: #F4F6F8;
-  --admin-surface: #FFFFFF;
-  --admin-surface-subtle: #F8F9FB;
-  --admin-foreground: #182230;
+  --admin-canvas: #eef2f6;
+  --admin-surface: #ffffff;
+  --admin-surface-subtle: #f8f9fb;
+  --admin-foreground: #172033;
   --admin-muted: #667085;
   --admin-subtle: #98A2B3;
-  --admin-hairline: rgba(24, 34, 48, 0.09);
+  --admin-hairline: rgba(23, 32, 51, 0.09);
   --admin-border: var(--admin-hairline);
-  --admin-brand: #F45B2A;
+  --admin-sidebar: #142033;
+  --admin-brand: #f45b2a;
   --admin-brand-dark: #C43F16;
   --admin-brand-soft: #FFF0EA;
   --admin-action: #C43F16;
@@ -32,9 +33,10 @@
   --admin-danger-soft: #FFF1F1;
   --admin-shell-radius: 18px;
   --admin-panel-radius: 16px;
-  --admin-control-radius: 10px;
-  --admin-shell-shadow: 0 3px 8px rgba(24, 34, 48, 0.04), 0 18px 44px rgba(24, 34, 48, 0.07);
-  --admin-card-shadow: 0 2px 5px rgba(24, 34, 48, 0.035), 0 14px 34px rgba(24, 34, 48, 0.055);
+  --admin-workspace-radius: 12px;
+  --admin-control-radius: 8px;
+  --admin-shell-shadow: 0 3px 8px rgba(23, 32, 51, 0.04), 0 18px 44px rgba(23, 32, 51, 0.07);
+  --admin-card-shadow: 0 2px 5px rgba(23, 32, 51, 0.035), 0 14px 34px rgba(23, 32, 51, 0.055);
 
   /* Role accents */
   --role-guest: #ff6b35;

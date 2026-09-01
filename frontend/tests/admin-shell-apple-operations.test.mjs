@@ -13,9 +13,23 @@ test('admin shell uses the approved fixed geometry and FastGuy material', () => 
   assert.match(layout, /FastGuy/);
 });
 
-test('admin tokens expose the approved Apple-inspired FastGuy palette', () => {
-  for (const value of ['#F4F6F8', '#FFFFFF', '#F8F9FB', '#182230', '#667085', '#98A2B3', '#F45B2A', '#C43F16', '#FFF0EA']) {
-    assert.match(variables.toUpperCase(), new RegExp(value));
+test('admin tokens expose the approved Operations Studio contract', () => {
+  for (const token of [
+    '--admin-canvas: #eef2f6',
+    '--admin-surface: #ffffff',
+    '--admin-surface-subtle: #f8f9fb',
+    '--admin-foreground: #172033',
+    '--admin-muted: #667085',
+    '--admin-hairline: rgba(23, 32, 51, 0.09)',
+    '--admin-sidebar: #142033',
+    '--admin-brand: #f45b2a',
+    '--admin-control-radius: 8px',
+    '--admin-workspace-radius: 12px',
+    '--admin-panel-radius: 16px',
+    '--admin-shell-shadow:',
+    '--admin-card-shadow:',
+  ]) {
+    assert.match(variables, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
   }
 });
 
@@ -26,7 +40,7 @@ test('responsive navigation retains dialog semantics and focus recovery', () => 
 });
 
 test('admin shell uses the approved bright floating surfaces', () => {
-  for (const token of ['--admin-canvas: #F4F6F8', '--admin-surface: #FFFFFF', '--admin-foreground: #182230', '--admin-muted: #667085', '--admin-brand: #F45B2A', '--admin-brand-soft: #FFF0EA']) {
+  for (const token of ['--admin-canvas: #eef2f6', '--admin-surface: #ffffff', '--admin-foreground: #172033', '--admin-muted: #667085', '--admin-brand: #f45b2a', '--admin-brand-soft: #FFF0EA']) {
     assert.match(variables, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
   }
   assert.match(layout, /class="sidebar-brand-mark"/);
