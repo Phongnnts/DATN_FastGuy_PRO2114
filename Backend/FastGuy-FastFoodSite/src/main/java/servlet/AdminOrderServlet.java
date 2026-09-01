@@ -157,7 +157,7 @@ public class AdminOrderServlet extends HttpServlet {
         int pageSize = positiveInt(req.getParameter("pageSize"), 1, 100, 20, "pageSize");
         return new OrdersDAO.AdminOrderQuery(search, status, paymentStatus, refundStatus,
                 from == null ? null : from.atStartOfDay(), to == null ? null : to.plusDays(1).atStartOfDay(),
-                attentionOnly, sort, page, pageSize);
+                attentionOnly, LocalDateTime.now(BUSINESS_ZONE), sort, page, pageSize);
     }
 
     private static String optional(String value) { return value == null || value.isBlank() ? null : value.trim(); }
