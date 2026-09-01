@@ -31,15 +31,20 @@ test('dashboard order attention links open the unified attention tab', () => {
   assert.match(dashboard, /PENDING_REFUNDS[^\n]*\/admin\/refunds/);
 });
 
-test('friendly workspace exposes truthful shortcuts and compact lifecycle navigation', () => {
+test('friendly workspace exposes compact filters, lifecycle navigation, and whole-row interaction', () => {
   assert.match(page, /Theo dõi, xác nhận, giao nhận và xử lý ngoại lệ/);
-  assert.match(page, /ORDER_SHORTCUTS/);
   assert.match(page, /PRIMARY_ORDER_STATUSES/);
   assert.match(page, /OTHER_ORDER_STATUSES/);
   assert.match(page, />Khác/);
   assert.match(page, /role="menu"/);
   assert.match(page, /aria-haspopup="menu"/);
-  assert.doesNotMatch(policy, /count\s*:/);
+  assert.match(page, /class="filter-toolbar"/);
+  assert.match(page, /class="advanced-filter-panel"/);
+  assert.match(page, /class="active-filters"/);
+  assert.match(page, /class="order-row-trigger"/);
+  assert.match(page, /@keydown\.enter\.prevent="openOrder/);
+  assert.match(page, /position:sticky/);
+  assert.doesNotMatch(page, /order-shortcuts/);
 });
 
 test('friendly filters remain explicit URL-backed and removable', () => {

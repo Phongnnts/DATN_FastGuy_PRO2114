@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ORDER_SHORTCUTS,
   PRIMARY_ORDER_STATUSES,
   OTHER_ORDER_STATUSES,
   normalizeOrderStatus,
@@ -13,18 +12,8 @@ import {
   inlineOrderActions,
 } from '../src/utils/adminOrderWorkspace.js';
 
-test('friendly shortcuts navigate without fabricated counts', () => {
-  assert.deepEqual(ORDER_SHORTCUTS.map(({ key, label }) => ({ key, label })), [
-    { key: 'ATTENTION', label: 'Cần xử lý' },
-    { key: 'PREPARING', label: 'Đang chuẩn bị' },
-    { key: 'PICKED_UP', label: 'Đang giao' },
-    { key: 'DELIVERY_FAILED', label: 'Có vấn đề' },
-  ]);
-  for (const shortcut of ORDER_SHORTCUTS) assert.equal('count' in shortcut, false);
-});
-
 test('status navigation keeps primary values visible and secondary values in Khác', () => {
-  assert.deepEqual(PRIMARY_ORDER_STATUSES.map(item => item.key), ['', 'PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP', 'DELIVERED']);
+  assert.deepEqual(PRIMARY_ORDER_STATUSES.map(item => item.key), ['', 'ATTENTION', 'PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'PICKED_UP', 'DELIVERED']);
   assert.deepEqual(OTHER_ORDER_STATUSES.map(item => item.key), ['ASSIGNED', 'DELIVERY_FAILED', 'RETURNED_TO_STORE', 'CANCELLED', 'REFUND_PENDING']);
   assert.equal(normalizeOrderStatus('ATTENTION'), 'ATTENTION');
   assert.equal(normalizeOrderStatus('REFUND_PENDING'), 'REFUND_PENDING');

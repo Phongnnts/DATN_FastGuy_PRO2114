@@ -84,12 +84,11 @@ async function setup(page, { cancelConflict = false, pendingDelay = 0, detailRel
   return { calls };
 }
 
-test('friendly queue keeps truthful shortcuts, filters, and responsive order presentation', async ({ page }, testInfo) => {
+test('friendly queue keeps compact filters, tabs, and responsive order presentation', async ({ page }, testInfo) => {
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=ATTENTION');
-  for (const label of ['Cần xử lý', 'Đang chuẩn bị', 'Đang giao', 'Có vấn đề']) await expect(page.getByRole('button', { name: new RegExp(label) })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Cần xử lý/ })).not.toContainText(/\d/);
+  await expect(page.locator('.filter-toolbar')).toBeVisible();
   await expect(page.getByRole('tab', { name: /Khác/ })).toBeVisible();
   await page.getByRole('tab', { name: /Khác/ }).click();
   await expect(page.getByRole('menuitemradio', { name: 'Đã hủy' })).toBeVisible();
@@ -104,7 +103,7 @@ test('friendly queue keeps truthful shortcuts, filters, and responsive order pre
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Enter');
   await expect(allTab).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('button', { name: /Cần xử lý/ }).click();
+  await page.goto('/admin/orders?status=ATTENTION');
   const visibleQueue = testInfo.project.name === 'mobile-chrome' ? page.locator('.mobile-order-list') : page.getByRole('table', { name: 'Danh sách đơn hàng' });
   await expect(visibleQueue).toBeVisible();
   await expect(visibleQueue.locator('.attention-reasons').getByText('Giao thất bại', { exact: true })).toBeVisible();
@@ -140,7 +139,10 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=PENDING');
-  await page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first().click();
+  const row = page.locator('tr.order-row-trigger', { hasText: 'FG-0009' });
+  await row.focus();
+  await expect(row).toBeFocused();
+  await page.keyboard.press('Enter');
   const drawer = page.getByRole('dialog', { name: 'FG-0009' });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText('Nam Phong')).toBeVisible();
