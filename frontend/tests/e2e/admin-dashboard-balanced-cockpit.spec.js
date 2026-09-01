@@ -78,10 +78,17 @@ test('admin balanced cockpit renders desktop analytics without browser errors', 
     await expect(control).toBeFocused();
   }
   const [revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all(['.revenue-panel', '.attention-panel', '.status-panel', '.products-panel', '.stock-panel'].map(selector => page.locator(selector).boundingBox()));
+  const gap = 16;
+  const revenueTracks = revenueBox.width - (7 * gap);
+  const attentionTracks = attentionBox.width - (3 * gap);
+  const statusTracks = statusBox.width - (3 * gap);
+  const productTracks = productsBox.width - (4 * gap);
+  const stockTracks = stockBox.width - (2 * gap);
   expect(Math.abs(revenueBox.y - attentionBox.y)).toBeLessThan(2);
-  expect(revenueBox.width / attentionBox.width).toBeGreaterThan(1.8);
+  expect(revenueTracks / attentionTracks).toBeCloseTo(2, 1);
   expect(Math.max(statusBox.y, productsBox.y, stockBox.y) - Math.min(statusBox.y, productsBox.y, stockBox.y)).toBeLessThan(2);
-  expect(statusBox.width < productsBox.width && stockBox.width < statusBox.width).toBeTruthy();
+  expect(statusTracks / stockTracks).toBeCloseTo(4 / 3, 1);
+  expect(productTracks / stockTracks).toBeCloseTo(5 / 3, 1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();
   await priorityAction.click();
   await expect(page).toHaveURL(/\/admin\/orders\?status=ATTENTION&orderId=1|\/admin\/orders\?orderId=1&status=ATTENTION/);
