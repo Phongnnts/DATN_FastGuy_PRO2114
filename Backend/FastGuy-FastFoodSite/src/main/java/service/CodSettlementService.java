@@ -185,6 +185,10 @@ public class CodSettlementService {
         }
     }
 
+    static BigDecimal difference(BigDecimal submitted, BigDecimal expected) {
+        return submitted.subtract(expected).setScale(2);
+    }
+
     Map<String, Object> toMap(CodSettlement settlement) {
         Map<String, Object> result = new HashMap<>();
         result.put("settlementId", settlement.getSettlementId());
@@ -197,6 +201,7 @@ public class CodSettlementService {
         result.put("status", settlement.getStatus());
         result.put("expectedAmount", settlement.getExpectedAmount());
         result.put("submittedAmount", settlement.getSubmittedAmount());
+        result.put("differenceAmount", difference(settlement.getSubmittedAmount(), settlement.getExpectedAmount()));
         result.put("verifiedAmount", settlement.getVerifiedAmount());
         result.put("reason", settlement.getReason());
         result.put("receivedByName", settlement.getReceivedBy() == null ? null : settlement.getReceivedBy().getFullName());

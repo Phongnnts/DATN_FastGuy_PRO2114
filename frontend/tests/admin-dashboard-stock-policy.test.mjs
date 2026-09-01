@@ -12,29 +12,17 @@ test('admin dashboard exposes consolidated stock attention with inventory action
 });
 
 test('initial dashboard request blocks on loading without data', () => {
-  assert.deepEqual(dashboardViewState(null, 'loading', ''), {
-    showContent: false,
-    showInitialLoading: true,
-    banner: null,
-  });
+  assert.equal(dashboardViewState(null, 'loading', ''), 'loading');
 });
 
-test('refresh retains dashboard content with nonblocking loading banner', () => {
+test('refresh retains dashboard content in refreshing state', () => {
   const data = { totalRevenue: 120000, pendingCodAmount: 50000, outOfStockSkuCount: 0 };
-  assert.deepEqual(dashboardViewState(data, 'loading', ''), {
-    showContent: true,
-    showInitialLoading: false,
-    banner: { role: 'status', message: 'Đang cập nhật tổng quan...' },
-  });
+  assert.equal(dashboardViewState(data, 'loading', ''), 'refreshing');
 });
 
-test('refresh error retains valid dashboard with nonblocking error banner', () => {
+test('refresh error retains valid dashboard in ready state', () => {
   const data = { totalRevenue: 120000, lowStockSkuCount: 0, lowStockThreshold: 5 };
-  assert.deepEqual(dashboardViewState(data, 'error', 'Mất kết nối'), {
-    showContent: true,
-    showInitialLoading: false,
-    banner: { role: 'alert', message: 'Mất kết nối' },
-  });
+  assert.equal(dashboardViewState(data, 'error', 'Mất kết nối'), 'ready');
 });
 
 test('stock risk is one actionable attention item', () => {
@@ -43,15 +31,16 @@ test('stock risk is one actionable attention item', () => {
   assert.match(page, /filter: 'LOW'/);
 });
 
-test('dashboard keeps today revenue and COD attention destinations', () => {
-  assert.match(page, /data\.revenueToday/);
+test('dashboard keeps canonical today revenue and COD attention destinations', () => {
+  assert.match(page, /data\.netCashRevenueToday/);
+  assert.doesNotMatch(page, /data\.revenueToday/);
   assert.match(page, /PENDING_COD_SETTLEMENTS/);
   assert.match(page, /\/admin\/cod-settlements/);
 });
 
 test('attention icons are decorative and responsive source policy remains', () => {
   assert.match(page, /bi bi-exclamation-circle" aria-hidden="true"/);
-  assert.match(page, /repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(page, /repeat\(6,minmax\(0,1fr\)\)/);
   assert.match(page, /@media\(max-width:760px\).*\.attention-list\{grid-template-columns:1fr\}/s);
 });
 

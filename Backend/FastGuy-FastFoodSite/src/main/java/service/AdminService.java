@@ -1,15 +1,19 @@
 package service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import dao.CodSettlementDAO;
+import dao.InventoryItemDAO;
 import dao.OrdersDAO;
 import dao.ProductDAO;
 import dao.UserDAO;
@@ -22,6 +26,7 @@ public class AdminService {
     private OrdersDAO ordersDAO = new OrdersDAO();
     private ProductDAO productDAO = new ProductDAO();
     private CodSettlementDAO codSettlementDAO = new CodSettlementDAO();
+    private InventoryItemDAO inventoryItemDAO = new InventoryItemDAO();
     private StoreConfigService storeConfigService = new StoreConfigService();
     private MenuPerformanceReportService menuPerformanceReportService = new MenuPerformanceReportService();
     private WorkShiftService workShiftService = new WorkShiftService();
@@ -31,36 +36,141 @@ public class AdminService {
     }
 
     public Map<String, Object> getDashboardWithPeriod(String period) {
-        long customerCount = userDAO.countByRole("USER");
-        long totalOrders = ordersDAO.count();
-        long activeProductCount = productDAO.countAvailableProducts();
-        double totalRevenue = ordersDAO.sumRevenue();
-
-        Map<String, Object> ordersByStatus = new HashMap<>();
-        for (String status : ORDER_STATUSES) ordersByStatus.put(status, ordersDAO.countByStatus(status));
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
         LocalDateTime operationalStart = today.atStartOfDay();
         LocalDateTime operationalEnd = today.plusDays(1).atStartOfDay();
-        long[] operational = ordersDAO.operationalCohortSummary(operationalStart, operationalEnd);
+        Map<String, Object> data = new LinkedHashMap<>();
+        Map<String, String> sectionAvailability = new LinkedHashMap<>();
+        for (String section : List.of("financial", "orders", "refunds", "cod", "inventory", "staffing")) sectionAvailability.put(section, "AVAILABLE");
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("customerCount", customerCount);
-        data.put("totalUsers", customerCount);
-        data.put("totalOrders", totalOrders);
-        data.put("activeProductCount", activeProductCount);
-        data.put("totalProducts", activeProductCount);
-        data.put("operationalOrderCount", operational[0]);
-        data.put("operationalCompletedCount", operational[1]);
-        data.put("completionRate", operational[0] == 0 ? 0.0 : operational[1] * 100.0 / operational[0]);
-        data.put("totalRevenue", totalRevenue);
-        data.put("ordersByStatus", ordersByStatus);
-        data.put("pendingOrders", ordersDAO.countByStatus("PENDING"));
-        data.put("pendingCodAmount", codSettlementDAO.sumPendingAmount());
-        data.put("pendingCodCount", codSettlementDAO.countPending());
-        data.put("ordersToday", operational[0]);
-        data.put("revenueToday", ordersDAO.sumRevenueByDateRange(operationalStart, operationalEnd));
-        data.put("revenueByMonth", ordersDAO.sumRevenueByMonth());
-        data.put("topProducts", ordersDAO.findTopProducts(5));
+        data.put("customerCount", null);
+        data.put("totalUsers", null);
+        data.put("totalOrders", 0L);
+        data.put("ordersByStatus", Map.of());
+        data.put("pendingOrders", 0L);
+        data.put("ordersToday", 0L);
+        data.put("topProducts", List.of());
+        data.put("operationalOrderCount", 0L);
+        data.put("operationalCompletedCount", 0L);
+        data.put("completionRate", 0.0);
+        data.put("activeOrderCount", 0L);
+        data.put("activeOrdersByStatus", Map.of());
+        data.put("operationalOrderCountToday", 0L);
+        data.put("operationalCompletedCountToday", 0L);
+        data.put("completionRateToday", 0.0);
+        data.put("deliveredOrdersToday", 0L);
+        data.put("activeOrdersToday", 0L);
+        data.put("totalRevenue", BigDecimal.ZERO);
+        data.put("revenueToday", BigDecimal.ZERO);
+        data.put("revenueByMonth", List.of());
+        data.put("grossProfitToday", null);
+        data.put("costComplete", false);
+        data.put("pendingRefundCount", 0L);
+        data.put("pendingCodAmount", BigDecimal.ZERO);
+        data.put("pendingCodCount", 0L);
+        data.put("netCashRevenueToday", BigDecimal.ZERO);
+        data.put("aovToday", BigDecimal.ZERO);
+        data.put("activeProductCount", null);
+        data.put("totalProducts", null);
+        data.put("lowStockThreshold", null);
+        data.put("outOfStockSkuCount", 0L);
+        data.put("lowStockSkuCount", 0L);
+        data.put("lowStockItemCount", 0L);
+        data.put("staffingGapCount", 0L);
+
+        try {
+            long customerCount = userDAO.countByRole("USER");
+            data.put("customerCount", customerCount);
+            data.put("totalUsers", customerCount);
+        } catch (RuntimeException exception) {
+        }
+
+        long deliveredToday = 0L;
+        long overduePendingOrders = 0L;
+        long deliveryFailedOrders = 0L;
+        try {
+            Map<String, Object> ordersByStatus = new LinkedHashMap<>();
+            for (String status : ORDER_STATUSES) ordersByStatus.put(status, ordersDAO.countByStatus(status));
+            long[] operational = ordersDAO.operationalCohortSummary(operationalStart, operationalEnd);
+            Map<String, Long> activeOrdersByStatus = ordersDAO.countCurrentActiveOrdersByStatus();
+            long activeOrderCount = ordersDAO.countCurrentActiveOrders();
+            deliveredToday = ordersDAO.countByStatusAndDateRange("DELIVERED", operationalStart, operationalEnd);
+            overduePendingOrders = ordersDAO.countAttentionOverdue(LocalDateTime.now(BUSINESS_ZONE));
+            deliveryFailedOrders = ((Number) ordersByStatus.get("DELIVERY_FAILED")).longValue();
+            double completionRate = operational[0] == 0 ? 0.0 : operational[1] * 100.0 / operational[0];
+            data.put("totalOrders", ordersDAO.count());
+            data.put("ordersByStatus", ordersByStatus);
+            data.put("pendingOrders", ordersByStatus.get("PENDING"));
+            data.put("ordersToday", operational[0]);
+            data.put("topProducts", ordersDAO.findTopProducts(5));
+            data.put("operationalOrderCount", operational[0]);
+            data.put("operationalCompletedCount", operational[1]);
+            data.put("completionRate", completionRate);
+            data.put("activeOrderCount", activeOrderCount);
+            data.put("activeOrdersByStatus", activeOrdersByStatus);
+            data.put("operationalOrderCountToday", operational[0]);
+            data.put("operationalCompletedCountToday", operational[1]);
+            data.put("completionRateToday", completionRate);
+            data.put("deliveredOrdersToday", deliveredToday);
+            data.put("activeOrdersToday", activeOrderCount);
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("orders", "UNAVAILABLE");
+        }
+
+        BigDecimal revenueToday = BigDecimal.ZERO;
+        boolean revenueAvailable = false;
+        try {
+            revenueToday = ordersDAO.sumDeliveredPaidRevenue(operationalStart, operationalEnd);
+            revenueAvailable = true;
+            data.put("revenueToday", revenueToday);
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("financial", "UNAVAILABLE");
+        }
+        try {
+            data.put("totalRevenue", ordersDAO.sumRevenueDecimal());
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("financial", "UNAVAILABLE");
+        }
+        try {
+            data.put("revenueByMonth", moneyRows(ordersDAO.sumRevenueByMonth()));
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("financial", "UNAVAILABLE");
+        }
+        try {
+            Map<String, Object> menuToday = menuPerformanceReportService.report(today, today);
+            boolean costComplete = Boolean.TRUE.equals(menuToday.get("costComplete"));
+            data.put("grossProfitToday", costComplete ? decimal(menuToday.get("grossProfit")) : null);
+            data.put("costComplete", costComplete);
+        } catch (RuntimeException exception) {
+        }
+
+        long pendingRefundCount = 0L;
+        try {
+            pendingRefundCount = ordersDAO.countPendingRefunds();
+            data.put("pendingRefundCount", pendingRefundCount);
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("refunds", "UNAVAILABLE");
+        }
+        BigDecimal refundsToday = BigDecimal.ZERO;
+        boolean refundsAvailable = false;
+        try {
+            refundsToday = ordersDAO.sumProcessedRefunds(operationalStart, operationalEnd);
+            refundsAvailable = true;
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("refunds", "UNAVAILABLE");
+        }
+
+        long pendingCodCount = 0L;
+        try {
+            data.put("pendingCodAmount", codSettlementDAO.sumPendingAmount());
+            data.put("pendingCodCount", codSettlementDAO.countPending());
+            pendingCodCount = ((Number) data.get("pendingCodCount")).longValue();
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("cod", "UNAVAILABLE");
+        }
+
+        if (revenueAvailable && refundsAvailable) data.put("netCashRevenueToday", revenueToday.subtract(refundsToday));
+        if (revenueAvailable && deliveredToday > 0) data.put("aovToday", revenueToday.divide(BigDecimal.valueOf(deliveredToday), 2, RoundingMode.HALF_UP));
 
         if (period != null) {
             LocalDate now = LocalDate.now(BUSINESS_ZONE);
@@ -71,46 +181,97 @@ public class AdminService {
                 case "1y": start = now.minusYears(1).atStartOfDay(); break;
                 default: start = now.minusMonths(6).atStartOfDay();
             }
-            double periodRevenue = ordersDAO.sumRevenueByDateRange(start, end);
-            long periodOrders = ordersDAO.countByStatusAndDateRange("DELIVERED", start, end);
-            var periodTopProducts = ordersDAO.findTopProductsByDateRange(start, end, 5);
-            double refundTotal = ordersDAO.sumRefundsInRange(start, end);
-            data.put("grossRevenue", periodRevenue);
-            data.put("periodRevenue", periodRevenue);
-            data.put("refundTotal", refundTotal);
-            data.put("refundCount", ordersDAO.countRefundsInRange(start, end));
-            data.put("netRevenue", periodRevenue - refundTotal);
-            data.put("periodOrders", periodOrders);
-            data.put("periodTopProducts", periodTopProducts);
+            BigDecimal periodRevenue = BigDecimal.ZERO;
+            boolean periodRevenueAvailable = false;
+            try {
+                periodRevenue = ordersDAO.sumDeliveredPaidRevenue(start, end);
+                periodRevenueAvailable = true;
+                data.put("grossRevenue", periodRevenue);
+                data.put("periodRevenue", periodRevenue);
+            } catch (RuntimeException exception) {
+                sectionAvailability.put("financial", "UNAVAILABLE");
+            }
+            BigDecimal refundTotal = BigDecimal.ZERO;
+            boolean periodRefundsAvailable = false;
+            try {
+                refundTotal = ordersDAO.sumProcessedRefunds(start, end);
+                long refundCount = ordersDAO.countRefundsInRange(start, end);
+                periodRefundsAvailable = true;
+                data.put("refundTotal", refundTotal);
+                data.put("refundCount", refundCount);
+            } catch (RuntimeException exception) {
+                sectionAvailability.put("refunds", "UNAVAILABLE");
+            }
+            if (periodRevenueAvailable && periodRefundsAvailable) data.put("netRevenue", periodRevenue.subtract(refundTotal));
+            try {
+                data.put("periodOrders", ordersDAO.countByStatusAndDateRange("DELIVERED", start, end));
+                data.put("periodTopProducts", moneyRows(ordersDAO.findTopProductsByDateRange(start, end, 5)));
+            } catch (RuntimeException exception) {
+                sectionAvailability.put("orders", "UNAVAILABLE");
+                data.put("periodOrders", 0L);
+                data.put("periodTopProducts", List.of());
+            }
         }
 
-        int lowStockThreshold = storeConfigService.getLowStockThreshold();
-        long[] stockRiskCounts = productDAO.countStockRiskSkus(lowStockThreshold);
-        data.put("lowStockThreshold", lowStockThreshold);
-        data.put("outOfStockSkuCount", stockRiskCounts[0]);
-        data.put("lowStockSkuCount", stockRiskCounts[1]);
+        long lowStockItemCount = 0L;
+        boolean inventoryAvailable = false;
+        try {
+            Map<String, Long> inventoryRiskCounts = inventoryItemDAO.inventoryRiskCounts();
+            lowStockItemCount = inventoryRiskCounts.get("lowStockItemCount");
+            inventoryAvailable = true;
+            data.put("outOfStockSkuCount", inventoryRiskCounts.get("outOfStock"));
+            data.put("lowStockSkuCount", inventoryRiskCounts.get("lowStock"));
+            data.put("lowStockItemCount", lowStockItemCount);
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("inventory", "UNAVAILABLE");
+        }
+        try {
+            data.put("lowStockThreshold", storeConfigService.getLowStockThreshold());
+        } catch (RuntimeException exception) {
+        }
+        try {
+            long activeProductCount = productDAO.countAvailableProducts();
+            data.put("activeProductCount", activeProductCount);
+            data.put("totalProducts", activeProductCount);
+        } catch (RuntimeException exception) {
+        }
 
-        long deliveredToday = ordersDAO.countByStatusAndDateRange("DELIVERED", operationalStart, operationalEnd);
-        long activeToday = ordersDAO.countActiveByDateRange(operationalStart, operationalEnd);
-        double revenueToday = ((Number) data.get("revenueToday")).doubleValue();
-        Map<String, Object> menuToday = menuPerformanceReportService.report(today, today);
-        boolean costComplete = Boolean.TRUE.equals(menuToday.get("costComplete"));
-        Number grossProfit = costComplete && menuToday.get("grossProfit") instanceof Number number ? number : null;
+        long staffingGapCount = 0L;
+        try {
+            staffingGapCount = workShiftService.countCoverageGaps();
+            data.put("staffingGapCount", staffingGapCount);
+        } catch (RuntimeException exception) {
+            sectionAvailability.put("staffing", "UNAVAILABLE");
+        }
+
         List<Map<String, Object>> attentionItems = new ArrayList<>();
-        addAttention(attentionItems, "OVERDUE_PENDING_ORDERS", "WARNING", ordersDAO.countAttentionOverdue(LocalDateTime.now(BUSINESS_ZONE)));
-        addAttention(attentionItems, "DELIVERY_FAILED_ORDERS", "CRITICAL", ((Number) ordersByStatus.get("DELIVERY_FAILED")).longValue());
-        addAttention(attentionItems, "PENDING_REFUNDS", "WARNING", ordersDAO.countPendingRefunds());
-        long coverageGaps = workShiftService.countCoverageGaps();
-        addAttention(attentionItems, "STAFF_COVERAGE_GAPS", "CRITICAL", coverageGaps);
-        addAttention(attentionItems, "LOW_STOCK_ITEMS", "WARNING", stockRiskCounts[0] + stockRiskCounts[1]);
-        addAttention(attentionItems, "PENDING_COD_SETTLEMENTS", "WARNING", ((Number) data.get("pendingCodCount")).longValue());
-        data.put("deliveredOrdersToday", deliveredToday);
-        data.put("activeOrdersToday", activeToday);
-        data.put("aovToday", deliveredToday == 0 ? 0.0 : revenueToday / deliveredToday);
-        data.put("grossProfitToday", grossProfit);
-        data.put("costComplete", costComplete);
+        if ("AVAILABLE".equals(sectionAvailability.get("orders"))) {
+            addAttention(attentionItems, "OVERDUE_PENDING_ORDERS", "WARNING", overduePendingOrders);
+            addAttention(attentionItems, "DELIVERY_FAILED_ORDERS", "CRITICAL", deliveryFailedOrders);
+        }
+        if ("AVAILABLE".equals(sectionAvailability.get("refunds"))) addAttention(attentionItems, "PENDING_REFUNDS", "WARNING", pendingRefundCount);
+        if ("AVAILABLE".equals(sectionAvailability.get("staffing"))) addAttention(attentionItems, "STAFF_COVERAGE_GAPS", "CRITICAL", staffingGapCount);
+        if (inventoryAvailable) addAttention(attentionItems, "LOW_STOCK_ITEMS", "WARNING", lowStockItemCount);
+        if ("AVAILABLE".equals(sectionAvailability.get("cod"))) addAttention(attentionItems, "PENDING_COD_SETTLEMENTS", "WARNING", pendingCodCount);
         data.put("attentionItems", attentionItems);
+        data.put("sectionAvailability", sectionAvailability);
         return data;
+    }
+
+    private static List<Map<String, Object>> moneyRows(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> item = new LinkedHashMap<>(row);
+            if (item.containsKey("revenue")) item.put("revenue", decimal(item.get("revenue")));
+            result.add(item);
+        }
+        return result;
+    }
+
+    private static BigDecimal decimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal amount) return amount;
+        return new BigDecimal(value.toString());
     }
 
     private static void addAttention(List<Map<String, Object>> items, String type, String severity, long count) {

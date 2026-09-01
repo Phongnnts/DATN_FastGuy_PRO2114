@@ -15,7 +15,7 @@ class AdminCodMetricPolicyTest {
         assertTrue(service.contains("data.put(\"pendingCodAmount\", codSettlementDAO.sumPendingAmount());"));
         assertTrue(service.contains("data.put(\"pendingCodCount\", codSettlementDAO.countPending());"));
         assertTrue(dao.contains("WHERE cs.status = 'SUBMITTED'"));
-        assertTrue(service.contains("double totalRevenue = ordersDAO.sumRevenue();"));
-        assertTrue(service.contains("data.put(\"revenueToday\", ordersDAO.sumRevenueToday());"));
+        assertTrue(service.contains("ordersDAO.sumRevenueDecimal()"));
+        assertTrue(service.contains("ordersDAO.sumDeliveredPaidRevenue(operationalStart, operationalEnd)"));
     }
 }

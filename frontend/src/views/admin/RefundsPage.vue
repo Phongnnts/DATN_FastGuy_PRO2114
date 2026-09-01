@@ -23,7 +23,9 @@ const filterToDate = ref('');
 const refundOrder = ref(null);
 const refundDetailOrder = ref(null);
 const refundDialog = ref(null);
-const refundForm = ref({ refundAmount: 0, refundNote: '', refundReference: '', status: 'REFUNDED' });
+const refundForm = ref({ refundAmount: 0, refundNote: '', refundReference: '', proof: null, status: 'REFUNDED' });
+const proofLoading = ref(false);
+const proofError = ref('');
 const refunding = ref(false);
 const refundStatusMessage = ref('');
 const refundErrorMessage = ref('');
@@ -63,7 +65,7 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const params = {};
+    const params = { status: activeStatus.value || undefined, search: searchTerm.value.trim() || undefined };
     if (filterFromDate.value) params.fromDate = filterFromDate.value;
     if (filterToDate.value) params.toDate = filterToDate.value;
     const data = await adminApi.getRefunds(params);
@@ -85,36 +87,30 @@ function localDate(daysAgo = 0) {
 function setDatePreset(days) {
   filterFromDate.value = days === 0 ? localDate() : localDate(days - 1);
   filterToDate.value = localDate();
-  load();
+  applyFilters();
 }
 function setStatus(key) {
-  activeStatus.value = key;
-  router.replace({ query: { status: key || undefined } });
+  router.push({ query: { ...route.query, status: key || undefined } });
 }
 function statusFromQuery(raw) {
   return REFUND_STATUS_KEYS.includes(raw) ? raw : '';
 }
-function loadPreset() {
+function hydrateQuery() {
   activeStatus.value = statusFromQuery(route.query.status);
-  load();
+  searchTerm.value = typeof route.query.search === 'string' ? route.query.search : '';
+  filterFromDate.value = typeof route.query.fromDate === 'string' ? route.query.fromDate : '';
+  filterToDate.value = typeof route.query.toDate === 'string' ? route.query.toDate : '';
 }
-function resetFilters() {
-  setStatus('');
-  searchTerm.value = '';
-  filterFromDate.value = '';
-  filterToDate.value = '';
-  load();
-}
+function loadPreset() { hydrateQuery(); load(); }
+function applyFilters() { router.push({ query: { ...route.query, search: searchTerm.value.trim() || undefined, fromDate: filterFromDate.value || undefined, toDate: filterToDate.value || undefined } }); }
+function resetFilters() { router.push({ query: { status: route.query.status } }); }
 onMounted(() => {
   modalLifecycle.attach();
   loadPreset();
 });
 onBeforeUnmount(() => modalLifecycle.detach());
 
-watch(() => route.query.status, (raw) => {
-  const key = statusFromQuery(raw);
-  if (activeStatus.value !== key) activeStatus.value = key;
-});
+watch(() => route.query, () => { hydrateQuery(); load(); }, { deep: true });
 
 const presentation = row => buildRefundPresentation(row);
 function focusable() {
@@ -153,7 +149,7 @@ async function openRefund(order, event) {
   refundStatusMessage.value = '';
   refundErrorMessage.value = '';
   refundOrder.value = current;
-  refundForm.value = { refundAmount: Number(current.finalAmount || 0), refundNote: '', refundReference: '', status: 'REFUNDED' };
+  refundForm.value = { refundAmount: Number(current.finalAmount || 0), refundNote: '', refundReference: '', proof: null, status: 'REFUNDED' };
   await nextTick();
   modalLifecycle.open(refundTrigger.value);
 }
@@ -180,7 +176,24 @@ const formError = computed(() => validateRefund({
   finalAmount: Number(refundOrder.value?.finalAmount),
   note: refundForm.value.refundNote,
   reference: refundForm.value.refundReference,
+  proof: refundForm.value.proof,
 }));
+function selectProof(event) {
+  const file = event.target.files?.[0] || null;
+  proofError.value = '';
+  if (!file) { refundForm.value.proof = null; return; }
+  if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+    refundForm.value.proof = null; proofError.value = 'Ảnh phải là JPEG, PNG hoặc WebP và không quá 5 MiB.'; return;
+  }
+  refundForm.value.proof = file;
+}
+async function viewProof(order) {
+  if (!order.proofAvailable || proofLoading.value) return;
+  proofLoading.value = true; proofError.value = '';
+  try { const data = await adminApi.getRefundProofUrl(order.orderId); window.open(data.viewUrl, '_blank', 'noopener,noreferrer'); }
+  catch (error) { proofError.value = error.message || 'Không thể mở bằng chứng hoàn tiền'; }
+  finally { proofLoading.value = false; }
+}
 async function saveRefund() {
   if (refunding.value) return;
   const current = rows.value.find(row => row.orderId === refundOrder.value?.orderId);
@@ -201,12 +214,18 @@ async function saveRefund() {
   refundErrorMessage.value = '';
   try {
     const state = { selected: refundOrder.value, rows: rows.value, statusMessage: '', errorMessage: '' };
-    const saved = await submitPendingRefund(state, order => adminApi.updateRefund(order.orderId, {
-      status: refundForm.value.status,
-      refundAmount: refundForm.value.status === 'REFUNDED' ? Number(refundForm.value.refundAmount) : null,
-      refundNote: refundForm.value.refundNote.trim(),
-      refundReference: refundForm.value.status === 'REFUNDED' ? refundForm.value.refundReference.trim() : null,
-    }));
+    const saved = await submitPendingRefund(state, order => {
+      const data = new FormData();
+      data.append('expectedStatus', order.refundStatus);
+      data.append('status', refundForm.value.status);
+      data.append('refundNote', refundForm.value.refundNote.trim());
+      if (refundForm.value.status === 'REFUNDED') {
+        data.append('refundAmount', String(refundForm.value.refundAmount));
+        data.append('refundReference', refundForm.value.refundReference.trim());
+        data.append('proof', refundForm.value.proof);
+      }
+      return adminApi.updateRefund(order.orderId, data);
+    });
     refundStatusMessage.value = state.statusMessage;
     refundErrorMessage.value = state.errorMessage;
     if (!saved) {
@@ -238,7 +257,7 @@ async function saveRefund() {
       <article><span class="stat-icon green"><i class="bi bi-check2-circle"></i></span><div><small>Đã hoàn</small><strong>{{ countFor('REFUNDED') }}</strong></div></article>
       <article><span class="stat-icon red"><i class="bi bi-x-circle"></i></span><div><small>Từ chối</small><strong>{{ countFor('REJECTED') }}</strong></div></article>
     </section>
-    <p class="kpi-hint"><i class="bi bi-info-circle"></i> KPI tính theo bộ lọc ngày tạo đơn đang áp dụng.</p>
+    <p class="kpi-hint"><i class="bi bi-info-circle"></i> Bộ lọc ngày dùng thời điểm xử lý hoàn tiền; yêu cầu chờ dùng thời điểm hủy/tạo gần nhất.</p>
 
     <section class="panel">
       <nav class="status-tabs" aria-label="Lọc trạng thái hoàn tiền">
@@ -248,13 +267,13 @@ async function saveRefund() {
       </nav>
 
       <div class="filter-area">
-        <div class="search-box wide"><i class="bi bi-search"></i><input v-model="searchTerm" class="form-input" aria-label="Tìm mã đơn, khách hàng" placeholder="Tìm mã đơn, tên khách, SĐT..." /></div>
+        <div class="search-box wide"><i class="bi bi-search"></i><input v-model="searchTerm" class="form-input" aria-label="Tìm mã đơn, khách hàng" placeholder="Tìm mã đơn, tên khách, SĐT..." @keyup.enter="applyFilters" /></div>
       </div>
       <div class="date-row">
         <div class="presets"><button @click="setDatePreset(0)">Hôm nay</button><button @click="setDatePreset(7)">7 ngày</button><button @click="setDatePreset(30)">30 ngày</button></div>
-        <label>Từ ngày tạo <input v-model="filterFromDate" type="date" class="form-input" :max="filterToDate || undefined" /></label>
-        <label>Đến ngày tạo <input v-model="filterToDate" type="date" class="form-input" :min="filterFromDate || undefined" /></label>
-        <button class="btn btn-primary" :disabled="!!dateError || loading" @click="load">Áp dụng</button>
+        <label>Từ ngày xử lý <input v-model="filterFromDate" type="date" class="form-input" :max="filterToDate || undefined" /></label>
+        <label>Đến ngày xử lý <input v-model="filterToDate" type="date" class="form-input" :min="filterFromDate || undefined" /></label>
+        <button class="btn btn-primary" :disabled="!!dateError || loading" @click="applyFilters">Áp dụng</button>
         <button class="btn btn-outline" @click="resetFilters"><i class="bi bi-x-circle"></i> Đặt lại</button>
         <p v-if="dateError" class="field-error" role="alert">{{ dateError }}</p>
       </div>
@@ -299,7 +318,8 @@ async function saveRefund() {
             <div><dt>Mã tham chiếu</dt><dd>{{ refundAuditDetail(refundDetailOrder).reference }}</dd></div>
             <div><dt>Ghi chú</dt><dd>{{ refundAuditDetail(refundDetailOrder).note }}</dd></div>
             <div><dt>Thời gian hoàn</dt><dd>{{ refundAuditDetail(refundDetailOrder).refundedAt ? formatDate(refundAuditDetail(refundDetailOrder).refundedAt) : '—' }}</dd></div>
-          </dl>
+            <div><dt>Bằng chứng</dt><dd><button v-if="refundDetailOrder.proofAvailable" type="button" class="detail-action" :disabled="proofLoading" @click="viewProof(refundDetailOrder)">Xem ảnh riêng tư</button><span v-else>—</span></dd></div>
+          </dl><p v-if="proofError" class="field-error" role="alert">{{ proofError }}</p>
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-primary" @click="closeRefundDetail">Đóng</button></div>
       </section>
@@ -315,9 +335,10 @@ async function saveRefund() {
             <div><span>Thanh toán</span><strong>{{ refundOrder.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }} · {{ refundOrder.paymentStatus }}</strong></div>
             <div><span>Trạng thái</span><strong>Chờ hoàn thủ công · Tiền chưa được xác nhận đã hoàn</strong></div>
           </div>
-          <label class="form-group"><span class="form-label">Hành động</span><select v-model="refundForm.status" class="form-select"><option value="REFUNDED">Xác nhận hoàn thủ công</option><option value="REJECTED">Từ chối hoàn tiền</option></select></label>
+          <label class="form-group"><span class="form-label">Hành động</span><select v-model="refundForm.status" class="form-select"><option value="REFUNDED">Ghi nhận hoàn tiền bên ngoài</option><option value="REJECTED">Từ chối hoàn tiền</option></select></label>
           <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Số tiền hoàn toàn bộ</span><input class="form-input" type="number" :value="Number(refundOrder.finalAmount)" readonly /><small>Cố định bằng giá trị đơn: {{ formatPrice(refundOrder.finalAmount) }}</small></label>
           <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Mã tham chiếu hoàn tiền *</span><input v-model="refundForm.refundReference" class="form-input" type="text" maxlength="200" required /></label>
+          <label v-if="refundForm.status === 'REFUNDED'" class="form-group"><span class="form-label">Ảnh bằng chứng riêng tư *</span><input class="form-input" type="file" accept="image/jpeg,image/png,image/webp" required @change="selectProof" /><small>JPEG, PNG hoặc WebP · tối đa 5 MiB</small></label><p v-if="proofError" class="field-error" role="alert">{{ proofError }}</p>
           <label class="form-group"><span class="form-label">{{ refundForm.status === 'REJECTED' ? 'Lý do từ chối *' : 'Ghi chú' }}</span><textarea v-model="refundForm.refundNote" class="form-input" rows="3" :required="refundForm.status === 'REJECTED'"></textarea></label>
         </div>
         <div class="modal-footer"><button type="button" class="btn btn-outline" :disabled="refunding" @click="closeRefund">Hủy</button><button class="btn" :class="refundForm.status === 'REFUNDED' ? 'btn-primary' : 'btn-danger'" :disabled="refunding">{{ refunding ? 'Đang xử lý...' : 'Xác nhận' }}</button></div>

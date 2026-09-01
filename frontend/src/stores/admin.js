@@ -51,15 +51,20 @@ export const useAdminStore = defineStore('admin', () => {
     };
   }
 
-  async function fetchDashboard() {
+  let dashboardRequestGeneration = 0;
+  async function fetchDashboard({ silent = false } = {}) {
+    const requestGeneration = ++dashboardRequestGeneration;
+    loading.value = !silent;
     error.value = '';
     try {
       const data = await adminApi.getDashboard();
-      dashboard.value = data;
+      if (requestGeneration === dashboardRequestGeneration) dashboard.value = data;
       return data;
     } catch (e) {
-      error.value = e.message;
+      if (requestGeneration === dashboardRequestGeneration) error.value = e.message;
       throw e;
+    } finally {
+      if (requestGeneration === dashboardRequestGeneration) loading.value = false;
     }
   }
 
@@ -81,18 +86,22 @@ export const useAdminStore = defineStore('admin', () => {
     commit: (categories) => { allCategories.value = categories; },
   });
 
+  const orderPagination = ref({ page: 1, pageSize: 20, totalItems: 0, totalPages: 0 });
   let ordersRequestGeneration = 0;
-  async function fetchOrders(params) {
+  async function fetchOrders(params, { silent = false } = {}) {
     const requestGeneration = ++ordersRequestGeneration;
     try {
       const data = await adminApi.getOrders(params);
-      if (requestGeneration !== ordersRequestGeneration) return allOrders.value;
-      allOrders.value = Array.isArray(data) ? data : [];
+      const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+      if (requestGeneration !== ordersRequestGeneration) return items;
+      allOrders.value = items;
+      orderPagination.value = data?.pagination || { page: Number(params?.page || 1), pageSize: Number(params?.pageSize || 20), totalItems: items.length, totalPages: items.length ? 1 : 0 };
       error.value = '';
-      return allOrders.value;
+      return items;
     } catch (e) {
       if (requestGeneration === ordersRequestGeneration) error.value = e.message;
-      throw e;
+      if (!silent || requestGeneration === ordersRequestGeneration) throw e;
+      return allOrders.value;
     }
   }
 
@@ -219,6 +228,7 @@ export const useAdminStore = defineStore('admin', () => {
     allProducts,
     allCategories,
     allOrders,
+    orderPagination,
     loading,
     error,
     fetchDashboard,

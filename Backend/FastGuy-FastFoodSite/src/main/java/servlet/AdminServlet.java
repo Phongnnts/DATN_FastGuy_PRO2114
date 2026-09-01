@@ -1,38 +1,29 @@
 package servlet;
 
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.HashMap;
-import java.util.Map;
-
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import service.AdminService;
 import utils.ApiResponse;
-import utils.JwtUtil;
-import utils.PrivilegedAuth;
 
 @WebServlet("/api/admin/*")
 public class AdminServlet extends HttpServlet {
-    private AdminService adminService = new AdminService();
+    private final AdminService adminService;
+    private final AdminApiAuth.TokenReader tokenReader;
+
+    public AdminServlet() {
+        this(new AdminService(), AdminApiAuth.jwt());
+    }
+
+    AdminServlet(AdminService adminService, AdminApiAuth.TokenReader tokenReader) {
+        this.adminService = adminService;
+        this.tokenReader = tokenReader;
+    }
 
     private boolean checkAuth(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        String authHeader = req.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            ApiResponse.error(resp, "Missing token", 401);
-            return false;
-        }
-        String token = authHeader.substring(7);
-        String role = JwtUtil.getRole(token);
-        if (!"ADMIN".equals(role) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), "ADMIN")) {
-            ApiResponse.error(resp, "Forbidden", 403);
-            return false;
-        }
-        return true;
+        return AdminApiAuth.require(req, resp, tokenReader) >= 0;
     }
 
     @Override
@@ -44,7 +35,13 @@ public class AdminServlet extends HttpServlet {
         String period = req.getParameter("period");
 
         if (path == null || path.equals("/") || path.equals("/dashboard")) {
-            var data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
+            Object data;
+            try {
+                data = period != null ? adminService.getDashboardWithPeriod(period) : adminService.getDashboard();
+            } catch (RuntimeException e) {
+                ApiResponse.error(resp, "Internal server error", 500);
+                return;
+            }
             ApiResponse.ok(resp, data);
         } else if (path.equals("/reports/full")) {
             String startDate = req.getParameter("startDate");

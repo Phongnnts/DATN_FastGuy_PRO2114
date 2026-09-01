@@ -168,6 +168,7 @@ class CodSettlementTransactionFlowTest {
         settlement.setShipper(currentShift().getUser());
         settlement.setShift(currentShift());
         settlement.setStatus("SUBMITTED");
+        settlement.setExpectedAmount(new BigDecimal("100.00"));
         settlement.setSubmittedAmount(new BigDecimal("100.00"));
         return settlement;
     }

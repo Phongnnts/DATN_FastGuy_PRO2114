@@ -109,6 +109,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /admin/operating-expenses:
     get:
       operationId: listOperatingExpenses
@@ -1164,54 +1166,180 @@ paths:
   /admin/orders:
     get:
       operationId: listAdminOrders
-      summary: List admin orders or unresolved attention orders
-      security:
-        - bearerAuth: []
+      summary: List the paginated admin order queue
+      security: [{ bearerAuth: [] }]
       parameters:
-        - name: fromDate
-          in: query
-          schema: { type: string, format: date }
-        - name: toDate
-          in: query
-          schema: { type: string, format: date }
-        - name: attentionOnly
-          in: query
-          schema: { type: boolean, default: false }
-          description: When true, date parameters are not allowed.
+        - { name: search, in: query, schema: { type: string, minLength: 1 }, description: 'Case-insensitive order code, customer name, or customer phone search.' }
+        - { name: status, in: query, schema: { type: string, enum: [PENDING, CONFIRMED, PREPARING, READY, ASSIGNED, PICKED_UP, DELIVERY_FAILED, RETURNED_TO_STORE, DELIVERED, CANCELLED] } }
+        - { name: attentionOnly, in: query, schema: { type: boolean, default: false } }
+        - { name: paymentStatus, in: query, schema: { type: string, enum: [UNPAID, PAID, FAILED, REFUNDED] } }
+        - { name: refundStatus, in: query, schema: { type: string, enum: [PENDING, REFUNDED, REJECTED] } }
+        - { name: fromDate, in: query, schema: { type: string, format: date } }
+        - { name: toDate, in: query, schema: { type: string, format: date } }
+        - { name: sort, in: query, schema: { type: string, enum: [WAITING_DESC, CREATED_DESC], default: WAITING_DESC } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
-        '200':
-          description: Admin order list
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminOrderListResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        '200': { description: Paginated admin order queue, content: { application/json: { schema: { $ref: '#/components/schemas/AdminOrderListResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /admin/orders/{orderId}:
     get:
       operationId: getAdminOrderDetail
       summary: Get private admin order detail
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/OrderId'
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
       responses:
-        '200':
-          description: Private admin order detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminOrderDetailResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        '200': { description: Private admin order detail, content: { application/json: { schema: { $ref: '#/components/schemas/AdminOrderDetailResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/orders/{orderId}/cancel:
+    put:
+      operationId: cancelAdminOrder
+      summary: Cancel an order at its expected lifecycle status
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AdminOrderCancelRequest' } } } }
+      responses:
+        '200': { description: Order cancelled, content: { application/json: { schema: { $ref: '#/components/schemas/AdminMutationResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/orders/{orderId}/status:
+    put:
+      operationId: updateAdminOrderStatus
+      summary: Apply an allowed order lifecycle transition
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AdminOrderStatusRequest' } } } }
+      responses:
+        '200': { description: Order status updated, content: { application/json: { schema: { $ref: '#/components/schemas/AdminMutationResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/orders/{orderId}/notes:
+    post:
+      operationId: addAdminOrderNote
+      summary: Append a private admin order note
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AdminOrderNoteRequest' } } } }
+      responses:
+        '200': { description: Note appended, content: { application/json: { schema: { $ref: '#/components/schemas/AdminMutationResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/orders/{orderId}/delivery-attempt-override:
+    post:
+      operationId: overrideAdminOrderDeliveryAttempt
+      summary: Add one delivery attempt at the expected lifecycle status
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AdminOrderDeliveryAttemptOverrideRequest' } } } }
+      responses:
+        '200': { description: Delivery attempt limit increased, content: { application/json: { schema: { $ref: '#/components/schemas/AdminMutationResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /cod-settlements/admin:
+    get:
+      operationId: listAdminCodSettlements
+      summary: List COD settlements in one exact state
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, required: true, schema: { type: string, enum: [SUBMITTED, SHORT, OVER, SETTLED] } }
+      responses:
+        '200': { description: COD settlements, content: { application/json: { schema: { $ref: '#/components/schemas/AdminCodSettlementListResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /cod-settlements/{settlementId}/verify:
+    put:
+      operationId: verifyCodSettlement
+      summary: Verify a submitted COD settlement
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: settlementId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CodSettlementVerifyRequest' } } } }
+      responses:
+        '200': { description: Verified COD settlement, content: { application/json: { schema: { $ref: '#/components/schemas/AdminCodSettlementResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/refunds:
+    get:
+      operationId: listAdminRefunds
+      summary: List refund records by processing date
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [PENDING, REFUNDED, REJECTED] } }
+        - { name: search, in: query, schema: { type: string, minLength: 1 }, description: 'Case-insensitive order code, customer name, or phone search.' }
+        - { name: fromDate, in: query, schema: { type: string, format: date }, description: Inclusive refund processing-date lower bound. }
+        - { name: toDate, in: query, schema: { type: string, format: date }, description: Inclusive refund processing-date upper bound. }
+      responses:
+        '200': { description: Refund records, content: { application/json: { schema: { $ref: '#/components/schemas/AdminRefundListResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/refunds/{orderId}:
+    put:
+      operationId: updateAdminRefund
+      summary: Record an external refund result with private evidence
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/RefundMutation' }
+            encoding:
+              proof: { contentType: 'image/jpeg, image/png, image/webp' }
+      responses:
+        '200': { description: Refund result recorded, content: { application/json: { schema: { $ref: '#/components/schemas/AdminMutationResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+  /admin/refunds/{orderId}/proof-url:
+    get:
+      operationId: getAdminRefundProofUrl
+      summary: Get a short-lived private refund-proof URL
+      description: Returns an authenticated view URL that expires after five minutes.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      responses:
+        '200': { description: Signed private proof URL, content: { application/json: { schema: { $ref: '#/components/schemas/RefundProofViewResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /admin/orders/{orderId}/featured-review:
     put:
       operationId: updateFeaturedReview
@@ -1584,6 +1712,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     Conflict:
       description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: Request is valid but violates the resource's business rules
       content:
         application/json:
           schema:
@@ -2650,33 +2784,105 @@ components:
         message: { type: string, const: Shipper assigned }
     AdminDashboardData:
       type: object
-      additionalProperties: true
-      required: [customerCount, activeProductCount, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, revenueToday, ordersToday, pendingCodAmount, pendingCodCount, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete, attentionItems]
+      additionalProperties: false
+      required: [netCashRevenueToday, activeOrderCount, pendingRefundCount, pendingCodCount, lowStockItemCount, staffingGapCount, activeOrdersByStatus, operationalOrderCountToday, operationalCompletedCountToday, completionRateToday, attentionItems, sectionAvailability, customerCount, totalUsers, totalOrders, activeProductCount, totalProducts, ordersByStatus, operationalOrderCount, operationalCompletedCount, completionRate, totalRevenue, pendingOrders, revenueToday, ordersToday, pendingCodAmount, revenueByMonth, topProducts, lowStockThreshold, outOfStockSkuCount, lowStockSkuCount, deliveredOrdersToday, activeOrdersToday, aovToday, grossProfitToday, costComplete]
       properties:
-        customerCount: { type: integer, minimum: 0 }
-        activeProductCount: { type: integer, minimum: 0 }
-        ordersByStatus:
+        netCashRevenueToday:
+          type: number
+          description: Delivered-and-paid revenue recorded today minus refunds processed today.
+        activeOrderCount:
+          type: integer
+          minimum: 0
+          description: All currently non-terminal operational orders, including orders created before today.
+        pendingRefundCount: { type: integer, minimum: 0 }
+        pendingCodCount: { type: integer, minimum: 0 }
+        lowStockItemCount: { type: integer, minimum: 0 }
+        staffingGapCount: { type: integer, minimum: 0 }
+        activeOrdersByStatus:
           type: object
           additionalProperties: { type: integer, minimum: 0 }
-        operationalOrderCount: { type: integer, minimum: 0 }
-        operationalCompletedCount: { type: integer, minimum: 0 }
-        completionRate: { type: number, minimum: 0, maximum: 100 }
-        totalRevenue: { type: number, minimum: 0 }
-        revenueToday: { type: number, minimum: 0 }
-        ordersToday: { type: integer, minimum: 0 }
-        pendingCodAmount: { type: number, minimum: 0 }
-        pendingCodCount: { type: integer, minimum: 0 }
-        lowStockThreshold: { type: integer, minimum: 1 }
-        outOfStockSkuCount: { type: integer, minimum: 0 }
-        lowStockSkuCount: { type: integer, minimum: 0 }
-        deliveredOrdersToday: { type: integer, minimum: 0 }
-        activeOrdersToday: { type: integer, minimum: 0 }
-        aovToday: { type: number, minimum: 0 }
-        grossProfitToday: { type: [number, 'null'] }
-        costComplete: { type: boolean }
+        operationalOrderCountToday: { type: integer, minimum: 0 }
+        operationalCompletedCountToday: { type: integer, minimum: 0 }
+        completionRateToday: { type: number, minimum: 0, maximum: 100 }
         attentionItems:
           type: array
           items: { $ref: '#/components/schemas/AdminAttentionItem' }
+        sectionAvailability: { $ref: '#/components/schemas/AdminDashboardSectionAvailability' }
+        customerCount: { type: [integer, 'null'], minimum: 0, deprecated: true }
+        totalUsers: { type: [integer, 'null'], minimum: 0, deprecated: true }
+        totalOrders: { type: integer, minimum: 0, deprecated: true }
+        activeProductCount: { type: [integer, 'null'], minimum: 0, deprecated: true }
+        totalProducts: { type: [integer, 'null'], minimum: 0, deprecated: true }
+        operationalOrderCount: { type: integer, minimum: 0, deprecated: true }
+        operationalCompletedCount: { type: integer, minimum: 0, deprecated: true }
+        completionRate: { type: number, minimum: 0, maximum: 100, deprecated: true }
+        totalRevenue: { type: number, minimum: 0, deprecated: true }
+        ordersByStatus:
+          type: object
+          deprecated: true
+          additionalProperties: { type: integer, minimum: 0 }
+        pendingOrders: { type: integer, minimum: 0, deprecated: true }
+        pendingCodAmount: { type: number, minimum: 0, deprecated: true }
+        ordersToday: { type: integer, minimum: 0, deprecated: true }
+        revenueToday: { type: number, minimum: 0, deprecated: true }
+        revenueByMonth:
+          type: array
+          deprecated: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [month, year, revenue]
+            properties:
+              month: { type: integer, minimum: 1, maximum: 12 }
+              year: { type: integer, minimum: 2000 }
+              revenue: { type: number, minimum: 0 }
+        topProducts:
+          type: array
+          deprecated: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, sold]
+            properties:
+              name: { type: string }
+              sold: { type: integer, minimum: 0 }
+        grossRevenue: { type: number, minimum: 0, deprecated: true }
+        periodRevenue: { type: number, minimum: 0, deprecated: true }
+        refundTotal: { type: number, minimum: 0, deprecated: true }
+        refundCount: { type: integer, minimum: 0, deprecated: true }
+        netRevenue: { type: number, deprecated: true }
+        periodOrders: { type: integer, minimum: 0, deprecated: true }
+        periodTopProducts:
+          type: array
+          deprecated: true
+          items:
+            type: object
+            additionalProperties: false
+            required: [productId, name, sold, revenue]
+            properties:
+              productId: { type: integer, minimum: 1 }
+              name: { type: string }
+              sold: { type: integer, minimum: 0 }
+              revenue: { type: number, minimum: 0 }
+        lowStockThreshold: { type: [integer, 'null'], minimum: 1, deprecated: true }
+        outOfStockSkuCount: { type: integer, minimum: 0, deprecated: true }
+        lowStockSkuCount: { type: integer, minimum: 0, deprecated: true }
+        deliveredOrdersToday: { type: integer, minimum: 0, deprecated: true }
+        activeOrdersToday: { type: integer, minimum: 0, deprecated: true }
+        aovToday: { type: number, minimum: 0, deprecated: true }
+        grossProfitToday: { type: [number, 'null'], deprecated: true }
+        costComplete: { type: boolean, deprecated: true }
+    AdminDashboardSectionAvailability:
+      type: object
+      additionalProperties: false
+      required: [financial, orders, refunds, cod, inventory, staffing]
+      properties:
+        financial: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        orders: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        refunds: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        cod: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        inventory: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
+        staffing: { type: string, enum: [AVAILABLE, UNAVAILABLE] }
     AdminAttentionItem:
       type: object
       additionalProperties: false
@@ -3767,23 +3973,29 @@ components:
       properties:
         featured:
           type: boolean
+    OrderStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, PREPARING, READY, ASSIGNED, PICKED_UP, DELIVERY_FAILED, RETURNED_TO_STORE, DELIVERED, CANCELLED]
+    AdminOrderAction:
+      type: string
+      enum: [CONFIRMED, CANCELLED, PREPARING, READY, ASSIGNED, PICKED_UP, DELIVERED, DELIVERY_FAILED, RETURNED_TO_STORE]
     AdminOrderAttentionReason:
       type: string
       enum: [PROCESSING_OVERDUE, DELIVERY_FAILED, PENDING_REFUND]
     AdminOrderListItem:
       type: object
       additionalProperties: false
-      required: [orderId, orderCode, status, customerName, paymentMethod, paymentStatus, itemCount, finalAmount, serviceFee, cancelledBy, failureNote, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundedAt, refundNote, createdAt, attentionReasons]
+      required: [orderId, orderCode, status, customerName, paymentMethod, paymentStatus, itemCount, finalAmount, serviceFee, cancelledBy, failureNote, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundedAt, refundNote, createdAt, attentionReasons, waitingMinutes, allowedActions]
       properties:
         orderId: { type: integer, minimum: 1 }
         orderCode: { type: [string, 'null'] }
-        status: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/OrderStatus' }
         customerName: { type: [string, 'null'] }
         paymentMethod: { type: [string, 'null'] }
-        paymentStatus: { type: [string, 'null'] }
+        paymentStatus: { type: [string, 'null'], enum: [UNPAID, PAID, FAILED, REFUNDED, null] }
         itemCount: { type: integer, minimum: 0 }
-        finalAmount: { type: [number, 'null'] }
-        serviceFee: { type: [number, 'null'] }
+        finalAmount: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
+        serviceFee: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
         cancelledBy: { type: [string, 'null'] }
         failureNote: { type: [string, 'null'] }
         deliveryFailureCode: { type: [string, 'null'] }
@@ -3792,8 +4004,8 @@ components:
         deliveryFailedAt: { type: [string, 'null'] }
         retryScheduledAt: { type: [string, 'null'] }
         returnedToStoreAt: { type: [string, 'null'] }
-        refundStatus: { type: [string, 'null'] }
-        refundAmount: { type: [number, 'null'] }
+        refundStatus: { type: [string, 'null'], enum: [PENDING, REFUNDED, REJECTED, null] }
+        refundAmount: { oneOf: [{ $ref: '#/components/schemas/FinanceMoney' }, { type: 'null' }] }
         refundedAt: { type: [string, 'null'] }
         refundNote: { type: [string, 'null'] }
         createdAt: { type: [string, 'null'] }
@@ -3801,6 +4013,11 @@ components:
           type: array
           uniqueItems: true
           items: { $ref: '#/components/schemas/AdminOrderAttentionReason' }
+        waitingMinutes: { type: integer, minimum: 0 }
+        allowedActions:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/AdminOrderAction' }
     ActivityLogActionType:
       type: string
       enum: [ORDER_CANCELLED, ORDER_REFUND_RECORDED, DELIVERY_ATTEMPT_OVERRIDDEN, ATTENDANCE_APPROVED, STAFF_PAY_RATE_CREATED, STOCK_COUNT_APPROVED]
@@ -3827,7 +4044,7 @@ components:
           description: Action-specific, whitelisted non-sensitive display values only; excludes credentials, tokens, payment references, contact details, addresses, and free-form private notes.
           additionalProperties: { type: [string, number, integer, boolean, 'null'] }
         createdAt: { type: string, format: date-time }
-    ActivityLogPagination:
+    Pagination:
       type: object
       additionalProperties: false
       required: [page, pageSize, totalItems, totalPages]
@@ -3844,7 +4061,7 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/ActivityLog' }
-        pagination: { $ref: '#/components/schemas/ActivityLogPagination' }
+        pagination: { $ref: '#/components/schemas/Pagination' }
     ActivityLogListResponse:
       type: object
       additionalProperties: false
@@ -3852,7 +4069,91 @@ components:
       properties:
         status: { type: string, const: success }
         data: { $ref: '#/components/schemas/ActivityLogListData' }
+    AdminOrderListData:
+      type: object
+      additionalProperties: false
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminOrderListItem' }
+        pagination: { $ref: '#/components/schemas/Pagination' }
     AdminOrderListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/AdminOrderListData' }
+    AdminOrderCancelRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, reason]
+      properties:
+        expectedStatus: { $ref: '#/components/schemas/OrderStatus' }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    AdminOrderStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, status]
+      properties:
+        expectedStatus: { $ref: '#/components/schemas/OrderStatus' }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        note: { type: [string, 'null'], maxLength: 500 }
+    AdminOrderNoteRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, note]
+      properties:
+        expectedStatus: { $ref: '#/components/schemas/OrderStatus' }
+        note: { type: string, minLength: 1, maxLength: 500 }
+    AdminOrderDeliveryAttemptOverrideRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, note]
+      properties:
+        expectedStatus: { $ref: '#/components/schemas/OrderStatus' }
+        note: { type: string, minLength: 1, maxLength: 500 }
+    CodSettlementVerifyRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, status, verifiedAmount]
+      properties:
+        expectedStatus: { type: string, const: SUBMITTED }
+        status: { type: string, enum: [SETTLED, SHORT, OVER] }
+        verifiedAmount: { $ref: '#/components/schemas/Money' }
+        reason: { type: [string, 'null'], maxLength: 500 }
+    AdminCodSettlement:
+      type: object
+      additionalProperties: false
+      required: [settlementId, shipperId, shipperName, shiftId, shiftDate, startTime, endTime, status, expectedAmount, submittedAmount, differenceAmount, verifiedAmount, reason, receivedByName, submittedAt, verifiedAt]
+      properties:
+        settlementId: { type: integer, minimum: 1 }
+        shipperId: { type: integer, minimum: 1 }
+        shipperName: { type: string, minLength: 1 }
+        shiftId: { type: integer, minimum: 1 }
+        shiftDate: { type: string, format: date }
+        startTime: { type: string, format: time }
+        endTime: { type: string, format: time }
+        status: { type: string, enum: [SUBMITTED, SHORT, OVER, SETTLED] }
+        expectedAmount: { $ref: '#/components/schemas/Money' }
+        submittedAmount: { $ref: '#/components/schemas/Money' }
+        differenceAmount:
+          allOf: [{ $ref: '#/components/schemas/FinanceMoney' }]
+          description: submittedAmount - expectedAmount; negative means short and positive means over.
+        verifiedAmount: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        reason: { type: [string, 'null'], maxLength: 500 }
+        receivedByName: { type: [string, 'null'] }
+        submittedAt: { type: string, format: date-time }
+        verifiedAt: { type: [string, 'null'], format: date-time }
+    AdminCodSettlementResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/AdminCodSettlement' }
+    AdminCodSettlementListResponse:
       type: object
       additionalProperties: false
       required: [status, data]
@@ -3860,7 +4161,70 @@ components:
         status: { type: string, const: success }
         data:
           type: array
-          items: { $ref: '#/components/schemas/AdminOrderListItem' }
+          items: { $ref: '#/components/schemas/AdminCodSettlement' }
+    AdminRefund:
+      type: object
+      additionalProperties: false
+      required: [orderId, orderCode, customerName, customerPhone, finalAmount, paymentMethod, paymentStatus, refundStatus, refundAmount, refundNote, refundReference, refundProcessedBy, refundProcessedByName, cancelledAt, paidAt, refundedAt, failureReason, createdAt, proofAvailable]
+      properties:
+        orderId: { type: integer, minimum: 1 }
+        orderCode: { type: [string, 'null'] }
+        customerName: { type: [string, 'null'] }
+        customerPhone: { type: [string, 'null'] }
+        finalAmount: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        paymentMethod: { type: [string, 'null'] }
+        paymentStatus: { type: [string, 'null'], enum: [UNPAID, PAID, FAILED, REFUNDED, null] }
+        refundStatus: { type: [string, 'null'], enum: [PENDING, REFUNDED, REJECTED, null] }
+        refundAmount: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        refundNote: { type: [string, 'null'], maxLength: 500 }
+        refundReference: { type: [string, 'null'], maxLength: 200 }
+        refundProcessedBy: { type: [integer, 'null'], minimum: 1 }
+        refundProcessedByName: { type: [string, 'null'] }
+        cancelledAt: { type: [string, 'null'] }
+        paidAt: { type: [string, 'null'] }
+        refundedAt: { type: [string, 'null'] }
+        failureReason: { type: [string, 'null'] }
+        createdAt: { type: [string, 'null'] }
+        proofAvailable: { type: boolean }
+    AdminRefundListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AdminRefund' }
+    RefundMutation:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, status]
+      description: REFUNDED requires the full amount, a reference, and proof. REJECTED requires a note and no proof.
+      properties:
+        expectedStatus: { type: string, const: PENDING }
+        status: { type: string, enum: [REFUNDED, REJECTED] }
+        refundAmount: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        refundNote: { type: [string, 'null'], maxLength: 500 }
+        refundReference: { type: [string, 'null'], maxLength: 200 }
+        proof:
+          type: string
+          format: binary
+          maxLength: 5242880
+          description: Private JPEG, PNG, or WebP proof, at most 5 MiB.
+    RefundProofViewData:
+      type: object
+      additionalProperties: false
+      required: [viewUrl, expiresAt]
+      properties:
+        viewUrl: { type: string, format: uri }
+        expiresAt: { type: string, format: date-time }
+    RefundProofViewResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/RefundProofViewData' }
     AdminOrderReview:
       type: object
       additionalProperties: false
@@ -3961,7 +4325,7 @@ components:
     AdminOrderDetail:
       type: object
       additionalProperties: false
-      required: [orderId, orderCode, status, customerName, customerPhone, customerAddress, totalAmount, shippingFee, serviceFee, finalAmount, discountAmount, paymentMethod, paymentStatus, deliveryNote, cancelledBy, failureNote, failureReason, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundNote, refundedAt, createdAt, confirmedAt, cancelledAt, deliveredAt, staffName, shipperName, internalNote, review, payment, items, statusHistory, statusEnteredAt, expiresAt, remainingSeconds, timeoutPolicy, ownerShiftCode]
+      required: [orderId, orderCode, status, customerName, customerPhone, customerAddress, totalAmount, shippingFee, serviceFee, finalAmount, discountAmount, paymentMethod, paymentStatus, deliveryNote, cancelledBy, failureNote, failureReason, deliveryFailureCode, deliveryAttemptCount, deliveryAttemptLimit, deliveryFailedAt, retryScheduledAt, returnedToStoreAt, refundStatus, refundAmount, refundNote, refundedAt, createdAt, confirmedAt, cancelledAt, deliveredAt, staffName, shipperName, internalNote, review, payment, items, statusHistory, statusEnteredAt, expiresAt, remainingSeconds, timeoutPolicy, ownerShiftCode, allowedActions]
       properties:
         orderId:
           type: integer
@@ -4063,6 +4427,10 @@ components:
         remainingSeconds: { type: [integer, 'null'], minimum: 0 }
         timeoutPolicy: { type: [string, 'null'] }
         ownerShiftCode: { $ref: '#/components/schemas/NullableShiftCode' }
+        allowedActions:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/AdminOrderAction' }
     AdminOrderDetailResponse:
       type: object
       additionalProperties: false
@@ -4098,6 +4466,7 @@ components:
           type: string
     ErrorResponse:
       type: object
+      additionalProperties: false
       required: [status, message]
       properties:
         status:

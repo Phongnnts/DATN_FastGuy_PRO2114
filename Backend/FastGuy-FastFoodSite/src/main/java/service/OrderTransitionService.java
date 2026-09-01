@@ -136,6 +136,8 @@ public class OrderTransitionService {
             }
         } else if ("SHIPPER".equals(role)) {
             next.retainAll(Set.of("PICKED_UP", "DELIVERED", "DELIVERY_FAILED", "CANCELLED"));
+        } else if ("ADMIN".equals(role)) {
+            next.removeIf(status -> !"CANCELLED".equals(status) && !canUseGenericTransition(status));
         } else {
             next.clear();
         }
@@ -170,7 +172,7 @@ public class OrderTransitionService {
             WorkShift currentStaffShift = "STAFF".equals(actorRole) && actorUserId != null ? currentActiveShift(em, em.find(User.class, actorUserId), "STAFF") : null;
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
 
-            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.NOT_FOUND; }
             if (expectedStatus != null && !matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
 
             String from = order.getOrderStatus();
@@ -244,6 +246,26 @@ public class OrderTransitionService {
         } finally {
             em.close();
         }
+    }
+
+    public MutationResult appendAdminNote(int orderId, int adminId, String expectedStatus, String note) {
+        if (note == null || note.isBlank()) return MutationResult.INVALID;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.NOT_FOUND; }
+            if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            String existing = order.getInternalNote();
+            String normalized = note.trim();
+            order.setInternalNote(existing != null && !existing.isBlank() ? existing + "\n---\n[Admin] " + normalized : "[Admin] " + normalized);
+            em.persist(new OrderStatusHistory(orderId, adminId, "ADMIN", order.getOrderStatus(), order.getOrderStatus(), normalized, LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally { em.close(); }
     }
 
     public MutationResult reportDeliveryFailure(int orderId, int shipperId, String expectedStatus, String reasonCode, String note) {

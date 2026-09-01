@@ -18,6 +18,7 @@ const router = read('../src/router/index.js');
 const initSql = read('../../database/init.sql');
 
 test('keeps responsive, table, focus, and reduced-motion policies', () => {
+  assert.match(globalCss, /@media \(max-width: 768px\)/);
   assert.match(globalCss, /@media \(max-width: 360px\)/);
   assert.match(globalCss, /\.table-wrapper\s*\{[\s\S]*overflow-x: auto/);
   assert.match(globalCss, /\.table\s*\{[\s\S]*min-width: 640px/);

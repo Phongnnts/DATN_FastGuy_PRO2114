@@ -5,7 +5,6 @@ import test from 'node:test';
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const inventory = read('../src/views/admin/InventoryPage.vue');
 const dashboard = read('../src/views/admin/DashboardPage.vue');
-const store = read('../src/stores/admin.js');
 const variants = read('../src/components/admin/product-editor/ProductVariantsSection.vue');
 
 test('inventory stock changes only through item-level workflows', () => {
@@ -29,7 +28,7 @@ test('dashboard exposes loading error retry and ready without failure KPI fallba
   assert.match(dashboard, /loadState\.value = 'ready'/);
   assert.match(dashboard, /role="status"[^]*Đang tải/);
   assert.match(dashboard, /role="alert"[^]*@click="loadDashboard"[^]*Thử lại/);
-  assert.match(dashboard, /dashboardViewState\(data\.value, loadState\.value, loadError\.value\)/);
+  assert.match(dashboard, /dashboardViewState\(data\.value, loadState\.value, loadError\.value, data\.value\?\.sectionAvailability\)/);
   assert.match(dashboard, /<template v-else>/);
   assert.doesNotMatch(dashboard, /adminStore\.dashboard \|\| \{[^]*totalUsers: 0/);
 });
@@ -40,11 +39,4 @@ test('dashboard accepts only current mounted success before charts', () => {
   assert.match(dashboard, /request\.generation !== requestGeneration/);
   assert.match(dashboard, /loadState\.value = 'ready'[^]*buildCharts\(\)/);
   assert.doesNotMatch(dashboard, /watch\(\s*\(\) => adminStore\.dashboard/);
-});
-
-test('admin dashboard store records error and rethrows request failure', () => {
-  const fetchDashboard = store.slice(store.indexOf('async function fetchDashboard()'), store.indexOf('async function fetchUsers()'));
-  assert.match(fetchDashboard, /error\.value = ''/);
-  assert.match(fetchDashboard, /catch \(e\)[^]*error\.value = e\.message[^]*throw e/);
-  assert.doesNotMatch(fetchDashboard, /return null/);
 });

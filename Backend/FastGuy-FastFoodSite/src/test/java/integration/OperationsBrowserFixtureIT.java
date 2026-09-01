@@ -18,7 +18,7 @@ import utils.DatabaseUtil;
 import utils.PasswordUtil;
 
 class OperationsBrowserFixtureIT {
-    private static final List<String> DATABASES = List.of("FastGuyDB_Operations060_Test", "FastGuyDB_Attendance061_Test", "FastGuyDB_PayRate062_Test", "FastGuyDB_ActivityLog063_Test");
+    private static final List<String> DATABASES = List.of("FastGuyDB", "FastGuyDB_Operations060_Test", "FastGuyDB_Attendance061_Test", "FastGuyDB_PayRate062_Test", "FastGuyDB_ActivityLog063_Test");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Test

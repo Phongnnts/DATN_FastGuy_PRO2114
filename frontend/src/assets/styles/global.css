@@ -877,9 +877,73 @@ textarea:focus-visible {
 }
 .fg-shell-guest { --role-accent: var(--role-guest); --role-soft: var(--primary-50); }
 .fg-shell-user { --role-accent: var(--role-user); --role-soft: var(--primary-50); }
-.fg-shell-admin { --role-accent: var(--role-admin); --role-soft: var(--role-admin-soft); }
+.fg-shell-admin {
+  --bg: var(--admin-canvas);
+  --bg-card: var(--admin-surface);
+  --text-dark: var(--admin-foreground);
+  --text-mid: var(--admin-muted);
+  --border: var(--admin-border);
+  --role-accent: var(--admin-brand);
+  --role-soft: var(--admin-brand-soft);
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 12px;
+  --bg-elevated: var(--admin-surface);
+  --surface: var(--admin-brand-soft);
+  --text-light: var(--admin-muted);
+  --border-light: var(--admin-border);
+  --border-focus: var(--admin-brand);
+  --primary: var(--admin-brand);
+  --primary-dark: var(--admin-brand);
+  --primary-light: var(--admin-brand-soft);
+  --primary-50: var(--admin-brand-soft);
+  --primary-100: var(--admin-brand-soft);
+  --role-admin: var(--admin-brand);
+  --role-admin-soft: var(--admin-brand-soft);
+  --red-active: var(--admin-danger);
+  --green: var(--admin-success);
+  --blue: var(--admin-info);
+  --yellow: var(--admin-warning);
+}
+.fg-shell-admin :is(.btn-primary, .verify-button) {
+  background: var(--admin-action);
+  border-color: var(--admin-action);
+}
 .fg-shell-staff { --role-accent: var(--role-staff); --role-soft: var(--role-staff-soft); }
 .fg-shell-shipper { --role-accent: var(--role-shipper); --role-soft: var(--role-shipper-soft); }
+.fg-shell-admin.fg-shell {
+  background: var(--admin-canvas);
+}
+.fg-shell-admin .fg-panel {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+.fg-shell-admin .fg-metric-card {
+  background: var(--admin-surface);
+  border-color: var(--admin-border);
+  border-radius: var(--radius-lg);
+}
+.fg-shell-admin :is(.stat-card, .chart-container, .card) {
+  background-color: var(--admin-surface);
+  background-image: none;
+  border-color: var(--admin-border);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+.fg-shell-admin :is(.stat-card, .fg-metric-card):hover {
+  box-shadow: none;
+  transform: none;
+}
+.fg-shell-admin :is(.fg-panel, .page-header)::before,
+.fg-shell-admin .fg-metric-card::after,
+.fg-shell-admin .sidebar-brand-title::after {
+  content: none;
+}
+.fg-shell-admin :is(.stat-value, .fg-metric-card strong, .today-kpis strong, .stats strong, .stats-grid strong, .kpi-grid strong, .receipt-kpis strong, td.numeric, .numeric) {
+  font-variant-numeric: tabular-nums;
+}
 .fg-page {
   width: 100%;
   max-width: 1440px;

@@ -1,7 +1,8 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAdminStore } from '@/stores/admin';
+import { adminApi } from '@/api';
 import { formatPrice, formatDate } from '@/utils/format';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 
@@ -12,16 +13,19 @@ const searchTerm = ref('');
 const activeStatus = computed(() => statusFilters.some((item) => item.key === route.query.status) ? route.query.status : '');
 const attentionActive = computed(() => activeStatus.value === 'ATTENTION');
 const tabButtons = ref([]);
-const paymentMethod = ref('');
 const paymentStatus = ref('');
 const refundStatus = ref('');
-const sortBy = ref('date-desc');
+const sortBy = ref('WAITING_DESC');
 const currentPage = ref(1);
-const pageSize = 10;
+const pageSize = 20;
 const filterFromDate = ref('');
 const filterToDate = ref('');
 const loading = ref(false);
 const loadError = ref('');
+const selectedOrder = ref(null);
+const detailLoading = ref(false);
+const detailError = ref('');
+let detailTrigger = null;
 
 const statusFilters = [
   { key: 'ATTENTION', label: 'Cần xử lý' },
@@ -40,38 +44,34 @@ const statusFilters = [
 ];
 
 const dateError = computed(() => filterFromDate.value && filterToDate.value && filterFromDate.value > filterToDate.value ? 'Từ ngày không được sau đến ngày.' : '');
-const statusCount = (key) => key === 'ATTENTION'
-  ? adminStore.allOrders.length
-  : key === 'REFUND_PENDING'
-    ? adminStore.allOrders.filter((o) => o.status === 'CANCELLED' && o.refundStatus === 'PENDING').length
-    : key ? adminStore.allOrders.filter((o) => o.status === key).length : adminStore.allOrders.length;
+const statusCount = (key) => key === activeStatus.value ? adminStore.orderPagination.totalItems : 0;
 const ATTENTION_REASON_LABELS = {
   PROCESSING_OVERDUE: 'Quá hạn xử lý',
   DELIVERY_FAILED: 'Giao thất bại',
   PENDING_REFUND: 'Chờ hoàn tiền',
 };
-const totalRevenue = computed(() => adminStore.allOrders.filter((o) => o.paymentStatus === 'PAID' && o.status === 'DELIVERED').reduce((sum, o) => sum + Number(o.finalAmount || 0), 0));
-const todayCount = computed(() => {
-  const today = new Date().toLocaleDateString('en-CA');
-  return adminStore.allOrders.filter((o) => String(o.createdAt || '').slice(0, 10) === today).length;
-});
-
-async function loadOrders() {
+async function loadOrders({ silent = false } = {}) {
   if (!attentionActive.value && dateError.value) return;
-  loading.value = true;
+  if (!silent) loading.value = true;
   loadError.value = '';
   try {
-    const params = {};
-    if (attentionActive.value) params.attentionOnly = true;
-    else {
-      if (filterFromDate.value) params.fromDate = filterFromDate.value;
-      if (filterToDate.value) params.toDate = filterToDate.value;
-    }
-    await adminStore.fetchOrders(params);
+    const params = {
+      search: searchTerm.value.trim() || undefined,
+      status: !attentionActive.value && activeStatus.value && activeStatus.value !== 'REFUND_PENDING' ? activeStatus.value : undefined,
+      attentionOnly: attentionActive.value || undefined,
+      paymentStatus: paymentStatus.value || undefined,
+      refundStatus: activeStatus.value === 'REFUND_PENDING' ? 'PENDING' : refundStatus.value || undefined,
+      fromDate: attentionActive.value ? undefined : filterFromDate.value || undefined,
+      toDate: attentionActive.value ? undefined : filterToDate.value || undefined,
+      sort: sortBy.value,
+      page: currentPage.value,
+      pageSize,
+    };
+    await adminStore.fetchOrders(params, { silent });
   } catch (e) {
     loadError.value = e?.response?.data?.message || e.message || 'Không thể tải danh sách đơn hàng.';
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 }
 
@@ -84,10 +84,10 @@ function setDatePreset(days) {
   filterFromDate.value = days === 0 ? localDate() : localDate(days - 1);
   filterToDate.value = localDate();
   currentPage.value = 1;
-  loadOrders();
+  applyFilters();
 }
 async function selectStatus(status) {
-  await router.push({ query: { ...route.query, status: status || undefined } });
+  await router.push({ query: { ...route.query, status: status || undefined, page: undefined } });
 }
 function handleTabKeydown(event, index) {
   const targets = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: statusFilters.length - 1 };
@@ -98,40 +98,46 @@ function handleTabKeydown(event, index) {
   nextTick(() => tabButtons.value[next]?.focus());
 }
 function resetFilters() {
-  searchTerm.value = '';
-  paymentMethod.value = '';
-  paymentStatus.value = '';
-  refundStatus.value = '';
-  sortBy.value = 'date-desc';
-  filterFromDate.value = '';
-  filterToDate.value = '';
-  currentPage.value = 1;
-  loadOrders();
+  router.push({ query: { status: route.query.status } });
 }
-onMounted(loadOrders);
-watch(() => route.query.status, loadOrders);
+function hydrateQuery() {
+  searchTerm.value = typeof route.query.search === 'string' ? route.query.search : '';
+  paymentStatus.value = ['UNPAID','PAID','FAILED','REFUNDED'].includes(route.query.paymentStatus) ? route.query.paymentStatus : '';
+  refundStatus.value = ['PENDING','REFUNDED','REJECTED'].includes(route.query.refundStatus) ? route.query.refundStatus : '';
+  sortBy.value = ['WAITING_DESC','CREATED_DESC'].includes(route.query.sort) ? route.query.sort : 'WAITING_DESC';
+  filterFromDate.value = typeof route.query.fromDate === 'string' ? route.query.fromDate : '';
+  filterToDate.value = typeof route.query.toDate === 'string' ? route.query.toDate : '';
+  currentPage.value = Math.max(1, Number.parseInt(route.query.page, 10) || 1);
+}
+function applyFilters() {
+  router.push({ query: {
+    ...route.query,
+    search: searchTerm.value.trim() || undefined,
+    paymentStatus: paymentStatus.value || undefined,
+    refundStatus: refundStatus.value || undefined,
+    sort: sortBy.value === 'WAITING_DESC' ? undefined : sortBy.value,
+    fromDate: attentionActive.value ? undefined : filterFromDate.value || undefined,
+    toDate: attentionActive.value ? undefined : filterToDate.value || undefined,
+    page: undefined,
+  } });
+}
+function goPage(page) { router.push({ query: { ...route.query, page: page === 1 ? undefined : page } }); }
+async function openOrder(order, event) {
+  detailTrigger = event?.currentTarget || null;
+  detailLoading.value = true; detailError.value = ''; selectedOrder.value = null;
+  try { selectedOrder.value = await adminApi.getOrderById(order.orderId); await nextTick(); document.querySelector('.order-drawer-close')?.focus(); }
+  catch (error) { detailError.value = error.message || 'Không thể tải chi tiết đơn hàng'; }
+  finally { detailLoading.value = false; }
+}
+function closeOrder() { selectedOrder.value = null; detailError.value = ''; document.body.style.overflow = ''; nextTick(() => detailTrigger?.isConnected && detailTrigger.focus()); }
+watch([detailLoading, selectedOrder, detailError], ([pending, order, error]) => { document.body.style.overflow = pending || order || error ? 'hidden' : ''; });
 
-const filtered = computed(() => {
-  let list = [...adminStore.allOrders];
-  if (activeStatus.value === 'REFUND_PENDING') list = list.filter((o) => o.status === 'CANCELLED' && o.refundStatus === 'PENDING');
-  else if (activeStatus.value && activeStatus.value !== 'ATTENTION') list = list.filter((o) => o.status === activeStatus.value);
-  if (paymentMethod.value) list = list.filter((o) => o.paymentMethod === paymentMethod.value);
-  if (paymentStatus.value) list = list.filter((o) => o.paymentStatus === paymentStatus.value);
-  if (refundStatus.value) list = list.filter((o) => o.refundStatus === refundStatus.value);
-  const q = searchTerm.value.trim().toLocaleLowerCase('vi');
-  if (q) list = list.filter((o) => `${o.orderCode || ''} ${o.customerName || ''}`.toLocaleLowerCase('vi').includes(q));
-  if (attentionActive.value && sortBy.value === 'date-desc') return list;
-  return list.sort((a, b) => {
-    if (sortBy.value === 'amount-asc') return Number(a.finalAmount || 0) - Number(b.finalAmount || 0);
-    if (sortBy.value === 'amount-desc') return Number(b.finalAmount || 0) - Number(a.finalAmount || 0);
-    const delta = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
-    return sortBy.value === 'date-asc' ? delta : -delta;
-  });
-});
-const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)));
-const paged = computed(() => filtered.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize));
-watch([searchTerm, activeStatus, paymentMethod, paymentStatus, refundStatus, sortBy], () => { currentPage.value = 1; });
-watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value = pages; });
+onMounted(() => { hydrateQuery(); loadOrders(); });
+onBeforeUnmount(() => { document.body.style.overflow = ''; });
+watch(() => route.query, () => { hydrateQuery(); loadOrders(); }, { deep: true });
+const filtered = computed(() => adminStore.allOrders);
+const totalPages = computed(() => Math.max(1, adminStore.orderPagination.totalPages || 1));
+const paged = computed(() => adminStore.allOrders);
 </script>
 
 <template>
@@ -141,13 +147,6 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
       <button class="btn btn-outline" :disabled="loading" @click="loadOrders"><i class="bi bi-arrow-clockwise"></i> Làm mới</button>
     </header>
 
-    <section class="stats" aria-label="Tổng quan đơn hàng">
-      <article><span class="stat-icon violet"><i class="bi bi-receipt"></i></span><div><small>Tổng đơn</small><strong>{{ adminStore.allOrders.length }}</strong></div></article>
-      <article><span class="stat-icon amber"><i class="bi bi-hourglass-split"></i></span><div><small>Chờ xử lý</small><strong>{{ statusCount('PENDING') }}</strong></div></article>
-      <article><span class="stat-icon green"><i class="bi bi-calendar-check"></i></span><div><small>Đơn hôm nay</small><strong>{{ todayCount }}</strong></div></article>
-      <article><span class="stat-icon blue"><i class="bi bi-cash-stack"></i></span><div><small>Doanh thu đã thu</small><strong>{{ formatPrice(totalRevenue) }}</strong></div></article>
-    </section>
-
     <section class="panel">
       <nav class="status-tabs" role="tablist" aria-label="Lọc trạng thái">
         <button v-for="(item, index) in statusFilters" :key="item.key" :ref="element => tabButtons[index] = element" role="tab" :aria-selected="activeStatus === item.key" :tabindex="activeStatus === item.key ? 0 : -1" :class="{ active: activeStatus === item.key }" @keydown="handleTabKeydown($event, index)" @click="selectStatus(item.key)">
@@ -156,17 +155,17 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
       </nav>
 
       <div class="filter-area">
-        <div class="search-box wide"><i class="bi bi-search"></i><input v-model="searchTerm" class="form-input" aria-label="Tìm mã đơn hoặc khách hàng" placeholder="Tìm mã đơn, tên khách hàng..." /></div>
-        <select v-model="paymentMethod" class="form-select" aria-label="Phương thức thanh toán"><option value="">Mọi phương thức</option><option value="COD">COD</option><option value="BANK_TRANSFER">PayOS</option></select>
-        <select v-model="paymentStatus" class="form-select" aria-label="Trạng thái thanh toán"><option value="">Mọi thanh toán</option><option value="PAID">Đã thanh toán</option><option value="PENDING">Chờ thanh toán</option><option value="FAILED">Thất bại</option></select>
+        <div class="search-box wide"><i class="bi bi-search"></i><input v-model="searchTerm" class="form-input" aria-label="Tìm mã đơn, khách hàng hoặc số điện thoại" placeholder="Tìm mã đơn, tên hoặc số điện thoại..." @keyup.enter="applyFilters" /></div>
+        <select v-model="paymentStatus" class="form-select" aria-label="Trạng thái thanh toán"><option value="">Mọi thanh toán</option><option value="PAID">Đã thanh toán</option><option value="UNPAID">Chờ thanh toán</option><option value="FAILED">Thất bại</option><option value="REFUNDED">Đã hoàn</option></select>
         <select v-model="refundStatus" class="form-select" aria-label="Trạng thái hoàn tiền"><option value="">Mọi hoàn tiền</option><option value="PENDING">Chờ hoàn</option><option value="REFUNDED">Đã hoàn</option><option value="REJECTED">Từ chối</option></select>
-        <select v-model="sortBy" class="form-select" aria-label="Sắp xếp"><option value="date-desc">Mới nhất</option><option value="date-asc">Cũ nhất</option><option value="amount-desc">Giá trị cao nhất</option><option value="amount-asc">Giá trị thấp nhất</option></select>
+        <select v-model="sortBy" class="form-select" aria-label="Sắp xếp"><option value="WAITING_DESC">Chờ lâu nhất</option><option value="CREATED_DESC">Mới nhất</option></select>
+        <button class="btn btn-primary" :disabled="loading" @click="applyFilters">Áp dụng</button>
       </div>
       <div class="date-row">
         <div class="presets"><button :disabled="attentionActive" @click="setDatePreset(0)">Hôm nay</button><button :disabled="attentionActive" @click="setDatePreset(7)">7 ngày</button><button :disabled="attentionActive" @click="setDatePreset(30)">30 ngày</button></div>
         <label>Từ ngày <input v-model="filterFromDate" type="date" class="form-input" :disabled="attentionActive" :max="filterToDate || undefined" /></label>
         <label>Đến ngày <input v-model="filterToDate" type="date" class="form-input" :disabled="attentionActive" :min="filterFromDate || undefined" /></label>
-        <button class="btn btn-primary" :disabled="attentionActive || !!dateError || loading" @click="currentPage = 1; loadOrders()">Áp dụng</button>
+        <button class="btn btn-primary" :disabled="attentionActive || !!dateError || loading" @click="applyFilters">Áp dụng ngày</button>
         <button class="btn btn-outline" @click="resetFilters"><i class="bi bi-x-circle"></i> Đặt lại</button>
         <p v-if="attentionActive" class="date-note">Cần xử lý luôn hiển thị toàn bộ việc chưa giải quyết, không giới hạn ngày.</p>
         <p v-else-if="dateError" class="field-error" role="alert">{{ dateError }}</p>
@@ -178,14 +177,14 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
       <template v-else>
         <div class="table-wrapper">
           <table class="table">
-            <thead><tr><th>Đơn hàng</th><th>Khách hàng</th><th>Sản phẩm</th><th>Giá trị</th><th>Thanh toán</th><th>Ngày tạo</th><th>Trạng thái</th><th>Hoàn tiền</th></tr></thead>
+            <thead><tr><th>Đơn hàng</th><th>Khách hàng</th><th>Đã chờ</th><th>Sản phẩm</th><th>Giá trị</th><th>Thanh toán</th><th>Trạng thái</th><th>Hoàn tiền</th></tr></thead>
             <tbody><tr v-for="order in paged" :key="order.orderId">
-              <td><router-link class="order-link" :to="`/admin/orders/${order.orderId}`" :aria-label="`Xem đơn hàng ${order.orderCode}`">{{ order.orderCode }}</router-link></td>
+              <td><button class="order-link" type="button" :aria-label="`Xem nhanh đơn hàng ${order.orderCode}`" @click="openOrder(order, $event)">{{ order.orderCode }}</button></td>
               <td><strong>{{ order.customerName || 'Khách' }}</strong></td>
+              <td><strong>{{ order.waitingMinutes }} phút</strong><small class="muted">{{ formatDate(order.createdAt) }}</small></td>
               <td>{{ order.itemCount || 0 }} món</td>
               <td><strong>{{ formatPrice(order.finalAmount || 0) }}</strong></td>
               <td><span class="payment-method">{{ order.paymentMethod === 'BANK_TRANSFER' ? 'PayOS' : 'COD' }}</span><small :class="['payment-state', String(order.paymentStatus).toLowerCase()]">{{ order.paymentStatus === 'PAID' ? 'Đã thanh toán' : order.paymentStatus === 'FAILED' ? 'Thất bại' : 'Chờ thanh toán' }}</small></td>
-              <td>{{ formatDate(order.createdAt) }}</td>
               <td><OrderStatusBadge :status="order.status" /><div v-if="order.attentionReasons?.length" class="attention-reasons"><span v-for="reason in order.attentionReasons" :key="reason">{{ ATTENTION_REASON_LABELS[reason] }}</span></div></td>
               <td>
                 <span v-if="order.refundStatus === 'REFUNDED'" class="refund-badge refund-done">Đã hoàn {{ formatPrice(order.refundAmount) }}</span>
@@ -196,9 +195,23 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
             </tr></tbody>
           </table>
         </div>
-        <footer class="table-footer"><span>Hiển thị {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, filtered.length) }} / {{ filtered.length }} đơn</span><div class="pagination"><button :disabled="currentPage === 1" aria-label="Trang trước" @click="currentPage--"><i class="bi bi-chevron-left"></i></button><span>Trang {{ currentPage }} / {{ totalPages }}</span><button :disabled="currentPage === totalPages" aria-label="Trang sau" @click="currentPage++"><i class="bi bi-chevron-right"></i></button></div></footer>
+        <footer class="table-footer"><span>{{ adminStore.orderPagination.totalItems }} đơn phù hợp</span><div class="pagination"><button :disabled="currentPage === 1" aria-label="Trang trước" @click="goPage(currentPage - 1)"><i class="bi bi-chevron-left"></i></button><span>Trang {{ currentPage }} / {{ totalPages }}</span><button :disabled="currentPage >= totalPages" aria-label="Trang sau" @click="goPage(currentPage + 1)"><i class="bi bi-chevron-right"></i></button></div></footer>
       </template>
     </section>
+
+    <div v-if="detailLoading || selectedOrder || detailError" class="drawer-backdrop" @mousedown.self="closeOrder">
+      <aside class="order-drawer" role="dialog" aria-modal="true" aria-labelledby="order-drawer-title">
+        <header><div><small>Chi tiết đơn hàng</small><h2 id="order-drawer-title">{{ selectedOrder?.orderCode || 'Đang tải' }}</h2></div><button class="order-drawer-close" type="button" aria-label="Đóng chi tiết đơn hàng" @click="closeOrder"><i class="bi bi-x-lg"></i></button></header>
+        <div v-if="detailLoading" class="state" role="status">Đang tải chi tiết...</div>
+        <div v-else-if="detailError" class="state error" role="alert">{{ detailError }}</div>
+        <template v-else-if="selectedOrder">
+          <dl class="drawer-facts"><div><dt>Khách hàng</dt><dd>{{ selectedOrder.customerName }}</dd></div><div><dt>Điện thoại</dt><dd>{{ selectedOrder.customerPhone }}</dd></div><div><dt>Địa chỉ</dt><dd>{{ selectedOrder.customerAddress }}</dd></div><div><dt>Thanh toán</dt><dd>{{ selectedOrder.paymentMethod }} · {{ selectedOrder.paymentStatus }}</dd></div><div><dt>Tổng cộng</dt><dd>{{ formatPrice(selectedOrder.finalAmount) }}</dd></div></dl>
+          <section><h3>Món trong đơn</h3><ul class="drawer-items"><li v-for="item in selectedOrder.items" :key="`${item.productName}-${item.variantName}`"><span>{{ item.productName }} {{ item.variantName }}</span><strong>×{{ item.quantity }}</strong></li></ul></section>
+          <section><h3>Trạng thái</h3><OrderStatusBadge :status="selectedOrder.status" /><p v-if="selectedOrder.failureReason">{{ selectedOrder.failureReason }}</p></section>
+          <router-link class="btn btn-primary" :to="`/admin/orders/${selectedOrder.orderId}`">Mở trang đầy đủ</router-link>
+        </template>
+      </aside>
+    </div>
   </main>
 </template>
 
@@ -230,6 +243,7 @@ watch(totalPages, (pages) => { if (currentPage.value > pages) currentPage.value 
 .table-footer { align-items: center; color: var(--text-mid); display: flex; font-size: 12px; justify-content: space-between; padding: 14px 16px; }.pagination { align-items: center; display: flex; gap: 10px; }.pagination button { align-items: center; border: 1px solid var(--border); border-radius: 7px; display: inline-flex; height: 32px; justify-content: center; width: 32px; }.pagination button:disabled { cursor: not-allowed; opacity: .4; }
 .state { align-items: center; color: var(--text-mid); display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 280px; padding: 32px; text-align: center; }.state > i { color: var(--text-light); font-size: 36px; }.state.error > i { color: var(--red-active); }.spinner { animation: spin .8s linear infinite; border: 3px solid var(--border); border-radius: 50%; border-top-color: var(--role-admin); height: 30px; width: 30px; }@keyframes spin { to { transform: rotate(360deg); } }
 .modal { max-width: 520px; width: calc(100% - 32px); }.modal:focus { outline: none; }.modal-header small { color: var(--role-admin); font-size: 10px; font-weight: 800; letter-spacing: .1em; }.icon-button { border-radius: 8px; font-size: 18px; padding: 8px; }.icon-button:hover { background: var(--surface); }.refund-order-info { background: var(--surface); border-radius: var(--radius-sm); margin-bottom: 18px; padding: 8px 14px; }.refund-order-info div { display: flex; font-size: 13px; justify-content: space-between; padding: 9px 0; }.refund-order-info div + div { border-top: 1px solid var(--border); }.refund-order-info span { color: var(--text-mid); }.form-group small { color: var(--text-mid); display: block; font-size: 11px; margin-top: 5px; }
+.drawer-backdrop{position:fixed;inset:0;z-index:120;background:rgba(23,33,43,.36);display:flex;justify-content:flex-end}.order-drawer{width:min(480px,100%);height:100dvh;overflow:auto;background:var(--admin-surface);padding:20px;box-shadow:-12px 0 32px rgba(23,33,43,.14);display:grid;align-content:start;gap:20px}.order-drawer>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border-bottom:1px solid var(--admin-border);padding-bottom:14px}.order-drawer h2{margin:2px 0}.order-drawer-close{width:44px;height:44px;border-radius:8px}.drawer-facts{display:grid;gap:10px;margin:0}.drawer-facts div{display:grid;grid-template-columns:110px 1fr;gap:12px}.drawer-facts dt{color:var(--admin-muted)}.drawer-facts dd{margin:0;font-weight:650;overflow-wrap:anywhere}.drawer-items{list-style:none;margin:0;padding:0;display:grid;gap:8px}.drawer-items li{display:flex;justify-content:space-between;gap:12px;padding-block:8px;border-bottom:1px solid var(--admin-border)}
 @media (max-width: 1100px) { .stats { grid-template-columns: repeat(2, 1fr); }.filter-area { grid-template-columns: repeat(2, 1fr); }.filter-area .wide { grid-column: 1 / -1; } }
 @media (max-width: 640px) { .page-heading { align-items: flex-start; flex-direction: column; }.stats { grid-template-columns: 1fr; }.filter-area { grid-template-columns: 1fr; }.date-row > label { flex: 1; }.date-row input { width: 100%; }.table-footer { align-items: flex-start; flex-direction: column; gap: 10px; } }
 </style>

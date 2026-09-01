@@ -125,10 +125,22 @@ class CodSettlementApiContractTest {
         CodSettlementServlet servlet = servlet(service, token -> Map.of("userId", 9, "role", "ADMIN"), true);
 
         ResponseCapture response = invokePut(servlet, request("/27/verify", "Bearer valid", null,
-                "{\"adminId\":999,\"expectedStatus\":\"SUBMITTED\",\"status\":\"SETTLED\",\"verifiedAmount\":150000}"));
+                "{\"expectedStatus\":\"SUBMITTED\",\"status\":\"SETTLED\",\"verifiedAmount\":150000}"));
 
         assertEquals(200, response.status);
         assertEquals("verify:9:27:SUBMITTED:SETTLED:150000", service.lastCall);
+    }
+
+    @Test void verifyRejectsUnknownAndMissingFields() throws Exception {
+        RecordingService service = new RecordingService();
+        CodSettlementServlet admin = servlet(service, token -> Map.of("userId", 9, "role", "ADMIN"), true);
+        ResponseCapture unknown = invokePut(admin, request("/27/verify", "Bearer valid", null,
+                "{\"expectedStatus\":\"SUBMITTED\",\"status\":\"SETTLED\",\"verifiedAmount\":1,\"extra\":true}"));
+        ResponseCapture missing = invokePut(admin, request("/27/verify", "Bearer valid", null,
+                "{\"expectedStatus\":\"SUBMITTED\",\"status\":\"SETTLED\"}"));
+        assertEquals(400, unknown.status);
+        assertEquals(400, missing.status);
+        assertEquals(0, service.calls);
     }
 
     @Test void malformedJsonAndWrongExpectedStatusReturnJson400() throws Exception {

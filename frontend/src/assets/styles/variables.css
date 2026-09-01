@@ -11,6 +11,19 @@
   --charcoal: #171717;
   --map-line: rgba(232, 115, 74, 0.1);
 
+  --admin-canvas: #F5F6F7;
+  --admin-surface: #FFFFFF;
+  --admin-foreground: #17212B;
+  --admin-muted: #66717D;
+  --admin-border: #DDE2E7;
+  --admin-brand: #D85F32;
+  --admin-brand-soft: #FFF0E9;
+  --admin-action: #C04E24;
+  --admin-info: #2764C8;
+  --admin-success: #267A50;
+  --admin-warning: #A35C00;
+  --admin-danger: #B42318;
+
   /* Role accents */
   --role-guest: #ff6b35;
   --role-user: #e8734a;

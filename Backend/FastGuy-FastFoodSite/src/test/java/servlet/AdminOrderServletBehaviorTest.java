@@ -68,19 +68,26 @@ class AdminOrderServletBehaviorTest {
     }
 
     @Test
-    void listSerializesAttentionReasonsAndRejectsAttentionWithDateRange() throws Exception {
+    void listSerializesPaginatedQueueWithBatchCountsAndAttention() throws Exception {
         TestAdminOrderServlet servlet = servlet();
         ResponseCapture listCapture = new ResponseCapture();
 
-        servlet.get(request("/", "", Map.of("attentionOnly", "true")), response(listCapture));
+        servlet.get(request("/", "", Map.of("attentionOnly", "true", "page", "2", "pageSize", "20")), response(listCapture));
 
-        JsonNode item = json(listCapture).path("data").path(0);
+        JsonNode data = json(listCapture).path("data");
+        JsonNode item = data.path("items").path(0);
         assertEquals(200, listCapture.status);
-        assertTrue(item.path("attentionReasons").isArray());
+        assertEquals(3, item.path("itemCount").asInt());
+        assertTrue(item.path("waitingMinutes").isIntegralNumber());
+        assertTrue(item.path("allowedActions").isArray());
         assertEquals("DELIVERY_FAILED", item.path("attentionReasons").path(0).asText());
+        assertEquals(2, data.path("pagination").path("page").asInt());
+        assertEquals(20, data.path("pagination").path("pageSize").asInt());
+        assertEquals(1, data.path("pagination").path("totalItems").asInt());
+        assertEquals(1, data.path("pagination").path("totalPages").asInt());
 
         ResponseCapture invalidCapture = new ResponseCapture();
-        servlet.get(request("/", "", Map.of("attentionOnly", "true", "fromDate", "2026-08-01")), response(invalidCapture));
+        servlet.get(request("/", "", Map.of("fromDate", "2026-08-02", "toDate", "2026-08-01")), response(invalidCapture));
         assertEquals(400, invalidCapture.status);
     }
 
@@ -184,11 +191,12 @@ class AdminOrderServletBehaviorTest {
         private final Orders order;
         private StubOrdersDAO(Orders order) { this.order = order; }
         @Override public Orders findById(int orderId) { return orderId == 44 ? order : null; }
-        @Override public List<Orders> findAttentionCandidates() { return List.of(order); }
+        @Override public OrdersPageResult findAdminQueue(AdminOrderQuery query) { return new OrdersPageResult(List.of(order), 1, query.page(), query.pageSize()); }
     }
 
     private static class StubOrderItemDAO extends OrderItemDAO {
         @Override public List<entity.OrderItem> findByOrderId(int orderId) { return List.of(); }
+        @Override public Map<Integer,Integer> countItemsByOrderIds(List<Integer> ids) { return Map.of(44, 3); }
     }
 
     private static class StubPaymentAttemptDAO extends PaymentAttemptDAO {

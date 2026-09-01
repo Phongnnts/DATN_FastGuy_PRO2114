@@ -55,6 +55,7 @@ const STATUS_FILTERS = [
   { value: 'OUT', label: 'Hết hàng' },
   { value: 'INACTIVE', label: 'Ngừng theo dõi' },
 ];
+const statusFromQuery = raw => STATUS_FILTERS.some(({ value }) => value === raw) ? raw : 'ALL';
 const TYPE_LABELS = Object.fromEntries(ITEM_TYPES.map(({ value, label }) => [value, label]));
 const UNIT_LABELS = Object.fromEntries(UNITS.map(({ value, label }) => [value, label.split(' ')[0]]));
 const STATE_LABELS = { OK: 'Còn hàng', LOW: 'Dưới tối thiểu', OUT: 'Hết hàng', INACTIVE: 'Ngừng theo dõi' };
@@ -64,7 +65,7 @@ const items = ref([]);
 const loading = ref(true);
 const loadError = ref('');
 const searchTerm = ref('');
-const statusFilter = ref('ALL');
+const statusFilter = ref(statusFromQuery(route.query.filter));
 const unavailableVariants = ref(null);
 const recentTransactions = ref([]);
 const saving = ref(false);
@@ -245,6 +246,14 @@ function showFormError(message) {
 }
 
 watch(activeTab, (tab) => { if (tab === 'current') loadCurrentTab(); });
+watch(() => route.query.filter, (raw) => {
+  const next = statusFromQuery(raw);
+  if (statusFilter.value !== next) statusFilter.value = next;
+});
+watch(statusFilter, (value) => {
+  if (!STATUS_FILTERS.some(filter => filter.value === value) || value === statusFromQuery(route.query.filter)) return;
+  router.push({ query: { ...route.query, filter: value === 'ALL' ? undefined : value } });
+});
 onMounted(() => {
   if (activeTab.value === 'current') loadCurrentTab();
 });
@@ -408,7 +417,7 @@ onMounted(() => {
 
 <style scoped>
 .inventory-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
-.page-tabs{display:flex;gap:4px;width:max-content;max-width:100%;padding:4px;border:1px solid var(--border-light);border-radius:12px;background:#fff}.page-tabs button{min-height:40px;padding:8px 16px;border-radius:8px;color:var(--text-mid);font-weight:700}.page-tabs button.active{background:var(--primary);color:#fff}.page-tabs button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.page-tabs{display:flex;gap:4px;width:max-content;max-width:100%;padding:4px;border:1px solid var(--border-light);border-radius:12px;background:#fff}.page-tabs button{min-height:40px;padding:8px 16px;border-radius:8px;color:var(--text-mid);font-weight:700}.page-tabs button.active{background:var(--admin-brand-soft);color:var(--admin-foreground)}.page-tabs button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 .today-panel{display:grid;gap:14px;padding:24px;border-radius:18px;background:#251d18;color:#fff}.today-panel h2{margin:2px 0 0;font-size:24px}.eyebrow{margin:0;color:#f2aa87;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.action-card{display:grid;gap:12px;align-content:space-between;min-height:118px;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.06)}.action-card .btn{justify-self:start;background:#fff}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.workflow>a,.workflow-step{display:grid;gap:3px;min-height:96px;padding:14px;border:1px solid var(--border-light);border-radius:12px;background:#fff;color:inherit;text-decoration:none}.workflow span>span,.workflow a>span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-weight:800}.workflow small{color:var(--text-mid)}
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .page-subtitle { margin: 4px 0 0; color: var(--text-mid); font-size: 14px; }

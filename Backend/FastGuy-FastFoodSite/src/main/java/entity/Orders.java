@@ -206,6 +206,15 @@ public class Orders {
     @Column(name = "refund_reference")
     private String refundReference;
 
+    @Column(name = "refund_proof_public_id")
+    private String refundProofPublicId;
+
+    @Column(name = "refund_proof_content_type")
+    private String refundProofContentType;
+
+    @Column(name = "refund_proof_uploaded_at")
+    private LocalDateTime refundProofUploadedAt;
+
     @Column(name = "internal_note")
     private String internalNote;
 
@@ -355,6 +364,12 @@ public class Orders {
     public void setRefundProcessedBy(Integer refundProcessedBy) { this.refundProcessedBy = refundProcessedBy; }
     public String getRefundReference() { return refundReference; }
     public void setRefundReference(String refundReference) { this.refundReference = refundReference; }
+    public String getRefundProofPublicId() { return refundProofPublicId; }
+    public void setRefundProofPublicId(String refundProofPublicId) { this.refundProofPublicId = refundProofPublicId; }
+    public String getRefundProofContentType() { return refundProofContentType; }
+    public void setRefundProofContentType(String refundProofContentType) { this.refundProofContentType = refundProofContentType; }
+    public LocalDateTime getRefundProofUploadedAt() { return refundProofUploadedAt; }
+    public void setRefundProofUploadedAt(LocalDateTime refundProofUploadedAt) { this.refundProofUploadedAt = refundProofUploadedAt; }
     public String getInternalNote() { return internalNote; }
     public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
     public String getDeliveryNote() { return deliveryNote; }

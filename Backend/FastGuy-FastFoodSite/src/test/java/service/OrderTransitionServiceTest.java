@@ -1,5 +1,6 @@
 package service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -7,6 +8,7 @@ import entity.Orders;
 import entity.User;
 import entity.WorkShift;
 import java.time.LocalDateTime;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class OrderTransitionServiceTest {
@@ -91,6 +93,7 @@ class OrderTransitionServiceTest {
         assertTrue(service.canTransition("ASSIGNED", "PICKED_UP"));
         assertFalse(service.canTransition("READY", "PICKED_UP"));
         assertTrue(service.getAllowedActions("READY", "STAFF", "UNPAID").contains("ASSIGNED"));
+        assertEquals(Set.of("PREPARING", "CANCELLED"), service.getAllowedActions("CONFIRMED", "ADMIN", "PAID"));
         assertTrue(service.getAllowedActions("ASSIGNED", "SHIPPER", "UNPAID").contains("PICKED_UP"));
     }
 

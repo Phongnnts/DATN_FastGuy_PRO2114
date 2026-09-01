@@ -11,8 +11,19 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.function.Supplier;
 
 public class OrdersDAO {
+    private final Supplier<EntityManager> entityManagers;
+
+    public OrdersDAO() {
+        this(DatabaseUtil::getEntityManager);
+    }
+
+    OrdersDAO(Supplier<EntityManager> entityManagers) {
+        this.entityManagers = entityManagers;
+    }
+
     public Orders findById(int id) {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
@@ -70,6 +81,67 @@ public class OrdersDAO {
         } finally {
             em.close();
         }
+    }
+
+    public record AdminOrderQuery(String search, String status, String paymentStatus, String refundStatus,
+                                  LocalDateTime from, LocalDateTime to, boolean attentionOnly, LocalDateTime now,
+                                  String sort, int page, int pageSize) {}
+
+    public record OrdersPageResult(List<Orders> items, long totalItems, int page, int pageSize) {}
+
+    public OrdersPageResult findAdminQueue(AdminOrderQuery query) {
+        EntityManager em = entityManagers.get();
+        try {
+            String where = adminQueueWhere(query);
+            var itemsQuery = em.createQuery("SELECT o FROM Orders o" + where + adminQueueOrder(query), Orders.class);
+            bindAdminQueue(itemsQuery, query);
+            List<Orders> items = itemsQuery.setFirstResult((query.page() - 1) * query.pageSize())
+                    .setMaxResults(query.pageSize()).getResultList();
+            var countQuery = em.createQuery("SELECT COUNT(o) FROM Orders o" + where, Long.class);
+            bindAdminQueue(countQuery, query);
+            return new OrdersPageResult(items, countQuery.getSingleResult(), query.page(), query.pageSize());
+        } finally {
+            em.close();
+        }
+    }
+
+    private static String adminQueueWhere(AdminOrderQuery query) {
+        StringBuilder where = new StringBuilder(" WHERE 1=1");
+        if (query.attentionOnly()) where.append(" AND (o.orderStatus='DELIVERY_FAILED' OR o.refundStatus='PENDING' OR "
+                + "(o.orderStatus='PENDING' AND o.statusEnteredAt<=CASE WHEN o.paymentMethod='BANK_TRANSFER' AND o.paymentStatus='UNPAID' THEN :pendingTransferCutoff ELSE :pendingCutoff END) OR "
+                + "(o.orderStatus='CONFIRMED' AND o.statusEnteredAt<=:confirmedCutoff) OR (o.orderStatus='PREPARING' AND o.statusEnteredAt<=:preparingCutoff) OR (o.orderStatus='READY' AND o.statusEnteredAt<=:readyCutoff))");
+        if (query.search() != null) where.append(" AND (LOWER(o.orderCode) LIKE :search OR LOWER(o.customerName) LIKE :search OR LOWER(o.customerPhone) LIKE :search)");
+        if (query.status() != null) where.append(" AND o.orderStatus=:status");
+        if (query.paymentStatus() != null) where.append(" AND o.paymentStatus=:paymentStatus");
+        if (query.refundStatus() != null) where.append(" AND o.refundStatus=:refundStatus");
+        if (query.from() != null) where.append(" AND o.createdAt>=:from");
+        if (query.to() != null) where.append(" AND o.createdAt<:to");
+        return where.toString();
+    }
+
+    private static String adminQueueOrder(AdminOrderQuery query) {
+        if (query.attentionOnly()) return " ORDER BY CASE WHEN o.orderStatus='DELIVERY_FAILED' THEN 0 WHEN o.refundStatus IS NULL OR o.refundStatus<>'PENDING' THEN 1 ELSE 2 END, "
+                + "COALESCE(o.deliveryFailedAt,o.statusEnteredAt,o.cancelledAt,o.createdAt) ASC,o.orderId ASC";
+        return "CREATED_DESC".equals(query.sort())
+                ? " ORDER BY o.createdAt DESC,o.orderId DESC"
+                : " ORDER BY COALESCE(o.statusEnteredAt,o.createdAt) ASC,o.orderId ASC";
+    }
+
+    private static void bindAdminQueue(Query query, AdminOrderQuery value) {
+        if (value.attentionOnly()) {
+            LocalDateTime now = value.now();
+            query.setParameter("pendingTransferCutoff", now.minusMinutes(15));
+            query.setParameter("pendingCutoff", now.minusMinutes(10));
+            query.setParameter("confirmedCutoff", now.minusMinutes(15));
+            query.setParameter("preparingCutoff", now.minusMinutes(20));
+            query.setParameter("readyCutoff", now.minusMinutes(15));
+        }
+        if (value.search() != null) query.setParameter("search", "%" + value.search().toLowerCase(Locale.ROOT) + "%");
+        if (value.status() != null) query.setParameter("status", value.status());
+        if (value.paymentStatus() != null) query.setParameter("paymentStatus", value.paymentStatus());
+        if (value.refundStatus() != null) query.setParameter("refundStatus", value.refundStatus());
+        if (value.from() != null) query.setParameter("from", value.from());
+        if (value.to() != null) query.setParameter("to", value.to());
     }
 
     public List<Orders> findByStatus(String status) {
@@ -200,8 +272,8 @@ public class OrdersDAO {
         try {
             StringBuilder jpql = new StringBuilder("SELECT o FROM Orders o WHERE o.refundStatus IS NOT NULL");
             if (status != null && !status.isBlank()) jpql.append(" AND o.refundStatus = :status");
-            if (from != null) jpql.append(" AND o.createdAt >= :from");
-            if (to != null) jpql.append(" AND o.createdAt < :to");
+            if (from != null) jpql.append(" AND COALESCE(o.refundedAt,o.cancelledAt,o.createdAt) >= :from");
+            if (to != null) jpql.append(" AND COALESCE(o.refundedAt,o.cancelledAt,o.createdAt) < :to");
             if (search != null && !search.isBlank()) {
                 jpql.append(" AND (LOWER(o.orderCode) LIKE :search OR LOWER(o.customerName) LIKE :search OR LOWER(o.customerPhone) LIKE :search)");
             }
@@ -244,12 +316,54 @@ public class OrdersDAO {
     }
 
     public long countPendingRefunds() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.refundStatus = 'PENDING'", Long.class).getSingleResult();
         } finally {
             em.close();
         }
+    }
+
+    public long countCurrentActiveOrders() {
+        EntityManager em = entityManager();
+        try {
+            return em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE')", Long.class)
+                    .getSingleResult();
+        } finally {
+            em.close();
+        }
+    }
+
+    public Map<String, Long> countCurrentActiveOrdersByStatus() {
+        EntityManager em = entityManager();
+        try {
+            List<Object[]> rows = em.createQuery("SELECT o.orderStatus, COUNT(o) FROM Orders o WHERE o.orderStatus NOT IN ('DELIVERED','CANCELLED','RETURNED_TO_STORE') GROUP BY o.orderStatus", Object[].class)
+                    .getResultList();
+            Map<String, Long> result = new LinkedHashMap<>();
+            for (Object[] row : rows) result.put((String) row[0], ((Number) row[1]).longValue());
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public BigDecimal sumDeliveredPaidRevenue(LocalDateTime start, LocalDateTime end) {
+        EntityManager em = entityManager();
+        try {
+            BigDecimal result = em.createQuery(
+                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
+                    BigDecimal.class)
+                    .setParameter("start", start)
+                    .setParameter("end", end)
+                    .getSingleResult();
+            return result != null ? result : BigDecimal.ZERO;
+        } finally {
+            em.close();
+        }
+    }
+
+    public BigDecimal sumProcessedRefunds(LocalDateTime start, LocalDateTime end) {
+        return sumRefundsDecimalInRange(start, end);
     }
 
     public long countActiveByDateRange(LocalDateTime start, LocalDateTime end) {
@@ -312,13 +426,17 @@ public class OrdersDAO {
     }
 
     public double sumRevenue() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        return sumRevenueDecimal().doubleValue();
+    }
+
+    public BigDecimal sumRevenueDecimal() {
+        EntityManager em = entityManager();
         try {
             BigDecimal result = em.createQuery(
                     "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID'",
                     BigDecimal.class)
                     .getSingleResult();
-            return result != null ? result.doubleValue() : 0.0;
+            return result != null ? result : BigDecimal.ZERO;
         } finally {
             em.close();
         }
@@ -358,7 +476,7 @@ public class OrdersDAO {
     }
 
     public List<Map<String, Object>> sumRevenueByMonth() {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             List<Object[]> rows = em.createNativeQuery(
                     "SELECT MONTH(o.delivered_at) AS m, YEAR(o.delivered_at) AS y, SUM(o.final_amount) AS rev " +
@@ -371,7 +489,7 @@ public class OrdersDAO {
                 Map<String, Object> item = new HashMap<>();
                 item.put("month", ((Number) row[0]).intValue());
                 item.put("year", ((Number) row[1]).intValue());
-                item.put("revenue", ((Number) row[2]).doubleValue());
+                item.put("revenue", decimal(row[2]));
                 result.add(item);
             }
             return result;
@@ -626,18 +744,7 @@ public class OrdersDAO {
     }
 
     public BigDecimal sumRevenueDecimalByDateRange(LocalDateTime start, LocalDateTime end) {
-        EntityManager em = DatabaseUtil.getEntityManager();
-        try {
-            BigDecimal result = em.createQuery(
-                    "SELECT SUM(o.finalAmount) FROM Orders o WHERE o.orderStatus = 'DELIVERED' AND o.paymentStatus = 'PAID' AND o.deliveredAt >= :start AND o.deliveredAt < :end",
-                    BigDecimal.class)
-                    .setParameter("start", start)
-                    .setParameter("end", end)
-                    .getSingleResult();
-            return result != null ? result : BigDecimal.ZERO;
-        } finally {
-            em.close();
-        }
+        return sumDeliveredPaidRevenue(start, end);
     }
 
     public long[] operationalCohortSummary(LocalDateTime start, LocalDateTime end) {
@@ -725,7 +832,7 @@ public class OrdersDAO {
     }
 
     public BigDecimal sumRefundsDecimalInRange(LocalDateTime start, LocalDateTime end) {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             BigDecimal result = em.createQuery(
                     "SELECT SUM(o.refundAmount) FROM Orders o WHERE o.refundStatus = 'REFUNDED' AND o.refundedAt >= :start AND o.refundedAt < :end",
@@ -754,7 +861,7 @@ public class OrdersDAO {
     }
 
     public List<Map<String, Object>> findTopProductsByDateRange(LocalDateTime start, LocalDateTime end, int limit) {
-        EntityManager em = DatabaseUtil.getEntityManager();
+        EntityManager em = entityManager();
         try {
             List<Object[]> rows = em.createNativeQuery(
                     "SELECT TOP " + limit + " p.product_id, p.name, SUM(oi.quantity) AS sold, SUM(oi.total_price) AS rev " +
@@ -771,7 +878,7 @@ public class OrdersDAO {
                 item.put("productId", ((Number) row[0]).intValue());
                 item.put("name", row[1]);
                 item.put("sold", ((Number) row[2]).intValue());
-                item.put("revenue", row[3] != null ? ((Number) row[3]).doubleValue() : 0);
+                item.put("revenue", decimal(row[3]));
                 result.add(item);
             }
             return result;
@@ -1021,6 +1128,16 @@ public class OrdersDAO {
             }
             return result;
         } finally { em.close(); }
+    }
+
+    private EntityManager entityManager() {
+        return entityManagers.get();
+    }
+
+    private static BigDecimal decimal(Object value) {
+        if (value == null) return BigDecimal.ZERO;
+        if (value instanceof BigDecimal amount) return amount;
+        return new BigDecimal(value.toString());
     }
 
     public void save(Orders order) throws RuntimeException {
