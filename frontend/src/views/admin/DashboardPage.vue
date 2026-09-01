@@ -1,6 +1,9 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { Chart, registerables } from 'chart.js';
+import { useRouter } from 'vue-router';
+import { adminApi } from '@/api';
+import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import { useAdminStore } from '@/stores/admin';
 import { formatPrice } from '@/utils/format';
 import { dashboardViewState } from '@/utils/adminDashboardViewState';
@@ -8,6 +11,10 @@ import { dashboardViewState } from '@/utils/adminDashboardViewState';
 Chart.register(...registerables);
 
 const adminStore = useAdminStore();
+const router = useRouter();
+const priorityOrders = ref([]);
+const priorityState = ref('loading');
+const priorityError = ref('');
 const revenueChartRef = ref(null);
 const statusChartRef = ref(null);
 const topProductsChartRef = ref(null);
@@ -17,6 +24,7 @@ let revenueChart;
 let statusChart;
 let topProductsChart;
 let requestGeneration = 0;
+let priorityRequestGeneration = 0;
 let stopped = false;
 
 const ACTIVE_ORDER_STATUSES = [
@@ -92,6 +100,21 @@ function buildCharts() {
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: border }, ticks: { color: muted, precision: 0 } }, y: { grid: { display: false }, ticks: { color: muted } } } },
   });
 }
+async function loadPriorityOrders() {
+  const generation = ++priorityRequestGeneration;
+  priorityState.value = 'loading';
+  priorityError.value = '';
+  try {
+    const result = await adminApi.getOrders({ attentionOnly: true, sort: 'WAITING_DESC', page: 1, pageSize: 8 });
+    if (stopped || generation !== priorityRequestGeneration) return;
+    priorityOrders.value = Array.isArray(result?.items) ? result.items : [];
+    priorityState.value = 'ready';
+  } catch (error) {
+    if (stopped || generation !== priorityRequestGeneration) return;
+    priorityError.value = error.message || 'Không thể tải đơn cần ưu tiên.';
+    priorityState.value = 'error';
+  }
+}
 async function loadDashboard() {
   const request = { generation: ++requestGeneration };
   loadState.value = 'loading';
@@ -108,8 +131,8 @@ async function loadDashboard() {
     loadState.value = 'error';
   }
 }
-onMounted(loadDashboard);
-onUnmounted(() => { stopped = true; requestGeneration += 1; destroyCharts(); });
+onMounted(() => Promise.allSettled([loadDashboard(), loadPriorityOrders()]));
+onUnmounted(() => { stopped = true; requestGeneration += 1; priorityRequestGeneration += 1; destroyCharts(); });
 </script>
 
 <template>
@@ -124,6 +147,15 @@ onUnmounted(() => { stopped = true; requestGeneration += 1; destroyCharts(); });
         <article><i class="bi bi-receipt"></i><span>Đơn hàng hôm nay</span><strong>{{ available('orders') ? Number(data.operationalOrderCountToday).toLocaleString('vi-VN') : 'Không khả dụng' }}</strong></article>
         <article><i class="bi bi-bag-check"></i><span>Giá trị đơn trung bình</span><strong>{{ available('financial') ? formatPrice(data.aovToday) : 'Không khả dụng' }}</strong></article>
         <article><i class="bi bi-check2-circle"></i><span>Tỷ lệ hoàn thành</span><strong>{{ available('orders') ? `${Number(data.completionRateToday).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%` : 'Không khả dụng' }}</strong></article>
+      </section>
+      <section class="panel priority-orders-panel" aria-labelledby="priority-orders-title">
+        <header><div><h2 id="priority-orders-title">Đơn cần ưu tiên</h2><p>Xếp theo thời gian chờ và ngoại lệ vận hành</p></div><router-link :to="{ path: '/admin/orders', query: { status: 'ATTENTION' } }">Xem tất cả</router-link></header>
+        <div v-if="priorityState === 'loading'" class="priority-order-skeleton" role="status">Đang tải đơn cần ưu tiên...</div>
+        <div v-else-if="priorityState === 'error'" class="priority-order-error" role="alert"><span>{{ priorityError }}</span><button type="button" @click="loadPriorityOrders">Thử lại</button></div>
+        <div v-else-if="priorityOrders.length" class="priority-order-list">
+          <button v-for="order in priorityOrders" :key="order.orderId" type="button" @click="router.push({ path: '/admin/orders', query: { status: 'ATTENTION', orderId: order.orderId } })"><span><strong>{{ order.orderCode }}</strong><small>{{ order.customerName || 'Khách hàng' }}</small></span><span>{{ order.waitingMinutes }} phút</span><strong>{{ formatPrice(order.finalAmount || 0) }}</strong><OrderStatusBadge :status="order.status" /></button>
+        </div>
+        <p v-else class="empty">Không có đơn cần ưu tiên.</p>
       </section>
       <div class="cockpit-grid">
         <section class="panel revenue-panel" aria-labelledby="revenue-title"><header><div><h2 id="revenue-title">Doanh thu 7 ngày</h2><p>Doanh thu đơn đã giao và thanh toán</p></div><strong>{{ available('financial') ? formatPrice(revenueSeries.reduce((sum, row) => sum + Number(row.revenue), 0)) : 'Không khả dụng' }}</strong></header><div v-if="available('financial') && revenueSeries.length" class="chart large"><canvas ref="revenueChartRef" role="img" aria-label="Biểu đồ doanh thu 7 ngày"></canvas></div><p v-else class="empty">Không khả dụng</p></section>

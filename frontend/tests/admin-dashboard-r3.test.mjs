@@ -84,6 +84,17 @@ test('R3 dashboard exposes Task 5 states, store error, unavailable sections, and
   assert.match(dashboard, /skeleton-flow/);
 });
 
+test('dashboard priority preview uses the contracted order queue without polluting Orders store state', () => {
+  assert.match(dashboard, /adminApi\.getOrders/);
+  assert.match(dashboard, /attentionOnly:\s*true/);
+  assert.match(dashboard, /sort:\s*'WAITING_DESC'/);
+  assert.match(dashboard, /pageSize:\s*8/);
+  assert.match(dashboard, /priorityOrders/);
+  assert.doesNotMatch(dashboard, /adminStore\.fetchOrders/);
+  assert.match(dashboard, /Đơn cần ưu tiên/);
+  assert.match(dashboard, /Xem tất cả/);
+});
+
 test('R3 destination pages validate and synchronize exact query enums', () => {
   assert.match(shifts, /useRoute/);
   assert.match(shifts, /useRouter/);
