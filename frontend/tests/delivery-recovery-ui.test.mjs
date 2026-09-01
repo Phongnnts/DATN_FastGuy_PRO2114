@@ -12,6 +12,7 @@ const userOrders = read('../src/views/user/OrdersPage.vue');
 const userDetail = read('../src/views/user/OrderDetailPage.vue');
 const guestTrack = read('../src/views/guest/TrackOrderPage.vue');
 const adminOrders = read('../src/views/admin/OrdersPage.vue');
+const adminOrderWorkspace = read('../src/utils/adminOrderWorkspace.js');
 const adminDetail = read('../src/views/admin/OrderDetailPage.vue');
 const timeline = read('../src/components/common/OrderTimeline.vue');
 const staffStore = read('../src/stores/staff.js');
@@ -85,8 +86,8 @@ test('exception and terminal statuses classify revenue and history correctly', (
   assert.equal(isCompletedRevenue({ status: 'DELIVERED', paymentStatus: 'PAID' }), true);
   assert.equal(isCompletedRevenue({ status: 'DELIVERY_FAILED', paymentStatus: 'PAID' }), false);
   assert.equal(isCompletedRevenue({ status: 'RETURNED_TO_STORE', paymentStatus: 'PAID' }), false);
-  assert.match(adminOrders, /RETURNED_TO_STORE/);
-  assert.match(adminOrders, /DELIVERY_FAILED/);
+  assert.match(adminOrderWorkspace, /RETURNED_TO_STORE/);
+  assert.match(adminOrderWorkspace, /DELIVERY_FAILED/);
   assert.match(timeline, /aria-live="polite"/);
   assert.match(timeline, /DELIVERY_FAILED/);
   assert.match(timeline, /RETURNED_TO_STORE/);

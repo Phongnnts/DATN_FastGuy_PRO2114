@@ -194,7 +194,7 @@ test('attention destinations issue each exact critical request once', async ({ p
 
   const attentionOrderRequest = { method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true'], ['page', '1'], ['pageSize', '20'], ['sort', 'WAITING_DESC']] };
   expect(await clickAndCapture(page, 'Đơn chờ xác nhận quá lâu', '/api/admin/orders')).toEqual(attentionOrderRequest);
-  await expect(page.getByRole('tab', { name: /Cần xử lý/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: /Cần xử lý/ })).toHaveAttribute('aria-pressed', 'true');
   expect(calls.orders).toEqual([attentionOrderRequest]);
 
   await page.goto('/admin');
@@ -228,7 +228,7 @@ test('delivery-failed attention independently opens and requests the attention q
   const requestPromise = page.waitForRequest(request => new URL(request.url()).pathname === '/api/admin/orders');
   await page.getByRole('link', { name: /Đơn giao thất bại/ }).click();
   await expect(page).toHaveURL('/admin/orders?status=ATTENTION');
-  await expect(page.getByRole('tab', { name: /Cần xử lý/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: /Cần xử lý/ })).toHaveAttribute('aria-pressed', 'true');
   const expectedRequest = { method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true'], ['page', '1'], ['pageSize', '20'], ['sort', 'WAITING_DESC']] };
   expect(requestEvidence(await requestPromise)).toEqual(expectedRequest);
   expect(calls.orders).toEqual([expectedRequest]);
