@@ -125,6 +125,7 @@ const navigationGroups = [
     { label: 'Banner', path: '/admin/banners', icon: 'bi-images' },
   ] },
   { label: 'Nhân sự', links: [
+    { label: 'Dashboard nhân sự', path: '/admin/hr', icon: 'bi-person-workspace' },
     { label: 'Người dùng', path: '/admin/users', icon: 'bi-people' },
     { label: 'Ca làm', path: '/admin/shifts', icon: 'bi-calendar-week' },
     { label: 'Chấm công & tiền công', path: '/admin/attendance', icon: 'bi-person-check' },
@@ -153,7 +154,10 @@ function isLinkActive(link) {
   <div class="sidebar-layout fg-shell fg-shell-admin">
     <aside id="admin-sidebar" ref="sidebar" class="sidebar" :class="{ open: sidebarOpen }" aria-label="Menu quản trị" :role="isDrawerViewport && sidebarOpen ? 'dialog' : undefined" :aria-modal="isDrawerViewport && sidebarOpen ? 'true' : undefined" :inert="sidebarInert ? '' : undefined">
       <div class="sidebar-brand">
-        <span class="sidebar-brand-title">Fast<span class="sidebar-brand-highlight">Guy</span> Admin</span>
+        <div class="sidebar-brand-identity">
+          <span class="sidebar-brand-mark" aria-hidden="true">FG</span>
+          <span><strong>FastGuy</strong><small>Operations Admin</small></span>
+        </div>
         <button ref="drawerClose" class="drawer-close" type="button" aria-label="Đóng điều hướng quản trị" @click="closeDrawer">
           <i class="bi bi-x-lg" aria-hidden="true"></i>
         </button>
@@ -240,7 +244,7 @@ function isLinkActive(link) {
   font-size: 16px;
   color: var(--text-mid);
   border: none;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
 }
 .icon-btn:hover { background: var(--surface); color: var(--text-dark); }
 .logout-btn { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:#fff; color:var(--text-mid); cursor:pointer; font-size:13px; font-weight:650; }
@@ -270,20 +274,28 @@ function isLinkActive(link) {
 </style>
 
 <style scoped>
-.fg-shell-admin{--role-accent:var(--primary);--role-soft:var(--primary-50)}
+.fg-shell-admin{--role-accent:var(--admin-brand);--role-soft:var(--admin-brand-soft);background:var(--admin-canvas)}
 .sidebar{width:248px}
 .main-content{min-width:0;margin-left:248px}
-.fg-shell-admin :deep(.sidebar){border-right:1px solid var(--admin-border);background:rgba(255,255,255,.92)}
+.fg-shell-admin :deep(.sidebar){inset:10px auto 10px 10px;height:calc(100vh - 20px);border:1px solid var(--admin-hairline);border-radius:16px;background:rgba(255,255,255,.96);box-shadow:var(--admin-shell-shadow)}
 .fg-shell-admin :deep(.main-content){background:var(--admin-canvas)}
-.sidebar-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom-color:var(--admin-border)}
-.sidebar-brand-title{letter-spacing:-.04em}
-.sidebar-nav{scroll-behavior:auto}
-.sidebar-nav a{border-radius:12px}
-.sidebar-nav a.router-link-active{position:relative;color:var(--admin-brand-dark);background:var(--admin-brand-soft);box-shadow:none}
-.sidebar-nav a.router-link-active::before{position:absolute;inset:8px auto 8px 0;width:3px;border-radius:99px;background:var(--admin-brand);content:""}
+.sidebar-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:0;padding:14px 16px 18px}
+.sidebar-brand-identity{display:flex;align-items:center;gap:10px;min-width:0}
+.sidebar-brand-identity>span:last-child{display:grid;line-height:1.25}
+.sidebar-brand-identity strong{color:var(--admin-foreground);font-size:15px;letter-spacing:-.03em}
+.sidebar-brand-identity small{color:var(--admin-muted);font-size:10px}
+.sidebar-brand-mark{display:grid;width:38px;height:38px;flex:0 0 38px;place-items:center;border-radius:10px;background:var(--admin-brand);box-shadow:0 6px 14px rgba(255,116,72,.2);color:#fff;font-size:12px;font-weight:800}
+.sidebar-nav{padding-inline:10px;scroll-behavior:auto}
+.nav-group{margin:0;padding:7px 0;border:0}
+.nav-group h2{padding:7px 10px 5px;color:var(--admin-subtle);font-size:9px;font-weight:750}
+.sidebar-nav a{min-height:40px;border-radius:8px;color:var(--admin-muted);font-size:13px;font-weight:560}
+.sidebar-nav a.router-link-active{color:var(--admin-brand-dark);background:var(--admin-brand-soft);box-shadow:inset 0 0 0 1px rgba(255,116,72,.08);font-weight:720}
+.sidebar-nav a.router-link-active::before{content:none}
 .sidebar-nav a.router-link-active i{color:var(--admin-brand)}
-.topbar{height:64px;border-bottom:1px solid var(--admin-border);background:rgba(255,255,255,.78);backdrop-filter:blur(20px)}
+.sidebar-footer{margin:8px 10px 10px;border:0;border-radius:10px;background:var(--admin-surface-subtle);box-shadow:inset 0 0 0 1px rgba(20,20,35,.035)}
+.topbar{height:64px;margin:10px 14px 0;border:1px solid var(--admin-hairline);border-radius:14px;background:rgba(255,255,255,.94);box-shadow:var(--admin-shell-shadow);backdrop-filter:blur(18px)}
 .topbar h1{font-size:15px;letter-spacing:-.02em}
 .page-content{max-width:1600px;background:var(--admin-canvas)}
-@media (max-width:1279px){.main-content{margin-left:0}}
+@media (max-width:1279px){.main-content{margin-left:0}.fg-shell-admin :deep(.sidebar){inset:0 auto 0 0;height:100vh;border-radius:0 16px 16px 0}.topbar{margin:8px 10px 0}}
+@media (prefers-reduced-motion:reduce){.icon-btn,.sidebar-nav a{transition:none}}
 </style>
