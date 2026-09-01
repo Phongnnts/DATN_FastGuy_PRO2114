@@ -107,7 +107,7 @@ async function loadPriorityOrders() {
   try {
     const result = await adminApi.getOrders({ attentionOnly: true, sort: 'WAITING_DESC', page: 1, pageSize: 8 });
     if (stopped || generation !== priorityRequestGeneration) return;
-    priorityOrders.value = Array.isArray(result?.items) ? result.items : [];
+    priorityOrders.value = Array.isArray(result?.items) ? result.items.slice(0, 8) : Array.isArray(result) ? result.slice(0, 8) : [];
     priorityState.value = 'ready';
   } catch (error) {
     if (stopped || generation !== priorityRequestGeneration) return;

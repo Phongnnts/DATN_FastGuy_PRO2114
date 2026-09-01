@@ -90,6 +90,7 @@ test('dashboard priority preview uses the contracted order queue without polluti
   assert.match(dashboard, /sort:\s*'WAITING_DESC'/);
   assert.match(dashboard, /pageSize:\s*8/);
   assert.match(dashboard, /priorityOrders/);
+  assert.match(dashboard, /Array\.isArray\(result\?\.items\)\s*\?\s*result\.items\.slice\(0, 8\)\s*:\s*Array\.isArray\(result\)\s*\?\s*result\.slice\(0, 8\)\s*:\s*\[\]/);
   assert.doesNotMatch(dashboard, /adminStore\.fetchOrders/);
   assert.match(dashboard, /Đơn cần ưu tiên/);
   assert.match(dashboard, /Xem tất cả/);
