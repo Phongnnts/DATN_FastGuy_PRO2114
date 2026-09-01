@@ -54,3 +54,20 @@ The E2E now scopes panel measurements to the stable `.analytics-grid` locator. I
 - Desktop Chromium E2E: 1/1 passed with full-row edge, width, ratio, alignment, overflow, API, and browser-error assertions.
 - Full frontend unit suite: 699/699 passed.
 - `npm run build`: passed; 351 modules transformed.
+
+## Fix round 3
+
+### Finding
+
+Full-row width and ratio checks did not prove internal panel order or each 16px adjacency gap.
+
+### Change
+
+The desktop E2E now asserts attention follows revenue by 16px, products follows status by 16px, and stock follows products by 16px within `.analytics-grid`. Existing container-edge, full-width, ratio, row-alignment, and overflow checks remain.
+
+### Verification
+
+- Focused Dashboard policies: 24/24 passed.
+- Desktop Chromium E2E: 1/1 passed with ordered 16px adjacency, full-row geometry, API, and browser-error assertions.
+- Full frontend unit suite: 699/699 passed.
+- `npm run build`: passed; 351 modules transformed.

@@ -88,11 +88,14 @@ test('admin balanced cockpit renders desktop analytics without browser errors', 
   const stockTracks = stockBox.width - (2 * gap);
   expect(Math.abs(revenueBox.y - attentionBox.y)).toBeLessThan(tolerance);
   expect(Math.abs(revenueBox.x - gridBox.x)).toBeLessThan(tolerance);
+  expect(Math.abs(attentionBox.x - (revenueBox.x + revenueBox.width + gap))).toBeLessThan(tolerance);
   expect(Math.abs((attentionBox.x + attentionBox.width) - (gridBox.x + gridBox.width))).toBeLessThan(tolerance);
   expect(revenueBox.width + attentionBox.width + gap).toBeCloseTo(gridBox.width, 0);
   expect(revenueTracks / attentionTracks).toBeCloseTo(2, 1);
   expect(Math.max(statusBox.y, productsBox.y, stockBox.y) - Math.min(statusBox.y, productsBox.y, stockBox.y)).toBeLessThan(tolerance);
   expect(Math.abs(statusBox.x - gridBox.x)).toBeLessThan(tolerance);
+  expect(Math.abs(productsBox.x - (statusBox.x + statusBox.width + gap))).toBeLessThan(tolerance);
+  expect(Math.abs(stockBox.x - (productsBox.x + productsBox.width + gap))).toBeLessThan(tolerance);
   expect(Math.abs((stockBox.x + stockBox.width) - (gridBox.x + gridBox.width))).toBeLessThan(tolerance);
   expect(statusBox.width + productsBox.width + stockBox.width + (2 * gap)).toBeCloseTo(gridBox.width, 0);
   expect(statusTracks / stockTracks).toBeCloseTo(4 / 3, 1);
