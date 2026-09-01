@@ -7,6 +7,7 @@ const layout = read('../src/layouts/AdminLayout.vue');
 const router = read('../src/router/index.js');
 const shifts = read('../src/views/admin/ShiftsPage.vue');
 const attendance = read('../src/views/admin/AttendancePage.vue');
+const hrDashboard = read('../src/views/admin/HrDashboardPage.vue');
 
 test('R2 exposes dedicated attendance and stock count destinations', () => {
   assert.match(layout, /label: 'Chấm công & tiền công', path: '\/admin\/attendance'/);
@@ -27,4 +28,16 @@ test('attendance page preserves the R2 approval workflow alongside R6 pay snapsh
   for (const label of ['Chấm công & tiền công', 'Chờ duyệt', 'Đã duyệt', 'Phút duyệt', 'OT duyệt']) assert.match(attendance, new RegExp(label));
   assert.match(attendance, /role="table"|<table/);
   assert.doesNotMatch(attendance, /Bảng lương|Thuế|Bảo hiểm/);
+});
+
+test('HR dashboard composes existing operations with independent resilient sections', () => {
+  assert.match(router, /path: 'hr'[\s\S]*name: 'AdminHrDashboard'[\s\S]*HrDashboardPage\.vue/);
+  for (const operation of ['getUsers', 'getShiftWeek', 'getShiftMonitoring', 'getShiftAttendance']) assert.match(hrDashboard, new RegExp(operation));
+  for (const state of ['usersError', 'scheduleError', 'monitoringError', 'attendanceError']) assert.match(hrDashboard, new RegExp(state));
+  assert.match(hrDashboard, /let loadGeneration = 0/);
+  assert.match(hrDashboard, /generation !== loadGeneration/);
+  assert.match(hrDashboard, /onBeforeUnmount\(\(\) => \{ loadGeneration\+\+/);
+  assert.match(hrDashboard, /Dashboard nhân sự/);
+  assert.match(hrDashboard, /Ca hôm nay/);
+  assert.match(hrDashboard, /Cần chú ý/);
 });

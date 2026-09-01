@@ -53,6 +53,21 @@ test('admin monitoring refreshes every 30 seconds and rejects stale generations'
   assert.match(adminPage, /role="alert"/);
 });
 
+test('admin schedule restores week and month calendar state from URL', () => {
+  for (const token of ["VIEW_KEYS = ['week', 'month']", 'viewFromQuery', 'selectedDate', 'route.query.view', 'route.query.date']) assert.match(adminPage, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(adminPage, /const view = ref\(viewFromQuery\(route.query.view\)\)/);
+  assert.match(adminPage, /class="month-grid"/);
+  assert.match(adminPage, /class="day-inspector"/);
+});
+
+test('admin month overview uses at most six contracted week reads and blocks future dates', () => {
+  assert.match(adminPage, /monthWeekStarts/);
+  assert.match(adminPage, /slice\(0, 6\)/);
+  assert.match(adminPage, /adminApi\.getShiftWeek/);
+  assert.match(adminPage, /date\.isAfter|key > todayKey|key <= todayKey/);
+  assert.doesNotMatch(adminPage, /getShiftMonth|createEvent|event calendar/i);
+});
+
 test('staff split calendar selects assigned days and exposes day details', () => {
   assert.match(staffPage, /shiftApi\.getWeek\(weekStart\.value\)/);
   assert.match(staffPage, /calendarDays/);

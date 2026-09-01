@@ -80,19 +80,19 @@ test('legacy routes redirect to unified query tabs while fixed assets remain add
 
 test('admin shell exposes the approved semantic palette through scoped aliases', () => {
   const expectedTokens = {
-    '--admin-canvas': '#EEF1F5',
+    '--admin-canvas': '#FFFFFF',
     '--admin-surface': '#FFFFFF',
-    '--admin-foreground': '#182230',
-    '--admin-muted': '#667085',
-    '--admin-subtle': '#98A2B3',
-    '--admin-border': '#E4E7EC',
-    '--admin-brand': '#F45B2A',
-    '--admin-brand-dark': '#D9481C',
-    '--admin-brand-soft': '#FFF0EA',
-    '--admin-info': '#2764C8',
-    '--admin-success': '#267A50',
-    '--admin-warning': '#A35C00',
-    '--admin-danger': '#B42318',
+    '--admin-surface-subtle': '#FAFAFD',
+    '--admin-foreground': '#20212B',
+    '--admin-muted': '#858794',
+    '--admin-subtle': '#A6A6AE',
+    '--admin-brand': '#FF7448',
+    '--admin-brand-dark': '#C94F2A',
+    '--admin-brand-soft': '#FFF1EB',
+    '--admin-info': '#635C96',
+    '--admin-success': '#16845B',
+    '--admin-warning': '#946000',
+    '--admin-danger': '#C74848',
   };
 
   for (const [token, value] of Object.entries(expectedTokens)) {
@@ -106,24 +106,23 @@ test('admin text-bearing primary controls use a scoped WCAG AA orange pairing', 
   const action = variables.match(/--admin-action:\s*(#[\dA-F]{6});/i)?.[1];
   assert.ok(action, 'missing --admin-action');
   assert.ok(contrastRatio('#FFFFFF', action) >= 4.5, `${action} must have at least 4.5:1 contrast with white`);
-  assert.match(variables, /--admin-brand:\s*#F45B2A;/);
+  assert.match(variables, /--admin-brand:\s*#FF7448;/);
   assert.match(globalStyles, /\.fg-shell-admin :is\(\.btn-primary, \.verify-button\)\s*\{[^}]*background:\s*var\(--admin-action\);[^}]*border-color:\s*var\(--admin-action\);/s);
   assert.match(codSettlements, /\.verify-button\{[^}]*color:#fff;[^}]*background:var\(--admin-action\)/);
   assert.doesNotMatch(codSettlements, /\.verify-button\{[^}]*background:var\(--role-admin\)/);
 });
 
 test('admin visual foundation uses semantic surfaces and accessible active navigation', () => {
-  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{border-right:1px solid var\(--admin-border\);background:rgba\(255,255,255,\.92\)\}/);
+  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*border:1px solid var\(--admin-hairline\);[^}]*border-radius:16px;[^}]*box-shadow:var\(--admin-shell-shadow\)/);
   assert.match(layout, /\.sidebar\{width:248px\}/);
   assert.match(layout, /\.main-content\{min-width:0;margin-left:248px\}/);
-  assert.match(layout, /\.sidebar-brand\{[^}]*border-bottom-color:var\(--admin-border\)\}/);
-  assert.match(layout, /\.topbar\{height:64px;border-bottom:1px solid var\(--admin-border\);background:rgba\(255,255,255,\.78\);backdrop-filter:blur\(20px\)\}/);
+  assert.match(layout, /\.sidebar-brand\{[^}]*border-bottom:0/);
+  assert.match(layout, /\.topbar\{height:64px;[^}]*border:1px solid var\(--admin-hairline\);[^}]*border-radius:14px;[^}]*box-shadow:var\(--admin-shell-shadow\);backdrop-filter:blur\(18px\)\}/);
   assert.match(layout, /\.page-content\{max-width:1600px;background:var\(--admin-canvas\)\}/);
-  assert.match(layout, /\.sidebar-nav a\.router-link-active\{position:relative;color:var\(--admin-brand-dark\);background:var\(--admin-brand-soft\);box-shadow:none\}/);
+  assert.match(layout, /\.sidebar-nav a\.router-link-active\{[^}]*color:var\(--admin-brand-dark\);background:var\(--admin-brand-soft\);[^}]*font-weight:720\}/);
   assert.match(layout, /\.sidebar-nav a\.router-link-active i\{color:var\(--admin-brand\)\}/);
-  assert.doesNotMatch(layout, /\.sidebar-nav a\.router-link-active\{[^}]*(?:#fff|var\(--admin-brand\)|linear-gradient|box-shadow:(?!none))/);
-  assert.match(globalStyles, /\.sidebar-nav a\.router-link-active\s*\{[^}]*font-weight:\s*700;/s);
-  assert.match(globalStyles, /\.sidebar-nav a\.router-link-active::before\s*\{[^}]*width:\s*3px;/s);
+  assert.match(layout, /\.sidebar-nav a\.router-link-active::before\{content:none\}/);
+  assert.doesNotMatch(layout, /transition:\s*all/);
 });
 
 test('admin visual foundation uses tabular metrics and flat semantic foundations', () => {

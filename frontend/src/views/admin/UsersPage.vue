@@ -1,6 +1,6 @@
 <script setup>
 import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { adminApi } from '@/api';
 import { useAdminStore } from '@/stores/admin';
 import { useAuthStore } from '@/stores/auth';
@@ -28,6 +28,10 @@ const showOrdersModal = ref(false);
 const userOrders = ref([]);
 const userOrdersLoading = ref(false);
 const selectedUser = ref(null);
+const showDetail = ref(false);
+const detailUser = ref(null);
+const detailPanel = ref(null);
+let previousFocus = null;
 
 const ordersModalTitle = computed(() => ({
   STAFF: 'Đơn đã xử lý',
@@ -75,6 +79,10 @@ const stats = computed(() => ({
   staff: adminStore.allUsers.filter((user) => ['STAFF', 'SHIPPER'].includes(user.roleName)).length,
   inactive: adminStore.allUsers.filter((user) => user.status === 'INACTIVE').length,
 }));
+const percent = value => stats.value.total ? Math.round(value / stats.value.total * 1000) / 10 : 0;
+const activePercent = computed(() => percent(stats.value.active));
+const workforcePercent = computed(() => percent(stats.value.staff));
+const inactivePercent = computed(() => percent(stats.value.inactive));
 
 const filtered = computed(() => {
   const query = searchTerm.value.trim().toLowerCase();
@@ -103,6 +111,46 @@ function isSelf(user) {
 function setRole(role) {
   activeRole.value = role;
   currentPage.value = 1;
+}
+
+function focusableDetailElements() {
+  return [...detailPanel.value.querySelectorAll('button:not([disabled]),a[href]')];
+}
+
+function restoreFocus() {
+  const target = previousFocus?.isConnected ? previousFocus : null;
+  previousFocus = null;
+  target?.focus();
+}
+
+async function openDetail(user, event) {
+  previousFocus = event?.currentTarget || document.activeElement;
+  detailUser.value = user;
+  showDetail.value = true;
+  await nextTick();
+  focusableDetailElements()[0]?.focus();
+  document.addEventListener('keydown', handleOverlayKeydown);
+}
+
+function closeDetail() {
+  showDetail.value = false;
+  document.removeEventListener('keydown', handleOverlayKeydown);
+  restoreFocus();
+}
+
+function handleOverlayKeydown(event) {
+  if (!showDetail.value) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeDetail();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const elements = focusableDetailElements();
+  const first = elements[0];
+  const last = elements.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
 }
 
 function openAdd() {
@@ -220,6 +268,8 @@ async function viewOrders(user) {
 function initials(name) {
   return String(name || '?').split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join('').toUpperCase();
 }
+
+onBeforeUnmount(() => document.removeEventListener('keydown', handleOverlayKeydown));
 </script>
 
 <template>
@@ -230,10 +280,10 @@ function initials(name) {
     </div>
 
     <div class="stats-grid">
-      <article class="user-stat stat-total"><div class="stat-icon"><i class="bi bi-people-fill"></i></div><div><strong>{{ stats.total }}</strong><span>Tổng tài khoản</span></div></article>
-      <article class="user-stat stat-active"><div class="stat-icon"><i class="bi bi-person-check-fill"></i></div><div><strong>{{ stats.active }}</strong><span>Đang hoạt động</span></div></article>
-      <article class="user-stat stat-staff"><div class="stat-icon"><i class="bi bi-person-workspace"></i></div><div><strong>{{ stats.staff }}</strong><span>Nhân sự vận hành</span></div></article>
-      <article class="user-stat stat-inactive"><div class="stat-icon"><i class="bi bi-person-dash-fill"></i></div><div><strong>{{ stats.inactive }}</strong><span>Đã vô hiệu hóa</span></div></article>
+      <article class="user-stat stat-total"><div class="stat-heading"><span>Tổng tài khoản</span><span class="stat-icon"><i class="bi bi-people-fill" aria-hidden="true"></i></span></div><strong>{{ stats.total }}</strong><div class="stat-context"><span>Toàn hệ thống</span><b>100%</b></div><span class="stat-meter"><i :style="{ width: stats.total ? '100%' : '0%' }"></i></span></article>
+      <article class="user-stat stat-active"><div class="stat-heading"><span>Đang hoạt động</span><span class="stat-icon"><i class="bi bi-person-check-fill" aria-hidden="true"></i></span></div><strong>{{ stats.active }}</strong><div class="stat-context"><span>Tài khoản khả dụng</span><b>{{ activePercent }}%</b></div><span class="stat-meter"><i :style="{ width: `${activePercent}%` }"></i></span></article>
+      <article class="user-stat stat-staff"><div class="stat-heading"><span>Nhân sự vận hành</span><span class="stat-icon"><i class="bi bi-person-workspace" aria-hidden="true"></i></span></div><strong>{{ stats.staff }}</strong><div class="stat-context"><span>Nhân viên và shipper</span><b>{{ workforcePercent }}%</b></div><span class="stat-meter"><i :style="{ width: `${workforcePercent}%` }"></i></span></article>
+      <article class="user-stat stat-inactive"><div class="stat-heading"><span>Đã vô hiệu hóa</span><span class="stat-icon"><i class="bi bi-person-dash-fill" aria-hidden="true"></i></span></div><strong>{{ stats.inactive }}</strong><div class="stat-context"><span>Không thể đăng nhập</span><b>{{ inactivePercent }}%</b></div><span class="stat-meter"><i :style="{ width: `${inactivePercent}%` }"></i></span></article>
     </div>
 
     <div class="users-panel">
@@ -260,13 +310,22 @@ function initials(name) {
               <td><span class="role-pill" :class="roleMeta[user.roleName]?.className"><i class="bi" :class="roleMeta[user.roleName]?.icon"></i>{{ roleMeta[user.roleName]?.label || user.roleName }}</span></td>
               <td><button class="status-pill" :class="user.status === 'INACTIVE' ? 'inactive' : 'active'" :disabled="actionId === user.userId || (isSelf(user) && user.status !== 'INACTIVE')" @click="toggleStatus(user)"><span></span>{{ user.status === 'INACTIVE' ? 'Vô hiệu hóa' : 'Hoạt động' }}</button></td>
               <td><span class="points"><i class="bi bi-star-fill"></i>{{ Number(user.loyaltyPoints || 0).toLocaleString() }}</span></td>
-              <td><div class="row-actions"><button class="icon-button orders" title="Xem đơn hàng" @click="viewOrders(user)"><i class="bi bi-receipt"></i></button><button class="icon-button edit" title="Chỉnh sửa" @click="openEdit(user)"><i class="bi bi-pencil-square"></i></button><button class="icon-button disable" :title="user.status === 'INACTIVE' ? 'Kích hoạt' : 'Vô hiệu hóa'" :disabled="actionId === user.userId || (isSelf(user) && user.status !== 'INACTIVE')" @click="toggleStatus(user)"><i class="bi" :class="user.status === 'INACTIVE' ? 'bi-person-check' : 'bi-person-slash'"></i></button><button class="icon-button delete" title="Xóa" :disabled="actionId === user.userId || isSelf(user)" @click="removeUser(user)"><i class="bi bi-trash3"></i></button></div></td>
+              <td><div class="row-actions"><button class="icon-button details" aria-label="Xem chi tiết tài khoản" @click="openDetail(user, $event)"><i class="bi bi-three-dots"></i></button><button class="icon-button orders" title="Xem đơn hàng" @click="viewOrders(user)"><i class="bi bi-receipt"></i></button><button class="icon-button edit" title="Chỉnh sửa" @click="openEdit(user)"><i class="bi bi-pencil-square"></i></button><button class="icon-button disable" :title="user.status === 'INACTIVE' ? 'Kích hoạt' : 'Vô hiệu hóa'" :disabled="actionId === user.userId || (isSelf(user) && user.status !== 'INACTIVE')" @click="toggleStatus(user)"><i class="bi" :class="user.status === 'INACTIVE' ? 'bi-person-check' : 'bi-person-slash'"></i></button><button class="icon-button delete" title="Xóa" :disabled="actionId === user.userId || isSelf(user)" @click="removeUser(user)"><i class="bi bi-trash3"></i></button></div></td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <div v-if="!loading && filtered.length" class="pagination"><span>Trang {{ currentPage }} / {{ totalPages }}</span><div><button :disabled="currentPage === 1" @click="currentPage--"><i class="bi bi-chevron-left"></i></button><button :disabled="currentPage === totalPages" @click="currentPage++"><i class="bi bi-chevron-right"></i></button></div></div>
+    </div>
+
+    <div v-if="showDetail" class="detail-overlay" @click.self="closeDetail">
+      <aside ref="detailPanel" class="user-detail-panel" role="dialog" aria-modal="true" aria-labelledby="user-detail-title">
+        <header><div><span>Chi tiết tài khoản</span><h2 id="user-detail-title">{{ detailUser?.fullName }}</h2><p>{{ roleMeta[detailUser?.roleName]?.label || detailUser?.roleName }} · #{{ detailUser?.userId }}</p></div><button class="icon-button" type="button" aria-label="Đóng chi tiết tài khoản" @click="closeDetail"><i class="bi bi-x-lg"></i></button></header>
+        <div class="detail-identity"><img v-if="detailUser?.avatarUrl" :src="detailUser.avatarUrl" alt="" class="detail-avatar" /><span v-else class="detail-avatar">{{ initials(detailUser?.fullName) }}</span><span class="status-pill" :class="detailUser?.status === 'INACTIVE' ? 'inactive' : 'active'"><span></span>{{ detailUser?.status === 'INACTIVE' ? 'Vô hiệu hóa' : 'Hoạt động' }}</span></div>
+        <dl><div><dt>Email</dt><dd>{{ detailUser?.email }}</dd></div><div><dt>Số điện thoại</dt><dd>{{ detailUser?.phone || 'Chưa cập nhật' }}</dd></div><div><dt>Điểm tích lũy</dt><dd>{{ Number(detailUser?.loyaltyPoints || 0).toLocaleString('vi-VN') }}</dd></div></dl>
+        <footer><button class="btn btn-outline" type="button" @click="viewOrders(detailUser)">Xem đơn hàng</button><button class="btn btn-primary" type="button" @click="closeDetail(); openEdit(detailUser)">Chỉnh sửa</button></footer>
+      </aside>
     </div>
 
     <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
@@ -291,10 +350,10 @@ function initials(name) {
 .page-header p { margin: 5px 0 0; color: var(--text-mid); font-size: 14px; }
 .add-button { padding: 10px 17px; box-shadow: 0 8px 20px rgba(212, 118, 74, .25); }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
-.user-stat { display: flex; align-items: center; gap: 14px; min-height: 100px; padding: 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--white); box-shadow: 0 4px 16px rgba(31, 41, 55, .04); }
-.user-stat .stat-icon { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border-radius: 14px; font-size: 21px; }
-.user-stat strong { display: block; color: var(--text-dark); font-size: 25px; line-height: 1; }
-.user-stat span { display: block; margin-top: 7px; color: var(--text-mid); font-size: 12px; }
+.user-stat { position:relative; min-height: 132px; padding: 17px; overflow:hidden; border: 1px solid var(--admin-hairline); border-radius: 14px; background: var(--admin-surface); box-shadow: var(--admin-card-shadow); }
+.stat-heading,.stat-context{display:flex;align-items:center;justify-content:space-between;gap:10px}.stat-heading>span:first-child{color:var(--admin-muted);font-size:12px}.user-stat .stat-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; font-size: 15px; }
+.user-stat strong { display: block; margin-top:12px; color: var(--admin-foreground); font-size: 27px; line-height: 1; font-variant-numeric:tabular-nums; }
+.stat-context{margin-top:9px;color:var(--admin-muted);font-size:10px}.stat-context b{color:var(--admin-foreground);font-variant-numeric:tabular-nums}.stat-meter{display:block;height:3px;margin-top:10px;overflow:hidden;border-radius:3px;background:var(--admin-surface-subtle)}.stat-meter i{display:block;height:100%;border-radius:inherit;background:var(--admin-brand)}
 .stat-total .stat-icon { color: #7c3aed; background: #ede9fe; }
 .stat-active .stat-icon { color: #059669; background: #d1fae5; }
 .stat-staff .stat-icon { color: #2563eb; background: #dbeafe; }
@@ -342,7 +401,8 @@ function initials(name) {
 .points { color: #92400e; font-size: 12px; font-weight: 700; }
 .points i { color: #f59e0b; }
 .row-actions { display: flex; justify-content: flex-end; gap: 5px; }
-.icon-button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid transparent; border-radius: 9px; background: transparent; cursor: pointer; transition: .15s; }
+.icon-button { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid transparent; border-radius: 9px; background: transparent; cursor: pointer; transition: transform var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast); }
+.icon-button.details { color: var(--admin-muted); }
 .icon-button.orders { color: #7c3aed; }
 .icon-button.edit { color: #2563eb; }
 .icon-button.disable { color: #d97706; }
@@ -382,6 +442,7 @@ function initials(name) {
 .modal-footer { margin: 8px -24px -24px; padding: 16px 24px; background: #fafafa; }
 .modal-footer .btn-primary { min-width: 135px; }
 .orders-body { padding-top: 6px; }
+.detail-overlay{position:fixed;inset:0;z-index:var(--z-modal);display:flex;justify-content:flex-end;padding:20px;background:rgba(20,20,35,.12);backdrop-filter:blur(4px)}.user-detail-panel{display:flex;width:min(380px,100%);height:100%;flex-direction:column;padding:20px;border:1px solid var(--admin-hairline);border-radius:16px;background:var(--admin-surface);box-shadow:0 24px 70px rgba(20,20,35,.18)}.user-detail-panel header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.user-detail-panel header>div>span{color:var(--admin-muted);font-size:11px}.user-detail-panel h2{margin:4px 0 0;font-size:21px}.user-detail-panel header p{margin:2px 0 0;color:var(--admin-muted);font-size:12px}.detail-identity{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0}.detail-avatar{display:grid;width:64px;height:64px;place-items:center;border-radius:17px;background:var(--admin-brand-soft);color:var(--admin-brand-dark);object-fit:cover;font-weight:800}.user-detail-panel dl{margin:0;border-top:1px solid var(--admin-hairline)}.user-detail-panel dl>div{padding:13px 0;border-bottom:1px solid var(--admin-hairline)}.user-detail-panel dt{color:var(--admin-muted);font-size:11px}.user-detail-panel dd{margin:3px 0 0;color:var(--admin-foreground);font-weight:650}.user-detail-panel footer{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:auto}
 .order-status { padding: 5px 8px; border-radius: 8px; color: #1d4ed8; background: #dbeafe; font-size: 11px; font-weight: 700; }
 @media (max-width: 1050px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .page-header { align-items: flex-start; } .add-button { width: 100%; justify-content: center; } .stats-grid { grid-template-columns: 1fr 1fr; gap: 9px; } .user-stat { min-height: 84px; padding: 12px; } .user-stat .stat-icon { width: 38px; height: 38px; flex-basis: 38px; } .user-stat strong { font-size: 20px; } .user-stat span { font-size: 10px; } .toolbar { padding: 14px; } .result-count { display: none; } .role-tabs { padding: 0 14px 14px; } .form-grid { grid-template-columns: 1fr; } .form-grid .full { grid-column: auto; } .modal-footer { margin: 8px -16px -16px; padding: 14px 16px; } }

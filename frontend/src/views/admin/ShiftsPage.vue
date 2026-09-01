@@ -6,17 +6,26 @@ import { useToast } from '@/stores/toast';
 
 const SHIFT_CODES = ['MORNING', 'AFTERNOON', 'EVENING'];
 const TAB_KEYS = ['schedule', 'monitoring'];
+const VIEW_KEYS = ['week', 'month'];
 const CODE_LABELS = { MORNING: 'Sáng', AFTERNOON: 'Chiều', EVENING: 'Tối' };
 const STATE_LABELS = { SCHEDULED: 'Đã lên lịch', CHECK_IN_WINDOW: 'Có thể check-in thủ công', LATE: 'Chưa check-in', ACTIVE_MANUAL: 'Đang làm · thủ công', ACTIVE_AUTO: 'Đang làm · tự động trước đây', CHECK_OUT_WINDOW: 'Có thể check-out thủ công', COMPLETED_MANUAL: 'Hoàn tất · thủ công', COMPLETED_AUTO: 'Hoàn tất · tự động trước đây', MISSING_STAFF: 'Thiếu nhân viên', MISSING_NEXT_SHIFT: 'Thiếu ca kế tiếp', ROLLOVER_BLOCKED: 'Bị chặn bàn giao' };
 const toast = useToast();
 const route = useRoute();
 const router = useRouter();
 const tabFromQuery = raw => TAB_KEYS.includes(raw) ? raw : 'schedule';
+const viewFromQuery = raw => VIEW_KEYS.includes(raw) ? raw : 'week';
+const validDateQuery = raw => typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) && raw <= dateKey(new Date()) ? raw : dateKey(new Date());
 const tab = ref(tabFromQuery(route.query.tab));
+const view = ref(viewFromQuery(route.query.view));
+const selectedDate = ref(validDateQuery(route.query.date));
+const monthAnchor = ref(selectedDate.value.slice(0, 7));
 const users = ref([]);
 const shifts = ref([]);
 const selections = ref({});
 const monitoring = ref([]);
+const monthShifts = ref([]);
+const monthLoading = ref(false);
+const monthError = ref('');
 const loading = ref(true);
 const saving = ref(false);
 const loadError = ref('');
@@ -27,17 +36,23 @@ const currentWeekStart = mondayKey(new Date());
 let monitorTimer;
 let monitorGeneration = 0;
 let loadGeneration = 0;
+let monthGeneration = 0;
 let baseline = '[]';
 const tabRefs = ref([]);
 
 const staff = computed(() => users.value.filter((user) => user.roleName === 'STAFF' && (user.status || 'ACTIVE') === 'ACTIVE'));
 const isCurrentWeek = computed(() => weekStart.value === currentWeekStart);
-const days = computed(() => Array.from({ length: 7 }, (_, index) => { const date = fromKey(weekStart.value); date.setDate(date.getDate() + index); const key = dateKey(date); return { key, label: new Intl.DateTimeFormat('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(date) }; }));
+const todayKey = dateKey(new Date());
+const days = computed(() => Array.from({ length: 7 }, (_, index) => { const date = fromKey(weekStart.value); date.setDate(date.getDate() + index); const key = dateKey(date); return { key, label: new Intl.DateTimeFormat('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(date), today: key === todayKey }; }));
+const monthDays = computed(() => { const [year, month] = monthAnchor.value.split('-').map(Number); const first = new Date(year, month - 1, 1); const start = new Date(first); start.setDate(first.getDate() - ((first.getDay() + 6) % 7)); return Array.from({ length: 42 }, (_, index) => { const date = new Date(start); date.setDate(start.getDate() + index); const key = dateKey(date); return { key, number: date.getDate(), currentMonth: date.getMonth() === month - 1, today: key === todayKey, disabled: key > todayKey }; }); });
+const selectedDayShifts = computed(() => SHIFT_CODES.map(code => monthShifts.value.find(shift => shift.shiftDate === selectedDate.value && shift.shiftCode === code) || { shiftDate: selectedDate.value, shiftCode: code }));
 
 function dateKey(date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
 function fromKey(key) { const [year, month, day] = key.split('-').map(Number); return new Date(year, month - 1, day); }
 function mondayKey(date) { const monday = new Date(date); const day = monday.getDay() || 7; monday.setDate(monday.getDate() - day + 1); return dateKey(monday); }
 function slotKey(date, code) { return `${date}|${code}`; }
+function monthWeekStarts() { const starts = [...new Set(monthDays.value.map(day => mondayKey(fromKey(day.key))))]; return starts.filter(key => key <= currentWeekStart).slice(0, 6); }
+function shiftsForDay(key) { return monthShifts.value.filter(shift => shift.shiftDate === key).sort((a, b) => SHIFT_CODES.indexOf(a.shiftCode) - SHIFT_CODES.indexOf(b.shiftCode)); }
 function time(value) { return value ? String(value).slice(0, 5) : '—'; }
 function source(sourceValue) { return sourceValue === 'AUTO' ? 'Tự động trước đây' : sourceValue === 'MANUAL' ? 'Thủ công' : '—'; }
 function normalizedSlots(data) { return (Array.isArray(data?.shifts) ? data.shifts : []).map(({ shiftDate, shiftCode, userId }) => ({ shiftDate, shiftCode, userId: Number(userId), role: 'STAFF' })).sort((a, b) => `${a.shiftDate}|${a.shiftCode}|${a.userId}`.localeCompare(`${b.shiftDate}|${b.shiftCode}|${b.userId}`)); }
@@ -68,6 +83,39 @@ async function saveWeek() {
   } catch (error) { toast.error(error.message || 'Không thể lưu lịch tuần'); }
   finally { saving.value = false; }
 }
+async function loadMonth() {
+  const generation = ++monthGeneration;
+  monthLoading.value = true;
+  monthError.value = '';
+  try {
+    const results = await Promise.all(monthWeekStarts().map(key => adminApi.getShiftWeek(key)));
+    if (generation !== monthGeneration) return;
+    const byId = new Map();
+    results.flatMap(data => Array.isArray(data?.shifts) ? data.shifts : []).forEach(shift => byId.set(shift.shiftId || slotKey(shift.shiftDate, shift.shiftCode), shift));
+    monthShifts.value = [...byId.values()];
+  } catch (error) { if (generation === monthGeneration) monthError.value = error.message || 'Không thể tải lịch tháng'; }
+  finally { if (generation === monthGeneration) monthLoading.value = false; }
+}
+function selectView(value) {
+  if (!VIEW_KEYS.includes(value)) return;
+  view.value = value;
+  router.replace({ query: { ...route.query, tab: 'schedule', view: value, date: selectedDate.value } });
+  if (value === 'month') loadMonth();
+}
+function selectDate(day) {
+  if (day.disabled || day.key > todayKey) return;
+  selectedDate.value = day.key;
+  router.replace({ query: { ...route.query, tab: 'schedule', view: view.value, date: day.key } });
+}
+async function moveMonth(offset) {
+  const [year, month] = monthAnchor.value.split('-').map(Number);
+  const next = new Date(year, month - 1 + offset, 1);
+  const current = new Date();
+  if (next > new Date(current.getFullYear(), current.getMonth(), 1)) return;
+  monthAnchor.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+  selectedDate.value = dateKey(next);
+  await loadMonth();
+}
 async function loadMonitoring() {
   const generation = ++monitorGeneration; monitorLoading.value = true; monitorError.value = '';
   try { const data = await adminApi.getShiftMonitoring(); if (generation !== monitorGeneration) return; monitoring.value = Array.isArray(data) ? data : []; }
@@ -85,9 +133,11 @@ watch(() => route.query.tab, (raw) => {
   const next = tabFromQuery(raw);
   if (tab.value !== next) tab.value = next;
 });
+watch(() => route.query.view, (raw) => { const next = viewFromQuery(raw); if (view.value !== next) { view.value = next; if (next === 'month') loadMonth(); } });
+watch(() => route.query.date, (raw) => { const next = validDateQuery(raw); if (selectedDate.value !== next) { selectedDate.value = next; monthAnchor.value = next.slice(0, 7); } });
 watch(tab, (value, previous) => { if (value === 'monitoring' && previous !== 'monitoring') loadMonitoring(); });
-onMounted(() => { initialize(); if (tab.value === 'monitoring') loadMonitoring(); monitorTimer = setInterval(() => { if (tab.value === 'monitoring') loadMonitoring(); }, 30000); });
-onUnmounted(() => { monitorGeneration++; clearInterval(monitorTimer); });
+onMounted(() => { initialize(); if (tab.value === 'monitoring') loadMonitoring(); if (tab.value === 'schedule' && view.value === 'month') loadMonth(); monitorTimer = setInterval(() => { if (tab.value === 'monitoring') loadMonitoring(); }, 30000); });
+onUnmounted(() => { monitorGeneration++; monthGeneration++; loadGeneration++; clearInterval(monitorTimer); });
 </script>
 
 <template>
@@ -96,10 +146,9 @@ onUnmounted(() => { monitorGeneration++; clearInterval(monitorTimer); });
     <div class="tabs" role="tablist" aria-label="Quản lý ca làm"><button id="schedule-tab" :ref="el => tabRefs[0] = el" role="tab" :aria-selected="tab === 'schedule'" aria-controls="schedule-panel" :tabindex="tab === 'schedule' ? 0 : -1" @keydown="handleTabKeydown($event, 0)" @click="selectTab('schedule')">Lịch tuần</button><button id="monitor-tab" :ref="el => tabRefs[1] = el" role="tab" :aria-selected="tab === 'monitoring'" aria-controls="monitor-panel" :tabindex="tab === 'monitoring' ? 0 : -1" @keydown="handleTabKeydown($event, 1)" @click="selectTab('monitoring')">Giám sát</button></div>
 
     <section v-if="tab === 'schedule'" id="schedule-panel" class="panel" role="tabpanel" aria-labelledby="schedule-tab">
-      <div class="week-toolbar"><button class="btn btn-outline" type="button" aria-label="Tuần trước" @click="moveWeek(-1)">‹ Tuần trước</button><strong>Tuần từ {{ weekStart }}</strong><button class="btn btn-outline" type="button" aria-label="Tuần sau" :disabled="isCurrentWeek" @click="moveWeek(1)">Tuần sau ›</button><button class="btn btn-primary" type="button" :disabled="loading || saving" @click="saveWeek">{{ saving ? 'Đang lưu...' : 'Lưu lịch' }}</button></div>
-      <div v-if="loadError" class="state error" role="alert">{{ loadError }} <button class="btn btn-outline" @click="loadWeek">Thử lại</button></div>
-      <div v-else-if="loading" class="state" aria-live="polite">Đang tải lịch tuần...</div>
-      <div v-else class="calendar" aria-label="Lịch bảy ngày ba ca"><article v-for="day in days" :key="day.key" class="day"><h2>{{ day.label }}</h2><label v-for="code in SHIFT_CODES" :key="code">{{ CODE_LABELS[code] }}<select v-model="selections[slotKey(day.key, code)]" class="form-select" :aria-label="`${CODE_LABELS[code]} ${day.label}`"><option value="">Chưa phân công</option><option v-for="user in staff" :key="user.userId" :value="String(user.userId)">{{ user.fullName }}</option></select></label></article></div>
+      <div class="week-toolbar"><template v-if="view === 'week'"><button class="btn btn-outline" type="button" aria-label="Tuần trước" @click="moveWeek(-1)">‹</button><strong>Tuần từ {{ weekStart }}</strong><button class="btn btn-outline" type="button" aria-label="Tuần sau" :disabled="isCurrentWeek" @click="moveWeek(1)">›</button></template><template v-else><button class="btn btn-outline" type="button" aria-label="Tháng trước" @click="moveMonth(-1)">‹</button><strong>Tháng {{ monthAnchor }}</strong><button class="btn btn-outline" type="button" aria-label="Tháng sau" :disabled="monthAnchor === todayKey.slice(0, 7)" @click="moveMonth(1)">›</button></template><div class="view-switch" role="group" aria-label="Chế độ lịch"><button type="button" :aria-pressed="view === 'week'" @click="selectView('week')">Tuần</button><button type="button" :aria-pressed="view === 'month'" @click="selectView('month')">Tháng</button></div><button v-if="view === 'week'" class="btn btn-primary" type="button" :disabled="loading || saving" @click="saveWeek">{{ saving ? 'Đang lưu...' : 'Lưu lịch' }}</button></div>
+      <template v-if="view === 'week'"><div v-if="loadError" class="state error" role="alert">{{ loadError }} <button class="btn btn-outline" @click="loadWeek">Thử lại</button></div><div v-else-if="loading" class="state" aria-live="polite">Đang tải lịch tuần...</div><div v-else class="week-calendar" aria-label="Lịch bảy ngày ba ca"><div class="calendar-corner"></div><div v-for="day in days" :key="`head-${day.key}`" class="calendar-head" :class="{ today: day.today }">{{ day.label }}</div><template v-for="code in SHIFT_CODES" :key="code"><div class="shift-label"><strong>{{ CODE_LABELS[code] }}</strong></div><label v-for="day in days" :key="slotKey(day.key, code)" class="week-slot"><span class="sr-only">{{ CODE_LABELS[code] }} {{ day.label }}</span><select v-model="selections[slotKey(day.key, code)]" class="form-select" :aria-label="`${CODE_LABELS[code]} ${day.label}`"><option value="">Chưa phân công</option><option v-for="user in staff" :key="user.userId" :value="String(user.userId)">{{ user.fullName }}</option></select></label></template></div></template>
+      <template v-else><div v-if="monthError" class="state error" role="alert">{{ monthError }} <button class="btn btn-outline" @click="loadMonth">Thử lại</button></div><div v-else-if="monthLoading" class="state" aria-live="polite">Đang tải lịch tháng...</div><div v-else class="month-layout"><div class="month-grid" aria-label="Lịch tháng"><div v-for="label in ['T2','T3','T4','T5','T6','T7','CN']" :key="label" class="month-weekday">{{ label }}</div><button v-for="day in monthDays" :key="day.key" type="button" class="month-day" :class="{ outside: !day.currentMonth, today: day.today, selected: selectedDate === day.key }" :disabled="day.disabled" :aria-pressed="selectedDate === day.key" @click="selectDate(day)"><strong>{{ day.number }}</strong><span v-for="shift in shiftsForDay(day.key)" :key="shift.shiftCode" class="month-shift">{{ CODE_LABELS[shift.shiftCode] }} · {{ shift.staffName || 'Chưa phân công' }}</span></button></div><aside class="day-inspector" aria-labelledby="selected-day-title"><p>Ngày đã chọn</p><h2 id="selected-day-title">{{ selectedDate }}</h2><article v-for="shift in selectedDayShifts" :key="shift.shiftCode"><strong>{{ CODE_LABELS[shift.shiftCode] }}</strong><span>{{ shift.staffName || 'Chưa phân công' }}</span><small>{{ time(shift.startTime) }}–{{ time(shift.endTime) }}</small></article></aside></div></template>
     </section>
 
     <section v-else-if="tab === 'monitoring'" id="monitor-panel" class="panel" role="tabpanel" aria-labelledby="monitor-tab">
@@ -115,5 +164,5 @@ onUnmounted(() => { monitorGeneration++; clearInterval(monitorTimer); });
 </template>
 
 <style scoped>
-.page-header p{margin:5px 0 0;color:var(--text-mid)}.tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--border)}.tabs button{min-height:44px;padding:0 20px;border:0;border-bottom:3px solid transparent;background:transparent;font-weight:700;cursor:pointer}.tabs button[aria-selected="true"]{border-color:var(--primary);color:var(--primary)}.panel{overflow:hidden;border:1px solid var(--border);border-radius:16px;background:var(--white)}.week-toolbar{display:flex;align-items:center;gap:10px;padding:16px}.week-toolbar .btn-primary{margin-left:auto}.calendar{display:grid;grid-template-columns:repeat(7,minmax(145px,1fr));border-top:1px solid var(--border)}.day{min-height:310px;padding:12px;border-right:1px solid var(--border)}.day:last-child{border:0}.day h2{margin:0 0 14px;font-size:14px;text-transform:capitalize}.day label{display:grid;gap:5px;margin-bottom:14px;color:var(--text-mid);font-size:12px;font-weight:700}.state{display:flex;min-height:220px;align-items:center;justify-content:center;gap:12px;color:var(--text-mid)}.error{color:#b91c1c}.table{min-width:1050px}.table td small{display:block;color:var(--text-mid)}.severity-warning{background:#fffbeb}.severity-critical{background:#fef2f2;color:#991b1b}.critical{color:#b91c1c}.tabs button:focus-visible,.btn:focus-visible,select:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+.shifts-page{display:grid;gap:14px;color:var(--admin-foreground)}.page-header h1{margin:0;font-size:28px;letter-spacing:-.04em}.page-header p{margin:4px 0 0;color:var(--admin-muted)}.tabs{display:flex;gap:4px;border-bottom:1px solid var(--admin-hairline)}.tabs button{min-height:44px;padding:0 14px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--admin-muted);font-weight:700;cursor:pointer}.tabs button[aria-selected="true"]{border-color:var(--admin-brand);color:var(--admin-foreground)}.panel{overflow:hidden;border:1px solid var(--admin-hairline);border-radius:14px;background:var(--admin-surface);box-shadow:var(--admin-card-shadow)}.week-toolbar{display:flex;align-items:center;gap:9px;padding:14px 16px;border-bottom:1px solid var(--admin-hairline)}.week-toolbar .btn-primary{margin-left:auto}.view-switch{display:flex;margin-left:auto;padding:3px;border-radius:10px;background:var(--admin-surface-subtle)}.view-switch button{min-height:34px;padding:0 14px;border:0;border-radius:8px;background:transparent;color:var(--admin-muted);font-weight:700}.view-switch button[aria-pressed="true"]{background:#fff;color:var(--admin-foreground);box-shadow:0 2px 7px rgba(20,20,35,.08)}.week-calendar{display:grid;grid-template-columns:100px repeat(7,minmax(130px,1fr));min-width:1010px}.week-calendar>*{border-right:1px solid var(--admin-hairline);border-bottom:1px solid var(--admin-hairline)}.calendar-corner,.calendar-head{min-height:58px;padding:10px;background:var(--admin-surface-subtle)}.calendar-head{text-align:center;color:var(--admin-muted);font-size:11px;font-weight:750}.calendar-head.today{color:var(--admin-brand-dark);background:var(--admin-brand-soft)}.shift-label{padding:12px;background:var(--admin-surface-subtle);font-size:12px}.week-slot{min-height:82px;padding:9px}.week-slot select{height:100%;min-height:52px;border-radius:6px;border-left:2px solid var(--admin-brand);background:var(--admin-surface-subtle);font-size:11px}.month-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px}.month-grid{display:grid;grid-template-columns:repeat(7,1fr)}.month-weekday{padding:10px;border-right:1px solid var(--admin-hairline);border-bottom:1px solid var(--admin-hairline);color:var(--admin-muted);text-align:center;font-size:10px;font-weight:750}.month-day{display:flex;min-height:94px;flex-direction:column;align-items:stretch;gap:4px;padding:8px;border:0;border-right:1px solid var(--admin-hairline);border-bottom:1px solid var(--admin-hairline);border-radius:0;background:#fff;text-align:left}.month-day.outside{color:var(--admin-subtle);background:#fcfcfd}.month-day.today{background:#fffaf7}.month-day.selected{box-shadow:inset 0 0 0 2px var(--admin-brand)}.month-day:disabled{opacity:.45;cursor:not-allowed}.month-shift{overflow:hidden;padding:3px 5px;border-left:2px solid var(--admin-brand);border-radius:4px;background:var(--admin-surface-subtle);font-size:9px;text-overflow:ellipsis;white-space:nowrap}.day-inspector{padding:18px;border-left:1px solid var(--admin-hairline)}.day-inspector>p{color:var(--admin-muted);font-size:10px;text-transform:uppercase}.day-inspector h2{margin:3px 0 14px;font-size:18px}.day-inspector article{display:grid;gap:3px;padding:12px 0;border-top:1px solid var(--admin-hairline)}.day-inspector span,.day-inspector small{color:var(--admin-muted);font-size:11px}.state{display:flex;min-height:220px;align-items:center;justify-content:center;gap:12px;color:var(--admin-muted)}.error{color:var(--admin-danger)}.table{min-width:1050px}.table td small{display:block;color:var(--admin-muted)}.severity-warning{background:var(--admin-warning-soft)}.severity-critical{background:var(--admin-danger-soft);color:var(--admin-danger)}.critical{color:var(--admin-danger)}.tabs button:focus-visible,.view-switch button:focus-visible,.month-day:focus-visible,.btn:focus-visible,select:focus-visible{outline:3px solid rgba(255,116,72,.35);outline-offset:2px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}@media(max-width:1000px){.panel{overflow-x:auto}.month-layout{grid-template-columns:1fr}.day-inspector{border-top:1px solid var(--admin-hairline);border-left:0}}@media(max-width:640px){.week-toolbar{align-items:stretch;flex-wrap:wrap}.view-switch{order:-1;width:100%;margin:0}.view-switch button{flex:1}.week-toolbar .btn-primary{width:100%;margin:0}.month-day{min-height:76px}.month-shift{font-size:8px}}@media(prefers-reduced-motion:reduce){.tabs button,.month-day{transition:none}}
 </style>
