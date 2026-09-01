@@ -101,8 +101,8 @@ async function mockDestinations(page) {
       ? route.fulfill({ json: ok(data) })
       : route.fulfill({ status: 501, json: { status: 'error', message: `Unexpected ${name} request` } });
   };
-  await page.route('**/api/admin/orders*', exact('orders', { method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] }, []));
-  await page.route('**/api/admin/refunds*', exact('refunds', { method: 'GET', path: '/api/admin/refunds', query: [] }, []));
+  await page.route('**/api/admin/orders*', exact('orders', { method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true'], ['page', '1'], ['pageSize', '20'], ['sort', 'WAITING_DESC']] }, []));
+  await page.route('**/api/admin/refunds*', exact('refunds', { method: 'GET', path: '/api/admin/refunds', query: [['status', 'PENDING']] }, []));
   await page.route('**/api/admin/users*', route => route.fulfill({ json: ok([]) }));
   await page.route('**/api/admin/shifts/week*', route => route.fulfill({ json: ok({ weekStart: '2026-08-31', shifts: [] }) }));
   await page.route('**/api/admin/shifts/monitoring*', exact('monitoring', { method: 'GET', path: '/api/admin/shifts/monitoring', query: [] }, []));
@@ -192,14 +192,15 @@ test('attention destinations issue each exact critical request once', async ({ p
   const errors = observeBrowser(page);
   await page.goto('/admin');
 
-  expect(await clickAndCapture(page, 'Đơn chờ xác nhận quá lâu', '/api/admin/orders')).toEqual({ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] });
+  const attentionOrderRequest = { method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true'], ['page', '1'], ['pageSize', '20'], ['sort', 'WAITING_DESC']] };
+  expect(await clickAndCapture(page, 'Đơn chờ xác nhận quá lâu', '/api/admin/orders')).toEqual(attentionOrderRequest);
   await expect(page.getByRole('tab', { name: /Cần xử lý/ })).toHaveAttribute('aria-selected', 'true');
-  expect(calls.orders).toEqual([{ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] }]);
+  expect(calls.orders).toEqual([attentionOrderRequest]);
 
   await page.goto('/admin');
-  expect(await clickAndCapture(page, 'Yêu cầu hoàn tiền đang chờ', '/api/admin/refunds')).toEqual({ method: 'GET', path: '/api/admin/refunds', query: [] });
+  expect(await clickAndCapture(page, 'Yêu cầu hoàn tiền đang chờ', '/api/admin/refunds')).toEqual({ method: 'GET', path: '/api/admin/refunds', query: [['status', 'PENDING']] });
   await expect(page.getByRole('button', { name: /Chờ hoàn/ })).toHaveAttribute('aria-pressed', 'true');
-  expect(calls.refunds).toEqual([{ method: 'GET', path: '/api/admin/refunds', query: [] }]);
+  expect(calls.refunds).toEqual([{ method: 'GET', path: '/api/admin/refunds', query: [['status', 'PENDING']] }]);
 
   await page.goto('/admin');
   expect(await clickAndCapture(page, 'Ca làm cần bổ sung nhân viên', '/api/admin/shifts/monitoring')).toEqual({ method: 'GET', path: '/api/admin/shifts/monitoring', query: [] });
@@ -228,8 +229,9 @@ test('delivery-failed attention independently opens and requests the attention q
   await page.getByRole('link', { name: /Đơn giao thất bại/ }).click();
   await expect(page).toHaveURL('/admin/orders?status=ATTENTION');
   await expect(page.getByRole('tab', { name: /Cần xử lý/ })).toHaveAttribute('aria-selected', 'true');
-  expect(requestEvidence(await requestPromise)).toEqual({ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] });
-  expect(calls.orders).toEqual([{ method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true']] }]);
+  const expectedRequest = { method: 'GET', path: '/api/admin/orders', query: [['attentionOnly', 'true'], ['page', '1'], ['pageSize', '20'], ['sort', 'WAITING_DESC']] };
+  expect(requestEvidence(await requestPromise)).toEqual(expectedRequest);
+  expect(calls.orders).toEqual([expectedRequest]);
   expect(calls.refunds).toEqual([]);
   expect(errors).toEqual([]);
 });
