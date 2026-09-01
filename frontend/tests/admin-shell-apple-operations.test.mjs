@@ -5,6 +5,16 @@ import test from 'node:test';
 const layout = readFileSync(new URL('../src/layouts/AdminLayout.vue', import.meta.url), 'utf8');
 const variables = readFileSync(new URL('../src/assets/styles/variables.css', import.meta.url), 'utf8');
 
+function activeDeclarations(source, name) {
+  const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return [...withoutComments.matchAll(new RegExp(`^\\s*${escapedName}\\s*:\\s*([^;]+);\\s*$`, 'gm'))].map(match => match[1].trim());
+}
+
+function assertSingleDeclaration(name, value) {
+  assert.deepEqual(activeDeclarations(variables, name), [value]);
+}
+
 test('admin shell uses the approved fixed geometry and FastGuy material', () => {
   assert.match(layout, /\.sidebar\{width:224px\}/);
   assert.match(layout, /\.main-content\{min-width:0;margin-left:224px\}/);
@@ -13,23 +23,23 @@ test('admin shell uses the approved fixed geometry and FastGuy material', () => 
   assert.match(layout, /FastGuy/);
 });
 
-test('admin tokens expose the approved Operations Studio contract', () => {
-  for (const token of [
-    '--admin-canvas: #eef2f6',
-    '--admin-surface: #ffffff',
-    '--admin-surface-subtle: #f8f9fb',
-    '--admin-foreground: #172033',
-    '--admin-muted: #667085',
-    '--admin-hairline: rgba(23, 32, 51, 0.09)',
-    '--admin-sidebar: #142033',
-    '--admin-brand: #f45b2a',
-    '--admin-control-radius: 8px',
-    '--admin-workspace-radius: 12px',
-    '--admin-panel-radius: 16px',
-    '--admin-shell-shadow:',
-    '--admin-card-shadow:',
+test('admin tokens expose exactly one approved Operations Studio declaration', () => {
+  for (const [name, value] of [
+    ['--admin-canvas', '#eef2f6'],
+    ['--admin-surface', '#ffffff'],
+    ['--admin-surface-subtle', '#f8f9fb'],
+    ['--admin-foreground', '#172033'],
+    ['--admin-muted', '#667085'],
+    ['--admin-hairline', 'rgba(23, 32, 51, 0.09)'],
+    ['--admin-sidebar', '#142033'],
+    ['--admin-brand', '#f45b2a'],
+    ['--admin-control-radius', '8px'],
+    ['--admin-workspace-radius', '12px'],
+    ['--admin-panel-radius', '16px'],
+    ['--admin-shell-shadow', '0 3px 8px rgba(23, 32, 51, 0.04), 0 18px 44px rgba(23, 32, 51, 0.07)'],
+    ['--admin-card-shadow', '0 2px 5px rgba(23, 32, 51, 0.035), 0 14px 34px rgba(23, 32, 51, 0.055)'],
   ]) {
-    assert.match(variables, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+    assertSingleDeclaration(name, value);
   }
 });
 
