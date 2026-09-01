@@ -11,13 +11,15 @@
   --charcoal: #171717;
   --map-line: rgba(232, 115, 74, 0.1);
 
-  --admin-canvas: #F5F6F7;
+  --admin-canvas: #EEF1F5;
   --admin-surface: #FFFFFF;
-  --admin-foreground: #17212B;
-  --admin-muted: #66717D;
-  --admin-border: #DDE2E7;
-  --admin-brand: #D85F32;
-  --admin-brand-soft: #FFF0E9;
+  --admin-foreground: #182230;
+  --admin-muted: #667085;
+  --admin-subtle: #98A2B3;
+  --admin-border: #E4E7EC;
+  --admin-brand: #F45B2A;
+  --admin-brand-dark: #D9481C;
+  --admin-brand-soft: #FFF0EA;
   --admin-action: #C04E24;
   --admin-info: #2764C8;
   --admin-success: #267A50;
