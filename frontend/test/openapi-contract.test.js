@@ -615,7 +615,8 @@ test('OpenAPI contracts Slice 2 admin Operations APIs', async () => {
   assert.equal(schemas.CodSettlementVerifyRequest.properties.reason.maxLength, 500);
 
   const refundParameters = Object.fromEntries(refundList.parameters.map(parameter => [parameter.name, parameter]));
-  assert.deepEqual(Object.keys(refundParameters), ['fromDate', 'toDate']);
+  assert.deepEqual(Object.keys(refundParameters), ['status', 'search', 'fromDate', 'toDate']);
+  assert.deepEqual(refundParameters.status.schema.enum, ['PENDING', 'REFUNDED', 'REJECTED']);
   assert.equal(refundParameters.fromDate.schema.format, 'date');
   assert.equal(refundParameters.toDate.schema.format, 'date');
   assert.equal(responseRef(refundList), '#/components/schemas/AdminRefundListResponse');

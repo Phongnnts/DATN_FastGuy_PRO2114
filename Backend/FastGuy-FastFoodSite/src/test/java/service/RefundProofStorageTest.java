@@ -11,6 +11,14 @@ class RefundProofStorageTest {
         assertDoesNotThrow(() -> RefundProofStorage.validate("RIFF0000WEBP".getBytes(java.nio.charset.StandardCharsets.US_ASCII), "image/webp"));
     }
 
+    @Test void signedPrivateDownloadUsesCloudinaryAuthenticatedDownloadParameters() {
+        RefundProofStorage storage = new RefundProofStorage(java.net.http.HttpClient.newHttpClient(), "demo", "key", "secret");
+        RefundProofStorage.SignedProofUrl value = storage.signedViewUrl("fastguy/refunds/9-hash", "image/png", java.time.Duration.ofMinutes(5));
+        assertTrue(value.viewUrl().startsWith("https://api.cloudinary.com/v1_1/demo/image/download?"));
+        for (String token : new String[]{"expires_at=", "format=png", "public_id=fastguy/refunds/9-hash", "timestamp=", "type=authenticated", "api_key=key", "signature="}) assertTrue(value.viewUrl().contains(token), token);
+        assertFalse(value.viewUrl().contains("secret"));
+    }
+
     @Test void rejectsWrongTypeMagicEmptyAndOversize() {
         assertThrows(IllegalArgumentException.class, () -> RefundProofStorage.validate(new byte[0], "image/png"));
         assertThrows(IllegalArgumentException.class, () -> RefundProofStorage.validate(new byte[]{1,2,3}, "image/jpeg"));

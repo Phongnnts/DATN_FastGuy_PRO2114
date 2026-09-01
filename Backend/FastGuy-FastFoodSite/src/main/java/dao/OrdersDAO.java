@@ -84,7 +84,7 @@ public class OrdersDAO {
     }
 
     public record AdminOrderQuery(String search, String status, String paymentStatus, String refundStatus,
-                                  LocalDateTime from, LocalDateTime to, boolean attentionOnly,
+                                  LocalDateTime from, LocalDateTime to, boolean attentionOnly, LocalDateTime now,
                                   String sort, int page, int pageSize) {}
 
     public record OrdersPageResult(List<Orders> items, long totalItems, int page, int pageSize) {}
@@ -93,7 +93,7 @@ public class OrdersDAO {
         EntityManager em = entityManagers.get();
         try {
             String where = adminQueueWhere(query);
-            var itemsQuery = em.createQuery("SELECT o FROM Orders o" + where + adminQueueOrder(query.sort()), Orders.class);
+            var itemsQuery = em.createQuery("SELECT o FROM Orders o" + where + adminQueueOrder(query), Orders.class);
             bindAdminQueue(itemsQuery, query);
             List<Orders> items = itemsQuery.setFirstResult((query.page() - 1) * query.pageSize())
                     .setMaxResults(query.pageSize()).getResultList();
@@ -107,7 +107,9 @@ public class OrdersDAO {
 
     private static String adminQueueWhere(AdminOrderQuery query) {
         StringBuilder where = new StringBuilder(" WHERE 1=1");
-        if (query.attentionOnly()) where.append(" AND (o.orderStatus IN ('PENDING','CONFIRMED','PREPARING','READY','DELIVERY_FAILED') OR o.refundStatus='PENDING')");
+        if (query.attentionOnly()) where.append(" AND (o.orderStatus='DELIVERY_FAILED' OR o.refundStatus='PENDING' OR "
+                + "(o.orderStatus='PENDING' AND o.statusEnteredAt<=CASE WHEN o.paymentMethod='BANK_TRANSFER' AND o.paymentStatus='UNPAID' THEN :pendingTransferCutoff ELSE :pendingCutoff END) OR "
+                + "(o.orderStatus='CONFIRMED' AND o.statusEnteredAt<=:confirmedCutoff) OR (o.orderStatus='PREPARING' AND o.statusEnteredAt<=:preparingCutoff) OR (o.orderStatus='READY' AND o.statusEnteredAt<=:readyCutoff))");
         if (query.search() != null) where.append(" AND (LOWER(o.orderCode) LIKE :search OR LOWER(o.customerName) LIKE :search OR LOWER(o.customerPhone) LIKE :search)");
         if (query.status() != null) where.append(" AND o.orderStatus=:status");
         if (query.paymentStatus() != null) where.append(" AND o.paymentStatus=:paymentStatus");
@@ -117,13 +119,23 @@ public class OrdersDAO {
         return where.toString();
     }
 
-    private static String adminQueueOrder(String sort) {
-        return "CREATED_DESC".equals(sort)
+    private static String adminQueueOrder(AdminOrderQuery query) {
+        if (query.attentionOnly()) return " ORDER BY CASE WHEN o.orderStatus='DELIVERY_FAILED' THEN 0 WHEN o.refundStatus<>'PENDING' THEN 1 ELSE 2 END, "
+                + "COALESCE(o.deliveryFailedAt,o.statusEnteredAt,o.cancelledAt,o.createdAt) ASC,o.orderId ASC";
+        return "CREATED_DESC".equals(query.sort())
                 ? " ORDER BY o.createdAt DESC,o.orderId DESC"
                 : " ORDER BY COALESCE(o.statusEnteredAt,o.createdAt) ASC,o.orderId ASC";
     }
 
     private static void bindAdminQueue(Query query, AdminOrderQuery value) {
+        if (value.attentionOnly()) {
+            LocalDateTime now = value.now();
+            query.setParameter("pendingTransferCutoff", now.minusMinutes(15));
+            query.setParameter("pendingCutoff", now.minusMinutes(10));
+            query.setParameter("confirmedCutoff", now.minusMinutes(15));
+            query.setParameter("preparingCutoff", now.minusMinutes(20));
+            query.setParameter("readyCutoff", now.minusMinutes(15));
+        }
         if (value.search() != null) query.setParameter("search", "%" + value.search().toLowerCase(Locale.ROOT) + "%");
         if (value.status() != null) query.setParameter("status", value.status());
         if (value.paymentStatus() != null) query.setParameter("paymentStatus", value.paymentStatus());

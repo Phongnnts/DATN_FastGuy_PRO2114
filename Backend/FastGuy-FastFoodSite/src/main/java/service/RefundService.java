@@ -31,8 +31,7 @@ public class RefundService {
         try {
             em.getTransaction().begin();
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
-            if (order == null) throw new IllegalArgumentException("Order not found");
-            if (expectedStatus != null && !java.util.Objects.equals(expectedStatus, order.getRefundStatus())) throw new RefundConflictException("Refund request changed");
+            if (order == null) throw new RefundNotFoundException("Order not found");
             String normalizedNote = normalize(note);
             String normalizedReference = normalize(reference);
             if (isTerminal(order.getRefundStatus())) {
@@ -43,6 +42,7 @@ public class RefundService {
                 }
                 throw new RefundConflictException("Refund request conflicts with terminal result");
             }
+            if (expectedStatus != null && !java.util.Objects.equals(expectedStatus, order.getRefundStatus())) throw new RefundConflictException("Refund request changed");
             String error = validate(status, order.getRefundStatus(), order.getPaymentStatus(), order.getOrderStatus(), amount, order.getFinalAmount(), normalizedNote, normalizedReference);
             if (error != null) throw new IllegalArgumentException(error);
             if ("REFUNDED".equals(status) && proof == null) throw new IllegalArgumentException("Refund proof is required");
@@ -67,6 +67,7 @@ public class RefundService {
                 order.setRefundProofContentType(null);
                 order.setRefundProofUploadedAt(null);
             }
+            if (order.getRefundedAt() == null) order.setRefundedAt(LocalDateTime.now());
             order.setRefundProcessedBy(adminId);
             activityLogService.append(em,adminId,"ORDER_REFUND_RECORDED","ORDER",orderId,java.util.Map.of("refundStatus",status,"refundAmount",amount==null?"0":amount.toPlainString()));
             em.getTransaction().commit();
@@ -84,9 +85,9 @@ public class RefundService {
         EntityManager em = entityManagers.get();
         try {
             Orders order = em.find(Orders.class, orderId);
-            if (order == null) throw new IllegalArgumentException("Order not found");
+            if (order == null) throw new RefundNotFoundException("Order not found");
             if (storage == null) throw new IllegalStateException("Refund proof storage unavailable");
-            return storage.signedViewUrl(order.getRefundProofPublicId(), Duration.ofMinutes(5));
+            return storage.signedViewUrl(order.getRefundProofPublicId(), order.getRefundProofContentType(), Duration.ofMinutes(5));
         } finally { em.close(); }
     }
 
@@ -139,6 +140,7 @@ public class RefundService {
         return null;
     }
 
+    public static class RefundNotFoundException extends RuntimeException { public RefundNotFoundException(String message) { super(message); } }
     public static class RefundConflictException extends RuntimeException {
         public RefundConflictException(String message) { super(message); }
     }

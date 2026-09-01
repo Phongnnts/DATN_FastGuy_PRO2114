@@ -45,7 +45,7 @@ async function cancelOrder() {
     toast.success('Đã hủy đơn hàng');
     showCancelModal.value = false;
     await load();
-  } catch (e) { toast.error(e.message); }
+  } catch (e) { if (e.status === 409) { await load(); toast.error('Đơn hàng đã thay đổi. Kiểm tra dữ liệu mới rồi gửi lại.'); } else toast.error(e.message); }
   finally { saving.value = false; }
 }
 
@@ -72,7 +72,7 @@ async function saveNote() {
     showNoteModal.value = false;
     noteText.value = '';
     await load();
-  } catch (e) { toast.error(e.message); }
+  } catch (e) { if (e.status === 409) { await load(); toast.error('Đơn hàng đã thay đổi. Ghi chú vẫn được giữ để gửi lại.'); } else toast.error(e.message); }
   finally { saving.value = false; }
 }
 

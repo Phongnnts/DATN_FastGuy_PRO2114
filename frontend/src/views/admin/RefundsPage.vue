@@ -65,7 +65,7 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const params = {};
+    const params = { status: activeStatus.value || undefined, search: searchTerm.value.trim() || undefined };
     if (filterFromDate.value) params.fromDate = filterFromDate.value;
     if (filterToDate.value) params.toDate = filterToDate.value;
     const data = await adminApi.getRefunds(params);

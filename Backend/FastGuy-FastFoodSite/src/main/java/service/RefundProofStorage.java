@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Set;
 import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,10 +33,12 @@ public class RefundProofStorage {
     public record UploadedProof(String publicId, String contentType, Instant uploadedAt) {}
     public record SignedProofUrl(String viewUrl, Instant expiresAt) {}
 
-    public UploadedProof uploadPrivate(byte[] content, String contentType) {
+    public UploadedProof uploadPrivate(byte[] content, String contentType) { return uploadPrivate("proof", content, contentType); }
+
+    public UploadedProof uploadPrivate(String identity, byte[] content, String contentType) {
         validate(content, contentType);
         long timestamp = Instant.now().getEpochSecond();
-        String publicId = "fastguy/refunds/" + UUID.randomUUID();
+        String publicId = "fastguy/refunds/" + identity + "-" + sha256(content);
         String signature = sha1("public_id=" + publicId + "&timestamp=" + timestamp + "&type=authenticated" + apiSecret);
         String boundary = "----FastGuy" + UUID.randomUUID();
         byte[] body = multipart(boundary, publicId, timestamp, signature, apiKey, contentType, content);
@@ -67,18 +68,30 @@ public class RefundProofStorage {
         HttpRequest request = HttpRequest.newBuilder(URI.create("https://api.cloudinary.com/v1_1/" + cloudName + "/image/destroy"))
                 .timeout(Duration.ofSeconds(20)).header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(form)).build();
-        try { client.send(request, HttpResponse.BodyHandlers.discarding()); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-        catch (IOException ignored) {}
+        RuntimeException failure = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
+                if (response.statusCode() / 100 == 2) return;
+                failure = new IllegalStateException("Refund proof cleanup failed");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); throw new IllegalStateException("Refund proof cleanup interrupted", e);
+            } catch (IOException e) { failure = new IllegalStateException("Refund proof cleanup failed", e); }
+        }
+        throw failure;
     }
 
-    public SignedProofUrl signedViewUrl(String publicId, Duration ttl) {
+    public SignedProofUrl signedViewUrl(String publicId, Duration ttl) { return signedViewUrl(publicId, "image/jpeg", ttl); }
+
+    public SignedProofUrl signedViewUrl(String publicId, String contentType, Duration ttl) {
         if (publicId == null || publicId.isBlank()) throw new IllegalArgumentException("Refund proof is unavailable");
+        String format = switch (contentType) { case "image/png" -> "png"; case "image/webp" -> "webp"; default -> "jpg"; };
         Instant expiresAt = Instant.now().plus(ttl);
-        String payload = "publicId=" + publicId + "&expires=" + expiresAt.getEpochSecond();
-        String signature = sha1(payload + apiSecret);
-        String url = "https://res.cloudinary.com/" + cloudName + "/image/authenticated/" + publicId
-                + "?expires=" + expiresAt.getEpochSecond() + "&signature=" + signature;
+        long timestamp = Instant.now().getEpochSecond();
+        String parameters = "expires_at=" + expiresAt.getEpochSecond() + "&format=" + format + "&public_id=" + publicId + "&timestamp=" + timestamp + "&type=authenticated";
+        String signature = sha1(parameters + apiSecret);
+        String url = "https://api.cloudinary.com/v1_1/" + cloudName + "/image/download?" + parameters
+                + "&api_key=" + encode(apiKey) + "&signature=" + signature;
         return new SignedProofUrl(url, expiresAt);
     }
 
@@ -86,7 +99,7 @@ public class RefundProofStorage {
         if (content == null || content.length == 0 || content.length > MAX_BYTES || !TYPES.contains(contentType)) throw new IllegalArgumentException("Invalid refund proof");
         boolean valid = switch (contentType) {
             case "image/jpeg" -> content.length >= 3 && (content[0] & 255) == 0xff && (content[1] & 255) == 0xd8 && (content[2] & 255) == 0xff;
-            case "image/png" -> content.length >= 8 && (content[0] & 255) == 0x89 && content[1] == 0x50 && content[2] == 0x4e && content[3] == 0x47;
+            case "image/png" -> content.length >= 8 && (content[0] & 255) == 0x89 && content[1] == 0x50 && content[2] == 0x4e && content[3] == 0x47 && content[4] == 0x0d && content[5] == 0x0a && content[6] == 0x1a && content[7] == 0x0a;
             case "image/webp" -> content.length >= 12 && new String(content, 0, 4, StandardCharsets.US_ASCII).equals("RIFF") && new String(content, 8, 4, StandardCharsets.US_ASCII).equals("WEBP");
             default -> false;
         };
@@ -107,6 +120,7 @@ public class RefundProofStorage {
 
     private static String part(String boundary, String name, String value) { return "--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + name + "\"\r\n\r\n" + value + "\r\n"; }
     private static String sha1(String value) { try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(value.getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException("Proof signing unavailable", e); } }
+    private static String sha256(byte[] value) { try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value)); } catch (Exception e) { throw new IllegalStateException("Proof identity unavailable", e); } }
     private static String encode(String value) { return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8); }
     private static String required(String name) { String value = System.getenv(name); if (value == null || value.isBlank()) throw new IllegalStateException(name + " is required"); return value; }
 }

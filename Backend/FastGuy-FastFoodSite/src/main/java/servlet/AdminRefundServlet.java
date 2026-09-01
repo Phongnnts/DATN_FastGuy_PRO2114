@@ -62,8 +62,9 @@ public class AdminRefundServlet extends HttpServlet {
                 ApiResponse.error(resp, "fromDate must not be after toDate", 400);
                 return;
             }
-            List<Orders> pending = ordersDAO.findRefunds(
-                    req.getParameter("status"), from, to, req.getParameter("search"));
+            String status = req.getParameter("status");
+            if (status != null && !status.isBlank() && !Set.of("PENDING","REFUNDED","REJECTED").contains(status)) throw new IllegalArgumentException("Invalid refund status");
+            List<Orders> pending = ordersDAO.findRefunds(status, from, to, req.getParameter("search"));
             Map<Integer, String> processorNames = resolveProcessorNames(pending, userDAO::findByIds);
             List<Map<String, Object>> result = pending.stream().map(o -> {
                 Map<String, Object> m = new HashMap<>();
@@ -91,6 +92,8 @@ public class AdminRefundServlet extends HttpServlet {
                 return m;
             }).collect(Collectors.toList());
             ApiResponse.ok(resp, result);
+        } catch (RefundService.RefundNotFoundException e) {
+            ApiResponse.error(resp, e.getMessage(), 404);
         } catch (DateTimeParseException | IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         } catch (RuntimeException e) {
@@ -132,14 +135,20 @@ public class AdminRefundServlet extends HttpServlet {
             if (!pathInfo.matches("/[1-9]\\d*")) { ApiResponse.error(resp, "Invalid order ID", 400); return; }
             int orderId = Integer.parseInt(pathInfo.substring(1));
             String expectedStatus = req.getParameter("expectedStatus");
+            if (!"PENDING".equals(expectedStatus)) { ApiResponse.error(resp, "Invalid expectedStatus", 400); return; }
             String status = req.getParameter("status");
             String note = req.getParameter("refundNote");
             String reference = req.getParameter("refundReference");
             String rawAmount = req.getParameter("refundAmount");
             BigDecimal amount = rawAmount == null || rawAmount.isBlank() ? null : new BigDecimal(rawAmount);
             RefundProofStorage.UploadedProof proof = null;
-            Part proofPart = req.getPart("proof");
-            if (proofPart != null && proofPart.getSize() > 0) proof = storage().uploadPrivate(proofPart.getInputStream().readAllBytes(), proofPart.getContentType());
+            Part proofPart;
+            try { proofPart = req.getPart("proof"); } catch (IllegalStateException e) { throw new IllegalArgumentException("Refund proof exceeds 5 MiB"); }
+            if (proofPart != null && proofPart.getSize() > 0) {
+                String filename = proofPart.getSubmittedFileName() == null ? "" : proofPart.getSubmittedFileName().toLowerCase(java.util.Locale.ROOT);
+                if (!(filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".png") || filename.endsWith(".webp"))) throw new IllegalArgumentException("Invalid refund proof extension");
+                proof = storage().uploadPrivate(String.valueOf(orderId), proofPart.getInputStream().readAllBytes(), proofPart.getContentType());
+            }
             try {
                 refundService.update(orderId, expectedStatus, status, amount, note, reference, proof, JwtUtil.getUserId(token));
             } catch (RuntimeException e) {
@@ -149,6 +158,8 @@ public class AdminRefundServlet extends HttpServlet {
             ApiResponse.ok(resp, null, "Refund updated");
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid refund amount or order ID", 400);
+        } catch (RefundService.RefundNotFoundException e) {
+            ApiResponse.error(resp, e.getMessage(), 404);
         } catch (RefundService.RefundConflictException e) {
             ApiResponse.error(resp, e.getMessage(), 409);
         } catch (IllegalArgumentException e) {

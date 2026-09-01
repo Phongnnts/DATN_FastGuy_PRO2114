@@ -172,7 +172,7 @@ public class OrderTransitionService {
             WorkShift currentStaffShift = "STAFF".equals(actorRole) && actorUserId != null ? currentActiveShift(em, em.find(User.class, actorUserId), "STAFF") : null;
             Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
 
-            if (order == null) { em.getTransaction().rollback(); return MutationResult.INVALID; }
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.NOT_FOUND; }
             if (expectedStatus != null && !matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
 
             String from = order.getOrderStatus();
