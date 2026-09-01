@@ -1296,7 +1296,7 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: status, in: query, schema: { type: string, enum: [PENDING, REFUNDED, REJECTED] } }
-        - { name: search, in: query, schema: { type: string, minLength: 1 }, description: Case-insensitive order code, customer name, or phone search. }
+        - { name: search, in: query, schema: { type: string, minLength: 1 }, description: 'Case-insensitive order code, customer name, or phone search.' }
         - { name: fromDate, in: query, schema: { type: string, format: date }, description: Inclusive refund processing-date lower bound. }
         - { name: toDate, in: query, schema: { type: string, format: date }, description: Inclusive refund processing-date upper bound. }
       responses:
