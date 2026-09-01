@@ -77,16 +77,24 @@ test('admin balanced cockpit renders desktop analytics without browser errors', 
     await control.focus();
     await expect(control).toBeFocused();
   }
-  const [revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all(['.revenue-panel', '.attention-panel', '.status-panel', '.products-panel', '.stock-panel'].map(selector => page.locator(selector).boundingBox()));
+  const analyticsGrid = page.locator('.analytics-grid');
+  const [gridBox, revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all([analyticsGrid, ...['.revenue-panel', '.attention-panel', '.status-panel', '.products-panel', '.stock-panel'].map(selector => analyticsGrid.locator(selector))].map(locator => locator.boundingBox()));
   const gap = 16;
+  const tolerance = 2;
   const revenueTracks = revenueBox.width - (7 * gap);
   const attentionTracks = attentionBox.width - (3 * gap);
   const statusTracks = statusBox.width - (3 * gap);
   const productTracks = productsBox.width - (4 * gap);
   const stockTracks = stockBox.width - (2 * gap);
-  expect(Math.abs(revenueBox.y - attentionBox.y)).toBeLessThan(2);
+  expect(Math.abs(revenueBox.y - attentionBox.y)).toBeLessThan(tolerance);
+  expect(Math.abs(revenueBox.x - gridBox.x)).toBeLessThan(tolerance);
+  expect(Math.abs((attentionBox.x + attentionBox.width) - (gridBox.x + gridBox.width))).toBeLessThan(tolerance);
+  expect(revenueBox.width + attentionBox.width + gap).toBeCloseTo(gridBox.width, 0);
   expect(revenueTracks / attentionTracks).toBeCloseTo(2, 1);
-  expect(Math.max(statusBox.y, productsBox.y, stockBox.y) - Math.min(statusBox.y, productsBox.y, stockBox.y)).toBeLessThan(2);
+  expect(Math.max(statusBox.y, productsBox.y, stockBox.y) - Math.min(statusBox.y, productsBox.y, stockBox.y)).toBeLessThan(tolerance);
+  expect(Math.abs(statusBox.x - gridBox.x)).toBeLessThan(tolerance);
+  expect(Math.abs((stockBox.x + stockBox.width) - (gridBox.x + gridBox.width))).toBeLessThan(tolerance);
+  expect(statusBox.width + productsBox.width + stockBox.width + (2 * gap)).toBeCloseTo(gridBox.width, 0);
   expect(statusTracks / stockTracks).toBeCloseTo(4 / 3, 1);
   expect(productTracks / stockTracks).toBeCloseTo(5 / 3, 1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBeTruthy();

@@ -37,3 +37,20 @@ The geometry assertions now remove the internal 16px grid gaps and verify tolera
 - Desktop Chromium E2E: 1/1 passed with exact span ratios, same-row alignment, no horizontal overflow, exact API requests, and zero browser/console errors.
 - Full frontend unit suite: 699/699 passed.
 - `npm run build`: passed; 351 modules transformed.
+
+## Fix round 2
+
+### Finding
+
+The ratio assertions proved relative spans but did not prove either desktop row occupied all 12 grid tracks.
+
+### Change
+
+The E2E now scopes panel measurements to the stable `.analytics-grid` locator. It verifies left and right edge alignment plus complete container-width occupancy for the 8/4 row and 4/5/3 row, including the exact 16px gaps, alongside existing ratio, row-alignment, and overflow assertions.
+
+### Verification
+
+- Focused Dashboard policies: 24/24 passed.
+- Desktop Chromium E2E: 1/1 passed with full-row edge, width, ratio, alignment, overflow, API, and browser-error assertions.
+- Full frontend unit suite: 699/699 passed.
+- `npm run build`: passed; 351 modules transformed.
