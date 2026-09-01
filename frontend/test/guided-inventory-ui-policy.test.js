@@ -14,7 +14,7 @@ const [layout, inventory, receipts, recipes, counts, variants] = await Promise.a
 ]);
 
 test('inventory navigation is grouped under one plain-language warehouse section', () => {
-  assert.match(layout, /label: 'Kho hàng'/);
+  assert.match(layout, /label: 'Kho'/);
   for (const label of ['Tồn kho', 'Nhập hàng', 'Công thức & định mức']) assert.ok(layout.includes(label), label);
   for (const path of ['/admin/inventory', '/admin/inventory/receipts', '/admin/recipes']) assert.ok(layout.includes(path), path);
   assert.doesNotMatch(layout, /label: 'Kiểm kê'|label: 'Lịch sử kho'|label: 'Báo cáo theo món'/);

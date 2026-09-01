@@ -18,8 +18,8 @@ function assertSingleDeclaration(name, value) {
 test('admin shell uses the approved fixed geometry and FastGuy material', () => {
   assert.match(layout, /\.sidebar\{width:224px\}/);
   assert.match(layout, /\.main-content\{min-width:0;margin-left:224px\}/);
-  assert.match(layout, /\.topbar\{height:64px/);
-  assert.match(layout, /backdrop-filter:blur\(/);
+  assert.match(layout, /\.topbar\{height:56px/);
+  assert.match(layout, /background:var\(--admin-sidebar\)/);
   assert.match(layout, /FastGuy/);
 });
 
@@ -57,7 +57,7 @@ test('admin shell uses the approved bright floating surfaces', () => {
   assert.match(layout, /Operations Admin/);
   assert.match(layout, /Dashboard nhân sự/);
   assert.match(variables, /--admin-shell-radius:\s*18px/);
-  assert.match(layout, /box-shadow:var\(--admin-shell-shadow\)/);
+  assert.match(layout, /max-width:1440px/);
   assert.match(layout, /class="page-content fg-page"/);
   assert.doesNotMatch(layout, /transition:\s*all/);
 });

@@ -24,21 +24,30 @@ function contrastRatio(foreground, background) {
 }
 
 const expectedGroups = {
-  'Tổng quan': ['Dashboard'],
-  'Vận hành': ['Đơn hàng', 'Đối soát COD', 'Hoàn tiền'],
-  'Bán hàng': ['Sản phẩm', 'Danh mục', 'Mã giảm giá', 'Banner'],
-  'Nhân sự': ['Người dùng', 'Ca làm'],
-  'Kho hàng': ['Tồn kho', 'Nhập hàng', 'Công thức & định mức'],
-  'Báo cáo': ['Báo cáo kinh doanh'],
-  'Hệ thống': ['Cài đặt'],
+  'Vận hành': ['/admin', '/admin/orders'],
+  'Kho': ['/admin/inventory', '/admin/inventory/receipts', '/admin/recipes', '/admin/inventory/stock-counts'],
+  'Tài chính': ['/admin/cod-settlements', '/admin/refunds', '/admin/reports'],
+  'Marketing': ['/admin/products', '/admin/categories', '/admin/coupons', '/admin/banners'],
+  'Nhân sự': ['/admin/hr', '/admin/users', '/admin/shifts', '/admin/attendance'],
+  'Cấu hình': ['/admin/activity-logs', '/admin/settings'],
 };
 
-test('admin sidebar follows task-based navigation groups', () => {
-  for (const [group, labels] of Object.entries(expectedGroups)) {
-    assert.match(layout, new RegExp(`label: '${group}'`));
-    for (const label of labels) assert.match(layout, new RegExp(`label: '${label}'`));
+test('admin sidebar places every destination exactly once in the six approved business groups', () => {
+  let previousGroupIndex = -1;
+  const allPaths = Object.values(expectedGroups).flat();
+
+  for (const [group, paths] of Object.entries(expectedGroups)) {
+    const groupIndex = layout.indexOf(`label: '${group}'`);
+    assert.ok(groupIndex > previousGroupIndex, `${group} must follow the approved group order`);
+    previousGroupIndex = groupIndex;
+    for (const path of paths) {
+      assert.equal(layout.match(new RegExp(`path: '${path.replaceAll('/', '\\/')}'`, 'g'))?.length, 1, `${path} must appear exactly once`);
+    }
   }
-  assert.doesNotMatch(layout, /label: 'Tài sản cố định'|label: 'Lịch sử kho'|label: 'Báo cáo theo món'|label: 'Chi phí vận hành'/);
+
+  assert.equal(layout.match(/\{ label: '[^']+', links:/g)?.length, 6);
+  assert.equal(allPaths.length, 19);
+  assert.match(layout, /class="page-content fg-page"/);
 });
 
 test('inventory unifies current stock and movement history with navigable accessible tabs', () => {
@@ -80,13 +89,13 @@ test('legacy routes redirect to unified query tabs while fixed assets remain add
 
 test('admin shell exposes the approved semantic palette through scoped aliases', () => {
   const expectedTokens = {
-    '--admin-canvas': '#F4F6F8',
-    '--admin-surface': '#FFFFFF',
-    '--admin-surface-subtle': '#F8F9FB',
-    '--admin-foreground': '#182230',
+    '--admin-canvas': '#eef2f6',
+    '--admin-surface': '#ffffff',
+    '--admin-surface-subtle': '#f8f9fb',
+    '--admin-foreground': '#172033',
     '--admin-muted': '#667085',
     '--admin-subtle': '#98A2B3',
-    '--admin-brand': '#F45B2A',
+    '--admin-brand': '#f45b2a',
     '--admin-brand-dark': '#C43F16',
     '--admin-brand-soft': '#FFF0EA',
     '--admin-info': '#635C96',
@@ -106,20 +115,20 @@ test('admin text-bearing primary controls use a scoped WCAG AA orange pairing', 
   const action = variables.match(/--admin-action:\s*(#[\dA-F]{6});/i)?.[1];
   assert.ok(action, 'missing --admin-action');
   assert.ok(contrastRatio('#FFFFFF', action) >= 4.5, `${action} must have at least 4.5:1 contrast with white`);
-  assert.match(variables, /--admin-brand:\s*#F45B2A;/);
+  assert.match(variables, /--admin-brand:\s*#f45b2a;/);
   assert.match(globalStyles, /\.fg-shell-admin :is\(\.btn-primary, \.verify-button\)\s*\{[^}]*background:\s*var\(--admin-action\);[^}]*border-color:\s*var\(--admin-action\);/s);
   assert.match(codSettlements, /\.verify-button\{[^}]*color:#fff;[^}]*background:var\(--admin-action\)/);
   assert.doesNotMatch(codSettlements, /\.verify-button\{[^}]*background:var\(--role-admin\)/);
 });
 
 test('admin visual foundation uses semantic surfaces and accessible active navigation', () => {
-  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*border:1px solid var\(--admin-hairline\);[^}]*border-radius:var\(--admin-shell-radius\);[^}]*box-shadow:var\(--admin-shell-shadow\)/);
+  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*height:100vh;[^}]*background:var\(--admin-sidebar\);[^}]*box-shadow:none/);
   assert.match(layout, /\.sidebar\{width:224px\}/);
   assert.match(layout, /\.main-content\{min-width:0;margin-left:224px\}/);
   assert.match(layout, /\.sidebar-brand\{[^}]*border-bottom:0/);
-  assert.match(layout, /\.topbar\{height:64px;[^}]*border:1px solid var\(--admin-hairline\);[^}]*border-radius:14px;[^}]*box-shadow:var\(--admin-shell-shadow\);backdrop-filter:blur\(18px\)\}/);
-  assert.match(layout, /\.page-content\{max-width:1600px;background:var\(--admin-canvas\)\}/);
-  assert.match(layout, /\.sidebar-nav a\.router-link-active\{[^}]*color:var\(--admin-brand-dark\);background:var\(--admin-brand-soft\);[^}]*font-weight:720\}/);
+  assert.match(layout, /\.topbar\{height:56px;[^}]*border-bottom:1px solid var\(--admin-hairline\);[^}]*background:var\(--admin-surface\);[^}]*box-shadow:none/);
+  assert.match(layout, /\.page-content\{width:100%;max-width:1440px;margin-inline:auto;background:var\(--admin-canvas\)\}/);
+  assert.match(layout, /\.sidebar-nav a\.router-link-active\{[^}]*color:var\(--admin-surface\);background:rgba\(244,91,42,\.18\);[^}]*font-weight:720\}/);
   assert.match(layout, /\.sidebar-nav a\.router-link-active i\{color:var\(--admin-brand\)\}/);
   assert.match(layout, /\.sidebar-nav a\.router-link-active::before\{content:none\}/);
   assert.doesNotMatch(layout, /transition:\s*all/);

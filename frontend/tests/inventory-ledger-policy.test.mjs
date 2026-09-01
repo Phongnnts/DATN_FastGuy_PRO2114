@@ -21,7 +21,7 @@ test('legacy ledger route redirects to the history tab', () => {
 });
 
 test('sidebar keeps only task-based inventory entries', () => {
-  assert.match(layout, /label: 'Kho hàng'/);
+  assert.match(layout, /label: 'Kho'/);
   assert.match(layout, /label: 'Tồn kho', path: '\/admin\/inventory'/);
   assert.match(layout, /label: 'Công thức & định mức', path: '\/admin\/recipes'/);
   assert.doesNotMatch(layout, /label: 'Lịch sử kho'|label: 'Báo cáo theo món'/);
