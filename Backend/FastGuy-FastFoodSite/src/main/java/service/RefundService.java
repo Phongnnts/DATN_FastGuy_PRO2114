@@ -79,6 +79,12 @@ public class RefundService {
         }
     }
 
+    public boolean matchesTerminalProof(int orderId, String publicId) {
+        EntityManager em = entityManagers.get();
+        try { Orders order = em.find(Orders.class, orderId); return order != null && isTerminal(order.getRefundStatus()) && java.util.Objects.equals(publicId, order.getRefundProofPublicId()); }
+        finally { em.close(); }
+    }
+
     public RefundProofStorage.SignedProofUrl proofViewUrl(int orderId) { return proofViewUrl(orderId, proofStorage); }
 
     public RefundProofStorage.SignedProofUrl proofViewUrl(int orderId, RefundProofStorage storage) {

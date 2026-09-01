@@ -147,12 +147,17 @@ public class AdminRefundServlet extends HttpServlet {
             if (proofPart != null && proofPart.getSize() > 0) {
                 String filename = proofPart.getSubmittedFileName() == null ? "" : proofPart.getSubmittedFileName().toLowerCase(java.util.Locale.ROOT);
                 if (!(filename.endsWith(".jpg") || filename.endsWith(".jpeg") || filename.endsWith(".png") || filename.endsWith(".webp"))) throw new IllegalArgumentException("Invalid refund proof extension");
-                proof = storage().uploadPrivate(String.valueOf(orderId), proofPart.getInputStream().readAllBytes(), proofPart.getContentType());
+                byte[] proofBytes = proofPart.getInputStream().readAllBytes();
+                String proofId = RefundProofStorage.publicId(String.valueOf(orderId), proofBytes);
+                proof = refundService.matchesTerminalProof(orderId, proofId)
+                        ? new RefundProofStorage.UploadedProof(proofId, proofPart.getContentType(), java.time.Instant.now())
+                        : storage().uploadPrivate(String.valueOf(orderId), proofBytes, proofPart.getContentType());
             }
             try {
                 refundService.update(orderId, expectedStatus, status, amount, note, reference, proof, JwtUtil.getUserId(token));
             } catch (RuntimeException e) {
-                if (proof != null) storage().delete(proof.publicId());
+                try { if (proof != null && !refundService.matchesTerminalProof(orderId, proof.publicId())) storage().delete(proof.publicId()); }
+                catch (RuntimeException cleanupFailure) { e.addSuppressed(cleanupFailure); }
                 throw e;
             }
             ApiResponse.ok(resp, null, "Refund updated");

@@ -120,7 +120,7 @@ public class OrdersDAO {
     }
 
     private static String adminQueueOrder(AdminOrderQuery query) {
-        if (query.attentionOnly()) return " ORDER BY CASE WHEN o.orderStatus='DELIVERY_FAILED' THEN 0 WHEN o.refundStatus<>'PENDING' THEN 1 ELSE 2 END, "
+        if (query.attentionOnly()) return " ORDER BY CASE WHEN o.orderStatus='DELIVERY_FAILED' THEN 0 WHEN o.refundStatus IS NULL OR o.refundStatus<>'PENDING' THEN 1 ELSE 2 END, "
                 + "COALESCE(o.deliveryFailedAt,o.statusEnteredAt,o.cancelledAt,o.createdAt) ASC,o.orderId ASC";
         return "CREATED_DESC".equals(query.sort())
                 ? " ORDER BY o.createdAt DESC,o.orderId DESC"

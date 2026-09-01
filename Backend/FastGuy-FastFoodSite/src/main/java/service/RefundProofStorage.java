@@ -38,7 +38,7 @@ public class RefundProofStorage {
     public UploadedProof uploadPrivate(String identity, byte[] content, String contentType) {
         validate(content, contentType);
         long timestamp = Instant.now().getEpochSecond();
-        String publicId = "fastguy/refunds/" + identity + "-" + sha256(content);
+        String publicId = publicId(identity, content);
         String signature = sha1("public_id=" + publicId + "&timestamp=" + timestamp + "&type=authenticated" + apiSecret);
         String boundary = "----FastGuy" + UUID.randomUUID();
         byte[] body = multipart(boundary, publicId, timestamp, signature, apiKey, contentType, content);
@@ -94,6 +94,8 @@ public class RefundProofStorage {
                 + "&api_key=" + encode(apiKey) + "&signature=" + signature;
         return new SignedProofUrl(url, expiresAt);
     }
+
+    public static String publicId(String identity, byte[] content) { return "fastguy/refunds/" + identity + "-" + sha256(content); }
 
     public static void validate(byte[] content, String contentType) {
         if (content == null || content.length == 0 || content.length > MAX_BYTES || !TYPES.contains(contentType)) throw new IllegalArgumentException("Invalid refund proof");
