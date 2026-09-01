@@ -9,7 +9,8 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const read = (p) => readFileSync(join(root, p), 'utf8');
 
 test('refunded requires fixed full amount and manual reference', () => {
-  assert.equal(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: 100000, note: '', reference: 'BANK-123' }), '');
+  assert.equal(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: 100000, note: '', reference: 'BANK-123', proof: {} }), '');
+  assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: 100000, note: '', reference: 'BANK-123', proof: null }), '');
   assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 50000, finalAmount: 100000, note: '', reference: 'BANK-123' }), '');
   assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 100001, finalAmount: 100000, note: '', reference: 'BANK-123' }), '');
   assert.notEqual(validateRefund({ status: 'REFUNDED', amount: 100000, finalAmount: 100000, note: '', reference: '   ' }), '');
@@ -61,11 +62,13 @@ test('OrderDetailPage renders payment attempt block', () => {
   }
 });
 
-test('RefundsPage confirms manual full refund with required reference and fixed amount', () => {
+test('RefundsPage records external full refund with required private proof', () => {
   const page = read('src/views/admin/RefundsPage.vue');
-  assert.match(page, /Xác nhận hoàn thủ công/);
+  assert.match(page, /Ghi nhận hoàn tiền bên ngoài/);
   assert.match(page, /refundReference/);
-  assert.match(page, /refundReference: refundForm\.value\.status === 'REFUNDED' \? refundForm\.value\.refundReference\.trim\(\) : null/);
+  assert.match(page, /new FormData\(\)/);
+  assert.match(page, /data\.append\('proof'/);
+  assert.match(page, /image\/jpeg,image\/png,image\/webp/);
   assert.match(page, /:value="Number\(refundOrder\.finalAmount\)"/);
   assert.match(page, /readonly/);
 });
@@ -92,18 +95,18 @@ test('RefundsPage reads and validates status from route query on mount', () => {
 test('RefundsPage syncs active status tab to route query', () => {
   const page = read('src/views/admin/RefundsPage.vue');
   assert.match(page, /setStatus/);
-  assert.match(page, /router\.replace/);
+  assert.match(page, /router\.push/);
   assert.match(page, /status: key \|\| undefined/);
   assert.match(page, /@click="setStatus\(item\.key\)"/);
 });
 
-test('RefundsPage dates label by createdAt and drops dead payment markup', () => {
+test('RefundsPage filters by processing dates and drops dead payment markup', () => {
   const page = read('src/views/admin/RefundsPage.vue');
-  assert.match(page, /Từ ngày tạo/);
-  assert.match(page, /Đến ngày tạo/);
+  assert.match(page, /Từ ngày xử lý/);
+  assert.match(page, /Đến ngày xử lý/);
   assert.match(page, /Ngày tạo/);
   assert.match(page, /formatDate\(row\.createdAt\)/);
-  assert.match(page, /KPI tính theo bộ lọc ngày tạo/);
+  assert.match(page, /Bộ lọc ngày dùng thời điểm xử lý/);
   assert.ok(!/cancelledAt/.test(page));
   assert.ok(!/pay-attempt|row\.provider|refundOrder\.provider|attemptAmount/.test(page));
 });
@@ -117,10 +120,12 @@ test('RefundsPage guards re-entry and restores focus on dialog close', () => {
   assert.match(page, /modalLifecycle\.close\(\)/);
 });
 
-test('RefundsPage watches route query status without re-replacing', () => {
+test('RefundsPage restores all URL-backed filters without navigation loops', () => {
   const page = read('src/views/admin/RefundsPage.vue');
-  assert.match(page, /watch\(\(\) => route\.query\.status, \(raw\) => \{\r?\n  const key = statusFromQuery\(raw\);\r?\n  if \(activeStatus\.value !== key\) activeStatus\.value = key;\r?\n\}\);/);
-  assert.ok(!/router\.replace/.test(page.match(/watch\(\(\) => route\.query\.status[\s\S]*?\}\);/)?.[0] || ''));
+  assert.match(page, /function hydrateQuery\(\)/);
+  assert.match(page, /route\.query\.search/);
+  assert.match(page, /route\.query\.fromDate/);
+  assert.match(page, /watch\(\(\) => route\.query, \(\) => \{ hydrateQuery\(\); load\(\); \}, \{ deep: true \}\)/);
 });
 
 test('RefundsPage guards stale load responses with generation', () => {

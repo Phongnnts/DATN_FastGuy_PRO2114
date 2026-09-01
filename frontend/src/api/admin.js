@@ -144,6 +144,7 @@ export default {
   updateRefund(orderId, data) {
     return client.put(`/admin/refunds/${orderId}`, data);
   },
+  getRefundProofUrl(orderId) { return client.get(`/admin/refunds/${orderId}/proof-url`); },
   getRefunds(params) {
     return client.get('/admin/refunds', { params });
   },
