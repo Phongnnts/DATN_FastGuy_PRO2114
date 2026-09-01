@@ -1,12 +1,6 @@
-export const ORDER_SHORTCUTS = Object.freeze([
-  { key: 'ATTENTION', label: 'Cần xử lý', description: 'Ưu tiên ngoại lệ chưa giải quyết', icon: 'bi-exclamation-circle', tone: 'warning' },
-  { key: 'PREPARING', label: 'Đang chuẩn bị', description: 'Theo dõi hàng đợi chế biến', icon: 'bi-fire', tone: 'info' },
-  { key: 'PICKED_UP', label: 'Đang giao', description: 'Kiểm tra đơn trên đường giao', icon: 'bi-scooter', tone: 'brand' },
-  { key: 'DELIVERY_FAILED', label: 'Có vấn đề', description: 'Xử lý giao hàng chưa thành công', icon: 'bi-exclamation-triangle', tone: 'danger' },
-]);
-
 export const PRIMARY_ORDER_STATUSES = Object.freeze([
   { key: '', label: 'Tất cả' },
+  { key: 'ATTENTION', label: 'Cần xử lý' },
   { key: 'PENDING', label: 'Chờ xác nhận' },
   { key: 'CONFIRMED', label: 'Đã xác nhận' },
   { key: 'PREPARING', label: 'Đang chế biến' },
@@ -37,6 +31,12 @@ const INLINE_ACTION_META = {
 
 export function normalizeOrderStatus(raw) {
   return typeof raw === 'string' && VALID_STATUS_KEYS.has(raw) ? raw : '';
+}
+
+export function parseOrderIdQuery(raw) {
+  if (typeof raw !== 'string' || !/^[1-9]\d*$/.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
 }
 
 export function isOtherOrderStatus(status) {

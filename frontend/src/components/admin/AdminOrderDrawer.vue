@@ -33,6 +33,11 @@ function requestClose() {
 function handleKeydown(event) {
   if (event.key === 'Escape') {
     event.preventDefault();
+    if (props.busy) return;
+    if (props.pendingAction) {
+      emit('cancel-action');
+      return;
+    }
     requestClose();
     return;
   }
@@ -77,31 +82,33 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="order-drawer-backdrop" @mousedown.self="requestClose">
-      <aside ref="dialogRef" class="order-drawer" role="dialog" aria-modal="true" aria-labelledby="order-drawer-title">
-        <header class="drawer-header">
+    <div v-if="open" class="order-modal-backdrop" @mousedown.self="requestClose">
+      <aside ref="dialogRef" class="order-modal" role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
+        <header class="modal-header">
           <div>
             <small>Chi tiết đơn hàng</small>
-            <h2 id="order-drawer-title">{{ order?.orderCode || 'Đang tải' }}</h2>
-            <div v-if="order" class="drawer-statuses"><OrderStatusBadge :status="order.status" /><span>{{ paymentMethodLabel(order.paymentMethod) }} · {{ paymentStatusLabel(order.paymentStatus) }}</span></div>
+            <h2 id="order-modal-title">{{ order?.orderCode || 'Đang tải' }}</h2>
+            <div v-if="order" class="modal-statuses"><OrderStatusBadge :status="order.status" /><span>{{ paymentMethodLabel(order.paymentMethod) }} · {{ paymentStatusLabel(order.paymentStatus) }}</span></div>
           </div>
-          <button ref="closeRef" class="order-drawer-close" type="button" aria-label="Đóng chi tiết đơn hàng" :disabled="busy" @click="requestClose"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+          <button ref="closeRef" class="order-modal-close" type="button" aria-label="Đóng chi tiết đơn hàng" :disabled="busy" @click="requestClose"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
         </header>
 
-        <div class="drawer-scroll">
-          <div v-if="loading" class="drawer-state" role="status">Đang tải chi tiết...</div>
-          <div v-else-if="error" class="drawer-state error" role="alert">{{ error }}</div>
-          <template v-else-if="order">
-            <section aria-labelledby="drawer-customer"><h3 id="drawer-customer">Khách hàng</h3><strong>{{ order.customerName || 'Chưa có tên khách hàng' }}</strong><a v-if="order.customerPhone" :href="`tel:${order.customerPhone}`">{{ order.customerPhone }}</a><span v-else>Chưa có số điện thoại</span></section>
-            <section aria-labelledby="drawer-delivery"><h3 id="drawer-delivery">Giao hàng</h3><p>{{ order.customerAddress || 'Chưa có địa chỉ giao hàng' }}</p><p v-if="order.deliveryNote">Ghi chú: {{ order.deliveryNote }}</p><p v-if="order.staffName || order.shipperName">Nhân sự: {{ [order.staffName, order.shipperName].filter(Boolean).join(' · ') }}</p></section>
-            <section aria-labelledby="drawer-items"><h3 id="drawer-items">Món trong đơn</h3><ul class="drawer-items"><li v-for="(item, index) in order.items" :key="`${item.productName}-${item.variantName}-${index}`"><img v-if="item.imageUrl" :src="item.imageUrl" alt="" /><span v-else class="item-fallback" aria-hidden="true"><i class="bi bi-basket"></i></span><div><strong>{{ item.productName || 'Sản phẩm' }}</strong><small>{{ item.variantName || 'Tiêu chuẩn' }} · ×{{ item.quantity }}</small></div><span><small>{{ formatPrice(item.unitPrice || 0) }}</small><strong>{{ formatPrice(item.totalPrice || 0) }}</strong></span></li></ul></section>
-            <section aria-labelledby="drawer-payment"><h3 id="drawer-payment">Thanh toán</h3><dl class="payment-breakdown"><div><dt>Tạm tính</dt><dd>{{ formatPrice(order.totalAmount || 0) }}</dd></div><div><dt>Phí giao hàng</dt><dd>{{ formatPrice(order.shippingFee || 0) }}</dd></div><div><dt>Giảm giá</dt><dd>−{{ formatPrice(order.discountAmount || 0) }}</dd></div><div class="total"><dt>Tổng cộng</dt><dd>{{ formatPrice(order.finalAmount || 0) }}</dd></div></dl></section>
-            <section aria-labelledby="drawer-history"><h3 id="drawer-history">Lịch sử đơn hàng</h3><OrderTimeline v-if="order.statusHistory?.length" :history="order.statusHistory" /><p v-else>{{ createdHistory }}</p></section>
-            <router-link class="full-detail-link" :to="`/admin/orders/${order.orderId}`">Mở trang đầy đủ <i class="bi bi-arrow-up-right" aria-hidden="true"></i></router-link>
-          </template>
+        <div class="modal-scroll">
+          <div v-if="loading" class="modal-state" role="status">Đang tải chi tiết...</div>
+          <div v-else-if="error" class="modal-state error" role="alert">{{ error }}</div>
+          <div v-else-if="order" class="modal-content-grid">
+            <div class="modal-facts">
+              <section aria-labelledby="modal-customer"><h3 id="modal-customer">Khách hàng</h3><strong>{{ order.customerName || 'Chưa có tên khách hàng' }}</strong><a v-if="order.customerPhone" :href="`tel:${order.customerPhone}`">{{ order.customerPhone }}</a><span v-else>Chưa có số điện thoại</span></section>
+              <section aria-labelledby="modal-delivery"><h3 id="modal-delivery">Giao hàng</h3><p>{{ order.customerAddress || 'Chưa có địa chỉ giao hàng' }}</p><p v-if="order.deliveryNote">Ghi chú: {{ order.deliveryNote }}</p><p v-if="order.staffName || order.shipperName">Nhân sự: {{ [order.staffName, order.shipperName].filter(Boolean).join(' · ') }}</p></section>
+              <section aria-labelledby="modal-items"><h3 id="modal-items">Món trong đơn</h3><ul class="modal-items"><li v-for="(item, index) in order.items" :key="`${item.productName}-${item.variantName}-${index}`"><img v-if="item.imageUrl" :src="item.imageUrl" alt="" /><span v-else class="item-fallback" aria-hidden="true"><i class="bi bi-basket"></i></span><div><strong>{{ item.productName || 'Sản phẩm' }}</strong><small>{{ item.variantName || 'Tiêu chuẩn' }} · ×{{ item.quantity }}</small></div><span><small>{{ formatPrice(item.unitPrice || 0) }}</small><strong>{{ formatPrice(item.totalPrice || 0) }}</strong></span></li></ul></section>
+              <section aria-labelledby="modal-payment"><h3 id="modal-payment">Thanh toán</h3><dl class="payment-breakdown"><div><dt>Tạm tính</dt><dd>{{ formatPrice(order.totalAmount || 0) }}</dd></div><div><dt>Phí giao hàng</dt><dd>{{ formatPrice(order.shippingFee || 0) }}</dd></div><div><dt>Giảm giá</dt><dd>−{{ formatPrice(order.discountAmount || 0) }}</dd></div><div class="total"><dt>Tổng cộng</dt><dd>{{ formatPrice(order.finalAmount || 0) }}</dd></div></dl></section>
+              <router-link class="full-detail-link" :to="`/admin/orders/${order.orderId}`">Mở trang đầy đủ <i class="bi bi-arrow-up-right" aria-hidden="true"></i></router-link>
+            </div>
+            <section class="modal-timeline" aria-labelledby="modal-history"><h3 id="modal-history">Lịch sử đơn hàng</h3><OrderTimeline v-if="order.statusHistory?.length" :history="order.statusHistory" /><p v-else>{{ createdHistory }}</p></section>
+          </div>
         </div>
 
-        <footer v-if="order" class="drawer-actions">
+        <footer v-if="order" class="modal-actions">
           <p v-if="actionMessage" class="action-message" role="status" aria-live="polite">{{ actionMessage }}</p>
           <p v-if="actionError" class="action-error" role="alert">{{ actionError }}</p>
           <template v-if="pendingMeta">
@@ -121,16 +128,17 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.order-drawer-backdrop{position:fixed;z-index:120;inset:0;display:flex;justify-content:flex-end;background:rgba(23,33,43,.36)}
-.order-drawer{display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:min(460px,100%);height:100dvh;border-radius:20px 0 0 20px;background:var(--admin-surface);box-shadow:-12px 0 32px rgba(23,33,43,.14);overflow:hidden;color:var(--admin-foreground)}
-.drawer-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px;border-bottom:1px solid var(--admin-border)}
-.drawer-header small{color:var(--admin-muted);font-size:12px}.drawer-header h2{margin:3px 0 8px}.drawer-statuses{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.drawer-statuses>span{padding:5px 9px;border-radius:999px;background:var(--admin-canvas);font-size:12px;font-weight:650}
-.order-drawer-close{width:44px;height:44px;border-radius:10px}.order-drawer :is(button,a,textarea):focus-visible{outline:3px solid var(--admin-brand);outline-offset:2px}
-.drawer-scroll{display:grid;align-content:start;gap:18px;overflow:auto;padding:18px 20px}.drawer-scroll section{display:grid;gap:8px}.drawer-scroll h3{margin:0;color:var(--admin-muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase}.drawer-scroll p{margin:0;line-height:1.5}.drawer-scroll a{color:var(--admin-brand);font-weight:650}
-.drawer-state{display:grid;min-height:240px;place-items:center;color:var(--admin-muted)}.drawer-state.error{color:var(--admin-danger)}
-.drawer-items{display:grid;gap:10px;margin:0;padding:0;list-style:none}.drawer-items li{display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--admin-border)}.drawer-items img,.item-fallback{width:48px;height:48px;border-radius:12px;object-fit:cover}.item-fallback{display:grid;place-items:center;background:var(--admin-canvas)}.drawer-items li>div,.drawer-items li>span:last-child{display:grid;gap:3px}.drawer-items li>span:last-child{text-align:right}.drawer-items small{color:var(--admin-muted)}
+.order-modal-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:24px;background:rgba(24,34,48,.34);backdrop-filter:blur(10px)}
+.order-modal{display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:880px;max-width:calc(100vw - 48px);max-height:85dvh;border:1px solid rgba(255,255,255,.9);border-radius:22px;background:rgba(255,255,255,.96);box-shadow:0 28px 80px rgba(24,34,48,.22);overflow:hidden;color:var(--admin-foreground)}
+.modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px;border-bottom:1px solid var(--admin-border)}
+.modal-header small{color:var(--admin-muted);font-size:12px}.modal-header h2{margin:3px 0 8px}.modal-statuses{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.modal-statuses>span{padding:5px 9px;border-radius:999px;background:var(--admin-canvas);font-size:12px;font-weight:650}
+.order-modal-close{width:44px;height:44px;border-radius:10px}.order-modal :is(button,a,textarea):focus-visible{outline:3px solid var(--admin-brand);outline-offset:2px}
+.modal-scroll{overflow:auto;padding:18px 20px}.modal-content-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr);gap:28px}.modal-facts,.modal-timeline{display:grid;align-content:start;gap:18px}.modal-scroll section{display:grid;gap:8px}.modal-scroll h3{margin:0;color:var(--admin-muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase}.modal-scroll p{margin:0;line-height:1.5}.modal-scroll a{color:var(--admin-brand);font-weight:650}
+.modal-state{display:grid;min-height:240px;place-items:center;color:var(--admin-muted)}.modal-state.error{color:var(--admin-danger)}
+.modal-items{display:grid;gap:10px;margin:0;padding:0;list-style:none}.modal-items li{display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--admin-border)}.modal-items img,.item-fallback{width:48px;height:48px;border-radius:12px;object-fit:cover}.item-fallback{display:grid;place-items:center;background:var(--admin-canvas)}.modal-items li>div,.modal-items li>span:last-child{display:grid;gap:3px}.modal-items li>span:last-child{text-align:right}.modal-items small{color:var(--admin-muted)}
 .payment-breakdown{display:grid;gap:9px;margin:0}.payment-breakdown div{display:flex;justify-content:space-between;gap:16px}.payment-breakdown dd{margin:0;font-variant-numeric:tabular-nums}.payment-breakdown .total{padding-top:10px;border-top:1px solid var(--admin-border);font-weight:750}.full-detail-link{display:inline-flex;align-items:center;gap:6px;width:max-content;min-height:44px}
-.drawer-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:14px 20px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--admin-border);background:var(--admin-surface);box-shadow:0 -8px 24px rgba(23,33,43,.05)}.drawer-actions>p,.drawer-actions>label,.drawer-actions>textarea{flex-basis:100%;margin:0}.drawer-actions>div{display:flex;justify-content:flex-end;gap:8px;width:100%}.drawer-actions textarea{width:100%;resize:vertical}.action-message{color:var(--admin-success)}.action-error{color:var(--admin-danger)}.btn-outline-danger{min-height:40px;padding:0 14px;border:1px solid var(--admin-danger);border-radius:10px;color:var(--admin-danger)}
-@media(max-width:640px){.order-drawer{width:100%;border-radius:0}.drawer-header,.drawer-scroll,.drawer-actions{padding-inline:16px}.drawer-actions>.btn{flex:1}}
-@media(prefers-reduced-motion:no-preference){.order-drawer{animation:drawer-in .18s ease-out}@keyframes drawer-in{from{transform:translateX(18px);opacity:.8}to{transform:none;opacity:1}}}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--admin-border);background:var(--admin-surface);box-shadow:0 -8px 24px rgba(23,33,43,.05)}.modal-actions>p,.modal-actions>label,.modal-actions>textarea{flex-basis:100%;margin:0}.modal-actions>div{display:flex;gap:8px;width:100%}.modal-actions>.btn:first-of-type,.modal-actions>div>button:first-child{margin-left:auto}.modal-actions textarea{width:100%;resize:vertical}.action-message{color:var(--admin-success)}.action-error{color:var(--admin-danger)}.btn-outline-danger{min-height:40px;padding:0 14px;border:1px solid var(--admin-danger);border-radius:10px;color:var(--admin-danger)}
+@media(max-width:768px){.modal-content-grid{grid-template-columns:1fr}}
+@media(max-width:640px){.order-modal-backdrop{padding:0}.order-modal{width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0}.modal-header,.modal-scroll,.modal-actions{padding-inline:16px}.modal-actions>.btn{flex:1}}
+@media(prefers-reduced-motion:no-preference){.order-modal{animation:modal-in .18s ease-out}@keyframes modal-in{from{transform:translateY(12px);opacity:.8}to{transform:none;opacity:1}}}
 </style>

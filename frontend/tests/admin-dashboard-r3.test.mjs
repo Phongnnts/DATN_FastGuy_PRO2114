@@ -40,8 +40,16 @@ test('R3 dashboard uses the four approved cockpit KPIs and new canonical analyti
 });
 
 test('R3 dashboard source follows the approved cockpit section order', () => {
-  ordered(dashboard, ['<header class="dashboard-heading"', 'class="operating-metrics', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết']);
-  assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý|<p class="eyebrow"/);
+  ordered(dashboard, ['<header class="dashboard-hero"', 'class="operating-metrics', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết', 'class="panel priority-orders-panel']);
+  assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý/);
+});
+
+test('dashboard uses the approved Apple-inspired hierarchy without decorative fake data', () => {
+  for (const className of ['dashboard-hero', 'metric-card', 'revenue-panel', 'attention-panel', 'status-panel', 'products-panel', 'stock-panel', 'priority-orders-panel']) {
+    assert.match(dashboard, new RegExp(className));
+  }
+  assert.match(dashboard, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
+  assert.doesNotMatch(dashboard, /sparkline|fakeTrend|notification-bell|global-search/);
 });
 
 test('R3 attention maps all six types to exact destination queries', () => {
@@ -82,6 +90,18 @@ test('R3 dashboard exposes Task 5 states, store error, unavailable sections, and
   assert.match(dashboard, /skeleton-attention/);
   assert.match(dashboard, /skeleton-metrics/);
   assert.match(dashboard, /skeleton-flow/);
+});
+
+test('dashboard priority preview uses the contracted order queue without polluting Orders store state', () => {
+  assert.match(dashboard, /adminApi\.getOrders/);
+  assert.match(dashboard, /attentionOnly:\s*true/);
+  assert.match(dashboard, /sort:\s*'WAITING_DESC'/);
+  assert.match(dashboard, /pageSize:\s*8/);
+  assert.match(dashboard, /priorityOrders/);
+  assert.match(dashboard, /Array\.isArray\(result\?\.items\)\s*\?\s*result\.items\.slice\(0, 8\)\s*:\s*Array\.isArray\(result\)\s*\?\s*result\.slice\(0, 8\)\s*:\s*\[\]/);
+  assert.doesNotMatch(dashboard, /adminStore\.fetchOrders/);
+  assert.match(dashboard, /Đơn cần ưu tiên/);
+  assert.match(dashboard, /Xem tất cả/);
 });
 
 test('R3 destination pages validate and synchronize exact query enums', () => {

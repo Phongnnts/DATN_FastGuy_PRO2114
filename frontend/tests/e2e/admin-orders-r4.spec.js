@@ -84,12 +84,14 @@ async function setup(page, { cancelConflict = false, pendingDelay = 0, detailRel
   return { calls };
 }
 
-test('friendly queue keeps truthful shortcuts, filters, and responsive order presentation', async ({ page }, testInfo) => {
+test('friendly queue keeps compact filters, tabs, and responsive order presentation', async ({ page }, testInfo) => {
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=ATTENTION');
-  for (const label of ['Cần xử lý', 'Đang chuẩn bị', 'Đang giao', 'Có vấn đề']) await expect(page.getByRole('button', { name: new RegExp(label) })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Cần xử lý/ })).not.toContainText(/\d/);
+  await expect(page.getByRole('tab', { name: 'Cần xử lý' })).toHaveAttribute('tabindex', '0');
+  await expect(page.getByRole('tab', { name: 'Tất cả' })).toHaveAttribute('tabindex', '-1');
+  await expect(page.locator('[role="tab"][tabindex="0"]')).toHaveCount(1);
+  await expect(page.locator('.filter-toolbar')).toBeVisible();
   await expect(page.getByRole('tab', { name: /Khác/ })).toBeVisible();
   await page.getByRole('tab', { name: /Khác/ }).click();
   await expect(page.getByRole('menuitemradio', { name: 'Đã hủy' })).toBeVisible();
@@ -104,7 +106,7 @@ test('friendly queue keeps truthful shortcuts, filters, and responsive order pre
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Enter');
   await expect(allTab).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('button', { name: /Cần xử lý/ }).click();
+  await page.goto('/admin/orders?status=ATTENTION');
   const visibleQueue = testInfo.project.name === 'mobile-chrome' ? page.locator('.mobile-order-list') : page.getByRole('table', { name: 'Danh sách đơn hàng' });
   await expect(visibleQueue).toBeVisible();
   await expect(visibleQueue.locator('.attention-reasons').getByText('Giao thất bại', { exact: true })).toBeVisible();
@@ -140,7 +142,10 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=PENDING');
-  await page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first().click();
+  const row = page.locator('tr.order-row-trigger', { hasText: 'FG-0009' });
+  await row.focus();
+  await expect(row).toBeFocused();
+  await page.keyboard.press('Enter');
   const drawer = page.getByRole('dialog', { name: 'FG-0009' });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText('Nam Phong')).toBeVisible();
@@ -154,6 +159,68 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   await expect.poll(() => calls.status.length).toBe(1);
   expect(calls.status[0]).toEqual({ method: 'PUT', path: '/api/admin/orders/9/status', query: [], body: { expectedStatus: 'PENDING', status: 'CONFIRMED', note: null } });
   await expect(drawer.getByText('Đã cập nhật đơn hàng.')).toBeVisible();
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
+test('Escape cancels cancellation confirmation before closing modal and restores trigger focus', async ({ page }, testInfo) => {
+  await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=PENDING');
+  const trigger = page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first();
+  await trigger.click();
+  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  await drawer.getByRole('button', { name: 'Hủy đơn' }).click();
+  await drawer.getByLabel('Lý do hủy đơn').fill('Khách yêu cầu đổi đơn');
+
+  await page.keyboard.press('Escape');
+
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByLabel('Lý do hủy đơn')).toHaveCount(0);
+  await expect(drawer.getByText('Xác nhận: Hủy đơn?')).toHaveCount(0);
+
+  await page.keyboard.press('Escape');
+
+  await expect(drawer).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
+test('malformed orderId deep-link does not request or open detail', async ({ page }, testInfo) => {
+  const { calls } = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=ATTENTION&orderId=9abc');
+  await expect(page.getByRole('table', { name: 'Danh sách đơn hàng' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(() => calls.detail.length).toBe(0);
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
+test('orderId deep-link opens one modal and Escape preserves route filters', async ({ page }, testInfo) => {
+  const { calls } = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=ATTENTION&orderId=9');
+  await expect(page.getByRole('dialog', { name: 'FG-0009' })).toBeVisible();
+  await expect.poll(() => calls.detail.length).toBe(1);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page).toHaveURL('/admin/orders?status=ATTENTION');
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
+test('nested row controls do not bubble keyboard activation into a second detail request', async ({ page }, testInfo) => {
+  const { calls } = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=PENDING');
+  const orderButton = page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first();
+  await orderButton.focus();
+  await page.keyboard.press('Enter');
+  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  await expect(drawer).toBeVisible();
+  await expect.poll(() => calls.detail.length).toBe(1);
+  await orderButton.dispatchEvent('keydown', { key: ' ', bubbles: true });
+  await expect.poll(() => calls.detail.length).toBe(1);
+  await drawer.getByRole('button', { name: 'Đóng chi tiết đơn hàng' }).click();
+  await expect(orderButton).toBeFocused();
   expect(errors, testInfo.project.name).toEqual([]);
 });
 

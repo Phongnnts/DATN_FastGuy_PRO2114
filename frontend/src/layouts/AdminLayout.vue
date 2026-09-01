@@ -273,14 +273,16 @@ function isLinkActive(link) {
 .fg-shell-admin{--role-accent:var(--primary);--role-soft:var(--primary-50)}
 .sidebar{width:248px}
 .main-content{min-width:0;margin-left:248px}
-.fg-shell-admin :deep(.sidebar){border-right:1px solid var(--admin-border);background:var(--admin-surface)}
+.fg-shell-admin :deep(.sidebar){border-right:1px solid var(--admin-border);background:rgba(255,255,255,.92)}
+.fg-shell-admin :deep(.main-content){background:var(--admin-canvas)}
 .sidebar-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom-color:var(--admin-border)}
 .sidebar-brand-title{letter-spacing:-.04em}
 .sidebar-nav{scroll-behavior:auto}
 .sidebar-nav a{border-radius:12px}
-.sidebar-nav a.router-link-active{color:var(--admin-foreground);background:var(--admin-brand-soft);box-shadow:none}
+.sidebar-nav a.router-link-active{position:relative;color:var(--admin-brand-dark);background:var(--admin-brand-soft);box-shadow:none}
+.sidebar-nav a.router-link-active::before{position:absolute;inset:8px auto 8px 0;width:3px;border-radius:99px;background:var(--admin-brand);content:""}
 .sidebar-nav a.router-link-active i{color:var(--admin-brand)}
-.topbar{height:60px;border-bottom-color:var(--admin-border);background:var(--admin-surface)}
+.topbar{height:64px;border-bottom:1px solid var(--admin-border);background:rgba(255,255,255,.78);backdrop-filter:blur(20px)}
 .topbar h1{font-size:15px;letter-spacing:-.02em}
 .page-content{max-width:1600px;background:var(--admin-canvas)}
 @media (max-width:1279px){.main-content{margin-left:0}}
