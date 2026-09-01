@@ -11,6 +11,7 @@
 
 - Đọc file liên quan và làm theo convention hiện có; không quét toàn repo nếu không cần.
 - Tái sử dụng code và dependency sẵn có. Không thêm abstraction dùng một lần hoặc dependency mới khi vài dòng code đủ.
+- Tailwind CSS v4 được phép cho frontend mới và khi nâng cấp UI. Dùng prefix `tw:` và migrate tăng dần; không bắt buộc viết lại CSS hiện có.
 - Không hardcode secret, không log credential, luôn validate input tại trust boundary.
 - Không tạo tài liệu, TODO, roadmap hoặc comment nếu không được yêu cầu.
 
