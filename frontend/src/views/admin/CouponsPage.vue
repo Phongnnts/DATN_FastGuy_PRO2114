@@ -196,7 +196,7 @@ onMounted(load);
 
 <template>
   <main class="coupons-page">
-    <header class="page-heading"><div><p class="eyebrow">Khuyến mãi</p><h1>Quản lý mã giảm giá</h1><p>Theo dõi ưu đãi, lượt sử dụng và phạm vi hiển thị.</p></div><button class="btn btn-primary" @click="openCreate"><i class="bi bi-plus-lg"></i> Tạo mã</button></header>
+    <header class="page-heading campaign-header"><div><p class="eyebrow">Khuyến mãi</p><h1>Quản lý mã giảm giá</h1><p>Theo dõi ưu đãi, lượt sử dụng và phạm vi hiển thị.</p></div><button class="btn btn-primary" @click="openCreate"><i class="bi bi-plus-lg"></i> Tạo mã</button></header>
 
     <section class="stats" aria-label="Tổng quan mã giảm giá">
       <article><span class="stat-icon violet"><i class="bi bi-ticket-perforated"></i></span><div><small>Tổng mã</small><strong>{{ stats.total }}</strong></div></article>
@@ -205,7 +205,7 @@ onMounted(load);
       <article><span class="stat-icon amber"><i class="bi bi-bag-check"></i></span><div><small>Tổng lượt dùng</small><strong>{{ stats.used }}</strong></div></article>
     </section>
 
-    <section class="panel">
+    <section class="panel coupon-campaign-workspace">
       <div class="filters">
         <label class="search-box"><i class="bi bi-search"></i><input v-model="searchTerm" aria-label="Tìm theo mã" placeholder="Tìm theo mã giảm giá"><button v-if="searchTerm" type="button" aria-label="Xóa tìm kiếm" @click="searchTerm = ''"><i class="bi bi-x-circle-fill"></i></button></label>
         <select v-model="typeFilter" class="form-select" aria-label="Lọc loại"><option value="">Mọi loại</option><option value="PERCENT">Phần trăm</option><option value="FIXED">Tiền mặt</option><option value="FREE_SHIPPING">Miễn phí ship</option></select>
@@ -222,7 +222,7 @@ onMounted(load);
         <div class="table-wrapper"><table class="table"><thead><tr><th>Mã ưu đãi</th><th>Loại</th><th>Giá trị</th><th>Điều kiện</th><th>Usage</th><th>Hết hạn</th><th>Trạng thái</th><th>Công khai</th><th><span class="sr-only">Thao tác</span></th></tr></thead><tbody><tr v-for="coupon in paged" :key="coupon.couponId" :class="{ muted: couponStatus(coupon) !== 'ACTIVE' }">
           <td><strong class="coupon-code">{{ coupon.code }}</strong></td><td><span class="type-pill">{{ typeLabel(coupon.type) }}</span></td><td><strong>{{ valueText(coupon) }}</strong><small v-if="coupon.maxDiscount">Tối đa {{ Number(coupon.maxDiscount).toLocaleString('vi-VN') }}đ</small></td><td>Từ {{ Number(coupon.minOrder || 0).toLocaleString('vi-VN') }}đ</td>
           <td><div class="usage"><span><b>{{ coupon.usedCount || 0 }}</b> / {{ coupon.maxUses || '∞' }}</span><div><i :style="{ width: `${coupon.maxUses ? Math.min(100, Number(coupon.usedCount || 0) / Number(coupon.maxUses) * 100) : 0}%` }"></i></div></div></td>
-          <td>{{ coupon.expiresAt ? new Date(coupon.expiresAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Không giới hạn' }}</td>
+          <td><strong>{{ coupon.expiresAt ? new Date(coupon.expiresAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Không giới hạn' }}</strong><small>{{ couponStatus(coupon) === 'EXPIRED' ? 'Đã hết hiệu lực' : 'Thời hạn ưu đãi' }}</small></td>
           <td><button class="status-pill" :class="couponStatus(coupon).toLowerCase()" :disabled="!!pendingAction" @click="toggle(coupon, 'isActive')"><span v-if="pendingAction === `isActive-${coupon.couponId}`" class="mini-spinner"></span><i v-else></i>{{ statusLabel(coupon) }}</button></td>
           <td><label class="toggle-switch" :aria-label="`Công khai ${coupon.code}`"><input type="checkbox" :checked="coupon.isPublic" :disabled="!!pendingAction" @change="toggle(coupon, 'isPublic')"><span class="toggle-slider"></span></label></td>
           <td><div class="actions"><button class="icon-button edit" :disabled="!!pendingAction" :aria-label="`Sửa ${coupon.code}`" @click="openEdit(coupon)"><i class="bi bi-pencil-square"></i></button><button class="icon-button delete" :disabled="!coupon.canDelete || !!pendingAction" :title="coupon.canDelete ? 'Xóa mã' : 'Mã đã có lịch sử, hãy tắt kích hoạt'" :aria-label="`Xóa ${coupon.code}`" @click="remove(coupon)"><span v-if="pendingAction === `delete-${coupon.couponId}`" class="mini-spinner"></span><i v-else class="bi bi-trash3"></i></button></div></td>
