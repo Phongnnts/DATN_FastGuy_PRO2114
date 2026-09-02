@@ -169,7 +169,9 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=PENDING');
-  const row = page.locator('tr.order-row-trigger', { hasText: 'FG-0009' });
+  const row = testInfo.project.name === 'mobile-chrome'
+    ? page.locator('.mobile-order-card', { hasText: 'FG-0009' }).getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first()
+    : page.locator('tr.order-row-trigger', { hasText: 'FG-0009' });
   await row.focus();
   await expect(row).toBeFocused();
   await page.keyboard.press('Enter');
@@ -216,7 +218,8 @@ test('malformed orderId deep-link does not request or open detail', async ({ pag
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=ATTENTION&orderId=9abc');
-  await expect(page.getByRole('table', { name: 'Danh sách đơn hàng' })).toBeVisible();
+  const visibleQueue = testInfo.project.name === 'mobile-chrome' ? page.locator('.mobile-order-list') : page.getByRole('table', { name: 'Danh sách đơn hàng' });
+  await expect(visibleQueue).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect.poll(() => calls.detail.length).toBe(0);
   expect(errors, testInfo.project.name).toEqual([]);
