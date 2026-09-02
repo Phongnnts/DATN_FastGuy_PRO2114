@@ -61,7 +61,7 @@ onUnmounted(() => { attendanceGeneration++; rateGeneration++; });
 
 <template>
   <main class="attendance-page">
-    <header class="page-header"><div><p class="eyebrow">Nhân sự</p><h1>Chấm công & tiền công</h1><p>Đối chiếu giờ làm thực tế, duyệt công và quản lý mức tiền công theo hiệu lực.</p></div></header>
+    <header class="page-header operations-studio-page-header"><div><p class="eyebrow">Nhân sự</p><h1>Chấm công & tiền công</h1><p>Đối chiếu giờ làm thực tế, duyệt công và quản lý mức tiền công theo hiệu lực.</p></div></header>
     <div class="attendance-mode-tabs view-tabs" role="tablist" aria-label="Chấm công và tiền công"><button role="tab" :aria-selected="attendanceView === 'attendance'" @click="attendanceView = 'attendance'">Duyệt chấm công</button><button role="tab" :aria-selected="attendanceView === 'rates'" @click="attendanceView = 'rates'">Mức tiền công</button></div>
     <template v-if="attendanceView === 'attendance'">
       <section class="attendance-summary-grid summary-grid" aria-label="Kết quả tháng"><article><span>Tổng ước tính đã duyệt</span><strong>{{ money(monthResult.total) }}</strong></article><article><span>Ca chờ duyệt</span><strong>{{ monthResult.pending }}</strong></article><article><span>Chờ mức công</span><strong>{{ monthResult.missing }} ca</strong></article><article><span>Legacy không snapshot</span><strong>{{ monthResult.legacy }} ca</strong></article></section>

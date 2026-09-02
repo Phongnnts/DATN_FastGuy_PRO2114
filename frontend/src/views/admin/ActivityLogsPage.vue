@@ -62,8 +62,8 @@ onMounted(() => load(1));
 
 <template>
   <main class="activity-page">
-    <header class="page-header"><div><h1>Nhật ký hoạt động</h1><p>Theo dõi các thao tác quản trị mới nhất.</p></div></header>
-    <form class="filters" @submit.prevent="applyFilters">
+    <header class="page-header operations-studio-page-header"><div><h1>Nhật ký hoạt động</h1><p>Theo dõi các thao tác quản trị mới nhất.</p></div></header>
+    <form class="filters audit-filter-workspace" @submit.prevent="applyFilters">
       <label>Từ ngày<input v-model="filters.from" type="date" class="form-control" /></label>
       <label>Đến ngày<input v-model="filters.to" type="date" class="form-control" /></label>
       <label>Loại thao tác<select v-model="filters.actionType" class="form-select"><option value="">Tất cả</option><option v-for="(label, value) in ACTION_LABELS" :key="value" :value="value">{{ label }}</option></select></label>
@@ -74,9 +74,9 @@ onMounted(() => load(1));
     <div v-if="error" class="state error" role="alert">{{ error }} <button class="btn btn-outline" type="button" @click="load()">Thử lại</button></div>
     <div v-else-if="loading" class="state" aria-live="polite">Đang tải nhật ký...</div>
     <div v-else-if="!items.length" class="state">Không có nhật ký phù hợp.</div>
-    <section v-else class="log-list" aria-label="Danh sách nhật ký hoạt động">
+    <section v-else class="log-list immutable-audit-workspace" aria-label="Danh sách nhật ký hoạt động">
       <article v-for="item in items" :key="item.activityLogId" class="log-card">
-        <div class="log-main"><strong>{{ ACTION_LABELS[item.actionType] }}</strong><span>{{ formatDate(item.createdAt) }}</span></div>
+        <div class="log-main"><strong>{{ ACTION_LABELS[item.actionType] }}</strong><time :datetime="item.createdAt">{{ formatDate(item.createdAt) }}</time></div>
         <p>{{ item.summary }}</p>
         <dl class="facts"><div><dt>Người thực hiện</dt><dd>{{ item.actor.fullName }} (#{{ item.actor.userId }})</dd></div><div><dt>Đối tượng</dt><dd>{{ item.targetType }}<template v-if="item.targetId"> #{{ item.targetId }}</template></dd></div></dl>
         <dl v-if="metadataEntries(item.metadata).length" class="metadata"><div v-for="([key, value]) in metadataEntries(item.metadata)" :key="key"><dt>{{ key }}</dt><dd>{{ displayValue(value) }}</dd></div></dl>

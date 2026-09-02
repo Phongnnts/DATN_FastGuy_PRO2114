@@ -53,7 +53,7 @@ onBeforeUnmount(() => { loadGeneration++; });
 
 <template>
   <main class="hr-dashboard">
-    <header class="page-header"><div><p class="eyebrow">ĐỘI NGŨ HÔM NAY</p><h1>Nhân sự vận hành</h1><p>Nắm tình hình ca làm, ngoại lệ và chấm công trong một nơi.</p></div><button class="btn btn-outline" type="button" @click="load"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Làm mới</button></header>
+    <header class="page-header operations-studio-page-header"><div><p class="eyebrow">ĐỘI NGŨ HÔM NAY</p><h1>Nhân sự vận hành</h1><p>Nắm tình hình ca làm, ngoại lệ và chấm công trong một nơi.</p></div><button class="btn btn-outline" type="button" @click="load"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Làm mới</button></header>
     <section class="metric-grid" aria-label="Tình hình nhân sự hôm nay">
       <article class="metric-card"><span>Nhân sự vận hành</span><strong>{{ usersLoading ? '—' : activeWorkforce }}</strong><small v-if="usersError" role="alert">{{ usersError }}</small><router-link v-else to="/admin/users">Mở Người dùng</router-link></article>
       <article class="metric-card"><span>Ca đã bố trí hôm nay</span><strong>{{ scheduleLoading ? '—' : `${staffedToday} / 3` }}</strong><small v-if="scheduleError" role="alert">{{ scheduleError }}</small><router-link v-else to="/admin/shifts">Mở lịch ca</router-link></article>

@@ -150,7 +150,7 @@ onUnmounted(() => {
 
 <template>
   <div class="settings-page">
-    <div class="page-header"><h1>Cài đặt cửa hàng</h1></div>
+    <div class="page-header operations-studio-page-header"><div><p class="eyebrow">Cấu hình</p><h1>Cài đặt cửa hàng</h1><p>Điều chỉnh từng nhóm độc lập và xem rõ tác động trước khi lưu.</p></div></div>
 
     <section v-if="loadState === 'loading'" class="state" role="status">Đang tải cài đặt...</section>
     <section v-else-if="loadState === 'error'" class="state state-error" role="alert">
@@ -163,7 +163,7 @@ onUnmounted(() => {
         <button v-for="(tab, index) in tabs" :id="`settings-tab-${tab.id}`" :key="tab.id" :ref="(element) => { tabRefs[index] = element; }" role="tab" type="button" :aria-selected="activeTab === tab.id" :aria-controls="`settings-panel-${tab.id}`" :tabindex="activeTab === tab.id ? 0 : -1" @click="selectTab(tab)" @keydown="handleTabKeydown($event, index)"><i class="bi" :class="tab.icon" aria-hidden="true"></i>{{ tab.label }}<span v-if="dirty[tab.id]" class="dirty" aria-hidden="true">•</span><span v-if="dirty[tab.id]" class="visually-hidden">, có thay đổi chưa lưu</span></button>
       </div>
 
-      <section :id="`settings-panel-${activeTab}`" role="tabpanel" :aria-labelledby="`settings-tab-${activeTab}`" tabindex="0">
+      <section :id="`settings-panel-${activeTab}`" class="consequential-settings-workspace" role="tabpanel" :aria-labelledby="`settings-tab-${activeTab}`" tabindex="0">
         <form v-if="activeTab === 'store'" class="card card-flat settings-card" @submit.prevent="saveTab('store')" novalidate>
           <h3 class="panel-title"><i class="bi bi-shop"></i> Cửa hàng</h3>
           <div class="form-group">

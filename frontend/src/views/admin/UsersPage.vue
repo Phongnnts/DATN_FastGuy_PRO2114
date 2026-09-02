@@ -274,7 +274,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', handleOverlayKeydo
 
 <template>
   <div class="users-page">
-    <div class="page-header">
+    <div class="page-header operations-studio-page-header">
       <div><h1>Quản lý người dùng</h1><p>Quản lý tài khoản, vai trò và quyền truy cập hệ thống.</p></div>
       <button class="btn btn-primary add-button" @click="openAdd"><i class="bi bi-person-plus"></i> Thêm người dùng</button>
     </div>
