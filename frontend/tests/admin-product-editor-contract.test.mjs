@@ -103,15 +103,15 @@ test('editor validates ID and directly loads detail with stale request guards', 
   assert.match(productEditorPage, /Đang tải sản phẩm|Không tìm thấy sản phẩm|Không thể tải sản phẩm/);
 });
 
-test('editor exposes accessible section tabs and create locks', () => {
-  assert.match(productEditorPage, /role="tablist"/);
-  assert.match(productEditorPage, /role="tab"/);
-  assert.match(productEditorPage, /aria-selected/);
-  assert.match(productEditorPage, /aria-controls/);
-  assert.match(productEditorPage, /id: 'general'/);
-  assert.match(productEditorPage, /id: 'media'/);
-  assert.match(productEditorPage, /id: 'variants'/);
-  assert.match(productEditorPage, /id: 'modifiers'/);
+test('editor exposes accessible in-page section navigation and create locks', () => {
+  assert.match(productEditorPage, /<nav class="section-tabs" aria-label="Phần chỉnh sửa sản phẩm">/);
+  assert.doesNotMatch(productEditorPage, /role="tablist"|role="tab"|role="tabpanel"|aria-selected/);
+  assert.match(productEditorPage, /:aria-current="activeSection === section\.id \? 'location' : undefined"/);
+  assert.match(productEditorPage, /:aria-controls="`product-section-\$\{section\.id\}`"/);
+  for (const id of ['general', 'media', 'variants', 'modifiers']) {
+    assert.match(productEditorPage, new RegExp(`id: '${id}'`));
+    assert.match(productEditorPage, new RegExp(`id="product-section-${id}"`));
+  }
   assert.doesNotMatch(productEditorPage, /id: 'combo'|ProductComboSection|activeSection === 'combo'/);
   assert.match(productEditorPage, /disabled: isCreateMode\.value && section\.id === 'modifiers'/);
 });
@@ -179,7 +179,7 @@ test('category failure blocks editor with retry and not-found links catalog', ()
   assert.match(productEditorPage, /loadState === 'not-found'[\s\S]*AdminProducts/);
 });
 
-test('tabs support arrow home end navigation and focus selected enabled tab', () => {
+test('section navigation supports arrow home end navigation and focuses the current enabled control', () => {
   assert.match(productEditorPage, /nextEnabledSectionIndex/);
   assert.match(productEditorPage, /ArrowLeft/);
   assert.match(productEditorPage, /ArrowRight/);
