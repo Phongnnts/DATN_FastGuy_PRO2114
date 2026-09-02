@@ -6,6 +6,8 @@ const props = defineProps({
   title: { type: String, default: '' },
   message: { type: String, default: '' },
   confirmLabel: { type: String, default: 'Xác nhận' },
+  confirmTone: { type: String, default: 'danger' },
+  confirmDisabled: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
 });
 const emit = defineEmits(['confirm', 'cancel']);
@@ -74,12 +76,13 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div v-if="open" class="confirm-overlay" @click.self="requestCancel">
-      <section ref="dialogRef" class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message" tabindex="-1">
+      <section ref="dialogRef" class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" :aria-describedby="message ? 'confirm-dialog-message' : undefined" tabindex="-1">
         <h2 id="confirm-dialog-title">{{ title }}</h2>
-        <p id="confirm-dialog-message">{{ message }}</p>
+        <p v-if="message" id="confirm-dialog-message">{{ message }}</p>
+        <div v-if="$slots.default" class="dialog-content"><slot /></div>
         <div class="dialog-actions">
           <button ref="cancelRef" class="btn btn-outline" type="button" :disabled="busy" @click="requestCancel">Hủy</button>
-          <button class="btn btn-danger" type="button" :disabled="busy" @click="emit('confirm')">{{ busy ? 'Đang xử lý...' : confirmLabel }}</button>
+          <button :class="['btn', confirmTone === 'danger' ? 'btn-danger' : 'btn-primary']" type="button" :disabled="busy || confirmDisabled" @click="emit('confirm')">{{ busy ? 'Đang xử lý...' : confirmLabel }}</button>
         </div>
       </section>
     </div>
@@ -91,5 +94,6 @@ onBeforeUnmount(() => {
 .confirm-dialog{width:min(420px,100%);max-height:calc(100vh - 40px);overflow:auto;padding:24px;border-radius:18px;background:var(--surface);box-shadow:0 24px 70px rgba(15,23,42,.25)}
 .confirm-dialog h2{margin:0 0 8px}
 .confirm-dialog p{margin:0 0 18px;color:var(--text-mid);line-height:1.5}
+.dialog-content{margin-bottom:18px}.dialog-content :deep(textarea){width:100%;resize:vertical}
 .dialog-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}
 </style>

@@ -55,6 +55,8 @@ test('drawer actions are controlled by canonical allowedActions and current deta
   assert.match(drawer, /confirm-action/);
   assert.match(drawer, /\/admin\/refunds/);
   assert.match(drawer, /Mở trang đầy đủ/);
+  assert.match(drawer, /returnTo/);
+  assert.match(drawer, /adminOrderReturnContext\(route\.fullPath\)/);
 });
 
 test('OrdersPage delegates drawer presentation without moving request ownership', () => {

@@ -12,6 +12,8 @@ import {
   activeOrderFilterChips,
   inlineOrderActionMeta,
   inlineOrderActions,
+  adminOrderReturnDestination,
+  adminOrderReturnContext,
 } from '../src/utils/adminOrderWorkspace.js';
 
 test('status navigation keeps primary values visible and secondary values in Khác', () => {
@@ -66,7 +68,15 @@ test('inline actions fail closed to approved contract-safe transitions', () => {
   assert.deepEqual(inlineOrderActions(null), []);
 });
 
-test('full order detail mirrors drawer fact order and preserves browser return context', () => {
+test('admin order return destination accepts only an explicit internal orders-list query', () => {
+  assert.equal(adminOrderReturnContext('/admin/orders?status=PENDING&orderId=9&search=FG-9'), '/admin/orders?status=PENDING&search=FG-9');
+  assert.deepEqual(adminOrderReturnDestination('/admin/orders?status=PENDING&search=FG-9'), { path: '/admin/orders', query: { status: 'PENDING', search: 'FG-9' } });
+  for (const value of [undefined, '', '/admin/orders/9', '/admin/refunds', 'https://evil.example/admin/orders', '//evil.example/admin/orders']) {
+    assert.deepEqual(adminOrderReturnDestination(value), { path: '/admin/orders' }, String(value));
+  }
+});
+
+test('full order detail mirrors drawer fact order and preserves deterministic return context', () => {
   const source = readFileSync(new URL('../src/views/admin/OrderDetailPage.vue', import.meta.url), 'utf8');
   const orderedMarkers = [
     'order-detail-identity',
@@ -85,7 +95,19 @@ test('full order detail mirrors drawer fact order and preserves browser return c
   assert.match(source, /href="`tel:\$\{order\.customerPhone\}`"/);
   assert.match(source, /paymentMethodLabel\(order\.paymentMethod\)/);
   assert.match(source, /paymentStatusLabel\(order\.paymentStatus\)/);
-  assert.match(source, /@click="router\.back\(\)"/);
+  assert.match(source, /adminOrderReturnDestination\(route\.query\.returnTo\)/);
+  assert.doesNotMatch(source, /router\.back\(\)/);
+});
+
+test('full order detail uses the shared approved transition policy and accessible dialogs', () => {
+  const source = readFileSync(new URL('../src/views/admin/OrderDetailPage.vue', import.meta.url), 'utf8');
+  assert.match(source, /const actions = computed\(\(\) => inlineOrderActions\(order\.value\?\.allowedActions\)\)/);
+  assert.match(source, /inlineOrderActionMeta\(pendingAction\.value\)/);
+  assert.match(source, /adminApi\.updateOrderStatus\(order\.value\.orderId, \{ expectedStatus: order\.value\.status, status: pendingAction\.value, note: null \}\)/);
+  assert.match(source, /import ConfirmDialog/);
+  assert.equal((source.match(/<ConfirmDialog/g) || []).length, 3);
+  assert.doesNotMatch(source, /class="modal-overlay"/);
+  assert.doesNotMatch(source, /const canCancel/);
 });
 
 test('full order detail keeps canonical loader and existing mutations', () => {

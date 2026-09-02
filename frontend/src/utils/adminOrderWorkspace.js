@@ -70,3 +70,16 @@ export function inlineOrderActions(allowedActions) {
   if (!Array.isArray(allowedActions)) return [];
   return allowedActions.map(inlineOrderActionMeta).filter(Boolean);
 }
+
+export function adminOrderReturnContext(fullPath) {
+  const url = new URL(fullPath, 'https://fastguy.local');
+  url.searchParams.delete('orderId');
+  return `${url.pathname}${url.search}`;
+}
+
+export function adminOrderReturnDestination(returnTo) {
+  if (typeof returnTo !== 'string' || !returnTo.startsWith('/admin/orders?')) return { path: '/admin/orders' };
+  const url = new URL(returnTo, 'https://fastguy.local');
+  if (url.origin !== 'https://fastguy.local' || url.pathname !== '/admin/orders') return { path: '/admin/orders' };
+  return { path: '/admin/orders', query: Object.fromEntries(url.searchParams) };
+}

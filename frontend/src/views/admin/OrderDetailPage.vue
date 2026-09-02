@@ -3,7 +3,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { adminApi } from '@/api';
 import { formatPrice, formatDate } from '@/utils/format';
-import { paymentMethodLabel, paymentStatusLabel } from '@/utils/adminOrderWorkspace';
+import { adminOrderReturnDestination, inlineOrderActionMeta, inlineOrderActions, paymentMethodLabel, paymentStatusLabel } from '@/utils/adminOrderWorkspace';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import OrderTimeline from '@/components/common/OrderTimeline.vue';
 import { useToast } from '@/stores/toast';
@@ -21,9 +22,11 @@ const showNoteModal = ref(false);
 const noteText = ref('');
 const overrideNote = ref('');
 const overrideError = ref('');
+const pendingAction = ref('');
 
-const canCancel = computed(() => order.value?.allowedActions?.includes('CANCELLED'));
-const canPrint = computed(() => true);
+const actions = computed(() => inlineOrderActions(order.value?.allowedActions));
+const pendingMeta = computed(() => inlineOrderActionMeta(pendingAction.value));
+const returnDestination = computed(() => adminOrderReturnDestination(route.query.returnTo));
 
 async function load() {
   loading.value = true;
@@ -38,6 +41,28 @@ async function load() {
   }
 }
 
+function selectAction(action) {
+  if (!actions.value.some(item => item.key === action) || saving.value) return;
+  if (action === 'CANCELLED') {
+    showCancelModal.value = true;
+    return;
+  }
+  pendingAction.value = action;
+}
+
+async function confirmTransition() {
+  if (!pendingMeta.value || pendingMeta.value.requiresNote || !actions.value.some(item => item.key === pendingAction.value) || saving.value) return;
+  saving.value = true;
+  try {
+    await adminApi.updateOrderStatus(order.value.orderId, { expectedStatus: order.value.status, status: pendingAction.value, note: null });
+    pendingAction.value = '';
+    await load();
+  } catch (e) {
+    if (e.status === 409) { pendingAction.value = ''; await load(); toast.error('Đơn hàng đã thay đổi. Kiểm tra dữ liệu mới rồi gửi lại.'); }
+    else toast.error(e.message || 'Không thể cập nhật đơn hàng');
+  } finally { saving.value = false; }
+}
+
 async function cancelOrder() {
   if (!cancelReason.value.trim()) return;
   saving.value = true;
@@ -45,6 +70,7 @@ async function cancelOrder() {
     await adminApi.cancelOrder(order.value.orderId, { expectedStatus: order.value.status, reason: cancelReason.value.trim() });
     toast.success('Đã hủy đơn hàng');
     showCancelModal.value = false;
+    cancelReason.value = '';
     await load();
   } catch (e) { if (e.status === 409) { await load(); toast.error('Đơn hàng đã thay đổi. Kiểm tra dữ liệu mới rồi gửi lại.'); } else toast.error(e.message); }
   finally { saving.value = false; }
@@ -84,10 +110,10 @@ onMounted(load);
 
 <template>
   <div v-if="loading" class="detail-state" role="status">Đang tải chi tiết...</div>
-  <div v-else-if="loadError" class="detail-state detail-state-error" role="alert"><p>{{ loadError }}</p><button class="btn btn-outline" type="button" @click="router.back()">Quay lại</button></div>
+  <div v-else-if="loadError" class="detail-state detail-state-error" role="alert"><p>{{ loadError }}</p><button class="btn btn-outline" type="button" @click="router.push(returnDestination)">Quay lại</button></div>
   <main v-else-if="order" class="order-detail-page">
     <header class="order-detail-identity">
-      <button class="back-link no-print" type="button" @click="router.back()"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Quay lại danh sách</span></button>
+      <button class="back-link no-print" type="button" @click="router.push(returnDestination)"><i class="bi bi-arrow-left" aria-hidden="true"></i><span>Quay lại danh sách</span></button>
       <div class="identity-row"><div><small>Chi tiết đơn hàng</small><h1>{{ order.orderCode }}</h1></div><div class="identity-status"><OrderStatusBadge :status="order.status" /><span>{{ paymentMethodLabel(order.paymentMethod) }} · {{ paymentStatusLabel(order.paymentStatus) }}</span></div></div>
     </header>
 
@@ -105,12 +131,13 @@ onMounted(load);
       <aside class="detail-secondary">
         <section v-if="order.internalNote" class="detail-section"><h2>Ghi chú nội bộ</h2><p class="internal-note">{{ order.internalNote }}</p></section>
         <section v-if="order.status === 'DELIVERY_FAILED'" class="detail-section"><h2>Mở thêm lượt giao</h2><form @submit.prevent="overrideDeliveryAttempt"><label class="form-label" for="override-note">Lý do quản trị *</label><textarea id="override-note" v-model="overrideNote" class="form-textarea" maxlength="500" required :aria-invalid="Boolean(overrideError)" aria-describedby="override-error"></textarea><p id="override-error" class="field-error" aria-live="polite">{{ overrideError }}</p><button class="btn btn-primary" type="submit" :disabled="saving || !overrideNote.trim()">Mở thêm lượt giao</button></form></section>
-        <section class="detail-section order-detail-actions" aria-labelledby="detail-actions"><h2 id="detail-actions">Thao tác đơn hàng</h2><div class="action-stack"><button v-if="canCancel" class="btn btn-danger" type="button" @click="showCancelModal = true">Hủy đơn</button><button class="btn btn-outline" type="button" @click="showNoteModal = true">Thêm ghi chú</button><button class="btn btn-outline no-print" type="button" @click="printInvoice">In đơn hàng</button></div></section>
+        <section class="detail-section order-detail-actions" aria-labelledby="detail-actions"><h2 id="detail-actions">Thao tác đơn hàng</h2><div class="action-stack"><button v-for="action in actions" :key="action.key" :class="['btn', action.tone === 'danger' ? 'btn-danger' : 'btn-primary']" type="button" :disabled="saving" @click="selectAction(action.key)">{{ action.label }}</button><button class="btn btn-outline" type="button" :disabled="saving" @click="showNoteModal = true">Thêm ghi chú</button><button class="btn btn-outline no-print" type="button" @click="printInvoice">In đơn hàng</button></div></section>
       </aside>
     </div>
 
-    <div v-if="showCancelModal" class="modal-overlay" @click.self="showCancelModal = false"><div class="modal"><div class="modal-header"><h3>Hủy đơn {{ order.orderCode }}</h3><button class="btn btn-sm btn-outline" type="button" aria-label="Đóng" @click="showCancelModal = false"><i class="bi bi-x-lg" aria-hidden="true"></i></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Lý do hủy *</label><textarea v-model="cancelReason" class="form-textarea" rows="3" placeholder="Nhập lý do hủy đơn" maxlength="500"></textarea></div></div><div class="modal-footer"><button class="btn btn-outline" type="button" @click="showCancelModal = false">Quay lại</button><button class="btn btn-danger" type="button" :disabled="saving || !cancelReason.trim()" @click="cancelOrder">{{ saving ? 'Đang hủy...' : 'Xác nhận hủy' }}</button></div></div></div>
-    <div v-if="showNoteModal" class="modal-overlay" @click.self="showNoteModal = false"><div class="modal"><div class="modal-header"><h3>Thêm ghi chú</h3><button class="btn btn-sm btn-outline" type="button" aria-label="Đóng" @click="showNoteModal = false"><i class="bi bi-x-lg" aria-hidden="true"></i></button></div><div class="modal-body"><div class="form-group"><label class="form-label">Nội dung ghi chú</label><textarea v-model="noteText" class="form-textarea" rows="3" placeholder="Nhập ghi chú cho đơn hàng" maxlength="500"></textarea></div></div><div class="modal-footer"><button class="btn btn-outline" type="button" @click="showNoteModal = false">Hủy</button><button class="btn btn-primary" type="button" :disabled="saving || !noteText.trim()" @click="saveNote">{{ saving ? 'Đang lưu...' : 'Lưu' }}</button></div></div></div>
+    <ConfirmDialog :open="Boolean(pendingMeta)" :title="pendingMeta ? pendingMeta.label : ''" :message="pendingMeta ? `Xác nhận ${pendingMeta.label.toLocaleLowerCase('vi')}?` : ''" :confirm-label="pendingMeta?.label" confirm-tone="primary" :busy="saving" @cancel="pendingAction = ''" @confirm="confirmTransition" />
+    <ConfirmDialog :open="showCancelModal" :title="`Hủy đơn ${order.orderCode}`" confirm-label="Xác nhận hủy" :confirm-disabled="!cancelReason.trim()" :busy="saving" @cancel="showCancelModal = false" @confirm="cancelOrder"><label class="form-label" for="cancel-reason">Lý do hủy *</label><textarea id="cancel-reason" v-model="cancelReason" class="form-textarea" rows="3" placeholder="Nhập lý do hủy đơn" maxlength="500"></textarea></ConfirmDialog>
+    <ConfirmDialog :open="showNoteModal" title="Thêm ghi chú" confirm-label="Lưu" confirm-tone="primary" :confirm-disabled="!noteText.trim()" :busy="saving" @cancel="showNoteModal = false" @confirm="saveNote"><label class="form-label" for="note-text">Nội dung ghi chú</label><textarea id="note-text" v-model="noteText" class="form-textarea" rows="3" placeholder="Nhập ghi chú cho đơn hàng" maxlength="500"></textarea></ConfirmDialog>
   </main>
 </template>
 

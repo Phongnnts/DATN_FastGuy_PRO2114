@@ -1,10 +1,12 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import OrderStatusBadge from '@/components/common/OrderStatusBadge.vue';
 import OrderTimeline from '@/components/common/OrderTimeline.vue';
 import { formatPrice, formatDate } from '@/utils/format';
-import { inlineOrderActionMeta, inlineOrderActions, paymentMethodLabel, paymentStatusLabel } from '@/utils/adminOrderWorkspace';
+import { adminOrderReturnContext, inlineOrderActionMeta, inlineOrderActions, paymentMethodLabel, paymentStatusLabel } from '@/utils/adminOrderWorkspace';
 
+const route = useRoute();
 const props = defineProps({
   open: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
@@ -102,7 +104,7 @@ onBeforeUnmount(() => {
               <section aria-labelledby="modal-delivery"><h3 id="modal-delivery">Giao hàng</h3><p>{{ order.customerAddress || 'Chưa có địa chỉ giao hàng' }}</p><p v-if="order.deliveryNote">Ghi chú: {{ order.deliveryNote }}</p><p v-if="order.staffName || order.shipperName">Nhân sự: {{ [order.staffName, order.shipperName].filter(Boolean).join(' · ') }}</p></section>
               <section class="order-drawer-items" aria-labelledby="modal-items"><h3 id="modal-items">Món trong đơn</h3><ul class="modal-items"><li v-for="(item, index) in order.items" :key="`${item.productName}-${item.variantName}-${index}`"><img v-if="item.imageUrl" :src="item.imageUrl" alt="" /><span v-else class="item-fallback" aria-hidden="true"><i class="bi bi-basket"></i></span><div><strong>{{ item.productName || 'Sản phẩm' }}</strong><small>{{ item.variantName || 'Tiêu chuẩn' }} · ×{{ item.quantity }}</small></div><span><small>{{ formatPrice(item.unitPrice || 0) }}</small><strong>{{ formatPrice(item.totalPrice || 0) }}</strong></span></li></ul></section>
               <section class="order-drawer-payment" aria-labelledby="modal-payment"><h3 id="modal-payment">Thanh toán</h3><dl class="payment-breakdown"><div><dt>Tạm tính</dt><dd>{{ formatPrice(order.totalAmount || 0) }}</dd></div><div><dt>Phí giao hàng</dt><dd>{{ formatPrice(order.shippingFee || 0) }}</dd></div><div><dt>Giảm giá</dt><dd>−{{ formatPrice(order.discountAmount || 0) }}</dd></div><div class="total"><dt>Tổng cộng</dt><dd>{{ formatPrice(order.finalAmount || 0) }}</dd></div></dl></section>
-              <router-link class="full-detail-link" :to="`/admin/orders/${order.orderId}`">Mở trang đầy đủ <i class="bi bi-arrow-up-right" aria-hidden="true"></i></router-link>
+              <router-link class="full-detail-link" :to="{ path: `/admin/orders/${order.orderId}`, query: { returnTo: adminOrderReturnContext(route.fullPath) } }">Mở trang đầy đủ <i class="bi bi-arrow-up-right" aria-hidden="true"></i></router-link>
             </div>
             <section class="modal-timeline order-drawer-timeline" aria-labelledby="modal-history"><h3 id="modal-history">Lịch sử đơn hàng</h3><OrderTimeline v-if="order.statusHistory?.length" :history="order.statusHistory" /><p v-else>{{ createdHistory }}</p></section>
           </div>
