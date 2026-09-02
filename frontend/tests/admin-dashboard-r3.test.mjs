@@ -34,9 +34,44 @@ function deprecatedDashboardProperties(contract) {
     .map(match => match[1]);
 }
 
-test('R3 dashboard uses the four approved cockpit KPIs and new canonical analytics', () => {
-  for (const field of ['netCashRevenueToday', 'operationalOrderCountToday', 'aovToday', 'completionRateToday', 'revenueLast7Days', 'topProductsLast7Days', 'lowStockProducts']) assert.match(dashboard, new RegExp(`data(?:\\.value)?\\?\\.${field}|data\\.${field}`));
-  for (const label of ['Doanh thu thuần hôm nay', 'Đơn hàng hôm nay', 'Giá trị đơn trung bình', 'Tỷ lệ hoàn thành']) assert.match(dashboard, new RegExp(label));
+test('R3 dashboard visible business values use only contracted dashboard fields', () => {
+  const sourcePolicy = {
+    netCashRevenueToday: 'Doanh thu thuần hôm nay',
+    operationalOrderCountToday: 'Đơn hàng hôm nay',
+    aovToday: 'Giá trị đơn trung bình',
+    completionRateToday: 'Tỷ lệ hoàn thành',
+    revenueLast7Days: 'Doanh thu 7 ngày',
+    activeOrderCount: 'Trạng thái đơn hàng',
+    activeOrdersByStatus: 'Trạng thái đơn hàng',
+    topProductsLast7Days: 'Món bán chạy',
+    lowStockProducts: 'Món sắp tạm hết',
+    attentionItems: 'Cần xử lý',
+  };
+
+  for (const [field, label] of Object.entries(sourcePolicy)) {
+    assert.match(openapi, new RegExp(`^        ${field}:`, 'm'), `${label} must have contracted source field ${field}`);
+    assert.match(dashboard, new RegExp(`data(?:\\.value)?\\?\\.${field}|data\\.${field}`), `${label} must read contracted source field ${field}`);
+  }
+});
+
+test('R3 dashboard keeps availability decisions local to each contracted business section', () => {
+  for (const section of ['financial', 'orders', 'refunds', 'cod', 'inventory', 'staffing']) {
+    assert.match(openapi, new RegExp(`^        ${section}: \\{ type: string, enum: \\[AVAILABLE, UNAVAILABLE\\] \\}`, 'm'));
+  }
+  assert.match(dashboard, /available\('financial'\)[^]*data\.netCashRevenueToday/);
+  assert.match(dashboard, /available\('orders'\)[^]*data\.operationalOrderCountToday/);
+  assert.match(dashboard, /available\('inventory'\)[^]*lowStockProducts/);
+  for (const type of ['PENDING_REFUNDS', 'STAFF_COVERAGE_GAPS', 'LOW_STOCK_ITEMS', 'PENDING_COD_SETTLEMENTS']) {
+    assert.match(dashboard, new RegExp(type));
+  }
+});
+
+test('R3 dashboard excludes uncontracted profitability and period-comparison claims', () => {
+  assert.doesNotMatch(dashboard, /lợi nhuận|biên lợi nhuận|so với (hôm qua|kỳ trước)|tăng so với|giảm so với/i);
+});
+
+test('Operations Studio dashboard establishes the approved business hierarchy', () => {
+  ordered(dashboard, ['business-health-header', 'business-performance-workspace', 'cash-risk-rail']);
 });
 
 test('R3 dashboard source follows the approved cockpit section order', () => {
