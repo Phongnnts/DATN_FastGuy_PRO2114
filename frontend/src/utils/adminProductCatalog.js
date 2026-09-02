@@ -14,6 +14,12 @@ export function filterProducts(products, filters = {}) {
     && (!filters.status || product.status === filters.status));
 }
 
+export function catalogAvailabilityPresentation(product) {
+  return product?.status === 'AVAILABLE'
+    ? { label: 'Đang hiển thị', tone: 'success' }
+    : { label: 'Đang ẩn', tone: 'secondary' };
+}
+
 export function catalogCounts(products) {
   return {
     total: products.length,

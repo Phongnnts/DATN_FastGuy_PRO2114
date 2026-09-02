@@ -22,3 +22,9 @@ test('capacity presentation distinguishes recipe finished good untracked and sus
   assert.equal(variantCapacityPresentation({ inventoryMode: 'UNTRACKED' }).label, 'Không theo dõi tồn');
   assert.equal(variantCapacityPresentation({ inventoryMode: 'SUSPENDED' }).label, 'Tạm ngừng bán');
 });
+
+test('capacity presentation keeps loading unknown and error distinct', () => {
+  assert.deepEqual(variantCapacityPresentation(undefined, true), { label: 'Đang tải năng lực bán', detail: '', tone: 'loading' });
+  assert.deepEqual(variantCapacityPresentation(undefined, false), { label: 'Chưa có dữ liệu', detail: '', tone: 'secondary' });
+  assert.deepEqual(variantCapacityPresentation({ error: 'Mất kết nối' }, false), { label: 'Không thể tải năng lực bán', detail: 'Mất kết nối', tone: 'danger' });
+});

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
+  catalogAvailabilityPresentation,
   catalogCounts,
   filterProducts,
   paginateProducts,
@@ -29,6 +30,11 @@ test('filterProducts applies canonical product type with search and category', (
 
 test('catalogCounts uses canonical availability stock and discount fields', () => {
   assert.deepEqual(catalogCounts(products), { total: 3, available: 2, outOfStock: 2, discounted: 1 });
+});
+
+test('catalog availability ignores physical stock for an available product', () => {
+  const zeroStockAvailable = { status: 'AVAILABLE', variants: [{ quantityAvailable: 0 }] };
+  assert.deepEqual(catalogAvailabilityPresentation(zeroStockAvailable), { label: 'Đang hiển thị', tone: 'success' });
 });
 
 test('paginateProducts clamps pages and returns stable bounds', () => {
@@ -66,6 +72,8 @@ test('products page distinguishes catalog availability from physical capacity fa
   assert.match(productsPage, />Tồn kho và năng lực bán</);
   assert.match(productsPage, /Dữ liệu tồn kho theo từng kích cỡ/);
   assert.match(productsPage, /capacityText\(variant\)\.label/);
+  assert.match(productsPage, /catalogAvailability\(product\)\.label/);
+  assert.doesNotMatch(productsPage, /stockSummary\(product\)\.status === 'AVAILABLE'/);
 });
 
 test('products page preserves filter defaults and dialog safeguards', () => {

@@ -102,8 +102,10 @@ export function createCapacityPageLoader(state, loadCapacity) {
   };
 }
 
-export function variantCapacityPresentation(capacity) {
-  if (!capacity || capacity.error) return { label: 'Không xác định', detail: capacity?.error || '', tone: 'secondary' };
+export function variantCapacityPresentation(capacity, loading = false) {
+  if (!capacity && loading) return { label: 'Đang tải năng lực bán', detail: '', tone: 'loading' };
+  if (!capacity) return { label: 'Chưa có dữ liệu', detail: '', tone: 'secondary' };
+  if (capacity.error) return { label: 'Không thể tải năng lực bán', detail: capacity.error, tone: 'danger' };
   if (capacity.inventoryMode === 'SUSPENDED') return { label: 'Tạm ngừng bán', detail: '', tone: 'danger' };
   if (capacity.inventoryMode === 'UNTRACKED') return { label: 'Không theo dõi tồn', detail: '', tone: 'secondary' };
   const servings = Number(capacity.availableServings ?? 0);
