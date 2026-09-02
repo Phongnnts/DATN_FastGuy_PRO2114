@@ -84,7 +84,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div v-if="open" class="order-modal-backdrop" @mousedown.self="requestClose">
       <aside ref="dialogRef" class="order-modal" role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
-        <header class="modal-header">
+        <header class="modal-header order-drawer-identity">
           <div>
             <small>Chi tiết đơn hàng</small>
             <h2 id="order-modal-title">{{ order?.orderCode || 'Đang tải' }}</h2>
@@ -98,17 +98,17 @@ onBeforeUnmount(() => {
           <div v-else-if="error" class="modal-state error" role="alert">{{ error }}</div>
           <div v-else-if="order" class="modal-content-grid">
             <div class="modal-facts">
-              <section aria-labelledby="modal-customer"><h3 id="modal-customer">Khách hàng</h3><strong>{{ order.customerName || 'Chưa có tên khách hàng' }}</strong><a v-if="order.customerPhone" :href="`tel:${order.customerPhone}`">{{ order.customerPhone }}</a><span v-else>Chưa có số điện thoại</span></section>
+              <section class="order-drawer-fulfillment" aria-labelledby="modal-customer"><h3 id="modal-customer">Khách hàng & giao nhận</h3><strong>{{ order.customerName || 'Chưa có tên khách hàng' }}</strong><a v-if="order.customerPhone" :href="`tel:${order.customerPhone}`">{{ order.customerPhone }}</a><span v-else>Chưa có số điện thoại</span></section>
               <section aria-labelledby="modal-delivery"><h3 id="modal-delivery">Giao hàng</h3><p>{{ order.customerAddress || 'Chưa có địa chỉ giao hàng' }}</p><p v-if="order.deliveryNote">Ghi chú: {{ order.deliveryNote }}</p><p v-if="order.staffName || order.shipperName">Nhân sự: {{ [order.staffName, order.shipperName].filter(Boolean).join(' · ') }}</p></section>
-              <section aria-labelledby="modal-items"><h3 id="modal-items">Món trong đơn</h3><ul class="modal-items"><li v-for="(item, index) in order.items" :key="`${item.productName}-${item.variantName}-${index}`"><img v-if="item.imageUrl" :src="item.imageUrl" alt="" /><span v-else class="item-fallback" aria-hidden="true"><i class="bi bi-basket"></i></span><div><strong>{{ item.productName || 'Sản phẩm' }}</strong><small>{{ item.variantName || 'Tiêu chuẩn' }} · ×{{ item.quantity }}</small></div><span><small>{{ formatPrice(item.unitPrice || 0) }}</small><strong>{{ formatPrice(item.totalPrice || 0) }}</strong></span></li></ul></section>
-              <section aria-labelledby="modal-payment"><h3 id="modal-payment">Thanh toán</h3><dl class="payment-breakdown"><div><dt>Tạm tính</dt><dd>{{ formatPrice(order.totalAmount || 0) }}</dd></div><div><dt>Phí giao hàng</dt><dd>{{ formatPrice(order.shippingFee || 0) }}</dd></div><div><dt>Giảm giá</dt><dd>−{{ formatPrice(order.discountAmount || 0) }}</dd></div><div class="total"><dt>Tổng cộng</dt><dd>{{ formatPrice(order.finalAmount || 0) }}</dd></div></dl></section>
+              <section class="order-drawer-items" aria-labelledby="modal-items"><h3 id="modal-items">Món trong đơn</h3><ul class="modal-items"><li v-for="(item, index) in order.items" :key="`${item.productName}-${item.variantName}-${index}`"><img v-if="item.imageUrl" :src="item.imageUrl" alt="" /><span v-else class="item-fallback" aria-hidden="true"><i class="bi bi-basket"></i></span><div><strong>{{ item.productName || 'Sản phẩm' }}</strong><small>{{ item.variantName || 'Tiêu chuẩn' }} · ×{{ item.quantity }}</small></div><span><small>{{ formatPrice(item.unitPrice || 0) }}</small><strong>{{ formatPrice(item.totalPrice || 0) }}</strong></span></li></ul></section>
+              <section class="order-drawer-payment" aria-labelledby="modal-payment"><h3 id="modal-payment">Thanh toán</h3><dl class="payment-breakdown"><div><dt>Tạm tính</dt><dd>{{ formatPrice(order.totalAmount || 0) }}</dd></div><div><dt>Phí giao hàng</dt><dd>{{ formatPrice(order.shippingFee || 0) }}</dd></div><div><dt>Giảm giá</dt><dd>−{{ formatPrice(order.discountAmount || 0) }}</dd></div><div class="total"><dt>Tổng cộng</dt><dd>{{ formatPrice(order.finalAmount || 0) }}</dd></div></dl></section>
               <router-link class="full-detail-link" :to="`/admin/orders/${order.orderId}`">Mở trang đầy đủ <i class="bi bi-arrow-up-right" aria-hidden="true"></i></router-link>
             </div>
-            <section class="modal-timeline" aria-labelledby="modal-history"><h3 id="modal-history">Lịch sử đơn hàng</h3><OrderTimeline v-if="order.statusHistory?.length" :history="order.statusHistory" /><p v-else>{{ createdHistory }}</p></section>
+            <section class="modal-timeline order-drawer-timeline" aria-labelledby="modal-history"><h3 id="modal-history">Lịch sử đơn hàng</h3><OrderTimeline v-if="order.statusHistory?.length" :history="order.statusHistory" /><p v-else>{{ createdHistory }}</p></section>
           </div>
         </div>
 
-        <footer v-if="order" class="modal-actions">
+        <footer v-if="order" class="modal-actions order-drawer-actions">
           <p v-if="actionMessage" class="action-message" role="status" aria-live="polite">{{ actionMessage }}</p>
           <p v-if="actionError" class="action-error" role="alert">{{ actionError }}</p>
           <template v-if="pendingMeta">

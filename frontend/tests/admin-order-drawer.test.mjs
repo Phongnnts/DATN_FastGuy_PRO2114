@@ -7,6 +7,17 @@ const page = readFileSync(new URL('../src/views/admin/OrdersPage.vue', import.me
 
 test('drawer renders only contracted detail sections and truthful payment totals', () => {
   for (const field of ['customerName', 'customerPhone', 'customerAddress', 'deliveryNote', 'staffName', 'shipperName', 'items', 'totalAmount', 'shippingFee', 'discountAmount', 'finalAmount', 'statusHistory']) assert.match(drawer, new RegExp(`order\\.${field}`));
+  assert.match(drawer, /order-drawer-identity/);
+  assert.match(drawer, /order-drawer-fulfillment/);
+  assert.match(drawer, /order-drawer-items/);
+  assert.match(drawer, /order-drawer-payment/);
+  assert.match(drawer, /order-drawer-timeline/);
+  assert.match(drawer, /order-drawer-actions/);
+  assert.ok(drawer.indexOf('order-drawer-identity') < drawer.indexOf('order-drawer-fulfillment'));
+  assert.ok(drawer.indexOf('order-drawer-fulfillment') < drawer.indexOf('order-drawer-items'));
+  assert.ok(drawer.indexOf('order-drawer-items') < drawer.indexOf('order-drawer-payment'));
+  assert.ok(drawer.indexOf('order-drawer-payment') < drawer.indexOf('order-drawer-timeline'));
+  assert.ok(drawer.indexOf('order-drawer-timeline') < drawer.indexOf('order-drawer-actions'));
   assert.match(drawer, /OrderTimeline/);
   assert.match(drawer, /imageUrl/);
   assert.doesNotMatch(drawer, /ETA|estimatedDelivery|serviceFee/);

@@ -67,8 +67,13 @@ test('Khác menu supports keyboard close and focus restoration', () => {
 });
 
 test('queue provides equivalent semantic desktop and mobile presentations', () => {
+  assert.match(page, /orders-command-header/);
+  assert.match(page, /orders-toolbar/);
+  assert.match(page, /orders-queue/);
   assert.match(page, /desktop-order-table/);
   assert.match(page, /mobile-order-list/);
+  assert.match(page, /inlineOrderActions\(order\.allowedActions\)\[0\]/);
+  assert.match(page, /Thao tác tiếp theo/);
   assert.match(page, /Xem chi tiết/);
   assert.match(page, /paymentMethodLabel/);
   assert.match(page, /paymentStatusLabel/);
