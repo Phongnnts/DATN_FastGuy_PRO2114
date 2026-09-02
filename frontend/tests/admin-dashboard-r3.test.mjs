@@ -82,6 +82,18 @@ test('Operations Studio dashboard establishes the approved business hierarchy', 
   ordered(dashboard, ['business-health-header', 'business-performance-workspace', 'cash-risk-rail']);
 });
 
+test('Operations Studio cash-risk rail branches on refund availability', () => {
+  assert.match(dashboard, /data-cash-risk-section="refunds"[^]*available\('refunds'\)/, 'cash-risk refunds branch must expose unavailable state');
+});
+
+test('Operations Studio cash-risk rail branches on COD availability', () => {
+  assert.match(dashboard, /data-cash-risk-section="cod"[^]*available\('cod'\)/, 'cash-risk COD branch must expose unavailable state');
+});
+
+test('Operations Studio cash-risk rail branches on staffing availability', () => {
+  assert.match(dashboard, /data-cash-risk-section="staffing"[^]*available\('staffing'\)/, 'cash-risk staffing branch must expose unavailable state');
+});
+
 test('R3 dashboard source follows the approved cockpit section order', () => {
   ordered(dashboard, ['<header class="operations-hero"', 'class="dashboard-kpi-grid', 'class="primary-operations-grid"', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'class="secondary-insights-grid"', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết', 'class="panel priority-workspace']);
   assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý/);
