@@ -409,10 +409,30 @@ test('saveProduct and saveVariantsSection both use shared variant flush helper',
   assert.doesNotMatch(saveVariantsBranch, /adminApi\.createProduct|adminApi\.createVariant/);
 });
 
-test('editor pins section action bars to viewport bottom on mobile', () => {
-  assert.match(productEditorPage, /:deep\(\.actions\)/);
-  assert.match(productEditorPage, /@media\(max-width:700px\)[\s\S]*:deep\(\.actions\)[\s\S]*position:sticky[\s\S]*bottom:0/);
-  assert.match(productEditorPage, /z-index:5/);
+test('editor presents the complete workflow in semantic order with persistent save context', () => {
+  const general = productEditorPage.indexOf('<ProductGeneralSection');
+  const media = productEditorPage.indexOf('<ProductMediaSection');
+  const variants = productEditorPage.indexOf('<ProductVariantsSection');
+  const modifiers = productEditorPage.indexOf('<ProductModifiersSection');
+  assert.ok(general >= 0 && general < media && media < variants && variants < modifiers);
+  assert.match(productEditorPage, /class="editor-workflow"/);
+  assert.match(productEditorPage, /class="save-context"/);
+  assert.match(productEditorPage, /class="mobile-final-save"/);
+  assert.match(productEditorPage, /@click="saveProduct"/);
+  assert.match(productEditorPage, /Object\.values\(dirtySections\.value\)\.some\(Boolean\)/);
+  assert.match(productEditorPage, /@media\(min-width:901px\)[\s\S]*\.save-context[\s\S]*position:sticky/);
+  assert.match(productEditorPage, /@media\(max-width:900px\)[\s\S]*\.mobile-final-save[\s\S]*display:flex/);
+});
+
+test('editor sections expose visible headings helpers and adjacent errors', () => {
+  assert.match(productGeneralSection, /<h2[^>]*>Thông tin chung<\/h2>/);
+  assert.match(productGeneralSection, /class="section-helper"/);
+  assert.match(productGeneralSection, /aria-describedby="errors\.name \? 'product-name-error' : 'product-name-helper'"/);
+  assert.match(productMediaSection, /class="section-helper"/);
+  assert.match(productMediaSection, /id="primary-image-helper"/);
+  assert.match(productMediaSection, /aria-describedby="primary-image-helper"/);
+  assert.match(productVariantsSection, /class="section-helper"/);
+  assert.match(productModifiersSection, /class="section-helper"/);
 });
 
 test('ConfirmDialog declares accessible confirmation props and events', () => {

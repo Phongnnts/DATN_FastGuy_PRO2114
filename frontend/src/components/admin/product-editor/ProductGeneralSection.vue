@@ -43,9 +43,14 @@ defineExpose({ focusFirstError });
 
 <template>
   <form class="editor-card" novalidate @submit.prevent="submit">
+    <div class="section-heading">
+      <h2 id="general-title">Thông tin chung</h2>
+      <p class="section-helper">Tên, danh mục và giá là thông tin bắt buộc để lưu sản phẩm.</p>
+    </div>
     <div class="field">
       <label for="product-name">Tên sản phẩm</label>
-      <input id="product-name" :value="modelValue.name" :disabled="busy" :aria-invalid="Boolean(errors.name)" :aria-describedby="errors.name ? 'product-name-error' : undefined" @input="update('name', $event.target.value)" />
+      <input id="product-name" :value="modelValue.name" :disabled="busy" :aria-invalid="Boolean(errors.name)" :aria-describedby="errors.name ? 'product-name-error' : 'product-name-helper'" @input="update('name', $event.target.value)" />
+      <span v-if="!errors.name" id="product-name-helper" class="field-helper">Tên hiển thị với khách hàng trên thực đơn.</span>
       <span v-if="errors.name" id="product-name-error" role="alert">{{ errors.name }}</span>
     </div>
     <div class="field">
@@ -93,5 +98,5 @@ defineExpose({ focusFirstError });
 </template>
 
 <style scoped>
-.editor-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.field{display:grid;gap:7px}.field label{font-size:12px;font-weight:700}.field input,.field select,.field textarea{min-height:44px;padding:10px 12px;border:1px solid #ddd;border-radius:10px;background:#fff}.field textarea{min-height:110px;resize:vertical}.field [role=alert]{color:#b91c1c;font-size:12px}.checkbox-field{display:flex;align-items:center;gap:9px}.checkbox-field input{min-height:auto;width:18px;height:18px}.wide,.actions{grid-column:1/-1}.actions{display:flex;justify-content:flex-end}@media(max-width:700px){.editor-card{grid-template-columns:1fr}.wide,.actions{grid-column:auto}}
+.editor-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.section-heading{grid-column:1/-1}.section-heading h2{margin:0}.section-helper,.field-helper{margin:5px 0 0;color:var(--text-mid);font-size:13px}.field{display:grid;gap:7px}.field label{font-size:12px;font-weight:700}.field input,.field select,.field textarea{min-height:44px;padding:10px 12px;border:1px solid #ddd;border-radius:10px;background:#fff}.field textarea{min-height:110px;resize:vertical}.field [role=alert]{color:#b91c1c;font-size:12px}.checkbox-field{display:flex;align-items:center;gap:9px}.checkbox-field input{min-height:auto;width:18px;height:18px}.wide,.actions{grid-column:1/-1}.actions{display:flex;justify-content:flex-end}@media(max-width:700px){.editor-card{grid-template-columns:1fr}.wide,.actions{grid-column:auto}}
 </style>

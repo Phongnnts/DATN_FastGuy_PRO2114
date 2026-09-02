@@ -51,10 +51,14 @@ function removeImage(index) {
 
 <template>
   <section class="editor-card" aria-labelledby="media-title">
-    <h2 id="media-title">Hình ảnh sản phẩm</h2>
+    <div>
+      <h2 id="media-title">Hình ảnh sản phẩm</h2>
+      <p class="section-helper">Chọn ảnh đại diện rõ món ăn và thêm ảnh thư viện khi cần.</p>
+    </div>
     <div class="upload-block">
       <label for="primary-image">Ảnh đại diện</label>
-      <input id="primary-image" type="file" accept="image/*" :disabled="busy || uploading" @change="upload($event)" />
+      <input id="primary-image" type="file" accept="image/*" :disabled="busy || uploading" aria-describedby="primary-image-helper" @change="upload($event)" />
+      <span id="primary-image-helper" class="field-helper">Ảnh sẽ được tải lên trước khi lưu sản phẩm.</span>
       <img v-if="modelValue.image" class="preview primary" :src="modelValue.image" alt="Xem trước ảnh đại diện" />
       <button v-if="modelValue.image" class="btn btn-outline" type="button" :disabled="busy || uploading" @click="update({ image: '' })">Xóa ảnh đại diện</button>
     </div>
@@ -72,5 +76,5 @@ function removeImage(index) {
 </template>
 
 <style scoped>
-.editor-card{display:grid;gap:22px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.editor-card h2{margin:0}.upload-block{display:grid;gap:10px}.upload-block label{font-size:12px;font-weight:700}.primary{width:min(320px,100%)}.preview{height:120px;max-width:100%;border-radius:12px;object-fit:cover}.gallery{display:flex;flex-wrap:wrap;gap:12px;margin:0;padding:0;list-style:none}.gallery li{position:relative}.gallery button{position:absolute;top:5px;right:5px;width:30px;height:30px;border:0;border-radius:50%;color:#fff;background:#991b1b}.actions{display:flex;justify-content:flex-end}[role=alert]{color:#b91c1c}
+.editor-card{display:grid;gap:22px;padding:24px;border:1px solid rgba(23,23,23,.08);border-radius:20px;background:#fff}.editor-card h2{margin:0}.section-helper,.field-helper{margin:5px 0 0;color:var(--text-mid);font-size:13px}.upload-block{display:grid;gap:10px}.upload-block label{font-size:12px;font-weight:700}.primary{width:min(320px,100%)}.preview{height:120px;max-width:100%;border-radius:12px;object-fit:cover}.gallery{display:flex;flex-wrap:wrap;gap:12px;margin:0;padding:0;list-style:none}.gallery li{position:relative}.gallery button{position:absolute;top:5px;right:5px;width:30px;height:30px;border:0;border-radius:50%;color:#fff;background:#991b1b}.actions{display:flex;justify-content:flex-end}[role=alert]{color:#b91c1c}
 </style>
