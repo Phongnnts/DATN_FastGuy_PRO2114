@@ -44,7 +44,6 @@ test('R3 dashboard visible business values use only contracted dashboard fields'
   const sourcePolicy = {
     netCashRevenueToday: 'Doanh thu thuần hôm nay',
     operationalOrderCountToday: 'Đơn hàng hôm nay',
-    aovToday: 'Giá trị đơn trung bình',
     completionRateToday: 'Tỷ lệ hoàn thành',
     revenueLast7Days: 'Doanh thu 7 ngày',
     activeOrderCount: 'Trạng thái đơn hàng',
@@ -78,8 +77,9 @@ test('R3 dashboard excludes uncontracted profitability and period-comparison cla
   assert.doesNotMatch(dashboard, /lợi nhuận|biên lợi nhuận|so với (hôm qua|kỳ trước)|tăng so với|giảm so với/i);
 });
 
-test('Operations Studio dashboard establishes the approved business hierarchy', () => {
+test('Operations Studio dashboard establishes the approved business hierarchy without deprecated AOV', () => {
   ordered(dashboard, ['business-health-header', 'business-performance-workspace', 'cash-risk-rail']);
+  assert.doesNotMatch(dashboard, /data\.aovToday/);
 });
 
 test('Operations Studio cash-risk rail branches on refund availability', () => {
@@ -95,7 +95,7 @@ test('Operations Studio cash-risk rail branches on staffing availability', () =>
 });
 
 test('R3 dashboard source follows the approved cockpit section order', () => {
-  ordered(dashboard, ['<header class="operations-hero"', 'class="dashboard-kpi-grid', 'class="primary-operations-grid"', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'class="secondary-insights-grid"', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết', 'class="panel priority-workspace']);
+  ordered(dashboard, ['<header class="operations-hero"', 'class="dashboard-kpi-grid', 'class="primary-operations-grid', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'id="status-title">Trạng thái đơn hàng', 'class="secondary-insights-grid"', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết', 'class="cash-risk-rail"', 'class="panel priority-workspace']);
   assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý/);
 });
 
