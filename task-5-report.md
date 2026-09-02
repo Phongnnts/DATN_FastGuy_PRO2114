@@ -40,3 +40,15 @@ GREEN: complete focused E2E matrix passed 26/26 after the expectation updates.
 ## Concerns
 
 The E2E gate is deterministic and mocked; it does not prove backend integration. The existing process on port 5174 belonged to the main workspace and was left untouched.
+
+## Review Follow-up
+
+Addressed all three review findings:
+
+- Dashboard charts are scrolled into view and must be visible with nonzero width and height on desktop and mobile.
+- Dashboard browser observation now captures console errors, uncaught page errors, failed requests, and every HTTP response with status 400 or higher.
+- True direct `/admin/orders/9` entry now verifies customer, item, total, allowed cancellation action, keyboard-opened dialog, initial and tab focus, body scroll lock/unlock, Escape focus restoration, one detail request, and deterministic `/admin/orders` fallback.
+
+The stricter mobile chart assertion exposed a runtime cascade defect: a later 12-column declaration overrode the mobile one-column Dashboard grid and collapsed the status chart canvas to width zero. The mobile selector was made authoritative and the chart canvas constrained to its responsive container.
+
+Review RED: the stricter run passed 23 and failed 3, exposing the zero-width mobile chart and two stale dialog-label/focus assumptions. Review GREEN: changed E2E passed 26/26 across desktop and mobile; focused Dashboard/Orders tests passed 53/53; full frontend tests passed 729/729; build passed with 358 modules transformed; `git diff --check` passed.

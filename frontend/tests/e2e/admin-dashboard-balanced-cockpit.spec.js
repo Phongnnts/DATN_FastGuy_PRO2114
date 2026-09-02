@@ -35,8 +35,12 @@ const dashboard = {
 
 test('admin balanced cockpit renders analytics without browser errors', async ({ page }, testInfo) => {
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(`page: ${error.message}`));
+  page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
+  page.on('requestfailed', request => errors.push(`request: ${request.method()} ${request.url()} ${request.failure()?.errorText}`));
+  page.on('response', response => {
+    if (response.status() >= 400) errors.push(`response: ${response.status()} ${response.request().method()} ${response.url()}`);
+  });
   const token = `x.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.x`;
   await page.addInitScript(({ value }) => {
     localStorage.setItem('token', value);
@@ -73,8 +77,11 @@ test('admin balanced cockpit renders analytics without browser errors', async ({
     page.getByRole('img', { name: 'Biểu đồ món bán chạy' }),
   ];
   for (const chart of charts) {
-    if (testInfo.project.name.includes('mobile')) await expect(chart).toHaveCount(1);
-    else await expect(chart).toBeVisible();
+    await chart.scrollIntoViewIfNeeded();
+    await expect(chart).toBeVisible();
+    const box = await chart.boundingBox();
+    expect(box?.width).toBeGreaterThan(0);
+    expect(box?.height).toBeGreaterThan(0);
   }
   const primaryAction = page.getByRole('link', { name: 'Xem đơn cần xử lý' });
   const revenueDisclosure = page.getByText('Xem dữ liệu biểu đồ doanh thu', { exact: true });
@@ -86,7 +93,12 @@ test('admin balanced cockpit renders analytics without browser errors', async ({
   const primaryGrid = page.locator('.primary-operations-grid');
   const secondaryGrid = page.locator('.secondary-insights-grid');
   if (!testInfo.project.name.includes('mobile')) {
-    const [primaryBox, secondaryBox, revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all([primaryGrid, secondaryGrid, primaryGrid.locator('.revenue-panel'), primaryGrid.locator('.attention-panel'), primaryGrid.locator('.status-panel'), secondaryGrid.locator('.products-panel'), secondaryGrid.locator('.stock-panel')].map(locator => locator.boundingBox()));
+    const geometry = [primaryGrid, secondaryGrid, primaryGrid.locator('.revenue-panel'), primaryGrid.locator('.attention-panel'), primaryGrid.locator('.status-panel'), secondaryGrid.locator('.products-panel'), secondaryGrid.locator('.stock-panel')];
+    await expect.poll(async () => {
+      const boxes = await Promise.all(geometry.map(locator => locator.boundingBox()));
+      return boxes.every(Boolean) && Math.abs(boxes[5].y - boxes[6].y) < 2;
+    }).toBeTruthy();
+    const [primaryBox, secondaryBox, revenueBox, attentionBox, statusBox, productsBox, stockBox] = await Promise.all(geometry.map(locator => locator.boundingBox()));
     const gap = 14;
     const tolerance = 2;
     const revenueTracks = revenueBox.width - (7 * gap);

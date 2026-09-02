@@ -154,11 +154,29 @@ test('direct order detail mirrors drawer facts and returns to the filtered queue
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
-test('true direct order detail entry returns to the orders fallback', async ({ page }, testInfo) => {
+test('true direct order detail entry proves facts, action focus, scroll lock, and orders fallback', async ({ page }, testInfo) => {
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders/9');
   await expect(page.locator('.order-detail-identity')).toContainText('FG-0009');
+  await expect(page.locator('.order-detail-fulfillment')).toContainText('Nam Phong');
+  await expect(page.locator('.order-detail-items')).toContainText('Classic Burger');
+  await expect(page.locator('.order-detail-payment')).toContainText('80.001₫');
+  const cancelAction = page.locator('.order-detail-actions').getByRole('button', { name: 'Hủy đơn' });
+  await expect(cancelAction).toBeVisible();
+  await cancelAction.focus();
+  await expect(cancelAction).toBeFocused();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Hủy đơn' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Hủy', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByLabel('Lý do hủy *', { exact: true })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(cancelAction).toBeFocused();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
   await page.getByRole('button', { name: 'Quay lại danh sách' }).click();
   await expect(page).toHaveURL('/admin/orders');
   await expect.poll(() => calls.detail.length).toBe(1);
