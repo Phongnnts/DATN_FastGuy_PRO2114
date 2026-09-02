@@ -83,15 +83,36 @@ test('Operations Studio dashboard establishes the approved business hierarchy wi
 });
 
 test('Operations Studio cash-risk rail branches on refund availability', () => {
-  assert.match(dashboard, /data-cash-risk-section="refunds"[^]*available\('refunds'\)/, 'cash-risk refunds branch must expose unavailable state');
+  assert.match(dashboard, /available\('refunds'\)[^]*data-cash-risk-section="refunds"/, 'cash-risk refunds branch must expose unavailable state');
 });
 
 test('Operations Studio cash-risk rail branches on COD availability', () => {
-  assert.match(dashboard, /data-cash-risk-section="cod"[^]*available\('cod'\)/, 'cash-risk COD branch must expose unavailable state');
+  assert.match(dashboard, /available\('cod'\)[^]*data-cash-risk-section="cod"/, 'cash-risk COD branch must expose unavailable state');
 });
 
 test('Operations Studio cash-risk rail branches on staffing availability', () => {
-  assert.match(dashboard, /data-cash-risk-section="staffing"[^]*available\('staffing'\)/, 'cash-risk staffing branch must expose unavailable state');
+  assert.match(dashboard, /available\('staffing'\)[^]*data-cash-risk-section="staffing"/, 'cash-risk staffing branch must expose unavailable state');
+});
+
+test('Operations Studio revenue trend distinguishes empty data from unavailable financial data', () => {
+  assert.match(dashboard, /v-if="available\('financial'\) && revenueSeries\.length"[^]*v-else-if="available\('financial'\)"[^]*Chưa có dữ liệu doanh thu trong 7 ngày gần nhất\.[^]*v-else[^]*Không khả dụng/);
+});
+
+test('Operations Studio desktop grid has one deterministic Task 2 composition', () => {
+  assert.equal((dashboard.match(/\.business-performance-workspace \.revenue-panel\{grid-column:span 8\}/g) || []).length, 1);
+  assert.equal((dashboard.match(/\.business-performance-workspace \.attention-panel\{grid-column:span 4\}/g) || []).length, 1);
+  assert.equal((dashboard.match(/\.business-performance-workspace \.status-panel\{grid-column:1\/-1\}/g) || []).length, 1);
+  assert.doesNotMatch(dashboard, /\.primary-operations-grid \.revenue-panel\{grid-column:span 8\}|\.primary-operations-grid \.attention-panel\{grid-column:span 4\}|\.secondary-insights-grid \.status-panel\{grid-column:span 4\}|\.secondary-insights-grid \.products-panel\{grid-column:span 5\}|\.secondary-insights-grid \.stock-panel\{grid-column:span 3\}/);
+});
+
+test('Operations Studio unavailable cash-risk cards are non-interactive while available cards retain exact links', () => {
+  for (const section of ['refunds', 'cod', 'staffing']) {
+    assert.match(dashboard, new RegExp(`v-if="available\\('${section}'\\)"[^>]*data-cash-risk-section="${section}"`));
+    assert.match(dashboard, new RegExp(`v-else[^>]*class="risk-item unavailable"[^>]*data-cash-risk-section="${section}"[^>]*aria-disabled="true"`));
+  }
+  assert.match(dashboard, /path: '\/admin\/refunds', query: \{ status: 'PENDING' \}/);
+  assert.match(dashboard, /path: '\/admin\/cod-settlements', query: \{ status: 'SUBMITTED' \}/);
+  assert.match(dashboard, /path: '\/admin\/shifts', query: \{ tab: 'monitoring' \}/);
 });
 
 test('R3 dashboard source follows the approved cockpit section order', () => {
