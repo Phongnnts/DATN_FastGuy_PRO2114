@@ -52,3 +52,32 @@ test('products page keeps shared low-stock policy while inventory uses item-leve
   assert.doesNotMatch(inventoryPage, /lowStockThreshold|inventoryRowsSummary/);
   assert.match(adminStore, /createLatestCatalogFetcher/);
 });
+
+test('products page composes the catalog workspace for desktop and mobile', () => {
+  assert.match(productsPage, /class="catalog-header"/);
+  assert.match(productsPage, /class="catalog-toolbar"/);
+  assert.match(productsPage, /class="catalog-workspace"/);
+  assert.match(productsPage, /class="mobile-catalog"[^>]*aria-label="Danh sách sản phẩm trên thiết bị di động"/);
+  assert.match(productsPage, /class="product-mobile-card"/);
+});
+
+test('products page distinguishes catalog availability from physical capacity facts', () => {
+  assert.match(productsPage, />Hiển thị trong danh mục</);
+  assert.match(productsPage, />Tồn kho và năng lực bán</);
+  assert.match(productsPage, /Dữ liệu tồn kho theo từng kích cỡ/);
+  assert.match(productsPage, /capacityText\(variant\)\.label/);
+});
+
+test('products page preserves filter defaults and dialog safeguards', () => {
+  assert.match(productsPage, /const statusFilter = ref\('AVAILABLE'\)/);
+  assert.match(productsPage, /statusFilter\.value = 'AVAILABLE'/);
+  assert.match(productsPage, /document\.body\.style\.overflow = 'hidden'/);
+  assert.match(productsPage, /event\.key === 'Escape'/);
+  assert.match(productsPage, /event\.key !== 'Tab'/);
+  assert.match(productsPage, /nextTick\(\(\) => previousFocus\?\.focus\(\)\)/);
+});
+
+test('products page provides at least 40px interactive controls', () => {
+  assert.match(productsPage, /\.catalog-toolbar input,[^}]*min-height:40px/);
+  assert.match(productsPage, /\.icon-action\{[^}]*width:40px[^}]*height:40px/);
+});
