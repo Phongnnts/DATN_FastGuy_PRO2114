@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   PRIMARY_ORDER_STATUSES,
   OTHER_ORDER_STATUSES,
@@ -63,4 +64,34 @@ test('inline actions fail closed to approved contract-safe transitions', () => {
   assert.equal(inlineOrderActionMeta('CANCELLED').label, 'Hủy đơn');
   assert.equal(inlineOrderActionMeta('ASSIGNED'), null);
   assert.deepEqual(inlineOrderActions(null), []);
+});
+
+test('full order detail mirrors drawer fact order and preserves browser return context', () => {
+  const source = readFileSync(new URL('../src/views/admin/OrderDetailPage.vue', import.meta.url), 'utf8');
+  const orderedMarkers = [
+    'order-detail-identity',
+    'order-detail-fulfillment',
+    'order-detail-items',
+    'order-detail-payment',
+    'order-detail-timeline',
+    'order-detail-actions',
+  ];
+  let previousIndex = -1;
+  for (const marker of orderedMarkers) {
+    const index = source.indexOf(marker);
+    assert.ok(index > previousIndex, `${marker} must follow the drawer hierarchy`);
+    previousIndex = index;
+  }
+  assert.match(source, /href="`tel:\$\{order\.customerPhone\}`"/);
+  assert.match(source, /paymentMethodLabel\(order\.paymentMethod\)/);
+  assert.match(source, /paymentStatusLabel\(order\.paymentStatus\)/);
+  assert.match(source, /@click="router\.back\(\)"/);
+});
+
+test('full order detail keeps canonical loader and existing mutations', () => {
+  const source = readFileSync(new URL('../src/views/admin/OrderDetailPage.vue', import.meta.url), 'utf8');
+  assert.match(source, /adminApi\.getOrderById\(route\.params\.id\)/);
+  assert.match(source, /adminApi\.cancelOrder\(order\.value\.orderId, \{ expectedStatus: order\.value\.status, reason:/);
+  assert.match(source, /adminApi\.overrideDeliveryAttempt\(order\.value\.orderId, order\.value\.status,/);
+  assert.match(source, /adminApi\.addOrderNote\(order\.value\.orderId, order\.value\.status,/);
 });

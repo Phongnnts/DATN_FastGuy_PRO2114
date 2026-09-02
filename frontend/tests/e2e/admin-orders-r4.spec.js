@@ -138,6 +138,23 @@ test('refund attention canonicalizes contradictory URL filters', async ({ page }
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
+test('direct order detail mirrors drawer facts and returns to the filtered queue', async ({ page }, testInfo) => {
+  const { calls } = await setup(page);
+  const errors = observeBrowser(page);
+  await page.goto('/admin/orders?status=PENDING');
+  await page.goto('/admin/orders/9');
+  await expect(page.locator('.order-detail-identity')).toContainText('FG-0009');
+  await expect(page.locator('.order-detail-fulfillment')).toContainText('Nam Phong');
+  await expect(page.locator('.order-detail-fulfillment').getByRole('link', { name: '0912323417' })).toHaveAttribute('href', 'tel:0912323417');
+  await expect(page.locator('.order-detail-items')).toContainText('Classic Burger');
+  await expect(page.locator('.order-detail-payment')).toContainText('80.001₫');
+  await expect(page.locator('.order-detail-actions').getByRole('button', { name: 'Hủy đơn' })).toBeVisible();
+  await page.getByRole('button', { name: 'Quay lại danh sách' }).click();
+  await expect(page).toHaveURL('/admin/orders?status=PENDING');
+  await expect.poll(() => calls.detail.length).toBe(1);
+  expect(errors, testInfo.project.name).toEqual([]);
+});
+
 test('drawer confirms an allowed order with exact expected status and refreshes canonical data', async ({ page }, testInfo) => {
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
