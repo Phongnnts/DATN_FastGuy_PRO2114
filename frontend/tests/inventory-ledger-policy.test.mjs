@@ -98,8 +98,9 @@ test('ledger shows per-type KPI cards and responsive card table', () => {
   assert.match(page, /kpi\[type\]/);
   assert.match(page, /typeClass\(row\.transactionType\)/);
   assert.match(page, /class="table-wrapper"/);
-  assert.match(page, /data-label="Thời gian"/);
-  assert.match(page, /\.table td::before \{ content: attr\(data-label\)/);
+  assert.match(page, /class="ledger-card-list"/);
+  assert.match(page, /class="ledger-card"/);
+  assert.match(page, /@media \(max-width: 900px\)[\s\S]*\.ledger-table \{ display: none; \}[\s\S]*\.ledger-card-list \{ display: grid; \}/);
 });
 
 test('ledger explains opening balance reason in Vietnamese', () => {

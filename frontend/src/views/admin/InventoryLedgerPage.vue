@@ -198,8 +198,9 @@ onBeforeUnmount(() => {
       <div v-else-if="loadError" class="state error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><strong>{{ loadError }}</strong><button class="btn btn-outline" @click="load">Thử lại</button></div>
       <div v-else-if="!rows.length" class="state"><i class="bi bi-inbox" aria-hidden="true"></i><strong>Không có giao dịch</strong><span>Thử thay đổi hoặc đặt lại bộ lọc.</span><button class="btn btn-outline" @click="resetFilters">Đặt lại bộ lọc</button></div>
       <template v-else>
-        <div class="table-wrapper">
-          <table class="table">
+        <div class="ledger-frame">
+          <div class="table-wrapper">
+          <table class="ledger-table table">
             <thead><tr><th scope="col">Thời gian</th><th scope="col">Loại</th><th scope="col">Mặt hàng</th><th scope="col">Đơn hàng</th><th scope="col">Số lượng</th><th scope="col">Biến động</th><th scope="col">Giá vốn đơn vị</th><th scope="col">Tổng giá vốn</th><th scope="col">Chi tiết</th></tr></thead>
             <tbody>
               <tr v-for="row in rows" :key="row.inventoryTransactionId">
@@ -215,7 +216,21 @@ onBeforeUnmount(() => {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
+        <ul class="ledger-card-list" aria-label="Bằng chứng biến động tồn kho">
+          <li v-for="row in rows" :key="`card-${row.inventoryTransactionId}`" class="ledger-card">
+            <div class="ledger-card-heading"><time :datetime="row.createdAt">{{ row.createdAt }}</time><span class="badge" :class="typeClass(row.transactionType)">{{ TYPE_LABELS[row.transactionType] || row.transactionType }}</span></div>
+            <dl>
+              <div><dt>Mặt hàng</dt><dd>{{ itemName(row.inventoryItemId) || '—' }}</dd></div>
+              <div><dt>Đơn hàng</dt><dd><router-link v-if="row.orderId" :to="`/admin/orders/${row.orderId}`">#{{ row.orderId }}</router-link><span v-else>—</span></dd></div>
+              <div><dt>Số lượng</dt><dd>{{ row.quantity }}</dd></div>
+              <div><dt>Biến động</dt><dd>{{ row.quantityBefore !== null && row.quantityAfter !== null ? `${row.quantityBefore} → ${row.quantityAfter}` : '—' }}</dd></div>
+              <div><dt>Tổng giá vốn</dt><dd>{{ money(row.totalCost) }}</dd></div>
+              <div><dt>Chi tiết</dt><dd>{{ row.reason ? reasonLabel(row.reason) : (row.note || '—') }}</dd></div>
+            </dl>
+          </li>
+        </ul>
         <footer class="table-footer">
           <span>Hiển thị {{ rangeStart }}–{{ rangeEnd }} / {{ total }} giao dịch</span>
           <div class="footer-right">
@@ -255,8 +270,9 @@ onBeforeUnmount(() => {
 .state { align-items: center; color: var(--text-mid); display: flex; flex-direction: column; gap: 10px; justify-content: center; min-height: 280px; padding: 32px; text-align: center; }
 .state > i { color: var(--text-light); font-size: 36px; }
 .state.error > i { color: var(--red-active); }
-.table-wrapper { border-top: 1px solid var(--border); overflow-x: auto; }
-.table { min-width: 980px; }
+.ledger-frame { border-top: 1px solid var(--border); overflow:hidden; }.table-wrapper{overflow-x:auto}
+.ledger-table { min-width: 980px; }
+.ledger-card-list{display:none;margin:0;padding:0;list-style:none}.ledger-card{padding:16px;border-bottom:1px solid var(--admin-hairline);background:var(--admin-surface)}.ledger-card-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.ledger-card-heading time{color:var(--admin-muted);font-size:12px}.ledger-card dl{display:grid;gap:8px;margin:14px 0 0}.ledger-card dl div{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px}.ledger-card dt{color:var(--admin-muted);font-size:12px}.ledger-card dd{margin:0;font-weight:650;overflow-wrap:anywhere}
 .table th { color: var(--text-mid); font-size: 11px; letter-spacing: .03em; text-transform: uppercase; }
 .table td { vertical-align: middle; }
 .sub { color: var(--text-light); display: block; font-size: 11px; }
@@ -277,12 +293,8 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 900px) {
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .table-wrapper { overflow: visible; }
-  .table thead { display: none; }
-  .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
-  .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); }
-  .table td { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; }
-  .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; }
+  .ledger-table { display: none; }
+  .ledger-card-list { display: grid; }
 }
 @media (max-width: 640px) {
   .page-heading { align-items: flex-start; flex-direction: column; }

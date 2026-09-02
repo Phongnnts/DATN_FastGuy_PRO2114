@@ -279,8 +279,12 @@ onMounted(() => {
       <button id="inventory-history-tab" :ref="el => tabRefs[1] = el" type="button" role="tab" aria-controls="inventory-history-panel" :aria-selected="activeTab === 'history'" :tabindex="activeTab === 'history' ? 0 : -1" :class="{ active: activeTab === 'history' }" @keydown="handleTabKeydown($event, 1)" @click="selectTab('history')">Lịch sử biến động</button>
     </nav>
 
-    <section v-if="activeTab === 'current'" id="inventory-current-panel" class="tab-panel" role="tabpanel" aria-labelledby="inventory-current-tab">
-    <section class="today-panel" aria-labelledby="today-title">
+    <section v-if="activeTab === 'current'" id="inventory-current-panel" class="tab-panel stock-workspace" role="tabpanel" aria-labelledby="inventory-current-tab">
+    <div class="workspace-heading">
+      <div><p class="eyebrow">Tồn hiện tại</p><h2>Tổng quan sức khỏe kho</h2></div>
+      <p>Ưu tiên rủi ro thiếu hàng trước khi đi vào từng mặt hàng.</p>
+    </div>
+    <section class="risk-strip today-panel" aria-labelledby="today-title">
       <div><p class="eyebrow">Ưu tiên</p><h2 id="today-title">Hôm nay cần làm gì?</h2></div>
       <div class="action-grid" aria-live="polite">
         <article v-for="action in todayActions" :key="action.route" class="action-card">
@@ -358,7 +362,13 @@ onMounted(() => {
     </section>
 
     </section>
-    <section v-else id="inventory-history-panel" class="tab-panel" role="tabpanel" aria-labelledby="inventory-history-tab"><InventoryLedgerPage /></section>
+    <section v-else id="inventory-history-panel" class="tab-panel history-workspace" role="tabpanel" aria-labelledby="inventory-history-tab">
+      <div class="workspace-heading">
+        <div><p class="eyebrow">Dòng biến động</p><h2>Lịch sử có thể đối soát</h2></div>
+        <p>Lọc theo mặt hàng, đơn hàng, loại giao dịch và thời gian.</p>
+      </div>
+      <InventoryLedgerPage />
+    </section>
 
     <div v-if="dialog && activeTab === 'current'" class="modal-overlay" @mousedown.self="closeDialog">
       <form ref="modalRef" class="modal" role="dialog" aria-modal="true" :aria-labelledby="dialog.kind === 'create' || dialog.kind === 'edit' ? 'item-dialog-title' : 'stock-dialog-title'" @keydown="handleModalKeydown" @submit.prevent="dialog.kind === 'create' || dialog.kind === 'edit' ? submitItemForm() : submitMutation(dialog.kind)">
@@ -417,6 +427,7 @@ onMounted(() => {
 
 <style scoped>
 .inventory-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.stock-workspace,.history-workspace{display:grid;gap:20px;min-width:0}.workspace-heading{display:flex;align-items:end;justify-content:space-between;gap:24px}.workspace-heading h2{margin:2px 0 0;font-size:22px}.workspace-heading>p{max-width:52ch;margin:0;color:var(--admin-muted);font-size:13px;text-align:right}.risk-strip{border-radius:var(--admin-panel-radius)}
 .page-tabs{display:flex;gap:4px;width:max-content;max-width:100%;padding:4px;border:1px solid var(--border-light);border-radius:12px;background:#fff}.page-tabs button{min-height:40px;padding:8px 16px;border-radius:8px;color:var(--text-mid);font-weight:700}.page-tabs button.active{background:var(--admin-brand-soft);color:var(--admin-foreground)}.page-tabs button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 .today-panel{display:grid;gap:14px;padding:24px;border-radius:18px;background:#251d18;color:#fff}.today-panel h2{margin:2px 0 0;font-size:24px}.eyebrow{margin:0;color:#f2aa87;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.action-card{display:grid;gap:12px;align-content:space-between;min-height:118px;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.06)}.action-card .btn{justify-self:start;background:#fff}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.workflow>a,.workflow-step{display:grid;gap:3px;min-height:96px;padding:14px;border:1px solid var(--border-light);border-radius:12px;background:#fff;color:inherit;text-decoration:none}.workflow span>span,.workflow a>span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-weight:800}.workflow small{color:var(--text-mid)}
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -471,5 +482,5 @@ onMounted(() => {
 .inventory-page :is(button,a,summary,input,select):focus-visible{outline:3px solid var(--primary);outline-offset:2px}.inventory-page :is(.btn,input,select){min-height:40px}
 @media (max-width: 1024px) { .inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .toolbar { align-items: stretch; flex-direction: column; } .search-box { max-width: none; } }
 @media (max-width: 800px){.action-grid{grid-template-columns:1fr}.workflow{grid-template-columns:1fr 1fr}.workflow>a,.workflow-step{min-height:88px}}
-@media (max-width: 680px) { .inventory-page,.inventory-stats,.inventory-stats .stat-card,.table { min-width: 0; } .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: 1fr; } .workflow{grid-template-columns:1fr}.section-title{align-items:flex-start;flex-direction:column}.table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } dl{grid-template-columns:1fr} }
+@media (max-width: 680px) { .workspace-heading{align-items:flex-start;flex-direction:column;gap:6px}.workspace-heading>p{text-align:left}.inventory-page,.inventory-stats,.inventory-stats .stat-card,.table { min-width: 0; } .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: 1fr; } .workflow{grid-template-columns:1fr}.section-title{align-items:flex-start;flex-direction:column}.table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } dl{grid-template-columns:1fr} }
 </style>
