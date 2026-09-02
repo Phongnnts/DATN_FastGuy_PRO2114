@@ -34,13 +34,13 @@ test('R2 exposes attendance and stock count workflows', async ({ page }, testInf
   await page.getByRole('link', { name: 'Chấm công & tiền công' }).click();
   expect((await attendanceResponse).status()).toBeLessThan(400);
   await expect(page).toHaveURL(/\/admin\/attendance$/);
-  await expect(page.getByRole('heading', { name: 'Chấm công & tiền công' })).toBeVisible();
+  await expect(page.locator('main.attendance-page').getByRole('heading', { level: 1, name: 'Chấm công & tiền công' })).toBeVisible();
   await expect(page.getByText('Không có chấm công phù hợp.')).toBeVisible();
   if (testInfo.project.name.includes('mobile')) await page.getByRole('button', { name: 'Mở menu quản trị' }).click();
   const countsResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/admin/inventory/stock-counts');
   await page.getByRole('link', { name: 'Kiểm kê kho' }).click();
   expect((await countsResponse).status()).toBeLessThan(400);
   await expect(page).toHaveURL(/\/admin\/inventory\/stock-counts$/);
-  await expect(page.getByRole('heading', { name: 'Đếm và đối chiếu tồn kho' })).toBeVisible();
+  await expect(page.locator('main.count-page').getByRole('heading', { level: 1, name: 'Đếm và đối chiếu tồn kho' })).toBeVisible();
   expect(observed).toEqual([]);
 });
