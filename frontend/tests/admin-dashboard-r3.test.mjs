@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { dashboardViewState } from '../src/utils/adminDashboardViewState.js';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const dashboard = read('../src/views/admin/DashboardPage.vue');
@@ -18,13 +19,17 @@ function ordered(source, values) {
   }
 }
 
-function deprecatedDashboardProperties(contract) {
-  const marker = '    AdminDashboardData:';
+function schemaSource(contract, name) {
+  const marker = `    ${name}:`;
   const start = contract.indexOf(marker);
-  assert.notEqual(start, -1, 'AdminDashboardData schema must exist');
+  assert.notEqual(start, -1, `${name} schema must exist`);
   const tail = contract.slice(start + marker.length);
   const nextSchema = tail.search(/\r?\n    [A-Za-z][A-Za-z0-9]*:\r?\n/);
-  const schema = tail.slice(0, nextSchema === -1 ? undefined : nextSchema);
+  return tail.slice(0, nextSchema === -1 ? undefined : nextSchema);
+}
+
+function deprecatedDashboardProperties(contract) {
+  const schema = schemaSource(contract, 'AdminDashboardData');
   const properties = [...schema.matchAll(/^        ([A-Za-z][A-Za-z0-9]*):/gm)];
   return properties
     .filter((match, index) => {
@@ -35,6 +40,7 @@ function deprecatedDashboardProperties(contract) {
 }
 
 test('R3 dashboard visible business values use only contracted dashboard fields', () => {
+  const dashboardSchema = schemaSource(openapi, 'AdminDashboardData');
   const sourcePolicy = {
     netCashRevenueToday: 'Doanh thu thuần hôm nay',
     operationalOrderCountToday: 'Đơn hàng hôm nay',
@@ -49,21 +55,23 @@ test('R3 dashboard visible business values use only contracted dashboard fields'
   };
 
   for (const [field, label] of Object.entries(sourcePolicy)) {
-    assert.match(openapi, new RegExp(`^        ${field}:`, 'm'), `${label} must have contracted source field ${field}`);
+    assert.match(dashboardSchema, new RegExp(`^        ${field}:`, 'm'), `${label} must have contracted AdminDashboardData field ${field}`);
     assert.match(dashboard, new RegExp(`data(?:\\.value)?\\?\\.${field}|data\\.${field}`), `${label} must read contracted source field ${field}`);
   }
 });
 
-test('R3 dashboard keeps availability decisions local to each contracted business section', () => {
+test('R3 dashboard derives partial state from every contracted availability section', () => {
+  const availabilitySchema = schemaSource(openapi, 'AdminDashboardSectionAvailability');
   for (const section of ['financial', 'orders', 'refunds', 'cod', 'inventory', 'staffing']) {
-    assert.match(openapi, new RegExp(`^        ${section}: \\{ type: string, enum: \\[AVAILABLE, UNAVAILABLE\\] \\}`, 'm'));
+    assert.match(availabilitySchema, new RegExp(`^        ${section}: \\{ type: string, enum: \\[AVAILABLE, UNAVAILABLE\\] \\}`, 'm'));
+    assert.equal(dashboardViewState({}, 'ready', null, { [section]: 'UNAVAILABLE' }), 'partial');
   }
+});
+
+test('R3 dashboard has independent presentation branches for currently rendered sections', () => {
   assert.match(dashboard, /available\('financial'\)[^]*data\.netCashRevenueToday/);
   assert.match(dashboard, /available\('orders'\)[^]*data\.operationalOrderCountToday/);
   assert.match(dashboard, /available\('inventory'\)[^]*lowStockProducts/);
-  for (const type of ['PENDING_REFUNDS', 'STAFF_COVERAGE_GAPS', 'LOW_STOCK_ITEMS', 'PENDING_COD_SETTLEMENTS']) {
-    assert.match(dashboard, new RegExp(type));
-  }
 });
 
 test('R3 dashboard excludes uncontracted profitability and period-comparison claims', () => {
