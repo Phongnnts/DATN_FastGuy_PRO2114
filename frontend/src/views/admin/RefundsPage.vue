@@ -259,14 +259,14 @@ async function saveRefund() {
     </section>
     <p class="kpi-hint"><i class="bi bi-info-circle"></i> Bộ lọc ngày dùng thời điểm xử lý hoàn tiền; yêu cầu chờ dùng thời điểm hủy/tạo gần nhất.</p>
 
-    <section class="panel">
+    <section class="panel refund-review-workspace">
       <nav class="status-tabs" aria-label="Lọc trạng thái hoàn tiền">
         <button v-for="item in statusFilters" :key="item.key" :class="{ active: activeStatus === item.key }" :aria-pressed="activeStatus === item.key" @click="setStatus(item.key)">
           {{ item.label }} <span>{{ countFor(item.key) }}</span>
         </button>
       </nav>
 
-      <div class="filter-area">
+      <div class="filter-area refund-evidence-filters">
         <div class="search-box wide"><i class="bi bi-search"></i><input v-model="searchTerm" class="form-input" aria-label="Tìm mã đơn, khách hàng" placeholder="Tìm mã đơn, tên khách, SĐT..." @keyup.enter="applyFilters" /></div>
       </div>
       <div class="date-row">

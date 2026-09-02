@@ -170,7 +170,7 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
 
 <template>
   <div class="reports-page">
-    <header class="page-heading"><div><p class="eyebrow">Phân tích</p><h1>Báo cáo kinh doanh</h1><p>Theo dõi doanh thu, đơn hàng và hiệu suất sản phẩm.</p></div><div v-if="activeTab === 'overview'" class="head-actions"><button class="btn btn-outline" :disabled="loading || !Object.keys(data).length" @click="exportCsv"><i class="bi bi-download"></i> Xuất CSV</button><button class="btn btn-outline" :disabled="loading" @click="refresh"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div></header>
+    <header class="page-heading finance-health-header"><div><p class="eyebrow">Phân tích</p><h1>Báo cáo kinh doanh</h1><p>Theo dõi doanh thu, đơn hàng và hiệu suất sản phẩm.</p></div><div v-if="activeTab === 'overview'" class="head-actions"><button class="btn btn-outline" :disabled="loading || !Object.keys(data).length" @click="exportCsv"><i class="bi bi-download"></i> Xuất CSV</button><button class="btn btn-outline" :disabled="loading" @click="refresh"><i class="bi bi-arrow-clockwise"></i> Làm mới</button></div></header>
 
     <nav class="report-tabs" role="tablist" aria-label="Báo cáo kinh doanh">
       <button id="report-overview-tab" :ref="el => tabRefs[0] = el" type="button" role="tab" aria-controls="report-overview-panel" :aria-selected="activeTab === 'overview'" :tabindex="activeTab === 'overview' ? 0 : -1" :class="{ active: activeTab === 'overview' }" @keydown="handleTabKeydown($event, 0)" @click="selectTab('overview')">Tổng quan</button>
@@ -178,14 +178,14 @@ onUnmounted(() => { requestId++; Object.values(charts).forEach(chart => chart.de
       <button id="report-expenses-tab" :ref="el => tabRefs[2] = el" type="button" role="tab" aria-controls="report-expenses-panel" :aria-selected="activeTab === 'expenses'" :tabindex="activeTab === 'expenses' ? 0 : -1" :class="{ active: activeTab === 'expenses' }" @keydown="handleTabKeydown($event, 2)" @click="selectTab('expenses')">Chi phí</button>
     </nav>
 
-    <section class="filter-panel" aria-label="Khoảng thời gian báo cáo">
+    <section class="filter-panel report-period-bar" aria-label="Khoảng thời gian báo cáo">
       <div><span class="filter-label">Khoảng nhanh</span><div class="presets"><button v-for="item in [{v:'7d',l:'7 ngày'},{v:'30d',l:'30 ngày'},{v:'6m',l:'6 tháng'},{v:'1y',l:'1 năm'}]" :key="item.v" :class="{ active: !customActive && activePreset === item.v }" :aria-pressed="!customActive && activePreset === item.v" @click="usePreset(item.v)">{{ item.l }}</button></div></div>
       <div class="custom-dates"><label>Từ ngày<input v-model="customFrom" class="form-input" type="date" :max="customTo || today"></label><label>Đến ngày<input v-model="customTo" class="form-input" type="date" :min="customFrom || undefined" :max="today"></label><button class="btn btn-primary" :disabled="!!dateError || loading" @click="applyCustom">Áp dụng</button><p v-if="(customFrom || customTo) && dateError" role="alert">{{ dateError }}</p></div>
     </section>
 
-    <section v-if="activeTab === 'menu'" id="report-menu-panel" class="tab-panel" role="tabpanel" aria-labelledby="report-menu-tab"><InventoryReportsPage :range="selectedRange" /></section>
-    <section v-else-if="activeTab === 'expenses'" id="report-expenses-panel" class="tab-panel" role="tabpanel" aria-labelledby="report-expenses-tab"><OperatingExpensesPage :range="selectedRange" @changed="refreshEstimatedResult" /></section>
-    <section v-else id="report-overview-panel" class="tab-panel" role="tabpanel" aria-labelledby="report-overview-tab">
+    <section v-if="activeTab === 'menu'" id="report-menu-panel" class="tab-panel menu-analysis-workspace" role="tabpanel" aria-labelledby="report-menu-tab"><InventoryReportsPage :range="selectedRange" /></section>
+    <section v-else-if="activeTab === 'expenses'" id="report-expenses-panel" class="tab-panel expense-audit-workspace" role="tabpanel" aria-labelledby="report-expenses-tab"><OperatingExpensesPage :range="selectedRange" @changed="refreshEstimatedResult" /></section>
+    <section v-else id="report-overview-panel" class="tab-panel finance-overview-workspace" role="tabpanel" aria-labelledby="report-overview-tab">
     <div v-if="reportWarning" class="error-banner" role="alert"><i class="bi bi-exclamation-circle"></i><span><strong>Không thể cập nhật báo cáo kinh doanh</strong>Dữ liệu gần nhất vẫn được giữ nguyên. {{ reportWarning }}</span><button class="btn btn-outline" @click="refresh">Thử lại</button></div>
     <div v-if="financeWarning" class="error-banner" role="alert"><i class="bi bi-exclamation-circle"></i><span><strong>Không thể cập nhật báo cáo lợi nhuận</strong>Dữ liệu gần nhất vẫn được giữ nguyên. {{ financeWarning }}</span><button class="btn btn-outline" @click="refresh">Thử lại</button></div>
     <div v-if="loading && !Object.keys(data).length" class="loading-state"><span class="spinner"></span>Đang tải báo cáo...</div>
