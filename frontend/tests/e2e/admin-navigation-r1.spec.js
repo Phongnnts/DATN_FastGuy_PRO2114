@@ -73,9 +73,11 @@ test('admin shell exposes one identity and current page title', async ({ page },
   if (isMobileProject(testInfo)) await expect(trigger).toBeVisible();
   else {
     await expect(trigger).toBeHidden();
+    await expect(sidebar).toHaveCSS('width', '224px');
     await expect(sidebar).not.toHaveAttribute('role', 'dialog');
     await expect(sidebar).not.toHaveAttribute('aria-modal', 'true');
   }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await expect.poll(() => successfulApiPaths.includes('/api/admin/dashboard')).toBe(true);
   await expect.poll(() => successfulApiPaths.includes('/api/admin/inventory/items')).toBe(true);
   await expect.poll(() => successfulApiPaths.includes('/api/admin/inventory/transactions')).toBe(true);
@@ -274,7 +276,7 @@ test('R1 mobile sidebar exposes task groups without hidden legacy entries', asyn
   const { errors, successfulApiPaths } = captureTraffic(page);
   await page.goto('/admin');
   await page.getByRole('button', { name: 'Mở menu quản trị' }).click();
-  for (const group of ['Tổng quan', 'Vận hành', 'Bán hàng', 'Nhân sự', 'Kho hàng', 'Báo cáo', 'Hệ thống']) await expect(page.getByRole('heading', { name: group, exact: true })).toBeVisible();
+  for (const group of ['Vận hành', 'Kho', 'Tài chính', 'Marketing', 'Nhân sự', 'Cấu hình']) await expect(page.getByRole('heading', { name: group, exact: true })).toBeVisible();
   for (const label of ['Tài sản cố định', 'Lịch sử kho', 'Báo cáo theo món', 'Chi phí vận hành']) await expect(page.getByRole('link', { name: label })).toHaveCount(0);
   const inventoryLink = page.getByRole('link', { name: 'Tồn kho' });
   await inventoryLink.focus();
