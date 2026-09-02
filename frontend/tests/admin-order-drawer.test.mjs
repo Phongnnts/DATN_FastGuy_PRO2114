@@ -25,6 +25,14 @@ test('drawer renders only contracted detail sections and truthful payment totals
   assert.doesNotMatch(drawer, /ETA|estimatedDelivery|serviceFee/);
 });
 
+test('drawer remains the single centered two-column detail surface', () => {
+  assert.doesNotMatch(drawer, /props\.variant|order-inspector|complementary/);
+  assert.match(drawer, /class="order-modal-backdrop"/);
+  assert.match(drawer, /class="order-modal" role="dialog" aria-modal="true"/);
+  assert.match(drawer, /grid-template-columns:minmax\(0,1\.1fr\) minmax\(0,\.9fr\)/);
+  assert.doesNotMatch(page, /variant="inspector"|orders-desktop-split|class="order-inspector"/);
+});
+
 test('drawer is modal, focus-contained, escapable, and responsive', () => {
   assert.match(drawer, /role="dialog"/);
   assert.match(drawer, /aria-modal="true"/);
@@ -34,12 +42,26 @@ test('drawer is modal, focus-contained, escapable, and responsive', () => {
   assert.match(drawer, /order-modal-close/);
   assert.match(drawer, /class="order-modal-backdrop"/);
   assert.match(drawer, /class="order-modal"/);
-  assert.match(drawer, /width:880px/);
+  assert.match(drawer, /width:850px/);
   assert.match(drawer, /max-width:calc\(100vw - 48px\)/);
   assert.match(drawer, /max-height:85dvh/);
   assert.match(drawer, /@media\(max-width:640px\)/);
   assert.match(drawer, /height:100dvh/);
   assert.doesNotMatch(drawer, /justify-content:flex-end/);
+});
+
+test('drawer applies the Notion warm-paper modal contract', () => {
+  assert.match(drawer, /--order-paper:#f6f5f4/);
+  assert.match(drawer, /--order-coral:#FF6846/);
+  assert.match(drawer, /\.order-modal\{[^}]*border-radius:16px[^}]*box-shadow:none/);
+  assert.match(drawer, /\.modal-scroll section\{[^}]*border:1px solid rgba\(0,0,0,\.08\)[^}]*border-radius:12px[^}]*background:#fff/);
+  assert.match(drawer, /\.modal-actions \.btn-primary\{[^}]*background:var\(--order-coral\)/);
+  assert.doesNotMatch(drawer, /linear-gradient/);
+  assert.match(drawer, /\.order-modal\{[^}]*border-radius:16px/);
+  assert.match(drawer, /\.modal-actions :is\(\.btn,button,a\)\{[^}]*border-radius:10px/);
+  assert.match(drawer, /--order-coral:#FF6846/);
+  assert.match(drawer, /--order-coral-hover:#F85B38/);
+  assert.match(drawer, /\.modal-actions \.btn-primary\{[^}]*background:var\(--order-coral\)[^}]*box-shadow:0 2px 5px rgba\(255,104,70,\.16\)/);
 });
 
 test('drawer actions are controlled by canonical allowedActions and current detail before mutation', () => {

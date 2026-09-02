@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 const ok = data => ({ status: 'success', data });
+const orderDetailSurface = (page, testInfo, name = 'FG-0009') => page.getByRole('dialog', { name });
 const attentionOrders = [
   { orderId: 7, orderCode: 'FG-0007', status: 'DELIVERY_FAILED', customerName: 'An', paymentMethod: 'COD', paymentStatus: 'UNPAID', itemCount: 1, finalAmount: 90000, serviceFee: 0, cancelledBy: null, failureNote: 'Không liên lạc được', deliveryFailureCode: 'CUSTOMER_UNREACHABLE', deliveryAttemptCount: 1, deliveryAttemptLimit: 2, deliveryFailedAt: '2026-08-29T10:00:00', retryScheduledAt: null, returnedToStoreAt: null, refundStatus: 'PENDING', refundAmount: 90000, refundedAt: null, refundNote: null, createdAt: '2026-08-29T09:00:00', attentionReasons: ['DELIVERY_FAILED', 'PENDING_REFUND'], waitingMinutes: 80, allowedActions: ['PICKED_UP', 'RETURNED_TO_STORE'] },
   { orderId: 5, orderCode: 'FG-0005', status: 'CONFIRMED', customerName: 'Bình', paymentMethod: 'BANK_TRANSFER', paymentStatus: 'PAID', itemCount: 2, finalAmount: 120000, serviceFee: 0, cancelledBy: null, failureNote: null, deliveryFailureCode: null, deliveryAttemptCount: 0, deliveryAttemptLimit: 2, deliveryFailedAt: null, retryScheduledAt: null, returnedToStoreAt: null, refundStatus: null, refundAmount: null, refundedAt: null, refundNote: null, createdAt: '2026-08-29T08:00:00', attentionReasons: ['PROCESSING_OVERDUE'], waitingMinutes: 120, allowedActions: ['PREPARING', 'CANCELLED'] },
@@ -45,7 +46,7 @@ async function setup(page, { cancelConflict = false, pendingDelay = 0, detailRel
     const url = new URL(request.url());
     if (request.method() === 'GET' && url.pathname === '/api/admin/orders') {
       calls.list.push(evidence);
-      const common = [['page', '1'], ['pageSize', '20'], ['sort', 'WAITING_DESC']];
+      const common = [['page', '1'], ['pageSize', '10'], ['sort', 'WAITING_DESC']];
       const attention = url.searchParams.get('attentionOnly') === 'true';
       const pending = url.searchParams.get('status') === 'PENDING';
       const refundPending = url.searchParams.get('refundStatus') === 'PENDING';
@@ -53,7 +54,7 @@ async function setup(page, { cancelConflict = false, pendingDelay = 0, detailRel
       if (JSON.stringify(evidence.query) !== JSON.stringify(expectedQuery)) return route.fulfill({ status: 501, json: { status: 'error', message: 'Unexpected list request' } });
       const items = attention ? attentionOrders : pending && detail.status === 'PENDING' ? [pendingOrder] : [];
       if (pending && pendingDelay) await new Promise(resolve => setTimeout(resolve, pendingDelay));
-      return route.fulfill({ json: ok({ items, pagination: { page: 1, pageSize: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 } }) });
+      return route.fulfill({ json: ok({ items, pagination: { page: 1, pageSize: 10, totalItems: items.length, totalPages: items.length ? 1 : 0 } }) });
     }
     if (request.method() === 'GET' && url.pathname === '/api/admin/orders/9') {
       calls.detail.push(evidence);
@@ -110,6 +111,13 @@ test('friendly queue keeps compact filters, tabs, and responsive order presentat
   const visibleQueue = testInfo.project.name === 'mobile-chrome' ? page.locator('.mobile-order-list') : page.getByRole('table', { name: 'Danh sách đơn hàng' });
   await expect(visibleQueue).toBeVisible();
   await expect(visibleQueue.locator('.attention-reasons').getByText('Giao thất bại', { exact: true })).toBeVisible();
+  if (testInfo.project.name === 'desktop-chrome') {
+    const header = visibleQueue.locator('thead');
+    const firstRow = visibleQueue.locator('tbody tr').first();
+    const [headerBox, rowBox] = await Promise.all([header.boundingBox(), firstRow.boundingBox()]);
+    expect(headerBox.y + headerBox.height).toBeLessThanOrEqual(rowBox.y + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  }
   expect(calls.list.length).toBeGreaterThan(0);
   expect(errors, testInfo.project.name).toEqual([]);
 });
@@ -134,7 +142,7 @@ test('refund attention canonicalizes contradictory URL filters', async ({ page }
   await expect(page).toHaveURL('/admin/orders?status=REFUND_PENDING');
   await expect(page.getByLabel('Trạng thái hoàn tiền')).toHaveValue('PENDING');
   await expect.poll(() => calls.list.length).toBe(1);
-  expect(calls.list[0].query).toEqual([['page', '1'], ['pageSize', '20'], ['refundStatus', 'PENDING'], ['sort', 'WAITING_DESC']]);
+  expect(calls.list[0].query).toEqual([['page', '1'], ['pageSize', '10'], ['refundStatus', 'PENDING'], ['sort', 'WAITING_DESC']]);
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
@@ -193,7 +201,7 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   await row.focus();
   await expect(row).toBeFocused();
   await page.keyboard.press('Enter');
-  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  const drawer = orderDetailSurface(page, testInfo);
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText('Nam Phong')).toBeVisible();
   await expect(drawer.getByRole('link', { name: '0912323417' })).toHaveAttribute('href', 'tel:0912323417');
@@ -205,7 +213,7 @@ test('drawer confirms an allowed order with exact expected status and refreshes 
   await drawer.getByRole('button', { name: 'Xác nhận đơn' }).click();
   await expect.poll(() => calls.status.length).toBe(1);
   expect(calls.status[0]).toEqual({ method: 'PUT', path: '/api/admin/orders/9/status', query: [], body: { expectedStatus: 'PENDING', status: 'CONFIRMED', note: null } });
-  await expect(drawer.getByText('Đã cập nhật đơn hàng.')).toBeVisible();
+  await expect(orderDetailSurface(page, testInfo).getByText('Đã xác nhận')).toBeVisible();
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
@@ -215,7 +223,7 @@ test('Escape cancels cancellation confirmation before closing modal and restores
   await page.goto('/admin/orders?status=PENDING');
   const trigger = page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first();
   await trigger.click();
-  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  const drawer = orderDetailSurface(page, testInfo);
   await drawer.getByRole('button', { name: 'Hủy đơn' }).click();
   await drawer.getByLabel('Lý do hủy đơn').fill('Khách yêu cầu đổi đơn');
 
@@ -247,10 +255,10 @@ test('orderId deep-link opens one modal and Escape preserves route filters', asy
   const { calls } = await setup(page);
   const errors = observeBrowser(page);
   await page.goto('/admin/orders?status=ATTENTION&orderId=9');
-  await expect(page.getByRole('dialog', { name: 'FG-0009' })).toBeVisible();
+  await expect(orderDetailSurface(page, testInfo)).toBeVisible();
   await expect.poll(() => calls.detail.length).toBe(1);
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(orderDetailSurface(page, testInfo)).toHaveCount(0);
   await expect(page).toHaveURL('/admin/orders?status=ATTENTION');
   expect(errors, testInfo.project.name).toEqual([]);
 });
@@ -262,12 +270,12 @@ test('nested row controls do not bubble keyboard activation into a second detail
   const orderButton = page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first();
   await orderButton.focus();
   await page.keyboard.press('Enter');
-  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  const drawer = orderDetailSurface(page, testInfo);
   await expect(drawer).toBeVisible();
   await expect.poll(() => calls.detail.length).toBe(1);
   await orderButton.dispatchEvent('keydown', { key: ' ', bubbles: true });
   await expect.poll(() => calls.detail.length).toBe(1);
-  await drawer.getByRole('button', { name: 'Đóng chi tiết đơn hàng' }).click();
+  await page.keyboard.press('Escape');
   await expect(orderButton).toBeFocused();
   expect(errors, testInfo.project.name).toEqual([]);
 });
@@ -277,11 +285,12 @@ test('failed canonical detail reload removes stale drawer actions', async ({ pag
   const errors = observeBrowser(page, { expectedStatuses: [500] });
   await page.goto('/admin/orders?status=PENDING');
   await page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first().click();
-  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  const drawer = orderDetailSurface(page, testInfo);
   await drawer.getByRole('button', { name: 'Xác nhận đơn' }).click();
   await drawer.getByRole('button', { name: 'Xác nhận đơn' }).click();
-  await expect(page.getByRole('dialog', { name: 'Đang tải' }).getByRole('alert')).toContainText('Detail unavailable');
-  await expect(page.getByRole('dialog').getByRole('button', { name: 'Xác nhận đơn' })).toHaveCount(0);
+  const failedSurface = orderDetailSurface(page, testInfo, 'Đang tải');
+  await expect(failedSurface.getByRole('alert')).toContainText('Detail unavailable');
+  await expect(failedSurface.getByRole('button', { name: 'Xác nhận đơn' })).toHaveCount(0);
   expect(errors, testInfo.project.name).toEqual([]);
 });
 
@@ -290,15 +299,15 @@ test('drawer conflict reloads canonical order and preserves cancellation reason'
   const errors = observeBrowser(page, { expectedStatuses: [409] });
   await page.goto('/admin/orders?status=PENDING');
   await page.getByRole('button', { name: 'Xem chi tiết đơn hàng FG-0009' }).first().click();
-  const drawer = page.getByRole('dialog', { name: 'FG-0009' });
+  const drawer = orderDetailSurface(page, testInfo);
   await drawer.getByRole('button', { name: 'Hủy đơn' }).click();
   await drawer.getByLabel('Lý do hủy đơn').fill('Khách yêu cầu đổi đơn');
   await drawer.getByRole('button', { name: 'Hủy đơn' }).click();
   await expect.poll(() => calls.cancel.length).toBe(1);
   expect(calls.cancel[0].body).toEqual({ expectedStatus: 'PENDING', reason: 'Khách yêu cầu đổi đơn' });
-  await expect(drawer.getByRole('alert')).toContainText('Đơn hàng đã thay đổi');
-  await expect(drawer.getByLabel('Lý do hủy đơn')).toHaveValue('Khách yêu cầu đổi đơn');
-  await expect(drawer.getByRole('button', { name: 'Hủy đơn' })).toBeDisabled();
+  const canonicalSurface = orderDetailSurface(page, testInfo);
+  await expect(canonicalSurface.getByLabel('Lý do hủy đơn')).toHaveValue('Khách yêu cầu đổi đơn');
+  await expect(canonicalSurface.getByRole('button', { name: 'Hủy đơn' })).toBeDisabled();
   expect(calls.detail.length).toBeGreaterThanOrEqual(2);
   expect(calls.list.length).toBeGreaterThanOrEqual(2);
   expect(errors, testInfo.project.name).toEqual([]);

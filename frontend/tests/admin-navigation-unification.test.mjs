@@ -89,12 +89,12 @@ test('legacy routes redirect to unified query tabs while fixed assets remain add
 
 test('admin shell exposes the approved semantic palette through scoped aliases', () => {
   const expectedTokens = {
-    '--admin-canvas': '#eef2f6',
-    '--admin-surface': '#ffffff',
-    '--admin-surface-subtle': '#f8f9fb',
-    '--admin-foreground': '#172033',
-    '--admin-muted': '#667085',
-    '--admin-subtle': '#98A2B3',
+    '--admin-canvas': '#f4f5f7',
+    '--admin-surface': '#fcfcfd',
+    '--admin-surface-subtle': '#f7f8fa',
+    '--admin-foreground': '#2b3038',
+    '--admin-muted': '#7d838c',
+    '--admin-subtle': '#9a9fa7',
     '--admin-brand': '#f45b2a',
     '--admin-brand-dark': '#C43F16',
     '--admin-brand-soft': '#FFF0EA',
@@ -122,13 +122,13 @@ test('admin text-bearing primary controls use a scoped WCAG AA orange pairing', 
 });
 
 test('admin visual foundation uses semantic surfaces and accessible active navigation', () => {
-  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*height:100vh;[^}]*background:var\(--admin-sidebar\);[^}]*box-shadow:none/);
-  assert.match(layout, /\.sidebar\{width:224px\}/);
-  assert.match(layout, /\.main-content\{min-width:0;margin-left:224px\}/);
+  assert.match(layout, /\.fg-shell-admin :deep\(\.sidebar\)\{[^}]*height:calc\(100vh - 24px\);[^}]*border-radius:20px;[^}]*background:linear-gradient\(155deg,var\(--admin-sidebar-highlight\),var\(--admin-sidebar\)\)/);
+  assert.match(layout, /\.sidebar\{width:232px\}/);
+  assert.match(layout, /\.main-content\{min-width:0;margin-left:244px;[^}]*border-radius:20px/);
   assert.match(layout, /\.sidebar-brand\{[^}]*border-bottom:0/);
-  assert.match(layout, /\.topbar\{height:56px;[^}]*border-bottom:1px solid var\(--admin-hairline\);[^}]*background:var\(--admin-surface\);[^}]*box-shadow:none/);
+  assert.match(layout, /\.topbar\{height:56px;[^}]*border-bottom:1px solid var\(--admin-hairline\);[^}]*background:rgba\(252,252,253,\.92\);[^}]*box-shadow:none/);
   assert.match(layout, /\.page-content\{width:100%;max-width:1440px;margin-inline:auto;background:var\(--admin-canvas\)\}/);
-  assert.match(layout, /\.sidebar-nav a\.router-link-active\{[^}]*color:var\(--admin-surface\);background:rgba\(244,91,42,\.18\);[^}]*font-weight:720\}/);
+  assert.match(layout, /\.sidebar-nav a\.router-link-active\{[^}]*color:var\(--admin-foreground\);background:var\(--admin-sidebar-active\);[^}]*font-weight:720\}/);
   assert.match(layout, /\.sidebar-nav a\.router-link-active i\{color:var\(--admin-brand\)\}/);
   assert.match(layout, /\.sidebar-nav a\.router-link-active::before\{content:none\}/);
   assert.doesNotMatch(layout, /transition:\s*all/);

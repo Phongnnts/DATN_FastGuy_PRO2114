@@ -50,6 +50,35 @@ test('friendly workspace exposes compact filters, lifecycle navigation, and whol
   assert.doesNotMatch(page, /order-shortcuts/);
 });
 
+test('Orders uses the approved full-width pale queue and centered detail modal', () => {
+  assert.match(page, /class="panel queue-workspace orders-light-workspace"/);
+  assert.doesNotMatch(page, /orders-desktop-split|class="order-inspector"|desktopInspector/);
+  assert.match(page, /order-row-selected/);
+  assert.match(page, /\.orders-light-workspace/);
+  assert.match(page, /\.status-semantic-dot/);
+  assert.match(page, /\.status-semantic-chip/);
+  assert.match(page, /<AdminOrderDrawer :open=/);
+});
+
+test('Orders applies the complete Notion warm-paper visual contract', () => {
+  assert.match(page, /--orders-paper:#f6f5f4/);
+  assert.match(page, /--brand-primary:#FF6846/);
+  assert.match(page, /font-family:Inter,-apple-system/);
+  assert.match(page, /\.orders-light-workspace\{[^}]*border-radius:16px[^}]*box-shadow:none/);
+  assert.match(page, /\.orders-light-workspace \.status-segments>button[^}]*border-radius:8px/);
+  assert.match(page, /\.desktop-order-table thead\{[^}]*top:0/);
+  assert.doesNotMatch(page, /\.orders-light-workspace[^\n]*gradient/);
+  assert.match(page, /const pageSize = 10/);
+  assert.match(page, /\.orders-light-workspace\{[^}]*border-radius:16px/);
+  assert.match(page, /\.orders-light-workspace :is\(\.form-input,\.form-select,\.advanced-filter-trigger,\.btn\)\{[^}]*border-radius:10px/);
+  assert.match(page, /\.desktop-order-table tbody tr\{[^}]*height:72px/);
+  for (const token of ['--brand-primary:#FF6846', '--brand-primary-hover:#F85B38', '--brand-primary-active:#E94F30', '--brand-soft:#FFF1EC', '--brand-border:#FFD8CC', '--brand-text:#E95635']) assert.match(page, new RegExp(token));
+  assert.match(page, /box-shadow:0 2px 5px rgba\(255,104,70,\.16\),0 0 14px rgba\(255,104,70,\.10\)/);
+  assert.match(page, /class="waiting-primary"/);
+  assert.match(page, /class="waiting-secondary"/);
+  assert.match(page, /formatTime\(order\.createdAt\)/);
+});
+
 test('friendly filters remain explicit URL-backed and removable', () => {
   assert.match(page, /Tìm mã đơn, khách hàng, SĐT/);
   assert.match(page, /advancedFiltersOpen/);

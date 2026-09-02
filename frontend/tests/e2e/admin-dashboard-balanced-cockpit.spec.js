@@ -65,7 +65,7 @@ test('admin balanced cockpit renders analytics without browser errors', async ({
   await page.goto('/admin');
 
   await expect(page.getByRole('heading', { name: 'Hoạt động hôm nay' })).toBeVisible();
-  for (const name of ['Doanh thu 7 ngày', 'Cần xử lý', 'Trạng thái đơn hàng', 'Món bán chạy', 'Món sắp tạm hết']) {
+  for (const name of ['Doanh thu', 'Cần xử lý', 'Trạng thái đơn hàng', 'Sản phẩm bán chạy 7 ngày', 'Món sắp tạm hết']) {
     await expect(page.getByRole('heading', { name })).toBeVisible();
   }
   await expect(page.getByText('Còn đủ nguyên liệu cho khoảng 8 phần')).toBeVisible();
@@ -74,7 +74,7 @@ test('admin balanced cockpit renders analytics without browser errors', async ({
   const charts = [
     page.getByRole('img', { name: 'Biểu đồ doanh thu 7 ngày' }),
     page.getByRole('img', { name: 'Biểu đồ trạng thái đơn hàng' }),
-    page.getByRole('img', { name: 'Biểu đồ món bán chạy' }),
+    page.getByRole('img', { name: 'Biểu đồ sản phẩm bán chạy 7 ngày' }),
   ];
   for (const chart of charts) {
     await chart.scrollIntoViewIfNeeded();
@@ -93,7 +93,7 @@ test('admin balanced cockpit renders analytics without browser errors', async ({
   const primaryGrid = page.locator('.primary-operations-grid');
   const secondaryGrid = page.locator('.secondary-insights-grid');
   if (!testInfo.project.name.includes('mobile')) {
-    const geometry = [primaryGrid, secondaryGrid, primaryGrid.locator('.revenue-panel'), primaryGrid.locator('.attention-panel'), primaryGrid.locator('.status-panel'), secondaryGrid.locator('.products-panel'), secondaryGrid.locator('.stock-panel')];
+    const geometry = [primaryGrid, secondaryGrid, primaryGrid.locator('.revenue-panel'), primaryGrid.locator('.attention-panel'), secondaryGrid.locator('.status-panel'), secondaryGrid.locator('.products-panel'), secondaryGrid.locator('.stock-panel')];
     await expect.poll(async () => {
       const boxes = await Promise.all(geometry.map(locator => locator.boundingBox()));
       return boxes.every(Boolean) && Math.abs(boxes[5].y - boxes[6].y) < 2;
@@ -103,22 +103,24 @@ test('admin balanced cockpit renders analytics without browser errors', async ({
     const tolerance = 2;
     const revenueTracks = revenueBox.width - (7 * gap);
     const attentionTracks = attentionBox.width - (3 * gap);
-    const productTracks = productsBox.width - (7 * gap);
-    const stockTracks = stockBox.width - (3 * gap);
+    const statusTracks = statusBox.width - (3 * gap);
+    const productTracks = productsBox.width - (4 * gap);
+    const stockTracks = stockBox.width - (2 * gap);
     expect(Math.abs(revenueBox.y - attentionBox.y)).toBeLessThan(tolerance);
     expect(Math.abs(revenueBox.x - primaryBox.x)).toBeLessThan(tolerance);
     expect(Math.abs(attentionBox.x - (revenueBox.x + revenueBox.width + gap))).toBeLessThan(tolerance);
     expect(Math.abs((attentionBox.x + attentionBox.width) - (primaryBox.x + primaryBox.width))).toBeLessThan(tolerance);
     expect(revenueBox.width + attentionBox.width + gap).toBeCloseTo(primaryBox.width, 0);
     expect(revenueTracks / attentionTracks).toBeCloseTo(2, 1);
-    expect(Math.abs(statusBox.x - primaryBox.x)).toBeLessThan(tolerance);
-    expect(statusBox.width).toBeCloseTo(primaryBox.width, 0);
+    expect(Math.abs(statusBox.y - productsBox.y)).toBeLessThan(tolerance);
     expect(Math.abs(productsBox.y - stockBox.y)).toBeLessThan(tolerance);
-    expect(Math.abs(productsBox.x - secondaryBox.x)).toBeLessThan(tolerance);
+    expect(Math.abs(statusBox.x - secondaryBox.x)).toBeLessThan(tolerance);
+    expect(Math.abs(productsBox.x - (statusBox.x + statusBox.width + gap))).toBeLessThan(tolerance);
     expect(Math.abs(stockBox.x - (productsBox.x + productsBox.width + gap))).toBeLessThan(tolerance);
     expect(Math.abs((stockBox.x + stockBox.width) - (secondaryBox.x + secondaryBox.width))).toBeLessThan(tolerance);
-    expect(productsBox.width + stockBox.width + gap).toBeCloseTo(secondaryBox.width, 0);
-    expect(productTracks / stockTracks).toBeCloseTo(2, 1);
+    expect(statusBox.width + productsBox.width + stockBox.width + (2 * gap)).toBeCloseTo(secondaryBox.width, 0);
+    expect(productTracks / statusTracks).toBeCloseTo(1.25, 1);
+    expect(statusTracks / stockTracks).toBeCloseTo(4 / 3, 1);
   }
   await expect(primaryGrid).toBeVisible();
   await expect(secondaryGrid).toBeVisible();

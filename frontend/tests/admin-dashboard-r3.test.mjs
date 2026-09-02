@@ -116,8 +116,12 @@ test('Operations Studio unavailable cash-risk cards are non-interactive while av
 });
 
 test('R3 dashboard source follows the approved cockpit section order', () => {
-  ordered(dashboard, ['<header class="operations-hero"', 'class="dashboard-kpi-grid', 'class="primary-operations-grid', 'id="revenue-title">Doanh thu 7 ngày', 'id="attention-title">Cần xử lý', 'id="status-title">Trạng thái đơn hàng', 'class="secondary-insights-grid"', 'id="products-title">Món bán chạy', 'id="stock-title">Món sắp tạm hết', 'class="cash-risk-rail"', 'class="panel priority-workspace']);
-  assert.doesNotMatch(dashboard, /TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý/);
+  ordered(dashboard, ['<header class="operations-hero"', 'class="dashboard-kpi-grid', 'class="primary-operations-grid', 'id="revenue-title">Doanh thu', 'class="period-switch"', '>Hôm nay<', '>7 ngày<', 'id="attention-title">Cần xử lý', 'class="dashboard-insight-row secondary-insights-grid"', 'id="status-title">Trạng thái đơn hàng', 'id="products-title">Sản phẩm bán chạy 7 ngày', 'id="stock-title">Món sắp tạm hết', 'class="cash-risk-rail"', 'class="panel priority-workspace']);
+  assert.match(dashboard, /class="status-chart-shell"/);
+  assert.match(dashboard, /class="status-legend"/);
+  assert.match(dashboard, /class="priority-order-table"/);
+  assert.match(dashboard, /class="dashboard-insight-row secondary-insights-grid"[\s\S]*class="panel status-panel"[\s\S]*class="panel products-panel"[\s\S]*class="panel stock-panel"/);
+  assert.doesNotMatch(dashboard, /Doanh thu theo tuần|TRUNG TÂM ĐIỀU HÀNH|Ưu tiên xử lý/);
 });
 
 test('dashboard uses the approved Apple-inspired hierarchy without decorative fake data', () => {
@@ -150,7 +154,7 @@ test('R3 dashboard renders three statistical charts with semantic alternatives',
   assert.match(dashboard, /type: 'line'/);
   assert.match(dashboard, /type: 'doughnut'/);
   assert.match(dashboard, /indexAxis: 'y'/);
-  for (const label of ['Doanh thu 7 ngày', 'Trạng thái đơn hàng', 'Món bán chạy', 'Món sắp tạm hết']) assert.match(dashboard, new RegExp(label));
+  for (const label of ['id="revenue-title">Doanh thu', '>7 ngày<', 'Trạng thái đơn hàng', 'Sản phẩm bán chạy 7 ngày', 'Món sắp tạm hết']) assert.match(dashboard, new RegExp(label));
   assert.match(dashboard, /prefers-reduced-motion/);
   assert.match(dashboard, /const animation = reducedMotion \? false/);
   for (const [status, label] of Object.entries({ PENDING: 'Chờ xác nhận', CONFIRMED: 'Đã xác nhận', PREPARING: 'Đang chế biến', READY: 'Sẵn sàng giao', ASSIGNED: 'Đã gán shipper', PICKED_UP: 'Đang giao', DELIVERY_FAILED: 'Giao thất bại' })) {

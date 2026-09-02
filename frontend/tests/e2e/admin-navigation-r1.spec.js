@@ -73,7 +73,7 @@ test('admin shell exposes one identity and current page title', async ({ page },
   if (isMobileProject(testInfo)) await expect(trigger).toBeVisible();
   else {
     await expect(trigger).toBeHidden();
-    await expect(sidebar).toHaveCSS('width', '224px');
+    await expect(sidebar).toHaveCSS('width', '232px');
     await expect(sidebar).not.toHaveAttribute('role', 'dialog');
     await expect(sidebar).not.toHaveAttribute('aria-modal', 'true');
   }

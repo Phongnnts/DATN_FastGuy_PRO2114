@@ -16,22 +16,24 @@ function assertSingleDeclaration(name, value) {
 }
 
 test('admin shell uses the approved fixed geometry and FastGuy material', () => {
-  assert.match(layout, /\.sidebar\{width:224px\}/);
-  assert.match(layout, /\.main-content\{min-width:0;margin-left:224px\}/);
+  assert.match(layout, /\.sidebar\{width:232px\}/);
+  assert.match(layout, /\.main-content\{min-width:0;margin-left:244px/);
   assert.match(layout, /\.topbar\{height:56px/);
-  assert.match(layout, /background:var\(--admin-sidebar\)/);
+  assert.match(layout, /background:linear-gradient\(155deg,var\(--admin-sidebar-highlight\),var\(--admin-sidebar\)\)/);
   assert.match(layout, /FastGuy/);
 });
 
 test('admin tokens expose exactly one approved Operations Studio declaration', () => {
   for (const [name, value] of [
-    ['--admin-canvas', '#eef2f6'],
-    ['--admin-surface', '#ffffff'],
-    ['--admin-surface-subtle', '#f8f9fb'],
-    ['--admin-foreground', '#172033'],
-    ['--admin-muted', '#667085'],
-    ['--admin-hairline', 'rgba(23, 32, 51, 0.09)'],
-    ['--admin-sidebar', '#142033'],
+    ['--admin-canvas', '#f4f5f7'],
+    ['--admin-surface', '#fcfcfd'],
+    ['--admin-surface-subtle', '#f7f8fa'],
+    ['--admin-foreground', '#2b3038'],
+    ['--admin-muted', '#7d838c'],
+    ['--admin-hairline', 'rgba(53, 60, 70, 0.1)'],
+    ['--admin-sidebar', '#f2f3f5'],
+    ['--admin-sidebar-highlight', '#f8f9fa'],
+    ['--admin-sidebar-active', '#e9ebee'],
     ['--admin-brand', '#f45b2a'],
     ['--admin-control-radius', '8px'],
     ['--admin-workspace-radius', '12px'],
@@ -50,7 +52,7 @@ test('responsive navigation retains dialog semantics and focus recovery', () => 
 });
 
 test('admin shell uses the approved bright floating surfaces', () => {
-  for (const token of ['--admin-canvas: #eef2f6', '--admin-surface: #ffffff', '--admin-foreground: #172033', '--admin-muted: #667085', '--admin-brand: #f45b2a', '--admin-brand-soft: #FFF0EA']) {
+  for (const token of ['--admin-canvas: #f4f5f7', '--admin-surface: #fcfcfd', '--admin-foreground: #2b3038', '--admin-muted: #7d838c', '--admin-brand: #f45b2a', '--admin-brand-soft: #FFF0EA']) {
     assert.match(variables, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
   }
   assert.match(layout, /class="sidebar-brand-mark"/);

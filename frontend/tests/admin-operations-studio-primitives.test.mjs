@@ -6,6 +6,7 @@ const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const header = read('../src/components/admin/AdminPageHeader.vue');
 const statePanel = read('../src/components/admin/AdminStatePanel.vue');
 const workspace = read('../src/components/admin/AdminWorkspace.vue');
+const adminLayout = read('../src/layouts/AdminLayout.vue');
 const sources = [header, statePanel, workspace];
 
 test('page header exposes semantic title description and action regions', () => {
@@ -41,4 +42,12 @@ test('primitives stay presentation-only and use shared tokens with visible focus
   for (const token of ['--admin-surface', '--admin-foreground', '--admin-muted', '--admin-border', '--admin-brand', '--admin-workspace-radius']) {
     assert.match(sources.join('\n'), new RegExp(`var\\(${token}\\)`));
   }
+});
+
+test('Admin shell uses the approved floating silver macOS sidebar treatment', () => {
+  assert.match(adminLayout, /class="sidebar-layout fg-shell fg-shell-admin admin-silver-shell"/);
+  assert.match(adminLayout, /border-radius:20px/);
+  assert.match(adminLayout, /background:linear-gradient\(155deg,var\(--admin-sidebar-highlight\),var\(--admin-sidebar\)\)/);
+  assert.match(adminLayout, /sidebar-nav a\.router-link-active\{[^}]*background:var\(--admin-sidebar-active\)/);
+  assert.doesNotMatch(adminLayout, /background:rgba\(244,91,42,.18\)/);
 });
