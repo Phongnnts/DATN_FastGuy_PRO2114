@@ -18,6 +18,8 @@ test('drawer renders only contracted detail sections and truthful payment totals
   assert.ok(drawer.indexOf('order-drawer-items') < drawer.indexOf('order-drawer-payment'));
   assert.ok(drawer.indexOf('order-drawer-payment') < drawer.indexOf('order-drawer-timeline'));
   assert.ok(drawer.indexOf('order-drawer-timeline') < drawer.indexOf('order-drawer-actions'));
+  assert.match(drawer, /\.order-modal :is\(button,a,textarea\)[^{]*\{[^}]*min-height:40px/);
+  assert.match(drawer, /\.order-modal-close\{[^}]*width:44px[^}]*height:44px/);
   assert.match(drawer, /OrderTimeline/);
   assert.match(drawer, /imageUrl/);
   assert.doesNotMatch(drawer, /ETA|estimatedDelivery|serviceFee/);
@@ -40,9 +42,15 @@ test('drawer is modal, focus-contained, escapable, and responsive', () => {
   assert.doesNotMatch(drawer, /justify-content:flex-end/);
 });
 
-test('drawer actions are controlled by allowedActions and keep refund processing external', () => {
-  assert.match(drawer, /inlineOrderActions\(props\.order\?\.allowedActions\)/);
-  assert.match(drawer, /pendingAction/);
+test('drawer actions are controlled by canonical allowedActions and current detail before mutation', () => {
+  const selectAction = page.match(/function selectDrawerAction\(action\) \{[\s\S]*?\n\}/)?.[0] || '';
+  const confirmAction = page.match(/async function confirmDrawerAction\(\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(drawer, /const actions = computed\(\(\) => inlineOrderActions\(props\.order\?\.allowedActions\)\)/);
+  assert.match(drawer, /actionStillAllowed = computed\(\(\) => actions\.value\.some\(action => action\.key === props\.pendingAction\)\)/);
+  assert.match(selectAction, /selectedAllowedActionKeys\(\)\.has\(action\)/);
+  assert.match(confirmAction, /!selectedOrder\.value/);
+  assert.match(confirmAction, /!selectedAllowedActionKeys\(\)\.has\(pendingAction\.value\)/);
+  assert.match(confirmAction, /expectedStatus: selectedOrder\.value\.status/);
   assert.match(drawer, /requiresNote/);
   assert.match(drawer, /confirm-action/);
   assert.match(drawer, /\/admin\/refunds/);

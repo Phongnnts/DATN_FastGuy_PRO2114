@@ -38,7 +38,7 @@ test('friendly workspace exposes compact filters, lifecycle navigation, and whol
   assert.match(page, />Khác/);
   assert.match(page, /role="menu"/);
   assert.match(page, /aria-haspopup="menu"/);
-  assert.match(page, /class="filter-toolbar"/);
+  assert.match(page, /class="[^"]*\bfilter-toolbar\b[^"]*"/);
   assert.match(page, /class="advanced-filter-panel"/);
   assert.match(page, /class="active-filters"/);
   assert.match(page, /class="order-row-trigger"/);
@@ -67,18 +67,29 @@ test('Khác menu supports keyboard close and focus restoration', () => {
 });
 
 test('queue provides equivalent semantic desktop and mobile presentations', () => {
-  assert.match(page, /orders-command-header/);
-  assert.match(page, /orders-toolbar/);
-  assert.match(page, /orders-queue/);
-  assert.match(page, /desktop-order-table/);
-  assert.match(page, /mobile-order-list/);
-  assert.match(page, /inlineOrderActions\(order\.allowedActions\)\[0\]/);
-  assert.match(page, /Thao tác tiếp theo/);
-  assert.match(page, /Xem chi tiết/);
+  const table = page.match(/<table[\s\S]*?<\/table>/)?.[0] || '';
+  const cards = page.match(/<div class="mobile-order-list"[\s\S]*?<footer class="table-footer">/)?.[0] || '';
+  assert.match(page, /class="orders-header orders-command-header"/);
+  assert.match(page, /class="filter-toolbar orders-toolbar"/);
+  assert.match(page, /class="orders-queue"/);
+  assert.match(table, /<th>Thao tác tiếp theo<\/th>/);
+  assert.equal((table.match(/class="btn btn-primary row-primary-action"/g) || []).length, 1);
+  assert.equal((cards.match(/class="mobile-detail-action mobile-primary-action"/g) || []).length, 1);
+  assert.match(table, /v-if="inlineOrderActions\(order\.allowedActions\)\[0\]"[\s\S]*v-else[\s\S]*class="btn btn-outline row-detail-action"/);
+  assert.match(cards, /v-if="inlineOrderActions\(order\.allowedActions\)\[0\]"[\s\S]*v-else[\s\S]*class="mobile-detail-action"/);
+  assert.match(table, /@click="openPrimaryAction\(order, \$event\)"/);
+  assert.match(cards, /@click="openPrimaryAction\(order, \$event\)"/);
   assert.match(page, /paymentMethodLabel/);
   assert.match(page, /paymentStatusLabel/);
   assert.match(page, /order\.attentionReasons/);
-  assert.doesNotMatch(page.match(/<table[\s\S]*?<\/table>/)?.[0] || '', /customerAddress/);
+  assert.doesNotMatch(table, /customerAddress/);
+});
+
+test('touched queue controls guarantee minimum pointer targets', () => {
+  assert.match(page, /\.order-link,\.refund-action,\.row-primary-action,\.row-detail-action\{[^}]*min-height:40px/);
+  assert.match(page, /\.order-link,\.refund-action\{[^}]*min-width:40px/);
+  assert.match(page, /\.pagination button\s*\{[^}]*height:\s*40px[^}]*width:\s*40px/);
+  assert.match(page, /\.mobile-detail-action\{[^}]*min-height:44px/);
 });
 
 test('silent refresh retains canonical rows and announces progress or warning', () => {
