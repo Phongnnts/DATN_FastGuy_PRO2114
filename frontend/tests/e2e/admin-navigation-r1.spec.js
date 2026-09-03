@@ -15,8 +15,8 @@ async function mockAdmin(page, user = { id: 1, fullName: 'Quản trị viên', r
     ['/api/admin/inventory/items', ok([])],
     ['/api/admin/inventory/transactions', ok({ items: [], totalItems: 0 })],
     ['/api/admin/products', ok([])],
-    ['/api/admin/reports/full', ok({ revenueByDay: [], monthlyFinancialTrend: [], ordersByStatus: [], topProducts: [], revenueByCategory: [], paymentMethodStats: [], revenueByHour: [], performanceByWeekday: [], refundTrend: [], exceptionReasons: [] })],
-    ['/api/admin/reports/operating-profit', ok({ costComplete: true, netRevenue: 0, cogs: 0, grossProfit: 0, operatingExpenses: 0, profitBeforeDepreciation: 0, depreciation: 0, operatingProfit: 0, missingCostItemCount: 0 })],
+    ['/api/admin/reports/full', ok({ itemRevenue: 1141000, shippingRevenue: 30000, discountTotal: 10000, grossRevenue: 1161000, refundTotal: 44000, refundCount: 1, netCashRevenue: 1117000, operationalOrderCount: 8, operationalCompletedCount: 5, completionRate: 62.5, cogs: 420000, grossProfit: 721000, foodCostPercent: 36.8, grossMarginPercent: 63.2, aov: 223400, revenueByDay: [{ date: '2026-09-03', revenue: 1161000 }], revenueByMonth: [{ month: 9, year: 2026, revenue: 1161000 }], monthlyFinancialTrend: [{ month: 9, year: 2026, grossRevenue: 1161000, refundTotal: 44000, netCashRevenue: 1117000 }], ordersByStatus: [{ status: 'DELIVERED', count: 5 }], topProducts: [{ name: 'Classic Burger', sold: 19, revenue: 1141000 }], revenueByCategory: [{ category: 'Burger', revenue: 1141000 }], paymentMethodStats: [{ method: 'BANK_TRANSFER', count: 5, revenue: 1117000 }], revenueByHour: [{ hour: 12, revenue: 1117000 }], performanceByWeekday: [{ weekday: 4, orders: 8, completed: 5 }], refundTrend: [{ date: '2026-09-03', amount: 44000 }], exceptionReasons: [{ reason: 'Khách hủy', count: 1 }] })],
+    ['/api/admin/reports/operating-profit', ok({ costComplete: true, netRevenue: 1117000, cogs: 420000, grossProfit: 697000, storeExpenses: 52400000, estimatedOperatingResult: -51703000, includesManualSalary: true, missingCostItemCount: 0 })],
     ['/api/admin/inventory/reports/menu-performance', ok({ netRevenue: 0, cost: 0, grossProfit: 0, foodCostPercent: 0, grossMarginPercent: 0, costComplete: true, missingCostItemCount: 0, items: [] })],
     ['/api/admin/operating-expenses', ok([])],
     ['/api/shifts/current', ok({ state: 'NOT_CHECKED_IN', shift: null })],
@@ -82,6 +82,24 @@ test('admin shell exposes one identity and current page title', async ({ page },
   await expect.poll(() => successfulApiPaths.includes('/api/admin/inventory/items')).toBe(true);
   await expect.poll(() => successfulApiPaths.includes('/api/admin/inventory/transactions')).toBe(true);
   await expect.poll(() => successfulApiPaths.includes('/api/admin/products')).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('business report renders the executive cockpit without browser errors', async ({ page }, testInfo) => {
+  test.skip(isMobileProject(testInfo), 'Desktop cockpit gate');
+  await mockAdmin(page);
+  const { errors, successfulApiPaths } = captureTraffic(page);
+  await page.goto('/admin/reports');
+
+  await expect(page.getByRole('heading', { name: 'Báo cáo kinh doanh' })).toBeVisible();
+  await expect(page.locator('.executive-kpis')).toBeVisible();
+  await expect(page.locator('.charts-grid .chart-card')).toHaveCount(10);
+  await expect(page.locator('.charts-grid canvas')).toHaveCount(10);
+  await expect(page.locator('.mac-table')).toBeVisible();
+  await expect(page.locator('.mac-table tbody tr').first()).toContainText('Classic Burger');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await expect.poll(() => successfulApiPaths.includes('/api/admin/reports/full')).toBe(true);
+  await expect.poll(() => successfulApiPaths.includes('/api/admin/reports/operating-profit')).toBe(true);
   expect(errors).toEqual([]);
 });
 

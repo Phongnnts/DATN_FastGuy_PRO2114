@@ -22,6 +22,11 @@ test('R5 real backend shares report period and exposes estimated result', async 
   const payload = await profit.json();
   for (const field of ['storeExpenses', 'estimatedOperatingResult', 'includesManualSalary', 'costComplete']) expect(payload.data).toHaveProperty(field);
   expect(payload.data.includesManualSalary).toBe(true);
+  await expect(page.getByRole('heading', { name: 'Báo cáo kinh doanh' })).toBeVisible();
+  await expect(page.locator('.executive-kpis')).toBeVisible();
+  await expect(page.locator('.charts-grid .chart-card')).toHaveCount(10);
+  await expect(page.locator('.mac-table')).toBeVisible();
+  await expect(page.locator('.mac-table tbody tr').first()).toBeVisible();
   await expect(page.getByLabel('Kết quả vận hành ước tính')).toContainText('Chi phí cửa hàng');
   await expect(page.getByLabel('Kết quả vận hành ước tính')).toContainText('Bao gồm khoản lương nhập tay');
   await expect(page.getByText('Khấu hao', { exact: true })).toHaveCount(0);

@@ -16,7 +16,31 @@ test('report exposes reconcilable financial breakdown and operational cohort', (
 test('report renders advanced operational analytics without fabricated datasets', () => {
   for (const key of ['revenueByHour', 'performanceByWeekday', 'refundTrend', 'exceptionReasons']) assert.match(reportsPage, new RegExp(`data\\.value\\.${key}`));
   for (const title of ['Doanh thu theo giờ', 'Hiệu suất theo thứ', 'Xu hướng hoàn tiền', 'Lý do ngoại lệ']) assert.match(reportsPage, new RegExp(title));
-  assert.match(reportsPage, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
+});
+
+test('business report uses the approved executive cockpit hierarchy', () => {
+  assert.match(reportsPage, /class="executive-kpis"/);
+  assert.match(reportsPage, /class="primary-kpi"/);
+  assert.match(reportsPage, /class="secondary-metrics"/);
+  assert.match(reportsPage, /class="charts-grid"/);
+  assert.match(reportsPage, /grid-template-columns:\s*repeat\(2,minmax\(0,1fr\)\)/);
+  assert.doesNotMatch(reportsPage, /grid-template-columns:repeat\(12,minmax\(0,1fr\)\)/);
+});
+
+test('all current business charts remain visible without tabs or carousel', () => {
+  for (const key of ['revenueDay', 'revenueMonth', 'orderStatus', 'topProducts', 'revenueCategory', 'paymentMethod', 'revenueHour', 'weekday', 'refundTrend', 'exceptionReasons']) {
+    assert.match(reportsPage, new RegExp(`refs\\.${key}\\.value`));
+  }
+  assert.doesNotMatch(reportsPage, /chart-tabs|chart-carousel|activeChart/);
+});
+
+test('top product ranking uses the approved macOS table structure', () => {
+  assert.match(reportsPage, /class="top-table mac-table"/);
+  assert.match(reportsPage, /class="mac-table-toolbar"/);
+  assert.match(reportsPage, /class="table-wrapper mac-table-scroll"/);
+  assert.match(reportsPage, /font-variant-numeric:\s*tabular-nums/);
+  assert.match(reportsPage, /overflow-x:\s*auto/);
+  assert.match(reportsPage, /tbody tr:hover/);
 });
 
 test('core commerce charts use legible business-specific encodings', () => {
