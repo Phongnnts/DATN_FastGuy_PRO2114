@@ -1,29 +1,30 @@
 package servlet;
 
-import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import service.ReviewService;
 import dao.OrdersDAO;
 import dao.ProductDAO;
 import dao.ReviewDAO;
 import entity.Orders;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Map;
+import service.ReviewService;
 import utils.ApiResponse;
 import utils.JsonUtil;
 import utils.JwtUtil;
 
-import java.io.IOException;
-import java.util.Map;
-
 @WebServlet("/api/reviews/*")
 public class ReviewServlet extends HttpServlet {
+
     private ReviewService reviewService = new ReviewService();
     private OrdersDAO ordersDAO = new OrdersDAO();
     private ProductDAO productDAO = new ProductDAO();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         String path = req.getPathInfo();
         if (path != null && path.startsWith("/product/")) {
@@ -48,7 +49,10 @@ public class ReviewServlet extends HttpServlet {
                     ApiResponse.error(resp, "Không tìm thấy sản phẩm", 404);
                     return;
                 }
-                ApiResponse.ok(resp, reviewService.getByProductId(productId, page, size));
+                ApiResponse.ok(
+                    resp,
+                    reviewService.getByProductId(productId, page, size)
+                );
             } catch (RuntimeException e) {
                 ApiResponse.error(resp, "Review failed", 500);
             }
@@ -73,11 +77,18 @@ public class ReviewServlet extends HttpServlet {
             }
             try {
                 Orders order = ordersDAO.findById(orderId);
-                if (order == null || order.getUser() == null || order.getUser().getUserId() != userId) {
+                if (
+                    order == null ||
+                    order.getUser() == null ||
+                    order.getUser().getUserId() != userId
+                ) {
                     ApiResponse.error(resp, "Không tìm thấy đánh giá", 404);
                     return;
                 }
-                ApiResponse.ok(resp, reviewService.getByOrderId(userId, orderId));
+                ApiResponse.ok(
+                    resp,
+                    reviewService.getByOrderId(userId, orderId)
+                );
             } catch (RuntimeException e) {
                 ApiResponse.error(resp, "Review failed", 500);
             }
@@ -87,7 +98,8 @@ public class ReviewServlet extends HttpServlet {
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req);
         if (userId <= 0) {
@@ -96,30 +108,60 @@ public class ReviewServlet extends HttpServlet {
         }
 
         try {
-            Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-            if (body == null) throw new IllegalArgumentException("Dữ liệu không hợp lệ");
+            Map<String, Object> body = JsonUtil.fromJson(
+                req.getReader(),
+                Map.class
+            );
+            if (body == null) throw new IllegalArgumentException(
+                "Dữ liệu không hợp lệ"
+            );
             Object rawOrderId = body.get("orderId");
             Object rawProductId = body.get("productId");
             Object rawRating = body.get("rating");
             Object rawComment = body.get("comment");
             Object rawHomepageConsent = body.get("homepageConsent");
-            if (!isIntegral(rawOrderId) || !isIntegral(rawProductId) || !isIntegral(rawRating)
-                    || (rawComment != null && !(rawComment instanceof String))
-                    || (rawHomepageConsent != null && !(rawHomepageConsent instanceof Boolean))) {
+            if (
+                !isIntegral(rawOrderId) ||
+                !isIntegral(rawProductId) ||
+                !isIntegral(rawRating) ||
+                (rawComment != null && !(rawComment instanceof String)) ||
+                (rawHomepageConsent != null &&
+                    !(rawHomepageConsent instanceof Boolean))
+            ) {
                 throw new IllegalArgumentException("Dữ liệu không hợp lệ");
             }
             int orderId = ((Number) rawOrderId).intValue();
             Orders order = ordersDAO.findById(orderId);
-            if (order == null || order.getUser() == null || order.getUser().getUserId() != userId) {
+            if (
+                order == null ||
+                order.getUser() == null ||
+                order.getUser().getUserId() != userId
+            ) {
                 ApiResponse.error(resp, "Không tìm thấy đánh giá", 404);
                 return;
             }
-            ApiResponse.ok(resp, reviewService.create(userId, orderId, ((Number) rawProductId).intValue(),
-                    ((Number) rawRating).intValue(), (String) rawComment, false), "Reviewed");
+            ApiResponse.ok(
+                resp,
+                reviewService.create(
+                    userId,
+                    orderId,
+                    ((Number) rawProductId).intValue(),
+                    ((Number) rawRating).intValue(),
+                    (String) rawComment,
+                    false
+                ),
+                "Reviewed"
+            );
         } catch (ReviewDAO.AlreadyReviewedException e) {
             ApiResponse.error(resp, "ALREADY_REVIEWED", 409);
         } catch (IllegalArgumentException e) {
-            ApiResponse.error(resp, e.getMessage() == null ? "Dữ liệu không hợp lệ" : e.getMessage(), 400);
+            ApiResponse.error(
+                resp,
+                e.getMessage() == null
+                    ? "Dữ liệu không hợp lệ"
+                    : e.getMessage(),
+                400
+            );
         } catch (RuntimeException e) {
             ApiResponse.error(resp, "Review failed", 500);
         }
@@ -131,7 +173,11 @@ public class ReviewServlet extends HttpServlet {
         return JwtUtil.getUserId(auth.substring(7));
     }
 
-    private int queryInt(HttpServletRequest req, String name, int defaultValue) {
+    private int queryInt(
+        HttpServletRequest req,
+        String name,
+        int defaultValue
+    ) {
         String value = req.getParameter(name);
         return value == null ? defaultValue : positiveInt(value);
     }
@@ -145,6 +191,10 @@ public class ReviewServlet extends HttpServlet {
     private boolean isIntegral(Object value) {
         if (!(value instanceof Number number)) return false;
         double decimal = number.doubleValue();
-        return Double.isFinite(decimal) && decimal == number.intValue() && number.intValue() > 0;
+        return (
+            Double.isFinite(decimal) &&
+            decimal == number.intValue() &&
+            number.intValue() > 0
+        );
     }
 }

@@ -11,8 +11,13 @@ import java.nio.charset.StandardCharsets;
 
 @WebFilter("/*")
 public class Utf8Filter implements Filter {
+
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+    public void doFilter(
+        ServletRequest request,
+        ServletResponse response,
+        FilterChain chain
+    ) throws IOException, ServletException {
         String encoding = StandardCharsets.UTF_8.name();
         request.setCharacterEncoding(encoding);
         response.setCharacterEncoding(encoding);

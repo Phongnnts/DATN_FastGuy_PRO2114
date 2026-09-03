@@ -4,6 +4,7 @@ import entity.User;
 import jakarta.persistence.EntityManager;
 
 public final class PrivilegedAuth {
+
     private PrivilegedAuth() {}
 
     public static boolean isActiveRole(int userId, String role) {
@@ -11,7 +12,11 @@ public final class PrivilegedAuth {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             User user = em.find(User.class, userId);
-            return user != null && role.equals(user.getRole()) && "ACTIVE".equals(user.getStatus());
+            return (
+                user != null &&
+                role.equals(user.getRole()) &&
+                "ACTIVE".equals(user.getStatus())
+            );
         } finally {
             em.close();
         }

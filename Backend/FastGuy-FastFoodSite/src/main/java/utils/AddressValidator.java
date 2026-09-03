@@ -5,15 +5,36 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 public class AddressValidator {
-    private static final Pattern PHONE_PATTERN = Pattern.compile("^(0|\\+84)(3|5|7|8|9)[0-9]{8}$");
+
+    private static final Pattern PHONE_PATTERN = Pattern.compile(
+        "^(0|\\+84)(3|5|7|8|9)[0-9]{8}$"
+    );
 
     public static String validate(Map<String, Object> body) {
-        String recipientName = body.get("recipientName") instanceof String ? ((String) body.get("recipientName")).trim() : "";
-        String phone = body.get("phone") instanceof String ? ((String) body.get("phone")).trim() : "";
-        String street = body.get("street") instanceof String ? ((String) body.get("street")).trim() : "";
-        String wardName = body.get("wardName") instanceof String ? ((String) body.get("wardName")).trim() : "";
-        String districtName = body.get("districtName") instanceof String ? ((String) body.get("districtName")).trim() : "";
-        String provinceName = body.get("provinceName") instanceof String ? ((String) body.get("provinceName")).trim() : "";
+        String recipientName =
+            body.get("recipientName") instanceof String
+                ? ((String) body.get("recipientName")).trim()
+                : "";
+        String phone =
+            body.get("phone") instanceof String
+                ? ((String) body.get("phone")).trim()
+                : "";
+        String street =
+            body.get("street") instanceof String
+                ? ((String) body.get("street")).trim()
+                : "";
+        String wardName =
+            body.get("wardName") instanceof String
+                ? ((String) body.get("wardName")).trim()
+                : "";
+        String districtName =
+            body.get("districtName") instanceof String
+                ? ((String) body.get("districtName")).trim()
+                : "";
+        String provinceName =
+            body.get("provinceName") instanceof String
+                ? ((String) body.get("provinceName")).trim()
+                : "";
 
         if (recipientName.length() < 2 || recipientName.length() > 100) {
             return "Ten nguoi nhan phai tu 2 den 100 ky tu";
@@ -33,13 +54,19 @@ public class AddressValidator {
         if (provinceName.isEmpty()) {
             return "Tinh/thanh pho khong duoc de trong";
         }
-        if (!(body.get("ghnProvinceId") instanceof Number) || ((Number) body.get("ghnProvinceId")).intValue() <= 0) {
+        if (
+            !(body.get("ghnProvinceId") instanceof Number) ||
+            ((Number) body.get("ghnProvinceId")).intValue() <= 0
+        ) {
             return "Tinh/thanh pho GHN khong hop le";
         }
         if (!isPositiveInt(body.get("ghnDistrictId"))) {
             return "Quan/huyen GHN khong hop le";
         }
-        String wardCode = body.get("ghnWardCode") instanceof String ? ((String) body.get("ghnWardCode")).trim() : "";
+        String wardCode =
+            body.get("ghnWardCode") instanceof String
+                ? ((String) body.get("ghnWardCode")).trim()
+                : "";
         if (wardCode.isEmpty() || wardCode.length() > 20) {
             return "Phuong/xa GHN khong hop le";
         }
@@ -52,9 +79,11 @@ public class AddressValidator {
         }
         try {
             BigDecimal decimal = new BigDecimal(number.toString());
-            return decimal.stripTrailingZeros().scale() <= 0
-                    && decimal.compareTo(BigDecimal.ZERO) > 0
-                    && decimal.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0;
+            return (
+                decimal.stripTrailingZeros().scale() <= 0 &&
+                decimal.compareTo(BigDecimal.ZERO) > 0 &&
+                decimal.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0
+            );
         } catch (NumberFormatException e) {
             return false;
         }

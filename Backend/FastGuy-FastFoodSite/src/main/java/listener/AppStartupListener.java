@@ -7,6 +7,7 @@ import service.OrderScheduler;
 
 @WebListener
 public class AppStartupListener implements ServletContextListener {
+
     @Override
     public void contextInitialized(ServletContextEvent sce) {
         OrderScheduler.start();

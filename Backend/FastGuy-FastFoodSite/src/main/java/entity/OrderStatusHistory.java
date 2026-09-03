@@ -1,7 +1,5 @@
 package entity;
 
-import java.time.LocalDateTime;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -11,10 +9,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "OrderStatusHistory")
 public class OrderStatusHistory {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "history_id")
@@ -47,7 +47,15 @@ public class OrderStatusHistory {
 
     public OrderStatusHistory() {}
 
-    public OrderStatusHistory(int orderId, Integer actorUserId, String actorRole, String fromStatus, String toStatus, String note, LocalDateTime createdAt) {
+    public OrderStatusHistory(
+        int orderId,
+        Integer actorUserId,
+        String actorRole,
+        String fromStatus,
+        String toStatus,
+        String note,
+        LocalDateTime createdAt
+    ) {
         this.orderId = orderId;
         this.actorUserId = actorUserId;
         this.actorRole = actorRole;
@@ -57,21 +65,71 @@ public class OrderStatusHistory {
         this.createdAt = createdAt;
     }
 
-    public int getHistoryId() { return historyId; }
-    public void setHistoryId(int historyId) { this.historyId = historyId; }
-    public int getOrderId() { return orderId; }
-    public void setOrderId(int orderId) { this.orderId = orderId; }
-    public User getActor() { return actor; }
-    public Integer getActorUserId() { return actorUserId; }
-    public void setActorUserId(Integer actorUserId) { this.actorUserId = actorUserId; }
-    public String getActorRole() { return actorRole; }
-    public void setActorRole(String actorRole) { this.actorRole = actorRole; }
-    public String getFromStatus() { return fromStatus; }
-    public void setFromStatus(String fromStatus) { this.fromStatus = fromStatus; }
-    public String getToStatus() { return toStatus; }
-    public void setToStatus(String toStatus) { this.toStatus = toStatus; }
-    public String getNote() { return note; }
-    public void setNote(String note) { this.note = note; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public int getHistoryId() {
+        return historyId;
+    }
+
+    public void setHistoryId(int historyId) {
+        this.historyId = historyId;
+    }
+
+    public int getOrderId() {
+        return orderId;
+    }
+
+    public void setOrderId(int orderId) {
+        this.orderId = orderId;
+    }
+
+    public User getActor() {
+        return actor;
+    }
+
+    public Integer getActorUserId() {
+        return actorUserId;
+    }
+
+    public void setActorUserId(Integer actorUserId) {
+        this.actorUserId = actorUserId;
+    }
+
+    public String getActorRole() {
+        return actorRole;
+    }
+
+    public void setActorRole(String actorRole) {
+        this.actorRole = actorRole;
+    }
+
+    public String getFromStatus() {
+        return fromStatus;
+    }
+
+    public void setFromStatus(String fromStatus) {
+        this.fromStatus = fromStatus;
+    }
+
+    public String getToStatus() {
+        return toStatus;
+    }
+
+    public void setToStatus(String toStatus) {
+        this.toStatus = toStatus;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }

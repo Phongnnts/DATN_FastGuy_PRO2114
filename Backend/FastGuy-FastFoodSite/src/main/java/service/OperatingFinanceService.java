@@ -8,30 +8,321 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class OperatingFinanceService {
-    private final OperatingFinanceDAO dao;private final MenuPerformanceReportService menu;
-    public OperatingFinanceService(){this(new OperatingFinanceDAO(),new MenuPerformanceReportService());}
-    public OperatingFinanceService(OperatingFinanceDAO dao,MenuPerformanceReportService menu){this.dao=dao;this.menu=menu;}
-    public List<Map<String,Object>> listExpenses(){return dao.listExpenses().stream().map(OperatingFinanceService::expenseMap).toList();}
-    public List<Map<String,Object>> listExpenses(LocalDate from,LocalDate to){range(from,to);return dao.listExpenses(from,to).stream().map(OperatingFinanceService::expenseMap).toList();}
-    public Map<String,Object> getExpense(int id){return expenseMap(required(dao.findExpense(id),"Operating expense not found"));}
-    public Map<String,Object> createExpense(LocalDate date,String category,String description,BigDecimal amount,int userId){OperatingExpense value=new OperatingExpense();expenseValues(value,date,category,description,amount);value.setCreatedBy(dao.userReference(userId));return expenseMap(dao.saveExpense(value));}
-    public Map<String,Object> updateExpense(int id,LocalDate date,String category,String description,BigDecimal amount){OperatingExpense value=required(dao.findExpense(id),"Operating expense not found");expenseValues(value,date,category,description,amount);return expenseMap(dao.saveExpense(value));}
-    public void deleteExpense(int id){if(!dao.deleteExpense(id))throw new NoSuchElementException("Operating expense not found");}
-    public List<Map<String,Object>> listAssets(){return dao.listAssets().stream().map(OperatingFinanceService::assetMap).toList();}
-    public Map<String,Object> getAsset(int id){return assetMap(required(dao.findAsset(id),"Fixed asset not found"));}
-    public Map<String,Object> createAsset(String name,BigDecimal cost,BigDecimal salvage,LocalDate start,int months,int userId){FixedAsset value=new FixedAsset();assetValues(value,name,cost,salvage,start,months);value.setStatus(FixedAsset.Status.ACTIVE);value.setCreatedBy(dao.userReference(userId));return assetMap(dao.saveAsset(value));}
-    public Map<String,Object> updateAsset(int id,String name,BigDecimal cost,BigDecimal salvage,LocalDate start,int months){FixedAsset value=required(dao.findAsset(id),"Fixed asset not found");if(value.getStatus()!=FixedAsset.Status.ACTIVE)throw new IllegalStateException("Fixed asset is retired");assetValues(value,name,cost,salvage,start,months);return assetMap(dao.saveAsset(value));}
-    public Map<String,Object> retireAsset(int id,String expected){if(!"ACTIVE".equals(expected))throw new IllegalArgumentException("Invalid expectedStatus");FixedAsset value=required(dao.findAsset(id),"Fixed asset not found");if(value.getStatus()!=FixedAsset.Status.ACTIVE)throw new IllegalStateException("Fixed asset is retired");value.setStatus(FixedAsset.Status.RETIRED);value.setRetiredAt(LocalDateTime.now());return assetMap(dao.saveAsset(value));}
-    public Map<String,Object> operatingProfit(LocalDate from,LocalDate to){range(from,to);Map<String,Object> source=menu.report(from,to);BigDecimal gross=money(dao.grossRevenue(from,to)),refund=money(dao.refundTotal(from,to)),net=money(gross.subtract(refund)),expenses=money(dao.sumExpenses(from,to)),depreciation=money(dao.listAssetsForDepreciation(to).stream().map(a->depreciation(a,from,to)).reduce(BigDecimal.ZERO,BigDecimal::add));boolean complete=(boolean)source.get("costComplete");BigDecimal cogs=complete?money((BigDecimal)source.get("cost")):null,grossProfit=complete?money(net.subtract(cogs)):null,before=complete?money(grossProfit.subtract(expenses)):null,profit=complete?money(before.subtract(depreciation)):null;Map<String,Object> result=new LinkedHashMap<>();result.put("grossRevenue",gross);result.put("refundTotal",refund);result.put("netRevenue",net);result.put("cogs",cogs);result.put("grossProfit",grossProfit);result.put("operatingExpenses",expenses);result.put("storeExpenses",expenses);result.put("profitBeforeDepreciation",before);result.put("estimatedOperatingResult",before);result.put("depreciation",depreciation);result.put("operatingProfit",profit);result.put("includesManualSalary",true);result.put("costComplete",complete);result.put("missingCostItemCount",source.get("missingCostItemCount"));result.put("fromDate",from);result.put("toDate",to);return result;}
-    public static BigDecimal depreciation(FixedAsset asset,LocalDate from,LocalDate to){range(from,to);LocalDate start=asset.getDepreciationStartDate(),exclusiveEnd=start.plusMonths(asset.getUsefulLifeMonths()),last=exclusiveEnd.minusDays(1);if(asset.getRetiredAt()!=null&&asset.getRetiredAt().toLocalDate().isBefore(last))last=asset.getRetiredAt().toLocalDate();LocalDate overlapStart=from.isAfter(start)?from:start,overlapEnd=to.isBefore(last)?to:last;if(overlapStart.isAfter(overlapEnd))return money(BigDecimal.ZERO);long totalDays=ChronoUnit.DAYS.between(start,exclusiveEnd),days=ChronoUnit.DAYS.between(overlapStart,overlapEnd)+1;return asset.getAcquisitionCost().subtract(asset.getSalvageValue()).multiply(BigDecimal.valueOf(days)).divide(BigDecimal.valueOf(totalDays),2,RoundingMode.HALF_UP);}
-    private static void expenseValues(OperatingExpense v,LocalDate date,String category,String description,BigDecimal amount){if(date==null)throw new IllegalArgumentException("Invalid expenseDate");try{v.setCategory(OperatingExpense.Category.valueOf(category));}catch(Exception e){throw new IllegalArgumentException("Invalid category");}String text=text(description,500,"description");v.setExpenseDate(date);v.setDescription(text);v.setAmount(positiveMoney(amount,"amount"));}
-    private static void assetValues(FixedAsset v,String name,BigDecimal cost,BigDecimal salvage,LocalDate start,int months){v.setAssetName(text(name,255,"assetName"));v.setAcquisitionCost(positiveMoney(cost,"acquisitionCost"));v.setSalvageValue(moneyValue(salvage,false,"salvageValue"));if(v.getSalvageValue().compareTo(v.getAcquisitionCost())>=0)throw new IllegalArgumentException("Invalid salvageValue");if(start==null)throw new IllegalArgumentException("Invalid depreciationStartDate");if(months<1)throw new IllegalArgumentException("Invalid usefulLifeMonths");v.setDepreciationStartDate(start);v.setUsefulLifeMonths(months);}
-    private static String text(String value,int max,String name){String text=value==null?"":value.trim();if(text.isEmpty()||text.length()>max)throw new IllegalArgumentException("Invalid "+name);return text;}
-    private static BigDecimal positiveMoney(BigDecimal value,String name){return moneyValue(value,true,name);}private static BigDecimal moneyValue(BigDecimal value,boolean positive,String name){if(value==null||value.scale()>2||positive&&value.signum()<=0||!positive&&value.signum()<0)throw new IllegalArgumentException("Invalid "+name);return money(value);}
-    private static void range(LocalDate from,LocalDate to){if(from==null||to==null||from.isAfter(to))throw new IllegalArgumentException("Invalid date range");}
-    private static <T>T required(T value,String message){if(value==null)throw new NoSuchElementException(message);return value;}
-    private static BigDecimal money(BigDecimal value){return value.setScale(2,RoundingMode.HALF_UP);}
-    private static Map<String,Object> expenseMap(OperatingExpense v){Map<String,Object>m=new LinkedHashMap<>();m.put("expenseId",v.getExpenseId());m.put("expenseDate",v.getExpenseDate());m.put("category",v.getCategory());m.put("description",v.getDescription());m.put("amount",money(v.getAmount()));userFields(m,v.getCreatedBy());m.put("createdAt",v.getCreatedAt());m.put("updatedAt",v.getUpdatedAt());return m;}
-    private static Map<String,Object> assetMap(FixedAsset v){Map<String,Object>m=new LinkedHashMap<>();m.put("assetId",v.getAssetId());m.put("assetName",v.getAssetName());m.put("acquisitionCost",money(v.getAcquisitionCost()));m.put("salvageValue",money(v.getSalvageValue()));m.put("depreciationStartDate",v.getDepreciationStartDate());m.put("usefulLifeMonths",v.getUsefulLifeMonths());m.put("status",v.getStatus());m.put("retiredAt",v.getRetiredAt());userFields(m,v.getCreatedBy());m.put("createdAt",v.getCreatedAt());m.put("updatedAt",v.getUpdatedAt());return m;}
-    private static void userFields(Map<String,Object>m,User user){m.put("createdBy",user.getUserId());m.put("createdByName",user.getFullName());}
+
+    private final OperatingFinanceDAO dao;
+    private final MenuPerformanceReportService menu;
+
+    public OperatingFinanceService() {
+        this(new OperatingFinanceDAO(), new MenuPerformanceReportService());
+    }
+
+    public OperatingFinanceService(
+        OperatingFinanceDAO dao,
+        MenuPerformanceReportService menu
+    ) {
+        this.dao = dao;
+        this.menu = menu;
+    }
+
+    public List<Map<String, Object>> listExpenses() {
+        return dao
+            .listExpenses()
+            .stream()
+            .map(OperatingFinanceService::expenseMap)
+            .toList();
+    }
+
+    public List<Map<String, Object>> listExpenses(
+        LocalDate from,
+        LocalDate to
+    ) {
+        range(from, to);
+        return dao
+            .listExpenses(from, to)
+            .stream()
+            .map(OperatingFinanceService::expenseMap)
+            .toList();
+    }
+
+    public Map<String, Object> getExpense(int id) {
+        return expenseMap(
+            required(dao.findExpense(id), "Operating expense not found")
+        );
+    }
+
+    public Map<String, Object> createExpense(
+        LocalDate date,
+        String category,
+        String description,
+        BigDecimal amount,
+        int userId
+    ) {
+        OperatingExpense value = new OperatingExpense();
+        expenseValues(value, date, category, description, amount);
+        value.setCreatedBy(dao.userReference(userId));
+        return expenseMap(dao.saveExpense(value));
+    }
+
+    public Map<String, Object> updateExpense(
+        int id,
+        LocalDate date,
+        String category,
+        String description,
+        BigDecimal amount
+    ) {
+        OperatingExpense value = required(
+            dao.findExpense(id),
+            "Operating expense not found"
+        );
+        expenseValues(value, date, category, description, amount);
+        return expenseMap(dao.saveExpense(value));
+    }
+
+    public void deleteExpense(int id) {
+        if (!dao.deleteExpense(id)) throw new NoSuchElementException(
+            "Operating expense not found"
+        );
+    }
+
+    public List<Map<String, Object>> listAssets() {
+        return dao
+            .listAssets()
+            .stream()
+            .map(OperatingFinanceService::assetMap)
+            .toList();
+    }
+
+    public Map<String, Object> getAsset(int id) {
+        return assetMap(required(dao.findAsset(id), "Fixed asset not found"));
+    }
+
+    public Map<String, Object> createAsset(
+        String name,
+        BigDecimal cost,
+        BigDecimal salvage,
+        LocalDate start,
+        int months,
+        int userId
+    ) {
+        FixedAsset value = new FixedAsset();
+        assetValues(value, name, cost, salvage, start, months);
+        value.setStatus(FixedAsset.Status.ACTIVE);
+        value.setCreatedBy(dao.userReference(userId));
+        return assetMap(dao.saveAsset(value));
+    }
+
+    public Map<String, Object> updateAsset(
+        int id,
+        String name,
+        BigDecimal cost,
+        BigDecimal salvage,
+        LocalDate start,
+        int months
+    ) {
+        FixedAsset value = required(dao.findAsset(id), "Fixed asset not found");
+        if (
+            value.getStatus() != FixedAsset.Status.ACTIVE
+        ) throw new IllegalStateException("Fixed asset is retired");
+        assetValues(value, name, cost, salvage, start, months);
+        return assetMap(dao.saveAsset(value));
+    }
+
+    public Map<String, Object> retireAsset(int id, String expected) {
+        if (!"ACTIVE".equals(expected)) throw new IllegalArgumentException(
+            "Invalid expectedStatus"
+        );
+        FixedAsset value = required(dao.findAsset(id), "Fixed asset not found");
+        if (
+            value.getStatus() != FixedAsset.Status.ACTIVE
+        ) throw new IllegalStateException("Fixed asset is retired");
+        value.setStatus(FixedAsset.Status.RETIRED);
+        value.setRetiredAt(LocalDateTime.now());
+        return assetMap(dao.saveAsset(value));
+    }
+
+    public Map<String, Object> operatingProfit(LocalDate from, LocalDate to) {
+        range(from, to);
+        Map<String, Object> source = menu.report(from, to);
+        BigDecimal gross = money(dao.grossRevenue(from, to)),
+            refund = money(dao.refundTotal(from, to)),
+            net = money(gross.subtract(refund)),
+            expenses = money(dao.sumExpenses(from, to)),
+            depreciation = money(
+                dao
+                    .listAssetsForDepreciation(to)
+                    .stream()
+                    .map(a -> depreciation(a, from, to))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+            );
+        boolean complete = (boolean) source.get("costComplete");
+        BigDecimal cogs = complete
+                ? money((BigDecimal) source.get("cost"))
+                : null,
+            grossProfit = complete ? money(net.subtract(cogs)) : null,
+            before = complete ? money(grossProfit.subtract(expenses)) : null,
+            profit = complete ? money(before.subtract(depreciation)) : null;
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("grossRevenue", gross);
+        result.put("refundTotal", refund);
+        result.put("netRevenue", net);
+        result.put("cogs", cogs);
+        result.put("grossProfit", grossProfit);
+        result.put("operatingExpenses", expenses);
+        result.put("storeExpenses", expenses);
+        result.put("profitBeforeDepreciation", before);
+        result.put("estimatedOperatingResult", before);
+        result.put("depreciation", depreciation);
+        result.put("operatingProfit", profit);
+        result.put("includesManualSalary", true);
+        result.put("costComplete", complete);
+        result.put("missingCostItemCount", source.get("missingCostItemCount"));
+        result.put("fromDate", from);
+        result.put("toDate", to);
+        return result;
+    }
+
+    public static BigDecimal depreciation(
+        FixedAsset asset,
+        LocalDate from,
+        LocalDate to
+    ) {
+        range(from, to);
+        LocalDate start = asset.getDepreciationStartDate(),
+            exclusiveEnd = start.plusMonths(asset.getUsefulLifeMonths()),
+            last = exclusiveEnd.minusDays(1);
+        if (
+            asset.getRetiredAt() != null &&
+            asset.getRetiredAt().toLocalDate().isBefore(last)
+        ) last = asset.getRetiredAt().toLocalDate();
+        LocalDate overlapStart = from.isAfter(start) ? from : start,
+            overlapEnd = to.isBefore(last) ? to : last;
+        if (overlapStart.isAfter(overlapEnd)) return money(BigDecimal.ZERO);
+        long totalDays = ChronoUnit.DAYS.between(start, exclusiveEnd),
+            days = ChronoUnit.DAYS.between(overlapStart, overlapEnd) + 1;
+        return asset
+            .getAcquisitionCost()
+            .subtract(asset.getSalvageValue())
+            .multiply(BigDecimal.valueOf(days))
+            .divide(BigDecimal.valueOf(totalDays), 2, RoundingMode.HALF_UP);
+    }
+
+    private static void expenseValues(
+        OperatingExpense v,
+        LocalDate date,
+        String category,
+        String description,
+        BigDecimal amount
+    ) {
+        if (date == null) throw new IllegalArgumentException(
+            "Invalid expenseDate"
+        );
+        try {
+            v.setCategory(OperatingExpense.Category.valueOf(category));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid category");
+        }
+        String text = text(description, 500, "description");
+        v.setExpenseDate(date);
+        v.setDescription(text);
+        v.setAmount(positiveMoney(amount, "amount"));
+    }
+
+    private static void assetValues(
+        FixedAsset v,
+        String name,
+        BigDecimal cost,
+        BigDecimal salvage,
+        LocalDate start,
+        int months
+    ) {
+        v.setAssetName(text(name, 255, "assetName"));
+        v.setAcquisitionCost(positiveMoney(cost, "acquisitionCost"));
+        v.setSalvageValue(moneyValue(salvage, false, "salvageValue"));
+        if (
+            v.getSalvageValue().compareTo(v.getAcquisitionCost()) >= 0
+        ) throw new IllegalArgumentException("Invalid salvageValue");
+        if (start == null) throw new IllegalArgumentException(
+            "Invalid depreciationStartDate"
+        );
+        if (months < 1) throw new IllegalArgumentException(
+            "Invalid usefulLifeMonths"
+        );
+        v.setDepreciationStartDate(start);
+        v.setUsefulLifeMonths(months);
+    }
+
+    private static String text(String value, int max, String name) {
+        String text = value == null ? "" : value.trim();
+        if (
+            text.isEmpty() || text.length() > max
+        ) throw new IllegalArgumentException("Invalid " + name);
+        return text;
+    }
+
+    private static BigDecimal positiveMoney(BigDecimal value, String name) {
+        return moneyValue(value, true, name);
+    }
+
+    private static BigDecimal moneyValue(
+        BigDecimal value,
+        boolean positive,
+        String name
+    ) {
+        if (
+            value == null ||
+            value.scale() > 2 ||
+            (positive && value.signum() <= 0) ||
+            (!positive && value.signum() < 0)
+        ) throw new IllegalArgumentException("Invalid " + name);
+        return money(value);
+    }
+
+    private static void range(LocalDate from, LocalDate to) {
+        if (
+            from == null || to == null || from.isAfter(to)
+        ) throw new IllegalArgumentException("Invalid date range");
+    }
+
+    private static <T> T required(T value, String message) {
+        if (value == null) throw new NoSuchElementException(message);
+        return value;
+    }
+
+    private static BigDecimal money(BigDecimal value) {
+        return value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static Map<String, Object> expenseMap(OperatingExpense v) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("expenseId", v.getExpenseId());
+        m.put("expenseDate", v.getExpenseDate());
+        m.put("category", v.getCategory());
+        m.put("description", v.getDescription());
+        m.put("amount", money(v.getAmount()));
+        userFields(m, v.getCreatedBy());
+        m.put("createdAt", v.getCreatedAt());
+        m.put("updatedAt", v.getUpdatedAt());
+        return m;
+    }
+
+    private static Map<String, Object> assetMap(FixedAsset v) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("assetId", v.getAssetId());
+        m.put("assetName", v.getAssetName());
+        m.put("acquisitionCost", money(v.getAcquisitionCost()));
+        m.put("salvageValue", money(v.getSalvageValue()));
+        m.put("depreciationStartDate", v.getDepreciationStartDate());
+        m.put("usefulLifeMonths", v.getUsefulLifeMonths());
+        m.put("status", v.getStatus());
+        m.put("retiredAt", v.getRetiredAt());
+        userFields(m, v.getCreatedBy());
+        m.put("createdAt", v.getCreatedAt());
+        m.put("updatedAt", v.getUpdatedAt());
+        return m;
+    }
+
+    private static void userFields(Map<String, Object> m, User user) {
+        m.put("createdBy", user.getUserId());
+        m.put("createdByName", user.getFullName());
+    }
 }

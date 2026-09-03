@@ -2,7 +2,6 @@ package utils;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -14,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 public class GhnClient {
+
     private final HttpClient client;
     private final ObjectMapper mapper;
     private final String token;
@@ -21,7 +21,9 @@ public class GhnClient {
     private final String host;
 
     public GhnClient() {
-        this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+        this.client = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
         this.mapper = new ObjectMapper();
         this.token = AppConfig.getGhnToken();
         this.shopId = AppConfig.getGhnShopId();
@@ -30,9 +32,9 @@ public class GhnClient {
 
     private HttpRequest.Builder buildRequest(String path) {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(host + path))
-                .timeout(Duration.ofSeconds(15))
-                .header("Content-Type", "application/json");
+            .uri(URI.create(host + path))
+            .timeout(Duration.ofSeconds(15))
+            .header("Content-Type", "application/json");
         if (!token.isEmpty()) {
             builder.header("Token", token);
         }
@@ -44,8 +46,10 @@ public class GhnClient {
 
     private Map<String, Object> parseResponse(HttpResponse<String> response) {
         try {
-            Map<String, Object> body = mapper.readValue(response.body(),
-                    new TypeReference<Map<String, Object>>() {});
+            Map<String, Object> body = mapper.readValue(
+                response.body(),
+                new TypeReference<Map<String, Object>>() {}
+            );
             return body;
         } catch (Exception e) {
             e.printStackTrace();
@@ -55,27 +59,53 @@ public class GhnClient {
         }
     }
 
-    static List<Map<String, Object>> extractDataList(int statusCode, Map<String, Object> response) {
-        if (statusCode < 200 || statusCode >= 300) throw new IllegalStateException(String.valueOf(response.getOrDefault("message", "GHN request failed")));
+    static List<Map<String, Object>> extractDataList(
+        int statusCode,
+        Map<String, Object> response
+    ) {
+        if (
+            statusCode < 200 || statusCode >= 300
+        ) throw new IllegalStateException(
+            String.valueOf(
+                response.getOrDefault("message", "GHN request failed")
+            )
+        );
         if (response.containsKey("data")) {
             Object data = response.get("data");
             if (data instanceof List) {
                 return (List<Map<String, Object>>) data;
             }
         }
-        throw new IllegalStateException(String.valueOf(response.getOrDefault("message", "GHN did not return a data list")));
+        throw new IllegalStateException(
+            String.valueOf(
+                response.getOrDefault(
+                    "message",
+                    "GHN did not return a data list"
+                )
+            )
+        );
     }
 
     public List<Map<String, Object>> getProvinces() {
         try {
-            HttpRequest req = buildRequest("/shiip/public-api/master-data/province")
-                    .GET()
-                    .build();
-            HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
+            HttpRequest req = buildRequest(
+                "/shiip/public-api/master-data/province"
+            )
+                .GET()
+                .build();
+            HttpResponse<String> res = client.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
             Map<String, Object> body = parseResponse(res);
             return extractDataList(res.statusCode(), body);
         } catch (Exception e) {
-            throw e instanceof IllegalStateException state ? state : new IllegalStateException("Không thể tải tỉnh/thành từ GHN", e);
+            throw e instanceof IllegalStateException state
+                ? state
+                : new IllegalStateException(
+                      "Không thể tải tỉnh/thành từ GHN",
+                      e
+                  );
         }
     }
 
@@ -85,14 +115,24 @@ public class GhnClient {
             bodyMap.put("province_id", provinceId);
             String json = mapper.writeValueAsString(bodyMap);
 
-            HttpRequest req = buildRequest("/shiip/public-api/master-data/district")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .build();
-            HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
+            HttpRequest req = buildRequest(
+                "/shiip/public-api/master-data/district"
+            )
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+            HttpResponse<String> res = client.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
             Map<String, Object> body = parseResponse(res);
             return extractDataList(res.statusCode(), body);
         } catch (Exception e) {
-            throw e instanceof IllegalStateException state ? state : new IllegalStateException("Không thể tải quận/huyện từ GHN", e);
+            throw e instanceof IllegalStateException state
+                ? state
+                : new IllegalStateException(
+                      "Không thể tải quận/huyện từ GHN",
+                      e
+                  );
         }
     }
 
@@ -103,17 +143,32 @@ public class GhnClient {
             String json = mapper.writeValueAsString(bodyMap);
 
             HttpRequest req = buildRequest("/shiip/public-api/master-data/ward")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .build();
-            HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+            HttpResponse<String> res = client.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
             Map<String, Object> body = parseResponse(res);
             return extractDataList(res.statusCode(), body);
         } catch (Exception e) {
-            throw e instanceof IllegalStateException state ? state : new IllegalStateException("Không thể tải phường/xã từ GHN", e);
+            throw e instanceof IllegalStateException state
+                ? state
+                : new IllegalStateException(
+                      "Không thể tải phường/xã từ GHN",
+                      e
+                  );
         }
     }
 
-    public Map<String, Object> calculateFee(int toDistrictId, String toWardCode, int weight, int length, int width, int height) {
+    public Map<String, Object> calculateFee(
+        int toDistrictId,
+        String toWardCode,
+        int weight,
+        int length,
+        int width,
+        int height
+    ) {
         try {
             Map<String, Object> bodyMap = new HashMap<>();
             bodyMap.put("service_type_id", 2);
@@ -128,10 +183,15 @@ public class GhnClient {
             }
             String json = mapper.writeValueAsString(bodyMap);
 
-            HttpRequest req = buildRequest("/shiip/public-api/v2/shipping-order/fee")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .build();
-            HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
+            HttpRequest req = buildRequest(
+                "/shiip/public-api/v2/shipping-order/fee"
+            )
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+            HttpResponse<String> res = client.send(
+                req,
+                HttpResponse.BodyHandlers.ofString()
+            );
             Map<String, Object> body = parseResponse(res);
 
             Map<String, Object> result = new HashMap<>();
@@ -143,12 +203,20 @@ public class GhnClient {
                     if (total instanceof Number) {
                         result.put("fee", total);
                         result.put("serviceId", dataMap.get("service_id"));
-                        result.put("expectedDeliveryTime", dataMap.get("expected_delivery_time"));
+                        result.put(
+                            "expectedDeliveryTime",
+                            dataMap.get("expected_delivery_time")
+                        );
                         return result;
                     }
                 }
             }
-            result.put("error", String.valueOf(body.getOrDefault("message", "GHN fee calculation failed")));
+            result.put(
+                "error",
+                String.valueOf(
+                    body.getOrDefault("message", "GHN fee calculation failed")
+                )
+            );
             return result;
         } catch (Exception e) {
             e.printStackTrace();
@@ -157,6 +225,4 @@ public class GhnClient {
             return error;
         }
     }
-
-
 }

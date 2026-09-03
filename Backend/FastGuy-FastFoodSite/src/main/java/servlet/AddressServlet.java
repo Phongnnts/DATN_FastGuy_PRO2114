@@ -7,25 +7,26 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import service.AddressService;
-import utils.AddressValidator;
-import utils.ApiResponse;
-import utils.JwtUtil;
-
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import service.AddressService;
+import utils.AddressValidator;
+import utils.ApiResponse;
+import utils.JwtUtil;
 
 @WebServlet("/api/user/addresses/*")
 public class AddressServlet extends HttpServlet {
+
     private AddressDAO addressDAO = new AddressDAO();
     private AddressService addressService = new AddressService();
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    private int getUserId(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    private int getUserId(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         String authHeader = req.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             ApiResponse.error(resp, "Missing token", 401);
@@ -37,18 +38,25 @@ public class AddressServlet extends HttpServlet {
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
         String path = req.getPathInfo();
         if (path == null || path.equals("/")) {
-            List<Map<String, Object>> result = addressDAO.findByUserId(userId).stream().map(this::toMap).collect(Collectors.toList());
+            List<Map<String, Object>> result = addressDAO
+                .findByUserId(userId)
+                .stream()
+                .map(this::toMap)
+                .collect(Collectors.toList());
             ApiResponse.ok(resp, result);
             return;
         }
         try {
-            Address address = addressDAO.findById(Integer.parseInt(path.substring(1)));
+            Address address = addressDAO.findById(
+                Integer.parseInt(path.substring(1))
+            );
             if (address == null || address.getUser().getUserId() != userId) {
                 ApiResponse.error(resp, "Address not found", 404);
                 return;
@@ -60,28 +68,40 @@ public class AddressServlet extends HttpServlet {
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
-        Map<String, Object> body = objectMapper.readValue(req.getReader(), Map.class);
+        Map<String, Object> body = objectMapper.readValue(
+            req.getReader(),
+            Map.class
+        );
         String validationError = AddressValidator.validate(body);
         if (validationError != null) {
             ApiResponse.error(resp, validationError, 400);
             return;
         }
         Address address = toAddress(body);
-        address.setIsDefault(body.get("isDefault") instanceof Boolean && (Boolean) body.get("isDefault"));
+        address.setIsDefault(
+            body.get("isDefault") instanceof Boolean &&
+                (Boolean) body.get("isDefault")
+        );
         address.setCreatedAt(LocalDateTime.now());
         try {
-            ApiResponse.ok(resp, toMap(addressService.create(userId, address)), "Address created");
+            ApiResponse.ok(
+                resp,
+                toMap(addressService.create(userId, address)),
+                "Address created"
+            );
         } catch (RuntimeException e) {
             ApiResponse.error(resp, "Could not save address", 500);
         }
     }
 
     @Override
-    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
@@ -100,23 +120,45 @@ public class AddressServlet extends HttpServlet {
                 } catch (IllegalArgumentException e) {
                     ApiResponse.error(resp, "Address not found", 404);
                 } catch (RuntimeException e) {
-                    ApiResponse.error(resp, "Could not update default address", 500);
+                    ApiResponse.error(
+                        resp,
+                        "Could not update default address",
+                        500
+                    );
                 }
                 return;
             }
-            Map<String, Object> body = objectMapper.readValue(req.getReader(), Map.class);
+            Map<String, Object> body = objectMapper.readValue(
+                req.getReader(),
+                Map.class
+            );
             String validationError = AddressValidator.validate(body);
             if (validationError != null) {
                 ApiResponse.error(resp, validationError, 400);
                 return;
             }
-            Boolean isDefault = body.containsKey("isDefault") && body.get("isDefault") instanceof Boolean ? (Boolean) body.get("isDefault") : null;
+            Boolean isDefault =
+                body.containsKey("isDefault") &&
+                body.get("isDefault") instanceof Boolean
+                    ? (Boolean) body.get("isDefault")
+                    : null;
             if (body.containsKey("isDefault") && isDefault == null) {
                 ApiResponse.error(resp, "Default address flag is invalid", 400);
                 return;
             }
             try {
-                ApiResponse.ok(resp, toMap(addressService.update(userId, addressId, toAddress(body), isDefault)), "Address updated");
+                ApiResponse.ok(
+                    resp,
+                    toMap(
+                        addressService.update(
+                            userId,
+                            addressId,
+                            toAddress(body),
+                            isDefault
+                        )
+                    ),
+                    "Address updated"
+                );
             } catch (IllegalArgumentException e) {
                 ApiResponse.error(resp, "Address not found", 404);
             } catch (RuntimeException e) {
@@ -128,7 +170,8 @@ public class AddressServlet extends HttpServlet {
     }
 
     @Override
-    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req, resp);
         if (userId < 0) return;
@@ -158,10 +201,18 @@ public class AddressServlet extends HttpServlet {
         address.setWardName(((String) body.get("wardName")).trim());
         address.setDistrictName(((String) body.get("districtName")).trim());
         address.setProvinceName(((String) body.get("provinceName")).trim());
-        address.setGhnProvinceId(((Number) body.get("ghnProvinceId")).intValue());
-        address.setGhnDistrictId(((Number) body.get("ghnDistrictId")).intValue());
+        address.setGhnProvinceId(
+            ((Number) body.get("ghnProvinceId")).intValue()
+        );
+        address.setGhnDistrictId(
+            ((Number) body.get("ghnDistrictId")).intValue()
+        );
         address.setGhnWardCode(((String) body.get("ghnWardCode")).trim());
-        address.setCity(body.get("city") instanceof String ? (String) body.get("city") : "Hồ Chí Minh");
+        address.setCity(
+            body.get("city") instanceof String
+                ? (String) body.get("city")
+                : "Hồ Chí Minh"
+        );
         return address;
     }
 
@@ -179,14 +230,25 @@ public class AddressServlet extends HttpServlet {
         result.put("ghnWardCode", address.getGhnWardCode());
         result.put("city", address.getCity());
         result.put("isDefault", address.getIsDefault());
-        result.put("createdAt", address.getCreatedAt() != null ? address.getCreatedAt().toString() : null);
+        result.put(
+            "createdAt",
+            address.getCreatedAt() != null
+                ? address.getCreatedAt().toString()
+                : null
+        );
         return result;
     }
 
     @Override
     protected void doOptions(HttpServletRequest req, HttpServletResponse resp) {
         resp.setHeader("Access-Control-Allow-Origin", "*");
-        resp.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        resp.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        resp.setHeader(
+            "Access-Control-Allow-Methods",
+            "GET, POST, PUT, DELETE, OPTIONS"
+        );
+        resp.setHeader(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization"
+        );
     }
 }

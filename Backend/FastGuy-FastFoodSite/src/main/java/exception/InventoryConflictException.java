@@ -1,6 +1,7 @@
 package exception;
 
 public class InventoryConflictException extends RuntimeException {
+
     private final int variantId;
     private final Integer currentQuantity;
 

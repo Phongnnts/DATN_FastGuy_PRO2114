@@ -1,11 +1,10 @@
 package servlet;
 
-import java.io.IOException;
-
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import service.StaffService;
 import service.StaffShiftAccessService;
 import utils.ApiResponse;
@@ -13,11 +12,14 @@ import utils.JwtUtil;
 
 @WebServlet("/api/staff/dashboard")
 public class StaffDashboardServlet extends HttpServlet {
+
     private StaffService staffService = new StaffService();
-    private StaffShiftAccessService staffShiftAccessService = new StaffShiftAccessService();
+    private StaffShiftAccessService staffShiftAccessService =
+        new StaffShiftAccessService();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
 
         String authHeader = req.getHeader("Authorization");

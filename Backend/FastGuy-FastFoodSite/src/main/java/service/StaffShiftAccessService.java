@@ -4,12 +4,16 @@ import dao.UserDAO;
 import entity.User;
 
 public class StaffShiftAccessService {
+
     private final WorkShiftService workShiftService = new WorkShiftService();
     private final UserDAO userDAO = new UserDAO();
 
     public boolean hasValidStaffIdentity(int userId) {
         User user = userDAO.findById(userId);
-        return user != null && isValidStaffIdentity(user.getRole(), user.getStatus());
+        return (
+            user != null &&
+            isValidStaffIdentity(user.getRole(), user.getStatus())
+        );
     }
 
     public boolean hasCheckedInShift(int userId) {

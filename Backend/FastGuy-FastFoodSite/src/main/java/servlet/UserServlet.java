@@ -1,21 +1,22 @@
 package servlet;
 
-import java.io.IOException;
-
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import service.UserService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
 @WebServlet("/api/user/home")
 public class UserServlet extends HttpServlet {
+
     private UserService userService = new UserService();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
 
         String authHeader = req.getHeader("Authorization");

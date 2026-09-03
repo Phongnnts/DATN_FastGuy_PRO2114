@@ -1,24 +1,25 @@
 package servlet;
 
-import service.CouponService;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import utils.ApiResponse;
-import utils.JwtUtil;
-import utils.JsonUtil;
-
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Map;
+import service.CouponService;
+import utils.ApiResponse;
+import utils.JsonUtil;
+import utils.JwtUtil;
 
 @WebServlet("/api/coupons/*")
 public class CouponServlet extends HttpServlet {
+
     private CouponService couponService = new CouponService();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         String path = req.getPathInfo();
 
@@ -26,7 +27,9 @@ public class CouponServlet extends HttpServlet {
             Integer userId = null;
             String authHeader = req.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                try { userId = JwtUtil.getUserId(authHeader.substring(7)); } catch (Exception e) {}
+                try {
+                    userId = JwtUtil.getUserId(authHeader.substring(7));
+                } catch (Exception e) {}
             }
             ApiResponse.ok(resp, couponService.getPublicCoupons(userId));
             return;
@@ -34,9 +37,17 @@ public class CouponServlet extends HttpServlet {
 
         if ("/claimed".equals(path)) {
             String auth = req.getHeader("Authorization");
-            if (auth == null || !auth.startsWith("Bearer ")) { ApiResponse.error(resp, "Unauthorized", 401); return; }
+            if (auth == null || !auth.startsWith("Bearer ")) {
+                ApiResponse.error(resp, "Unauthorized", 401);
+                return;
+            }
             int userId;
-            try { userId = JwtUtil.getUserId(auth.substring(7)); } catch (Exception e) { ApiResponse.error(resp, "Unauthorized", 401); return; }
+            try {
+                userId = JwtUtil.getUserId(auth.substring(7));
+            } catch (Exception e) {
+                ApiResponse.error(resp, "Unauthorized", 401);
+                return;
+            }
             ApiResponse.ok(resp, couponService.getClaimedCoupons(userId));
             return;
         }
@@ -45,7 +56,8 @@ public class CouponServlet extends HttpServlet {
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         String path = req.getPathInfo();
 
@@ -58,14 +70,25 @@ public class CouponServlet extends HttpServlet {
         }
     }
 
-    private void handleVerify(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-        if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+    private void handleVerify(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
+        Map<String, Object> body = JsonUtil.fromJson(
+            req.getReader(),
+            Map.class
+        );
+        if (body == null) {
+            ApiResponse.error(resp, "Invalid data", 400);
+            return;
+        }
 
         Object rawCode = body.get("code");
         Object rawTotalAmount = body.get("totalAmount");
         Object rawShippingFee = body.get("shippingFee");
-        if (!(rawCode instanceof String) || !(rawTotalAmount instanceof Number) || (rawShippingFee != null && !(rawShippingFee instanceof Number))) {
+        if (
+            !(rawCode instanceof String) ||
+            !(rawTotalAmount instanceof Number) ||
+            (rawShippingFee != null && !(rawShippingFee instanceof Number))
+        ) {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
@@ -73,34 +96,65 @@ public class CouponServlet extends HttpServlet {
         BigDecimal shippingFee;
         try {
             totalAmount = new BigDecimal(rawTotalAmount.toString());
-            shippingFee = rawShippingFee == null ? BigDecimal.ZERO : new BigDecimal(rawShippingFee.toString());
+            shippingFee =
+                rawShippingFee == null
+                    ? BigDecimal.ZERO
+                    : new BigDecimal(rawShippingFee.toString());
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid data", 400);
             return;
         }
-        if (totalAmount.signum() < 0 || shippingFee.signum() < 0) { ApiResponse.error(resp, "Invalid data", 400); return; }
+        if (totalAmount.signum() < 0 || shippingFee.signum() < 0) {
+            ApiResponse.error(resp, "Invalid data", 400);
+            return;
+        }
         String code = (String) rawCode;
 
         Integer userId = null;
         String authHeader = req.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            try { userId = JwtUtil.getUserId(authHeader.substring(7)); } catch (Exception e) {}
+            try {
+                userId = JwtUtil.getUserId(authHeader.substring(7));
+            } catch (Exception e) {}
         }
 
-        Map<String, Object> result = couponService.verify(code, totalAmount, shippingFee, userId);
+        Map<String, Object> result = couponService.verify(
+            code,
+            totalAmount,
+            shippingFee,
+            userId
+        );
         ApiResponse.ok(resp, result);
     }
 
-    private void handleClaim(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    private void handleClaim(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         String auth = req.getHeader("Authorization");
-        if (auth == null || !auth.startsWith("Bearer ")) { ApiResponse.error(resp, "Unauthorized", 401); return; }
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            ApiResponse.error(resp, "Unauthorized", 401);
+            return;
+        }
         int userId;
-        try { userId = JwtUtil.getUserId(auth.substring(7)); } catch (Exception e) { ApiResponse.error(resp, "Unauthorized", 401); return; }
+        try {
+            userId = JwtUtil.getUserId(auth.substring(7));
+        } catch (Exception e) {
+            ApiResponse.error(resp, "Unauthorized", 401);
+            return;
+        }
 
-        Map<String, Object> body = JsonUtil.fromJson(req.getReader(), Map.class);
-        if (body == null) { ApiResponse.error(resp, "Invalid data", 400); return; }
+        Map<String, Object> body = JsonUtil.fromJson(
+            req.getReader(),
+            Map.class
+        );
+        if (body == null) {
+            ApiResponse.error(resp, "Invalid data", 400);
+            return;
+        }
         Object rawCouponId = body.get("couponId");
-        if (!(rawCouponId instanceof Number)) { ApiResponse.error(resp, "Missing couponId", 400); return; }
+        if (!(rawCouponId instanceof Number)) {
+            ApiResponse.error(resp, "Missing couponId", 400);
+            return;
+        }
 
         int couponId = ((Number) rawCouponId).intValue();
         String err = couponService.claim(couponId, userId);

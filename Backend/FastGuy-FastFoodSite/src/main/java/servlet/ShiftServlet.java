@@ -1,15 +1,14 @@
 package servlet;
 
-import java.io.IOException;
-import java.time.LocalDate;
-import java.util.Map;
-
 import entity.WorkShift;
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.Map;
 import service.WorkShiftService;
 import utils.ApiResponse;
 import utils.DatabaseUtil;
@@ -18,6 +17,7 @@ import utils.PrivilegedAuth;
 
 @WebServlet("/api/shifts/*")
 public class ShiftServlet extends HttpServlet {
+
     private final WorkShiftService workShiftService;
 
     public ShiftServlet() {
@@ -29,44 +29,100 @@ public class ShiftServlet extends HttpServlet {
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         int userId = worker(req, resp);
         if (userId < 0) return;
         resp.setContentType("application/json;charset=UTF-8");
-        if ("/mine".equals(req.getPathInfo())) ApiResponse.ok(resp, workShiftService.list(userId, null, null, null));
+        if ("/mine".equals(req.getPathInfo())) ApiResponse.ok(
+            resp,
+            workShiftService.list(userId, null, null, null)
+        );
         else if ("/attendance".equals(req.getPathInfo())) {
-            if (!"STAFF".equals(JwtUtil.getRole(req.getHeader("Authorization").substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return; }
-            try { ApiResponse.ok(resp, workShiftService.attendance(req.getParameter("month"), userId, null)); }
-            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
-        }
-        else if ("/week".equals(req.getPathInfo())) {
-            if (!"STAFF".equals(JwtUtil.getRole(req.getHeader("Authorization").substring(7)))) { ApiResponse.error(resp, "Forbidden", 403); return; }
-            try { ApiResponse.ok(resp, workShiftService.week(req.getParameter("weekStart"), userId)); }
-            catch (IllegalArgumentException e) { ApiResponse.error(resp, e.getMessage(), 400); }
-        }
-        else if ("/current".equals(req.getPathInfo())) ApiResponse.ok(resp, workShiftService.current(userId));
+            if (
+                !"STAFF".equals(
+                    JwtUtil.getRole(req.getHeader("Authorization").substring(7))
+                )
+            ) {
+                ApiResponse.error(resp, "Forbidden", 403);
+                return;
+            }
+            try {
+                ApiResponse.ok(
+                    resp,
+                    workShiftService.attendance(
+                        req.getParameter("month"),
+                        userId,
+                        null
+                    )
+                );
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+            }
+        } else if ("/week".equals(req.getPathInfo())) {
+            if (
+                !"STAFF".equals(
+                    JwtUtil.getRole(req.getHeader("Authorization").substring(7))
+                )
+            ) {
+                ApiResponse.error(resp, "Forbidden", 403);
+                return;
+            }
+            try {
+                ApiResponse.ok(
+                    resp,
+                    workShiftService.week(req.getParameter("weekStart"), userId)
+                );
+            } catch (IllegalArgumentException e) {
+                ApiResponse.error(resp, e.getMessage(), 400);
+            }
+        } else if ("/current".equals(req.getPathInfo())) ApiResponse.ok(
+            resp,
+            workShiftService.current(userId)
+        );
         else if ("/has-today".equals(req.getPathInfo())) {
             EntityManager em = DatabaseUtil.getEntityManager();
             try {
-                Long count = em.createQuery("SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :uid AND ws.shiftDate = :today", Long.class)
-                        .setParameter("uid", userId).setParameter("today", LocalDate.now()).getSingleResult();
+                Long count = em
+                    .createQuery(
+                        "SELECT COUNT(ws) FROM WorkShift ws WHERE ws.user.userId = :uid AND ws.shiftDate = :today",
+                        Long.class
+                    )
+                    .setParameter("uid", userId)
+                    .setParameter("today", LocalDate.now())
+                    .getSingleResult();
                 Map<String, Object> result = new java.util.HashMap<>();
                 result.put("hasShift", count > 0);
                 ApiResponse.ok(resp, result);
-            } finally { em.close(); }
-        }
-        else ApiResponse.error(resp, "Not found", 404);
+            } finally {
+                em.close();
+            }
+        } else ApiResponse.error(resp, "Not found", 404);
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         int userId = worker(req, resp);
         if (userId < 0) return;
         resp.setContentType("application/json;charset=UTF-8");
         try {
             String[] parts = req.getPathInfo().split("/");
-            if (parts.length != 3 || (!"check-in".equals(parts[2]) && !"check-out".equals(parts[2]))) { ApiResponse.error(resp, "Not found", 404); return; }
-            ApiResponse.ok(resp, workShiftService.check(Integer.parseInt(parts[1]), userId, "check-in".equals(parts[2])));
+            if (
+                parts.length != 3 ||
+                (!"check-in".equals(parts[2]) && !"check-out".equals(parts[2]))
+            ) {
+                ApiResponse.error(resp, "Not found", 404);
+                return;
+            }
+            ApiResponse.ok(
+                resp,
+                workShiftService.check(
+                    Integer.parseInt(parts[1]),
+                    userId,
+                    "check-in".equals(parts[2])
+                )
+            );
         } catch (NumberFormatException e) {
             ApiResponse.error(resp, "Invalid shift ID", 400);
         } catch (WorkShiftService.ActiveOwnershipConflict e) {
@@ -82,12 +138,22 @@ public class ShiftServlet extends HttpServlet {
         }
     }
 
-    protected int worker(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected int worker(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         String header = req.getHeader("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) { ApiResponse.error(resp, "Missing token", 401); return -1; }
+        if (header == null || !header.startsWith("Bearer ")) {
+            ApiResponse.error(resp, "Missing token", 401);
+            return -1;
+        }
         String token = header.substring(7);
         String role = JwtUtil.getRole(token);
-        if ((!"STAFF".equals(role) && !"SHIPPER".equals(role)) || !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), role)) { ApiResponse.error(resp, "Forbidden", 403); return -1; }
+        if (
+            (!"STAFF".equals(role) && !"SHIPPER".equals(role)) ||
+            !PrivilegedAuth.isActiveRole(JwtUtil.getUserId(token), role)
+        ) {
+            ApiResponse.error(resp, "Forbidden", 403);
+            return -1;
+        }
         return JwtUtil.getUserId(token);
     }
 }

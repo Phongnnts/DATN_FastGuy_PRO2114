@@ -1,10 +1,5 @@
 package entity;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.math.BigDecimal;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -15,10 +10,15 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "WorkShift")
 public class WorkShift {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "shift_id")
@@ -76,12 +76,23 @@ public class WorkShift {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
-    @Column(name = "pay_snapshot_status") private String paySnapshotStatus;
-    @Column(name = "regular_hourly_rate_snapshot") private BigDecimal regularHourlyRateSnapshot;
-    @Column(name = "overtime_hourly_rate_snapshot") private BigDecimal overtimeHourlyRateSnapshot;
-    @Column(name = "regular_pay_amount") private BigDecimal regularPayAmount;
-    @Column(name = "overtime_pay_amount") private BigDecimal overtimePayAmount;
-    @Column(name = "total_pay_amount") private BigDecimal totalPayAmount;
+    @Column(name = "pay_snapshot_status")
+    private String paySnapshotStatus;
+
+    @Column(name = "regular_hourly_rate_snapshot")
+    private BigDecimal regularHourlyRateSnapshot;
+
+    @Column(name = "overtime_hourly_rate_snapshot")
+    private BigDecimal overtimeHourlyRateSnapshot;
+
+    @Column(name = "regular_pay_amount")
+    private BigDecimal regularPayAmount;
+
+    @Column(name = "overtime_pay_amount")
+    private BigDecimal overtimePayAmount;
+
+    @Column(name = "total_pay_amount")
+    private BigDecimal totalPayAmount;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -90,55 +101,221 @@ public class WorkShift {
     private LocalDateTime updatedAt;
 
     @PrePersist
-    void prePersist() { if (createdAt == null) createdAt = LocalDateTime.now(); updatedAt = LocalDateTime.now(); }
+    void prePersist() {
+        if (createdAt == null) createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
 
     @PreUpdate
-    void preUpdate() { updatedAt = LocalDateTime.now(); }
+    void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 
-    public int getShiftId() { return shiftId; }
-    public void setShiftId(int shiftId) { this.shiftId = shiftId; }
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-    public LocalDate getShiftDate() { return shiftDate; }
-    public void setShiftDate(LocalDate shiftDate) { this.shiftDate = shiftDate; }
-    public LocalTime getStartTime() { return startTime; }
-    public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
-    public LocalTime getEndTime() { return endTime; }
-    public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
-    public String getShiftCode() { return shiftCode; }
-    public void setShiftCode(String shiftCode) { this.shiftCode = shiftCode; }
-    public String getCheckInSource() { return checkInSource; }
-    public void setCheckInSource(String checkInSource) { this.checkInSource = checkInSource; }
-    public String getCheckOutSource() { return checkOutSource; }
-    public void setCheckOutSource(String checkOutSource) { this.checkOutSource = checkOutSource; }
-    public String getStaffRoleSnapshot() { return staffRoleSnapshot; }
-    public void setStaffRoleSnapshot(String staffRoleSnapshot) { this.staffRoleSnapshot = staffRoleSnapshot; }
-    public LocalDateTime getCheckInAt() { return checkInAt; }
-    public void setCheckInAt(LocalDateTime checkInAt) { this.checkInAt = checkInAt; }
-    public LocalDateTime getCheckOutAt() { return checkOutAt; }
-    public void setCheckOutAt(LocalDateTime checkOutAt) { this.checkOutAt = checkOutAt; }
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-    public String getAttendanceStatus() { return attendanceStatus; }
-    public void setAttendanceStatus(String attendanceStatus) { this.attendanceStatus = attendanceStatus; }
-    public Integer getApprovedMinutes() { return approvedMinutes; }
-    public void setApprovedMinutes(Integer approvedMinutes) { this.approvedMinutes = approvedMinutes; }
-    public Integer getApprovedOvertimeMinutes() { return approvedOvertimeMinutes; }
-    public void setApprovedOvertimeMinutes(Integer approvedOvertimeMinutes) { this.approvedOvertimeMinutes = approvedOvertimeMinutes; }
-    public String getAttendanceNote() { return attendanceNote; }
-    public void setAttendanceNote(String attendanceNote) { this.attendanceNote = attendanceNote; }
-    public Integer getApprovedBy() { return approvedBy; }
-    public void setApprovedBy(Integer approvedBy) { this.approvedBy = approvedBy; }
-    public LocalDateTime getApprovedAt() { return approvedAt; }
-    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
-    public String getPaySnapshotStatus(){return paySnapshotStatus;} public void setPaySnapshotStatus(String v){paySnapshotStatus=v;}
-    public BigDecimal getRegularHourlyRateSnapshot(){return regularHourlyRateSnapshot;} public void setRegularHourlyRateSnapshot(BigDecimal v){regularHourlyRateSnapshot=v;}
-    public BigDecimal getOvertimeHourlyRateSnapshot(){return overtimeHourlyRateSnapshot;} public void setOvertimeHourlyRateSnapshot(BigDecimal v){overtimeHourlyRateSnapshot=v;}
-    public BigDecimal getRegularPayAmount(){return regularPayAmount;} public void setRegularPayAmount(BigDecimal v){regularPayAmount=v;}
-    public BigDecimal getOvertimePayAmount(){return overtimePayAmount;} public void setOvertimePayAmount(BigDecimal v){overtimePayAmount=v;}
-    public BigDecimal getTotalPayAmount(){return totalPayAmount;} public void setTotalPayAmount(BigDecimal v){totalPayAmount=v;}
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public int getShiftId() {
+        return shiftId;
+    }
+
+    public void setShiftId(int shiftId) {
+        this.shiftId = shiftId;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+    public LocalDate getShiftDate() {
+        return shiftDate;
+    }
+
+    public void setShiftDate(LocalDate shiftDate) {
+        this.shiftDate = shiftDate;
+    }
+
+    public LocalTime getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(LocalTime startTime) {
+        this.startTime = startTime;
+    }
+
+    public LocalTime getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(LocalTime endTime) {
+        this.endTime = endTime;
+    }
+
+    public String getShiftCode() {
+        return shiftCode;
+    }
+
+    public void setShiftCode(String shiftCode) {
+        this.shiftCode = shiftCode;
+    }
+
+    public String getCheckInSource() {
+        return checkInSource;
+    }
+
+    public void setCheckInSource(String checkInSource) {
+        this.checkInSource = checkInSource;
+    }
+
+    public String getCheckOutSource() {
+        return checkOutSource;
+    }
+
+    public void setCheckOutSource(String checkOutSource) {
+        this.checkOutSource = checkOutSource;
+    }
+
+    public String getStaffRoleSnapshot() {
+        return staffRoleSnapshot;
+    }
+
+    public void setStaffRoleSnapshot(String staffRoleSnapshot) {
+        this.staffRoleSnapshot = staffRoleSnapshot;
+    }
+
+    public LocalDateTime getCheckInAt() {
+        return checkInAt;
+    }
+
+    public void setCheckInAt(LocalDateTime checkInAt) {
+        this.checkInAt = checkInAt;
+    }
+
+    public LocalDateTime getCheckOutAt() {
+        return checkOutAt;
+    }
+
+    public void setCheckOutAt(LocalDateTime checkOutAt) {
+        this.checkOutAt = checkOutAt;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getAttendanceStatus() {
+        return attendanceStatus;
+    }
+
+    public void setAttendanceStatus(String attendanceStatus) {
+        this.attendanceStatus = attendanceStatus;
+    }
+
+    public Integer getApprovedMinutes() {
+        return approvedMinutes;
+    }
+
+    public void setApprovedMinutes(Integer approvedMinutes) {
+        this.approvedMinutes = approvedMinutes;
+    }
+
+    public Integer getApprovedOvertimeMinutes() {
+        return approvedOvertimeMinutes;
+    }
+
+    public void setApprovedOvertimeMinutes(Integer approvedOvertimeMinutes) {
+        this.approvedOvertimeMinutes = approvedOvertimeMinutes;
+    }
+
+    public String getAttendanceNote() {
+        return attendanceNote;
+    }
+
+    public void setAttendanceNote(String attendanceNote) {
+        this.attendanceNote = attendanceNote;
+    }
+
+    public Integer getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(Integer approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public LocalDateTime getApprovedAt() {
+        return approvedAt;
+    }
+
+    public void setApprovedAt(LocalDateTime approvedAt) {
+        this.approvedAt = approvedAt;
+    }
+
+    public String getPaySnapshotStatus() {
+        return paySnapshotStatus;
+    }
+
+    public void setPaySnapshotStatus(String v) {
+        paySnapshotStatus = v;
+    }
+
+    public BigDecimal getRegularHourlyRateSnapshot() {
+        return regularHourlyRateSnapshot;
+    }
+
+    public void setRegularHourlyRateSnapshot(BigDecimal v) {
+        regularHourlyRateSnapshot = v;
+    }
+
+    public BigDecimal getOvertimeHourlyRateSnapshot() {
+        return overtimeHourlyRateSnapshot;
+    }
+
+    public void setOvertimeHourlyRateSnapshot(BigDecimal v) {
+        overtimeHourlyRateSnapshot = v;
+    }
+
+    public BigDecimal getRegularPayAmount() {
+        return regularPayAmount;
+    }
+
+    public void setRegularPayAmount(BigDecimal v) {
+        regularPayAmount = v;
+    }
+
+    public BigDecimal getOvertimePayAmount() {
+        return overtimePayAmount;
+    }
+
+    public void setOvertimePayAmount(BigDecimal v) {
+        overtimePayAmount = v;
+    }
+
+    public BigDecimal getTotalPayAmount() {
+        return totalPayAmount;
+    }
+
+    public void setTotalPayAmount(BigDecimal v) {
+        totalPayAmount = v;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

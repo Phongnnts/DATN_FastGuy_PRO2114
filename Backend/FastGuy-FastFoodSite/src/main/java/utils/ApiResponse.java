@@ -14,11 +14,13 @@ public class ApiResponse {
         return res;
     }
 
-    public static void ok(HttpServletResponse resp, Object data) throws IOException {
+    public static void ok(HttpServletResponse resp, Object data)
+        throws IOException {
         JsonUtil.write(resp, ok(data));
     }
 
-    public static void ok(HttpServletResponse resp, Object data, String message) throws IOException {
+    public static void ok(HttpServletResponse resp, Object data, String message)
+        throws IOException {
         Map<String, Object> res = ok(data);
         res.put("message", message);
         JsonUtil.write(resp, res);
@@ -37,12 +39,21 @@ public class ApiResponse {
         return res;
     }
 
-    public static void error(HttpServletResponse resp, String message, int statusCode) throws IOException {
+    public static void error(
+        HttpServletResponse resp,
+        String message,
+        int statusCode
+    ) throws IOException {
         resp.setStatus(statusCode);
         JsonUtil.write(resp, error(message));
     }
 
-    public static void error(HttpServletResponse resp, String message, int statusCode, Object data) throws IOException {
+    public static void error(
+        HttpServletResponse resp,
+        String message,
+        int statusCode,
+        Object data
+    ) throws IOException {
         resp.setStatus(statusCode);
         Map<String, Object> res = error(message);
         res.put("data", data);

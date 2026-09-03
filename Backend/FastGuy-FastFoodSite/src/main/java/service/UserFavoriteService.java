@@ -1,20 +1,19 @@
 package service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import dao.ProductDAO;
 import entity.Product;
 import entity.ProductVariant;
 import entity.User;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
-import utils.DatabaseUtil;
-
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-
-import com.fasterxml.jackson.core.type.TypeReference;
+import utils.DatabaseUtil;
 
 public class UserFavoriteService {
+
     private ProductDAO productDAO = new ProductDAO();
 
     public List<Map<String, Object>> getByUserId(int userId) {
@@ -27,7 +26,9 @@ public class UserFavoriteService {
             List<Map<String, Object>> result = new ArrayList<>();
             for (FavEntry entry : entries) {
                 Product product = productDAO.findById(entry.productId);
-                if (product != null && "AVAILABLE".equals(product.getStatus())) {
+                if (
+                    product != null && "AVAILABLE".equals(product.getStatus())
+                ) {
                     result.add(toProductMap(product));
                 }
             }
@@ -42,7 +43,9 @@ public class UserFavoriteService {
         try {
             User user = em.find(User.class, userId);
             if (user == null) return false;
-            return parseFavorites(user.getFavoriteIdsJson()).stream().anyMatch(e -> e.productId == productId);
+            return parseFavorites(user.getFavoriteIdsJson())
+                .stream()
+                .anyMatch(e -> e.productId == productId);
         } finally {
             em.close();
         }
@@ -56,16 +59,27 @@ public class UserFavoriteService {
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
-            User user = em.find(User.class, userId, LockModeType.PESSIMISTIC_WRITE);
-            if (user == null) { em.getTransaction().rollback(); throw new IllegalArgumentException("User not found"); }
+            User user = em.find(
+                User.class,
+                userId,
+                LockModeType.PESSIMISTIC_WRITE
+            );
+            if (user == null) {
+                em.getTransaction().rollback();
+                throw new IllegalArgumentException("User not found");
+            }
             List<FavEntry> entries = parseFavorites(user.getFavoriteIdsJson());
-            boolean exists = entries.stream().anyMatch(e -> e.productId == productId);
+            boolean exists = entries
+                .stream()
+                .anyMatch(e -> e.productId == productId);
             boolean favorite;
             if (exists) {
                 entries.removeIf(e -> e.productId == productId);
                 favorite = false;
             } else {
-                entries.add(new FavEntry(productId, LocalDateTime.now().toString()));
+                entries.add(
+                    new FavEntry(productId, LocalDateTime.now().toString())
+                );
                 favorite = true;
             }
             user.setFavoriteIdsJson(serializeFavorites(entries));
@@ -83,9 +97,14 @@ public class UserFavoriteService {
     }
 
     private List<FavEntry> parseFavorites(String json) {
-        if (json == null || json.isEmpty() || "[]".equals(json)) return new ArrayList<>();
+        if (
+            json == null || json.isEmpty() || "[]".equals(json)
+        ) return new ArrayList<>();
         try {
-            return utils.JsonUtil.getMapper().readValue(json, new TypeReference<List<FavEntry>>() {});
+            return utils.JsonUtil.getMapper().readValue(
+                json,
+                new TypeReference<List<FavEntry>>() {}
+            );
         } catch (Exception e) {
             throw new IllegalStateException("Invalid stored favorites data", e);
         }
@@ -100,9 +119,12 @@ public class UserFavoriteService {
     }
 
     static class FavEntry {
+
         public int productId;
         public String createdAt;
+
         public FavEntry() {}
+
         public FavEntry(int productId, String createdAt) {
             this.productId = productId;
             this.createdAt = createdAt;
@@ -110,17 +132,40 @@ public class UserFavoriteService {
     }
 
     private Map<String, Object> toProductMap(Product product) {
-        ProductVariant defaultVariant = productDAO.findDefaultVariantByProductId(product.getProductId());
+        ProductVariant defaultVariant =
+            productDAO.findDefaultVariantByProductId(product.getProductId());
         Map<String, Object> data = new HashMap<>();
         data.put("productId", product.getProductId());
         data.put("name", product.getName());
-        data.put("description", product.getDescription() != null ? product.getDescription() : "");
+        data.put(
+            "description",
+            product.getDescription() != null ? product.getDescription() : ""
+        );
         data.put("basePrice", product.getBasePrice());
-        data.put("price", defaultVariant != null ? defaultVariant.getPrice() : product.getBasePrice());
-        data.put("defaultVariant", defaultVariant != null ? toVariantMap(defaultVariant) : null);
-        data.put("imageUrl", product.getImageUrl() != null ? product.getImageUrl() : "");
-        data.put("categoryId", product.getCategory() != null ? product.getCategory().getCategoryId() : null);
-        data.put("categoryName", product.getCategory() != null ? product.getCategory().getName() : "");
+        data.put(
+            "price",
+            defaultVariant != null
+                ? defaultVariant.getPrice()
+                : product.getBasePrice()
+        );
+        data.put(
+            "defaultVariant",
+            defaultVariant != null ? toVariantMap(defaultVariant) : null
+        );
+        data.put(
+            "imageUrl",
+            product.getImageUrl() != null ? product.getImageUrl() : ""
+        );
+        data.put(
+            "categoryId",
+            product.getCategory() != null
+                ? product.getCategory().getCategoryId()
+                : null
+        );
+        data.put(
+            "categoryName",
+            product.getCategory() != null ? product.getCategory().getName() : ""
+        );
         data.put("discountPrice", null);
         data.put("inStock", "AVAILABLE".equals(product.getStatus()));
         data.put("featured", false);
@@ -135,7 +180,10 @@ public class UserFavoriteService {
         data.put("originalPrice", variant.getOriginalPrice());
         data.put("sku", variant.getSku());
         data.put("quantityAvailable", variant.getQuantityAvailable());
-        data.put("isDefault", variant.getIsDefault() != null ? variant.getIsDefault() : false);
+        data.put(
+            "isDefault",
+            variant.getIsDefault() != null ? variant.getIsDefault() : false
+        );
         data.put("status", variant.getStatus());
         return data;
     }

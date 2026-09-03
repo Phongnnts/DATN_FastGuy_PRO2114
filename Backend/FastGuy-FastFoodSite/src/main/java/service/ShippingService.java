@@ -1,11 +1,11 @@
 package service;
 
-import utils.GhnClient;
-
 import java.util.List;
 import java.util.Map;
+import utils.GhnClient;
 
 public class ShippingService {
+
     private GhnClient ghnClient = new GhnClient();
 
     public List<Map<String, Object>> getProvinces() {
@@ -20,17 +20,30 @@ public class ShippingService {
         return ghnClient.getWards(districtId);
     }
 
-
-    public Map<String, Object> calculateFee(int toDistrictId, String toWardCode, int weight, int length, int width, int height) {
+    public Map<String, Object> calculateFee(
+        int toDistrictId,
+        String toWardCode,
+        int weight,
+        int length,
+        int width,
+        int height
+    ) {
         try {
-            Map<String, Object> result = ghnClient.calculateFee(toDistrictId, toWardCode, weight, length, width, height);
-            if (result != null && result.get("fee") instanceof Number) return result;
+            Map<String, Object> result = ghnClient.calculateFee(
+                toDistrictId,
+                toWardCode,
+                weight,
+                length,
+                width,
+                height
+            );
+            if (
+                result != null && result.get("fee") instanceof Number
+            ) return result;
             if (result != null && result.containsKey("error")) return result;
         } catch (Exception e) {
             e.printStackTrace();
         }
         return Map.of("error", "Không thể tính phí giao hàng từ GHN");
     }
-
-
 }

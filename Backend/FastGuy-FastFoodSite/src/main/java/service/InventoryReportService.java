@@ -1,36 +1,496 @@
 package service;
 
 import jakarta.persistence.EntityManager;
-import utils.DatabaseUtil;
 import java.math.*;
 import java.time.*;
 import java.util.*;
 import java.util.function.Supplier;
+import utils.DatabaseUtil;
 
 public class InventoryReportService {
+
     private final Supplier<EntityManager> entityManagers;
-    public InventoryReportService(){this(DatabaseUtil::getEntityManager);} InventoryReportService(Supplier<EntityManager> value){entityManagers=value;}
 
-    public Map<String,BigDecimal> summary(LocalDate from,LocalDate to){range(from,to);EntityManager em=entityManagers.get();try{LocalDateTime end=end(to);List<Map<String,Object>>period=transactions(em,from.atStartOfDay(),end);List<Map<String,Object>>history=transactions(em,null,end);return summarize(period,endingValue(history));}finally{em.close();}}
-    public List<Map<String,Object>> itemLoss(LocalDate from,LocalDate to){range(from,to);EntityManager em=entityManagers.get();try{return itemLossRows(transactions(em,from.atStartOfDay(),end(to)));}finally{em.close();}}
-    public Map<String,Object> analytics(LocalDate from,LocalDate to){LocalDate[]comparison=comparisonPeriod(from,to);EntityManager em=entityManagers.get();try{List<Map<String,Object>>history=datedTransactions(em,end(to));List<entity.InventoryItem>items=em.createQuery("SELECT i FROM InventoryItem i WHERE i.active=true ORDER BY i.name",entity.InventoryItem.class).getResultList();Map<String,Object>result=new LinkedHashMap<>();result.put("period",period(from,to));result.put("comparisonPeriod",period(comparison[0],comparison[1]));result.put("kpis",kpis(items,history,end(to)));result.put("previousKpis",kpis(items,history,end(comparison[1])));result.put("series",dailySeries(history,from,to));List<Map<String,Object>>attention=new ArrayList<>();Map<String,Integer>health=new LinkedHashMap<>(Map.of("healthyCount",0,"attentionCount",0,"lowStockCount",0,"outOfStockCount",0));for(entity.InventoryItem item:items){String state=healthState(item.availableQuantity(),item.getMinimumQuantity());String key="OUT".equals(state)?"outOfStockCount":"LOW".equals(state)?"lowStockCount":"ATTENTION".equals(state)?"attentionCount":"healthyCount";health.put(key,health.get(key)+1);if(Set.of("OUT","LOW","ATTENTION").contains(state)&&item.getMinimumQuantity().signum()>0){Map<String,Object>row=new LinkedHashMap<>();row.put("inventoryItemId",item.getInventoryItemId());row.put("inventoryCode",item.getInventoryCode());row.put("name",item.getName());row.put("baseUnit",item.getBaseUnit());row.put("onHandQuantity",item.getOnHandQuantity());row.put("availableQuantity",item.availableQuantity());row.put("minimumQuantity",item.getMinimumQuantity());row.put("healthRatio",item.availableQuantity().divide(item.getMinimumQuantity(),4,RoundingMode.HALF_UP));row.put("healthState",state);attention.add(row);}}attention.sort(Comparator.comparing(r->(BigDecimal)r.get("healthRatio")));result.put("health",health);result.put("attentionItems",attention);return result;}finally{em.close();}}
-    public List<Map<String,Object>> menuCost(){EntityManager em=entityManagers.get();try{return em.createQuery("SELECT v.variantId,v.variantName,v.sku,r.yieldQuantity,SUM(ri.quantity*i.averageUnitCost) FROM Recipe r JOIN r.variant v JOIN r.items ri JOIN ri.inventoryItem i WHERE r.active=true GROUP BY v.variantId,v.variantName,v.sku,r.yieldQuantity ORDER BY v.variantId",Object[].class).getResultList().stream().map(InventoryReportService::menuCostRow).toList();}finally{em.close();}}
+    public InventoryReportService() {
+        this(DatabaseUtil::getEntityManager);
+    }
 
-    private static List<Map<String,Object>> datedTransactions(EntityManager em,LocalDateTime to){return em.createQuery("SELECT i.inventoryItemId,i.inventoryCode,i.name,t.transactionType,t.quantity,t.quantityBefore,t.quantityAfter,t.unitCostSnapshot,t.totalCost,s.stockCountId,t.createdAt FROM InventoryTransaction t JOIN t.inventoryItem i LEFT JOIN t.stockCount s WHERE t.createdAt<:to ORDER BY t.createdAt,t.inventoryTransactionId",Object[].class).setParameter("to",to).getResultList().stream().map(r->{Map<String,Object>m=transactionRow(r);m.put("createdAt",r[10]);return m;}).toList();}
-    private static Map<String,Object> period(LocalDate from,LocalDate to){return Map.of("fromDate",from,"toDate",to,"granularity","DAY");}
-    private static Map<String,Object> kpis(List<entity.InventoryItem>items,List<Map<String,Object>>history,LocalDateTime at){List<Map<String,Object>>rows=history.stream().filter(r->((LocalDateTime)r.get("createdAt")).isBefore(at)).toList();int low=0,out=0;for(entity.InventoryItem item:items){String state=healthState(item.availableQuantity(),item.getMinimumQuantity());if("OUT".equals(state))out++;else if("LOW".equals(state)||"ATTENTION".equals(state))low++;}Map<String,Object>m=new LinkedHashMap<>();m.put("itemCount",items.size());m.put("lowStockCount",low);m.put("outOfStockCount",out);m.put("inventoryValue",endingValue(rows));return m;}
-    private static List<Map<String,Object>> dailySeries(List<Map<String,Object>>history,LocalDate from,LocalDate to){List<Map<String,Object>>result=new ArrayList<>();for(LocalDate date=from;!date.isAfter(to);date=date.plusDays(1)){LocalDate current=date;List<Map<String,Object>>through=history.stream().filter(r->((LocalDateTime)r.get("createdAt")).isBefore(end(current))).toList();List<Map<String,Object>>day=through.stream().filter(r->!((LocalDateTime)r.get("createdAt")).isBefore(current.atStartOfDay())).toList();Map<String,Object>point=new LinkedHashMap<>();point.put("date",current);point.put("inventoryValue",endingValue(through));point.put("receiptValue",movement(day,"RECEIPT",0));point.put("consumptionValue",movement(day,"CONSUME",0));point.put("wasteValue",movement(day,"WASTE",0));point.put("adjustmentLossValue",movement(day,"ADJUSTMENT",-1));point.put("adjustmentGainValue",movement(day,"ADJUSTMENT",1));result.add(point);}return result;}
-    private static BigDecimal movement(List<Map<String,Object>>rows,String type,int sign){BigDecimal total=zero();for(Map<String,Object>r:rows){if(!type.equals(r.get("transactionType")))continue;BigDecimal quantity=(BigDecimal)r.get("quantity");if(sign!=0&&(quantity==null||Integer.signum(quantity.signum())!=sign))continue;BigDecimal cost=(BigDecimal)r.get("totalCost");if(cost!=null)total=total.add(cost);}return scale(total);}
-    private static List<Map<String,Object>> transactions(EntityManager em,LocalDateTime from,LocalDateTime to){String where=from==null?" WHERE t.createdAt<:to":" WHERE t.createdAt>=:from AND t.createdAt<:to";var query=em.createQuery("SELECT i.inventoryItemId,i.inventoryCode,i.name,t.transactionType,t.quantity,t.quantityBefore,t.quantityAfter,t.unitCostSnapshot,t.totalCost,s.stockCountId FROM InventoryTransaction t JOIN t.inventoryItem i LEFT JOIN t.stockCount s"+where+" ORDER BY i.inventoryItemId,t.createdAt,t.inventoryTransactionId",Object[].class).setParameter("to",to);if(from!=null)query.setParameter("from",from);return query.getResultList().stream().map(InventoryReportService::transactionRow).toList();}
-    private static Map<String,Object> transactionRow(Object[]r){Map<String,Object>m=new LinkedHashMap<>();m.put("inventoryItemId",r[0]);m.put("inventoryCode",r[1]);m.put("name",r[2]);m.put("transactionType",r[3]);m.put("quantity",r[4]);m.put("quantityBefore",r[5]);m.put("quantityAfter",r[6]);m.put("unitCostSnapshot",r[7]);m.put("totalCost",r[8]);if(r[9]!=null)m.put("stockCountId",r[9]);return m;}
+    InventoryReportService(Supplier<EntityManager> value) {
+        entityManagers = value;
+    }
 
-    public static BigDecimal endingValue(List<Map<String,Object>>rows){Map<Integer,BigDecimal>quantities=new HashMap<>(),costs=new HashMap<>();for(Map<String,Object>r:rows){String type=(String)r.get("transactionType");if("RESERVE".equals(type)||"RELEASE".equals(type))continue;int id=(int)r.get("inventoryItemId");BigDecimal after=(BigDecimal)r.get("quantityAfter"),snapshot=(BigDecimal)r.get("unitCostSnapshot");if(snapshot!=null){if("RECEIPT".equals(type)){BigDecimal oldQuantity=quantities.getOrDefault(id,BigDecimal.ZERO),oldCost=costs.getOrDefault(id,BigDecimal.ZERO),received=((BigDecimal)r.get("quantity")).abs();costs.put(id,AdminInventoryService.movingAverageCost(oldQuantity,oldCost,received,snapshot));}else costs.put(id,snapshot);}if(after!=null)quantities.put(id,after);}BigDecimal total=zero();for(Map.Entry<Integer,BigDecimal>entry:quantities.entrySet())total=total.add(entry.getValue().multiply(costs.getOrDefault(entry.getKey(),BigDecimal.ZERO)));return scale(total);}
-    public static List<Map<String,Object>> itemLossRows(List<Map<String,Object>>rows){Map<Integer,Map<String,Object>>result=new LinkedHashMap<>();for(Map<String,Object>r:rows){String type=(String)r.get("transactionType");BigDecimal quantity=(BigDecimal)r.get("quantity");boolean waste="WASTE".equals(type),countLoss="ADJUSTMENT".equals(type)&&quantity.signum()<0&&r.get("stockCountId")!=null;if(!waste&&!countLoss)continue;int id=(int)r.get("inventoryItemId");Map<String,Object>line=result.computeIfAbsent(id,key->{Map<String,Object>m=new LinkedHashMap<>();m.put("inventoryItemId",key);m.put("inventoryCode",r.get("inventoryCode"));m.put("name",r.get("name"));m.put("wasteQuantity",zero());m.put("wasteCost",zero());m.put("stockCountLossQuantity",zero());m.put("stockCountLossCost",zero());m.put("totalLossCost",zero());return m;});String quantityKey=waste?"wasteQuantity":"stockCountLossQuantity",costKey=waste?"wasteCost":"stockCountLossCost";BigDecimal cost=(BigDecimal)r.get("totalCost");if(cost==null)cost=BigDecimal.ZERO;line.put(quantityKey,scale(((BigDecimal)line.get(quantityKey)).add(quantity.abs())));line.put(costKey,scale(((BigDecimal)line.get(costKey)).add(cost)));line.put("totalLossCost",scale(((BigDecimal)line.get("totalLossCost")).add(cost)));}return new ArrayList<>(result.values());}
-    public static Map<String,Object> menuCostRow(Object[]r){BigDecimal yield=(BigDecimal)r[3],cost=scale((BigDecimal)r[4]);Map<String,Object>m=new LinkedHashMap<>();m.put("variantId",r[0]);m.put("variantName",r[1]);m.put("sku",r[2]);m.put("yieldQuantity",scale(yield));m.put("recipeCost",cost);m.put("costPerServing",cost.divide(yield,4,RoundingMode.HALF_UP));return m;}
-    public static Map<String,BigDecimal> summarize(List<Map<String,Object>>rows,BigDecimal ending){BigDecimal purchase=zero(),consume=zero(),waste=zero(),loss=zero(),gain=zero();for(Map<String,Object>r:rows){String type=(String)r.get("transactionType");BigDecimal quantity=(BigDecimal)r.get("quantity"),cost=(BigDecimal)r.get("totalCost");if(cost==null)continue;if("RECEIPT".equals(type))purchase=purchase.add(cost);else if("CONSUME".equals(type))consume=consume.add(cost);else if("WASTE".equals(type))waste=waste.add(cost);else if("ADJUSTMENT".equals(type)&&r.get("stockCountId")!=null){if(quantity.signum()<0)loss=loss.add(cost);else gain=gain.add(cost);}}BigDecimal totalLoss=waste.add(loss),rate=consume.signum()>0?totalLoss.multiply(new BigDecimal("100")).divide(consume,4,RoundingMode.HALF_UP):zero();Map<String,BigDecimal>m=new LinkedHashMap<>();m.put("purchaseCost",scale(purchase));m.put("consumptionCost",scale(consume));m.put("wasteCost",scale(waste));m.put("stockCountLossCost",scale(loss));m.put("stockCountGainCost",scale(gain));m.put("totalLossCost",scale(totalLoss));m.put("endingInventoryValue",scale(ending));m.put("lossRate",scale(rate));return m;}
-    public static LocalDate[] comparisonPeriod(LocalDate from,LocalDate to){range(from,to);long days=java.time.temporal.ChronoUnit.DAYS.between(from,to)+1;if(days>366)throw new IllegalArgumentException("Date range cannot exceed 366 days");LocalDate comparisonTo=from.minusDays(1);return new LocalDate[]{comparisonTo.minusDays(days-1),comparisonTo};}
-    public static String healthState(BigDecimal available,BigDecimal minimum){BigDecimal safeAvailable=available==null?BigDecimal.ZERO:available;if(safeAvailable.signum()<=0)return "OUT";if(minimum==null||minimum.signum()<=0)return "HEALTHY";BigDecimal ratio=safeAvailable.divide(minimum,4,RoundingMode.HALF_UP);if(ratio.compareTo(BigDecimal.ONE)<0)return "LOW";if(ratio.compareTo(new BigDecimal("1.25"))<=0)return "ATTENTION";if(ratio.compareTo(new BigDecimal("2.0"))<=0)return "HEALTHY";return "EXCESS";}
-    private static void range(LocalDate from,LocalDate to){if(from==null||to==null||from.isAfter(to))throw new IllegalArgumentException("Invalid date range");}
-    private static LocalDateTime end(LocalDate to){return to.equals(LocalDate.MAX)?LocalDateTime.MAX:to.plusDays(1).atStartOfDay();}
-    private static BigDecimal zero(){return new BigDecimal("0.0000");} private static BigDecimal scale(BigDecimal v){return v.setScale(4,RoundingMode.HALF_UP);}
+    public Map<String, BigDecimal> summary(LocalDate from, LocalDate to) {
+        range(from, to);
+        EntityManager em = entityManagers.get();
+        try {
+            LocalDateTime end = end(to);
+            List<Map<String, Object>> period = transactions(
+                em,
+                from.atStartOfDay(),
+                end
+            );
+            List<Map<String, Object>> history = transactions(em, null, end);
+            return summarize(period, endingValue(history));
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map<String, Object>> itemLoss(LocalDate from, LocalDate to) {
+        range(from, to);
+        EntityManager em = entityManagers.get();
+        try {
+            return itemLossRows(transactions(em, from.atStartOfDay(), end(to)));
+        } finally {
+            em.close();
+        }
+    }
+
+    public Map<String, Object> analytics(LocalDate from, LocalDate to) {
+        LocalDate[] comparison = comparisonPeriod(from, to);
+        EntityManager em = entityManagers.get();
+        try {
+            List<Map<String, Object>> history = datedTransactions(em, end(to));
+            List<entity.InventoryItem> items = em
+                .createQuery(
+                    "SELECT i FROM InventoryItem i WHERE i.active=true ORDER BY i.name",
+                    entity.InventoryItem.class
+                )
+                .getResultList();
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("period", period(from, to));
+            result.put(
+                "comparisonPeriod",
+                period(comparison[0], comparison[1])
+            );
+            result.put("kpis", kpis(items, history, end(to)));
+            result.put(
+                "previousKpis",
+                kpis(items, history, end(comparison[1]))
+            );
+            result.put("series", dailySeries(history, from, to));
+            List<Map<String, Object>> attention = new ArrayList<>();
+            Map<String, Integer> health = new LinkedHashMap<>(
+                Map.of(
+                    "healthyCount",
+                    0,
+                    "attentionCount",
+                    0,
+                    "lowStockCount",
+                    0,
+                    "outOfStockCount",
+                    0
+                )
+            );
+            for (entity.InventoryItem item : items) {
+                String state = healthState(
+                    item.availableQuantity(),
+                    item.getMinimumQuantity()
+                );
+                String key = "OUT".equals(state)
+                    ? "outOfStockCount"
+                    : "LOW".equals(state)
+                      ? "lowStockCount"
+                      : "ATTENTION".equals(state)
+                        ? "attentionCount"
+                        : "healthyCount";
+                health.put(key, health.get(key) + 1);
+                if (
+                    Set.of("OUT", "LOW", "ATTENTION").contains(state) &&
+                    item.getMinimumQuantity().signum() > 0
+                ) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("inventoryItemId", item.getInventoryItemId());
+                    row.put("inventoryCode", item.getInventoryCode());
+                    row.put("name", item.getName());
+                    row.put("baseUnit", item.getBaseUnit());
+                    row.put("onHandQuantity", item.getOnHandQuantity());
+                    row.put("availableQuantity", item.availableQuantity());
+                    row.put("minimumQuantity", item.getMinimumQuantity());
+                    row.put(
+                        "healthRatio",
+                        item
+                            .availableQuantity()
+                            .divide(
+                                item.getMinimumQuantity(),
+                                4,
+                                RoundingMode.HALF_UP
+                            )
+                    );
+                    row.put("healthState", state);
+                    attention.add(row);
+                }
+            }
+            attention.sort(
+                Comparator.comparing(r -> (BigDecimal) r.get("healthRatio"))
+            );
+            result.put("health", health);
+            result.put("attentionItems", attention);
+            return result;
+        } finally {
+            em.close();
+        }
+    }
+
+    public List<Map<String, Object>> menuCost() {
+        EntityManager em = entityManagers.get();
+        try {
+            return em
+                .createQuery(
+                    "SELECT v.variantId,v.variantName,v.sku,r.yieldQuantity,SUM(ri.quantity*i.averageUnitCost) FROM Recipe r JOIN r.variant v JOIN r.items ri JOIN ri.inventoryItem i WHERE r.active=true GROUP BY v.variantId,v.variantName,v.sku,r.yieldQuantity ORDER BY v.variantId",
+                    Object[].class
+                )
+                .getResultList()
+                .stream()
+                .map(InventoryReportService::menuCostRow)
+                .toList();
+        } finally {
+            em.close();
+        }
+    }
+
+    private static List<Map<String, Object>> datedTransactions(
+        EntityManager em,
+        LocalDateTime to
+    ) {
+        return em
+            .createQuery(
+                "SELECT i.inventoryItemId,i.inventoryCode,i.name,t.transactionType,t.quantity,t.quantityBefore,t.quantityAfter,t.unitCostSnapshot,t.totalCost,s.stockCountId,t.createdAt FROM InventoryTransaction t JOIN t.inventoryItem i LEFT JOIN t.stockCount s WHERE t.createdAt<:to ORDER BY t.createdAt,t.inventoryTransactionId",
+                Object[].class
+            )
+            .setParameter("to", to)
+            .getResultList()
+            .stream()
+            .map(r -> {
+                Map<String, Object> m = transactionRow(r);
+                m.put("createdAt", r[10]);
+                return m;
+            })
+            .toList();
+    }
+
+    private static Map<String, Object> period(LocalDate from, LocalDate to) {
+        return Map.of("fromDate", from, "toDate", to, "granularity", "DAY");
+    }
+
+    private static Map<String, Object> kpis(
+        List<entity.InventoryItem> items,
+        List<Map<String, Object>> history,
+        LocalDateTime at
+    ) {
+        List<Map<String, Object>> rows = history
+            .stream()
+            .filter(r -> ((LocalDateTime) r.get("createdAt")).isBefore(at))
+            .toList();
+        int low = 0,
+            out = 0;
+        for (entity.InventoryItem item : items) {
+            String state = healthState(
+                item.availableQuantity(),
+                item.getMinimumQuantity()
+            );
+            if ("OUT".equals(state)) out++;
+            else if ("LOW".equals(state) || "ATTENTION".equals(state)) low++;
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("itemCount", items.size());
+        m.put("lowStockCount", low);
+        m.put("outOfStockCount", out);
+        m.put("inventoryValue", endingValue(rows));
+        return m;
+    }
+
+    private static List<Map<String, Object>> dailySeries(
+        List<Map<String, Object>> history,
+        LocalDate from,
+        LocalDate to
+    ) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (
+            LocalDate date = from;
+            !date.isAfter(to);
+            date = date.plusDays(1)
+        ) {
+            LocalDate current = date;
+            List<Map<String, Object>> through = history
+                .stream()
+                .filter(r ->
+                    ((LocalDateTime) r.get("createdAt")).isBefore(end(current))
+                )
+                .toList();
+            List<Map<String, Object>> day = through
+                .stream()
+                .filter(
+                    r ->
+                        !((LocalDateTime) r.get("createdAt")).isBefore(
+                            current.atStartOfDay()
+                        )
+                )
+                .toList();
+            Map<String, Object> point = new LinkedHashMap<>();
+            point.put("date", current);
+            point.put("inventoryValue", endingValue(through));
+            point.put("receiptValue", movement(day, "RECEIPT", 0));
+            point.put("consumptionValue", movement(day, "CONSUME", 0));
+            point.put("wasteValue", movement(day, "WASTE", 0));
+            point.put("adjustmentLossValue", movement(day, "ADJUSTMENT", -1));
+            point.put("adjustmentGainValue", movement(day, "ADJUSTMENT", 1));
+            result.add(point);
+        }
+        return result;
+    }
+
+    private static BigDecimal movement(
+        List<Map<String, Object>> rows,
+        String type,
+        int sign
+    ) {
+        BigDecimal total = zero();
+        for (Map<String, Object> r : rows) {
+            if (!type.equals(r.get("transactionType"))) continue;
+            BigDecimal quantity = (BigDecimal) r.get("quantity");
+            if (
+                sign != 0 &&
+                (quantity == null || Integer.signum(quantity.signum()) != sign)
+            ) continue;
+            BigDecimal cost = (BigDecimal) r.get("totalCost");
+            if (cost != null) total = total.add(cost);
+        }
+        return scale(total);
+    }
+
+    private static List<Map<String, Object>> transactions(
+        EntityManager em,
+        LocalDateTime from,
+        LocalDateTime to
+    ) {
+        String where =
+            from == null
+                ? " WHERE t.createdAt<:to"
+                : " WHERE t.createdAt>=:from AND t.createdAt<:to";
+        var query = em
+            .createQuery(
+                "SELECT i.inventoryItemId,i.inventoryCode,i.name,t.transactionType,t.quantity,t.quantityBefore,t.quantityAfter,t.unitCostSnapshot,t.totalCost,s.stockCountId FROM InventoryTransaction t JOIN t.inventoryItem i LEFT JOIN t.stockCount s" +
+                    where +
+                    " ORDER BY i.inventoryItemId,t.createdAt,t.inventoryTransactionId",
+                Object[].class
+            )
+            .setParameter("to", to);
+        if (from != null) query.setParameter("from", from);
+        return query
+            .getResultList()
+            .stream()
+            .map(InventoryReportService::transactionRow)
+            .toList();
+    }
+
+    private static Map<String, Object> transactionRow(Object[] r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("inventoryItemId", r[0]);
+        m.put("inventoryCode", r[1]);
+        m.put("name", r[2]);
+        m.put("transactionType", r[3]);
+        m.put("quantity", r[4]);
+        m.put("quantityBefore", r[5]);
+        m.put("quantityAfter", r[6]);
+        m.put("unitCostSnapshot", r[7]);
+        m.put("totalCost", r[8]);
+        if (r[9] != null) m.put("stockCountId", r[9]);
+        return m;
+    }
+
+    public static BigDecimal endingValue(List<Map<String, Object>> rows) {
+        Map<Integer, BigDecimal> quantities = new HashMap<>(),
+            costs = new HashMap<>();
+        for (Map<String, Object> r : rows) {
+            String type = (String) r.get("transactionType");
+            if ("RESERVE".equals(type) || "RELEASE".equals(type)) continue;
+            int id = (int) r.get("inventoryItemId");
+            BigDecimal after = (BigDecimal) r.get("quantityAfter"),
+                snapshot = (BigDecimal) r.get("unitCostSnapshot");
+            if (snapshot != null) {
+                if ("RECEIPT".equals(type)) {
+                    BigDecimal oldQuantity = quantities.getOrDefault(
+                            id,
+                            BigDecimal.ZERO
+                        ),
+                        oldCost = costs.getOrDefault(id, BigDecimal.ZERO),
+                        received = ((BigDecimal) r.get("quantity")).abs();
+                    costs.put(
+                        id,
+                        AdminInventoryService.movingAverageCost(
+                            oldQuantity,
+                            oldCost,
+                            received,
+                            snapshot
+                        )
+                    );
+                } else costs.put(id, snapshot);
+            }
+            if (after != null) quantities.put(id, after);
+        }
+        BigDecimal total = zero();
+        for (Map.Entry<Integer, BigDecimal> entry : quantities.entrySet())
+            total = total.add(
+                entry
+                    .getValue()
+                    .multiply(
+                        costs.getOrDefault(entry.getKey(), BigDecimal.ZERO)
+                    )
+            );
+        return scale(total);
+    }
+
+    public static List<Map<String, Object>> itemLossRows(
+        List<Map<String, Object>> rows
+    ) {
+        Map<Integer, Map<String, Object>> result = new LinkedHashMap<>();
+        for (Map<String, Object> r : rows) {
+            String type = (String) r.get("transactionType");
+            BigDecimal quantity = (BigDecimal) r.get("quantity");
+            boolean waste = "WASTE".equals(type),
+                countLoss =
+                    "ADJUSTMENT".equals(type) &&
+                    quantity.signum() < 0 &&
+                    r.get("stockCountId") != null;
+            if (!waste && !countLoss) continue;
+            int id = (int) r.get("inventoryItemId");
+            Map<String, Object> line = result.computeIfAbsent(id, key -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("inventoryItemId", key);
+                m.put("inventoryCode", r.get("inventoryCode"));
+                m.put("name", r.get("name"));
+                m.put("wasteQuantity", zero());
+                m.put("wasteCost", zero());
+                m.put("stockCountLossQuantity", zero());
+                m.put("stockCountLossCost", zero());
+                m.put("totalLossCost", zero());
+                return m;
+            });
+            String quantityKey = waste
+                    ? "wasteQuantity"
+                    : "stockCountLossQuantity",
+                costKey = waste ? "wasteCost" : "stockCountLossCost";
+            BigDecimal cost = (BigDecimal) r.get("totalCost");
+            if (cost == null) cost = BigDecimal.ZERO;
+            line.put(
+                quantityKey,
+                scale(((BigDecimal) line.get(quantityKey)).add(quantity.abs()))
+            );
+            line.put(
+                costKey,
+                scale(((BigDecimal) line.get(costKey)).add(cost))
+            );
+            line.put(
+                "totalLossCost",
+                scale(((BigDecimal) line.get("totalLossCost")).add(cost))
+            );
+        }
+        return new ArrayList<>(result.values());
+    }
+
+    public static Map<String, Object> menuCostRow(Object[] r) {
+        BigDecimal yield = (BigDecimal) r[3],
+            cost = scale((BigDecimal) r[4]);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("variantId", r[0]);
+        m.put("variantName", r[1]);
+        m.put("sku", r[2]);
+        m.put("yieldQuantity", scale(yield));
+        m.put("recipeCost", cost);
+        m.put("costPerServing", cost.divide(yield, 4, RoundingMode.HALF_UP));
+        return m;
+    }
+
+    public static Map<String, BigDecimal> summarize(
+        List<Map<String, Object>> rows,
+        BigDecimal ending
+    ) {
+        BigDecimal purchase = zero(),
+            consume = zero(),
+            waste = zero(),
+            loss = zero(),
+            gain = zero();
+        for (Map<String, Object> r : rows) {
+            String type = (String) r.get("transactionType");
+            BigDecimal quantity = (BigDecimal) r.get("quantity"),
+                cost = (BigDecimal) r.get("totalCost");
+            if (cost == null) continue;
+            if ("RECEIPT".equals(type)) purchase = purchase.add(cost);
+            else if ("CONSUME".equals(type)) consume = consume.add(cost);
+            else if ("WASTE".equals(type)) waste = waste.add(cost);
+            else if (
+                "ADJUSTMENT".equals(type) && r.get("stockCountId") != null
+            ) {
+                if (quantity.signum() < 0) loss = loss.add(cost);
+                else gain = gain.add(cost);
+            }
+        }
+        BigDecimal totalLoss = waste.add(loss),
+            rate =
+                consume.signum() > 0
+                    ? totalLoss
+                          .multiply(new BigDecimal("100"))
+                          .divide(consume, 4, RoundingMode.HALF_UP)
+                    : zero();
+        Map<String, BigDecimal> m = new LinkedHashMap<>();
+        m.put("purchaseCost", scale(purchase));
+        m.put("consumptionCost", scale(consume));
+        m.put("wasteCost", scale(waste));
+        m.put("stockCountLossCost", scale(loss));
+        m.put("stockCountGainCost", scale(gain));
+        m.put("totalLossCost", scale(totalLoss));
+        m.put("endingInventoryValue", scale(ending));
+        m.put("lossRate", scale(rate));
+        return m;
+    }
+
+    public static LocalDate[] comparisonPeriod(LocalDate from, LocalDate to) {
+        range(from, to);
+        long days = java.time.temporal.ChronoUnit.DAYS.between(from, to) + 1;
+        if (days > 366) throw new IllegalArgumentException(
+            "Date range cannot exceed 366 days"
+        );
+        LocalDate comparisonTo = from.minusDays(1);
+        return new LocalDate[] {
+            comparisonTo.minusDays(days - 1),
+            comparisonTo,
+        };
+    }
+
+    public static String healthState(BigDecimal available, BigDecimal minimum) {
+        BigDecimal safeAvailable =
+            available == null ? BigDecimal.ZERO : available;
+        if (safeAvailable.signum() <= 0) return "OUT";
+        if (minimum == null || minimum.signum() <= 0) return "HEALTHY";
+        BigDecimal ratio = safeAvailable.divide(
+            minimum,
+            4,
+            RoundingMode.HALF_UP
+        );
+        if (ratio.compareTo(BigDecimal.ONE) < 0) return "LOW";
+        if (ratio.compareTo(new BigDecimal("1.25")) <= 0) return "ATTENTION";
+        if (ratio.compareTo(new BigDecimal("2.0")) <= 0) return "HEALTHY";
+        return "EXCESS";
+    }
+
+    private static void range(LocalDate from, LocalDate to) {
+        if (
+            from == null || to == null || from.isAfter(to)
+        ) throw new IllegalArgumentException("Invalid date range");
+    }
+
+    private static LocalDateTime end(LocalDate to) {
+        return to.equals(LocalDate.MAX)
+            ? LocalDateTime.MAX
+            : to.plusDays(1).atStartOfDay();
+    }
+
+    private static BigDecimal zero() {
+        return new BigDecimal("0.0000");
+    }
+
+    private static BigDecimal scale(BigDecimal v) {
+        return v.setScale(4, RoundingMode.HALF_UP);
+    }
 }

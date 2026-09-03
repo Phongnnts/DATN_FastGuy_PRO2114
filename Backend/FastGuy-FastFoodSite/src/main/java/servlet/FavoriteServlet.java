@@ -4,18 +4,19 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import service.UserFavoriteService;
 import utils.ApiResponse;
 import utils.JwtUtil;
 
-import java.io.IOException;
-
 @WebServlet("/api/favorites/*")
 public class FavoriteServlet extends HttpServlet {
+
     private UserFavoriteService favoriteService = new UserFavoriteService();
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req);
         if (userId <= 0) {
@@ -25,15 +26,26 @@ public class FavoriteServlet extends HttpServlet {
 
         String path = req.getPathInfo();
         if (path != null && path.startsWith("/check/")) {
-            int productId = Integer.parseInt(path.substring("/check/".length()));
-            ApiResponse.ok(resp, java.util.Map.of("productId", productId, "favorite", favoriteService.isFavorite(userId, productId)));
+            int productId = Integer.parseInt(
+                path.substring("/check/".length())
+            );
+            ApiResponse.ok(
+                resp,
+                java.util.Map.of(
+                    "productId",
+                    productId,
+                    "favorite",
+                    favoriteService.isFavorite(userId, productId)
+                )
+            );
             return;
         }
         ApiResponse.ok(resp, favoriteService.getByUserId(userId));
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
+        throws IOException {
         resp.setContentType("application/json;charset=UTF-8");
         int userId = getUserId(req);
         if (userId <= 0) {
@@ -48,7 +60,9 @@ public class FavoriteServlet extends HttpServlet {
         }
 
         try {
-            int productId = Integer.parseInt(path.substring("/toggle/".length()));
+            int productId = Integer.parseInt(
+                path.substring("/toggle/".length())
+            );
             ApiResponse.ok(resp, favoriteService.toggle(userId, productId));
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);

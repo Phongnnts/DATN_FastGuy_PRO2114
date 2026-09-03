@@ -3,11 +3,11 @@ package utils;
 import java.security.SecureRandom;
 import java.security.spec.KeySpec;
 import java.util.Base64;
-
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
 public class PasswordUtil {
+
     private static final String PREFIX = "pbkdf2$";
     private static final int ITERATIONS = 120000;
     private static final int KEY_LENGTH = 256;
@@ -21,7 +21,14 @@ public class PasswordUtil {
             byte[] salt = new byte[16];
             RANDOM.nextBytes(salt);
             byte[] encoded = pbkdf2(password.toCharArray(), salt);
-            return PREFIX + ITERATIONS + "$" + Base64.getEncoder().encodeToString(salt) + "$" + Base64.getEncoder().encodeToString(encoded);
+            return (
+                PREFIX +
+                ITERATIONS +
+                "$" +
+                Base64.getEncoder().encodeToString(salt) +
+                "$" +
+                Base64.getEncoder().encodeToString(encoded)
+            );
         } catch (Exception e) {
             throw new RuntimeException("Cannot hash password", e);
         }
@@ -46,13 +53,17 @@ public class PasswordUtil {
         return stored != null && stored.startsWith(PREFIX);
     }
 
-    private static byte[] pbkdf2(char[] password, byte[] salt) throws Exception {
+    private static byte[] pbkdf2(char[] password, byte[] salt)
+        throws Exception {
         return pbkdf2(password, salt, ITERATIONS);
     }
 
-    private static byte[] pbkdf2(char[] password, byte[] salt, int iterations) throws Exception {
+    private static byte[] pbkdf2(char[] password, byte[] salt, int iterations)
+        throws Exception {
         KeySpec spec = new PBEKeySpec(password, salt, iterations, KEY_LENGTH);
-        return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+        return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            .generateSecret(spec)
+            .getEncoded();
     }
 
     private static boolean constantTimeEquals(byte[] a, byte[] b) {
