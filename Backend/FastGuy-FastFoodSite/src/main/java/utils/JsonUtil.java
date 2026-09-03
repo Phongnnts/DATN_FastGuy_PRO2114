@@ -46,6 +46,7 @@ public class JsonUtil {
 
     public static void write(HttpServletResponse resp, Object obj)
         throws IOException {
+        resp.setContentType("application/json;charset=UTF-8");
         resp.getWriter().write(toJson(obj));
     }
 }

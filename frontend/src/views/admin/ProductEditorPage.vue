@@ -86,16 +86,20 @@ function setSectionDirty(section, value) {
   dirtySections.value[section] = Boolean(value);
 }
 
+function clearAcceptedDirty(scope) {
+  const accepted = scope || Object.keys(dirtySections.value);
+  accepted.forEach((id) => { dirtySections.value[id] = false; });
+}
+
 function acceptBaseline(scope) {
   if (!scope) {
     baseline.value = cloneProductState(draft.value);
-    baselineVersion.value += 1;
-    dirtySections.value = { general: false, media: false, variants: false, modifiers: false };
-    return;
+  } else {
+    baseline.value = withProductSlice(baseline.value, draft.value, scope);
   }
-  baseline.value = withProductSlice(baseline.value, draft.value, scope);
   baselineVersion.value += 1;
-  scope.forEach((id) => { dirtySections.value[id] = false; });
+  clearAcceptedDirty(scope);
+  nextTick(() => clearAcceptedDirty(scope));
 }
 
 function loadAccepted(request) {

@@ -153,16 +153,19 @@ public class InventoryReservationService {
                 line.getInventoryItem().getInventoryItemId()
             );
             BigDecimal before = item.getReservedQuantity();
-            item.release(line.getQuantity());
-            record(
-                em,
-                order,
-                item,
-                "RELEASE",
-                line.getQuantity().negate(),
-                before,
-                item.getReservedQuantity()
-            );
+            BigDecimal released = line.getQuantity().min(before);
+            if (released.signum() > 0) {
+                item.release(released);
+                record(
+                    em,
+                    order,
+                    item,
+                    "RELEASE",
+                    released.negate(),
+                    before,
+                    item.getReservedQuantity()
+                );
+            }
         }
         reservation.setStatus("RELEASED");
         return true;

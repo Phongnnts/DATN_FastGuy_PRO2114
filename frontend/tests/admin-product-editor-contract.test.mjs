@@ -217,7 +217,8 @@ test('full load invalidates in-flight reloads and drops stale reload message', (
 test('section reload applies only affected canonical slice and preserves other dirty flags', () => {
   assert.match(productEditorPage, /function applyCanonicalSlice\(detail, scope\)[\s\S]*draft\.value = withProductSlice\(draft\.value, detail, scope\)[\s\S]*acceptBaseline\(scope\);/);
   assert.match(productEditorPage, /function acceptBaseline\(scope\)[\s\S]*baseline\.value = withProductSlice\(baseline\.value, draft\.value, scope\)/);
-  assert.match(productEditorPage, /scope\.forEach\(\(id\) => \{ dirtySections\.value\[id\] = false; \}\)/);
+  assert.match(productEditorPage, /const accepted = scope \|\| Object\.keys\(dirtySections\.value\)/);
+  assert.match(productEditorPage, /accepted\.forEach\(\(id\) => \{ dirtySections\.value\[id\] = false; \}\)/);
   assert.match(productEditorPage, /reloadAfterSave\(request, \['variants'\]\)/);
   assert.match(productEditorPage, /@reload="reloadFromSection\('variants'\)"/);
   assert.match(productEditorPage, /@reload="reloadFromSection\('modifiers'\)"/);
@@ -287,6 +288,10 @@ test('loaded variants compare canonical shapes so navigation is not blocked befo
   assert.match(productVariantsSection, /sectionDirty\(snapshot\.value, rows\.value\.map\(variantShape\)\)/);
 });
 
+test('accepted baseline stays clean after section watchers flush', () => {
+  assert.match(productEditorPage, /nextTick\(\(\) => clearAcceptedDirty\(scope\)\)/);
+});
+
 test('editor tracks dirty across visible sections and syncs editable pending variants', () => {
   assert.match(productEditorPage, /dirtySections = ref\(\{ general: false, media: false, variants: false, modifiers: false \}\)/);
   assert.match(productEditorPage, /function setSectionDirty\(section, value\)/);
@@ -297,7 +302,7 @@ test('editor tracks dirty across visible sections and syncs editable pending var
   assert.match(productEditorPage, /setSectionDirty\('modifiers', \$event\)/);
   assert.doesNotMatch(productEditorPage, /setSectionDirty\('combo', \$event\)/);
   assert.match(productEditorPage, /@update:pending="pendingVariants = \$event"/);
-  assert.match(productEditorPage, /dirtySections\.value = \{ general: false, media: false, variants: false, modifiers: false \}/);
+  assert.match(productEditorPage, /clearAcceptedDirty\(scope\)/);
 });
 
 test('editor orchestrates partial create and retry retaining failed drafts', () => {

@@ -46,6 +46,28 @@ class IngredientOrderInventoryTest {
     }
 
     @Test
+    void releaseReconcilesStaleReservedAggregateWithoutBlockingCancellation() throws Exception {
+        Fixture fixture = fixture(demand(1, "1.0000"));
+        fixture.service.reserve(fixture.em, fixture.order, Map.of(1, 1));
+        fixture.items.get(1).setReservedQuantity(new BigDecimal("0.5000"));
+
+        assertTrue(fixture.service.release(fixture.em, fixture.order));
+        assertEquals(BigDecimal.ZERO.setScale(4), fixture.items.get(1).getReservedQuantity());
+        assertEquals(new BigDecimal("-0.5000"), fixture.ledger.get(1).getQuantity());
+    }
+
+    @Test
+    void releaseWithNoRemainingAggregateSkipsZeroLedgerEntry() throws Exception {
+        Fixture fixture = fixture(demand(1, "1.0000"));
+        fixture.service.reserve(fixture.em, fixture.order, Map.of(1, 1));
+        fixture.items.get(1).setReservedQuantity(BigDecimal.ZERO.setScale(4));
+
+        assertTrue(fixture.service.release(fixture.em, fixture.order));
+        assertEquals(BigDecimal.ZERO.setScale(4), fixture.items.get(1).getReservedQuantity());
+        assertEquals(1, fixture.ledger.size());
+    }
+
+    @Test
     void equivalentRetryIsIdempotentAndConflictingRetryRejects() throws Exception {
         Fixture fixture = fixture(demand(1, "1.0000"));
         fixture.service.reserve(fixture.em, fixture.order, Map.of(1, 1));
