@@ -6,7 +6,9 @@ Tạo bộ dữ liệu demo toàn nghiệp vụ đủ phong phú để trình b�
 
 ## Phạm vi dữ liệu
 
-- 20 sản phẩm/biến thể có trạng thái và mức giá đa dạng.
+- 20 sản phẩm/biến thể có tên món tự nhiên, trạng thái và mức giá đa dạng.
+- Sản phẩm được phân vào đúng 7 danh mục hiển thị: `Bánh mì`, `Burger`, `Pizza`, `Cơm`, `Mì`, `Gà rán`, `Nước uống`.
+- Tên danh mục, sản phẩm, mô tả, khách hàng, địa chỉ, nguyên liệu, ghi chú, đánh giá và dữ liệu vận hành hiển thị không chứa `demo`, `DEMO`, `trình diễn` hoặc `mẫu`.
 - 20 nguyên liệu theo các đơn vị G, ML và PIECE.
 - 40 dòng công thức liên kết biến thể với nguyên liệu.
 - 45 đơn hàng trải trong 30 ngày, gồm COD và BANK_TRANSFER.
@@ -19,7 +21,8 @@ Tạo bộ dữ liệu demo toàn nghiệp vụ đủ phong phú để trình b�
 
 ## Nguyên tắc dữ liệu
 
-- Dùng tiền tố/business key `DEMO-PRES-*` để nhận diện dữ liệu sở hữu bởi seed.
+- Dùng tiền tố/business key `DEMO-PRES-*` chỉ trong trường kỹ thuật không hiển thị như SKU, mã đơn, idempotency key, reference và marker cleanup.
+- Không đưa marker kỹ thuật vào `Category.name`, `Product.name`, `Product.description`, `InventoryItem.name`, tên khách, địa chỉ hoặc nội dung người dùng nhìn thấy.
 - Số tiền đơn phải khớp chi tiết đơn, giảm giá, phí giao và tổng cuối.
 - Trạng thái thanh toán, mốc thời gian và trạng thái đơn phải hợp lý với nhau.
 - Dữ liệu kho phải giữ số lượng không âm, chi phí không âm và ledger có số dư trước/sau nhất quán.
@@ -50,6 +53,7 @@ Tạo bộ dữ liệu demo toàn nghiệp vụ đủ phong phú để trình b�
 - Chạy seed hai lần trên `DemoDatabase` để chứng minh idempotency.
 - Chạy validator sau mỗi lần.
 - Đối chiếu số lượng, tổng doanh thu, FK, trạng thái, số dư kho, hoàn tiền, COD, ca làm và chấm công.
+- Validator xác nhận đủ 7 danh mục, mỗi sản phẩm thuộc đúng một danh mục được phép và không có từ cấm trong mọi trường hiển thị do seed sở hữu.
 - Kiểm tra đúng 7 điểm doanh thu gần nhất, doanh thu hôm nay lớn hơn 0, tỷ lệ hoàn thành hôm nay lớn hơn 0 và top sản phẩm có ít nhất 5 dòng.
 - Chạy backend `mvn test`; frontend không thay đổi nên không yêu cầu build lại.
 
