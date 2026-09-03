@@ -8,10 +8,10 @@ const helper = read('../src/utils/settingsValidation.js');
 const adminApi = read('../src/api/admin.js');
 const orderApi = read('../src/api/order.js');
 
-const TAB_LABELS = ['Cửa hàng', 'Giờ hoạt động', 'Phí & thuế', 'Giao hàng', 'Tồn kho', 'Thanh toán', 'Vận chuyển GHN'];
+const TAB_LABELS = ['Cửa hàng', 'Giờ hoạt động', 'Phí & thuế', 'Giao hàng', 'Tồn kho', 'Thông báo', 'Thanh toán', 'Vận chuyển GHN'];
 const GHN_KEYS = ['ghn_from_district_id', 'ghn_from_ward_code', 'default_service_type_id', 'default_weight', 'default_length', 'default_width', 'default_height'];
 
-test('settings page defines seven grouped tabs with accessible roving tablist', () => {
+test('settings page defines grouped tabs with accessible roving tablist', () => {
   for (const label of TAB_LABELS) assert.ok(page.includes(label), `missing tab label ${label}`);
   assert.match(page, /role="tablist"/);
   assert.match(page, /role="tab"/);
@@ -33,7 +33,7 @@ test('settings page hides the service fee control while preserving dormant confi
 
 test('settings page loads settings exactly once via getSettings', () => {
   assert.equal((page.match(/adminApi\.getSettings\(\)/g) || []).length, 1);
-  assert.match(page, /tabErrors\.value = \{ store: \{\}, hours: \{\}, fees: \{\}, delivery: \{\}, inventory: \{\} \}/);
+  assert.match(page, /tabErrors\.value = \{ store: \{\}, hours: \{\}, fees: \{\}, delivery: \{\}, inventory: \{\}, notice: \{\} \}/);
 });
 
 test('each editable tab saves only its group payload through updateSettings', () => {
@@ -42,7 +42,7 @@ test('each editable tab saves only its group payload through updateSettings', ()
   assert.match(page, /if \(saving\.value\) return/);
   assert.match(page, /:disabled="saving"/);
   assert.match(page, /tabErrors\.value\[scope\] = errors/);
-  for (const scope of ['store', 'hours', 'fees', 'delivery', 'inventory']) {
+  for (const scope of ['store', 'hours', 'fees', 'delivery', 'inventory', 'notice']) {
     assert.match(page, new RegExp(`saveTab\\('${scope}'\\)`));
   }
   assert.doesNotMatch(page, /saveTab\('ghn'\)/);

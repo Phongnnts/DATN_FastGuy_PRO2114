@@ -137,6 +137,7 @@ public class OrderServlet extends HttpServlet {
                 }
                 java.util.Map<String, Object> pd = new HashMap<>();
                 pd.put("paymentStatus", order.getPaymentStatus());
+                pd.put("orderStatus", order.getOrderStatus());
                 pd.put("paidAt", order.getPaidAt());
                 ApiResponse.ok(resp, pd);
             } catch (NumberFormatException e) {

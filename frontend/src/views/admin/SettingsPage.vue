@@ -86,12 +86,12 @@ async function load() {
   loading.value = true;
   loadState.value = 'loading';
   loadMessage.value = '';
-  tabErrors.value = { store: {}, hours: {}, fees: {}, delivery: {}, inventory: {} };
+  tabErrors.value = { store: {}, hours: {}, fees: {}, delivery: {}, inventory: {}, notice: {} };
   try {
     const settings = await adminApi.getSettings();
     if (stopped) return;
     applySettings(settings);
-    baseline.value = structuredClone(form.value);
+    baseline.value = { ...form.value };
     loadState.value = 'ready';
   } catch (error) {
     if (stopped) return;

@@ -7,7 +7,7 @@ const cartItem = { cartItemId: 1, productId: 1, variantId: 11, key: '1_11_', nam
 async function mockCheckoutBase(page) {
   await page.route('**/api/orders/payment-capabilities', route => route.fulfill({ json: fulfill({ methods: ['COD', 'BANK_TRANSFER'], availability: { COD: { enabled: true }, BANK_TRANSFER: { enabled: true } } }) }));
   await page.route('**/api/store/config', route => route.fulfill({ json: fulfill({ isOpen: true, openTime: '00:00', closeTime: '23:59', serviceFee: 0 }) }));
-  await page.route('**/api/shipping/provinces', route => route.fulfill({ json: fulfill([{ ProvinceID: 201, ProvinceName: 'Thành phố Hồ Chí Minh' }]) }));
+  await page.route('**/api/shipping/provinces', route => route.fulfill({ json: fulfill([{ ProvinceID: 202, ProvinceName: 'Thành phố Hồ Chí Minh' }]) }));
   await page.route('**/api/shipping/districts*', route => route.fulfill({ json: fulfill([{ DistrictID: 1441, DistrictName: 'Quận 1' }]) }));
   await page.route('**/api/shipping/wards*', route => route.fulfill({ json: fulfill([{ WardCode: '26734', WardName: 'Phường Bến Nghé' }]) }));
   await page.route('**/api/shipping/fee', route => route.fulfill({ json: fulfill({ fee: 20000, expectedDeliveryTime: '30 phút' }) }));
@@ -70,4 +70,32 @@ test('PayOS guest return verifies with callback token without session storage', 
   await page.goto('/payment-return?orderId=42&orderCode=GST-42&token=one-time-proof');
   await expect(page.getByRole('heading', { name: 'Thanh toán thành công!' })).toBeVisible();
   expect(verificationCalls).toBe(1);
+});
+
+
+test('PayOS return stops immediately when the canonical order is cancelled', async ({ page }) => {
+  await page.addInitScript(value => { localStorage.setItem('token', value); localStorage.setItem('user', JSON.stringify({ id: 1, role: 'USER' })); }, token());
+  await page.route('**/api/auth/profile', route => route.fulfill({ json: fulfill({ userId: 1, role: 'USER', fullName: 'Nguyễn Văn A' }) }));
+  await page.route('**/api/favorites*', route => route.fulfill({ json: fulfill([]) }));
+  let verificationCalls = 0;
+  await page.route('**/api/orders/42/payment-status', route => {
+    verificationCalls += 1;
+    return route.fulfill({ json: fulfill({ paymentStatus: 'UNPAID', orderStatus: 'CANCELLED', paidAt: null }) });
+  });
+  await page.goto('/payment-return?orderId=42&orderCode=ORD-42');
+  await expect(page.getByRole('heading', { name: 'Đã hủy thanh toán' })).toBeVisible();
+  expect(verificationCalls).toBe(1);
+});
+
+test('admin settings loads and exposes morning-count notice fields', async ({ page }) => {
+  await page.addInitScript(value => { localStorage.setItem('token', value); localStorage.setItem('user', JSON.stringify({ id: 1, role: 'ADMIN' })); }, token());
+  await page.route('**/api/auth/profile', route => route.fulfill({ json: fulfill({ userId: 1, role: 'ADMIN', fullName: 'Quản trị viên' }) }));
+  await page.route('**/api/favorites*', route => route.fulfill({ json: fulfill([]) }));
+  await page.route('**/api/admin/settings', route => route.fulfill({ json: fulfill({ morning_count_notice_enabled: '1', morning_count_notice_title: 'Kiểm kê đầu ngày', morning_count_notice_message: 'Đang chuẩn bị nguyên liệu', morning_count_notice_cta_label: 'Xem thông báo' }) }));
+  await page.route('**/api/orders/payment-capabilities', route => route.fulfill({ json: fulfill({ methods: ['COD', 'BANK_TRANSFER'] }) }));
+  await page.goto('/admin/settings');
+  await page.getByRole('tab', { name: 'Thông báo' }).click();
+  await expect(page.getByLabel('Tiêu đề')).toHaveValue('Kiểm kê đầu ngày');
+  await expect(page.getByLabel('Nội dung')).toHaveValue('Đang chuẩn bị nguyên liệu');
+  await expect(page.getByLabel('Nhãn nút')).toHaveValue('Xem thông báo');
 });

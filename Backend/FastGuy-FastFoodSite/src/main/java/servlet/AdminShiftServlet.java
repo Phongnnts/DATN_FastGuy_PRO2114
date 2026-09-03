@@ -3,6 +3,7 @@ package servlet;
 import java.io.IOException;
 import java.util.Map;
 
+import jakarta.persistence.PersistenceException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,6 +48,8 @@ public class AdminShiftServlet extends HttpServlet {
             ApiResponse.ok(resp, workShiftService.create(utils.JsonUtil.fromJson(req.getReader(), Map.class)), "Shift created");
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
+        } catch (PersistenceException e) {
+            ApiResponse.error(resp, "Không thể lưu ca làm việc", 409);
         }
     }
 
@@ -75,6 +78,8 @@ public class AdminShiftServlet extends HttpServlet {
             ApiResponse.error(resp, e.getMessage(), 409);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
+        } catch (PersistenceException e) {
+            ApiResponse.error(resp, "Không thể lưu lịch làm việc", 409);
         }
     }
 

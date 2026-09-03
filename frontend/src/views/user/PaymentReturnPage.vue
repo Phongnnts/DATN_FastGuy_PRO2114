@@ -48,7 +48,7 @@ async function checkStatus() {
         timer = setTimeout(redirect, 2000);
         return;
       }
-      if ((order?.status || order?.orderStatus) === 'CANCELLED') {
+      if (order?.orderStatus === 'CANCELLED') {
         status.value = 'cancelled';
         clearReturnProof();
         timer = setTimeout(redirect, 2000);

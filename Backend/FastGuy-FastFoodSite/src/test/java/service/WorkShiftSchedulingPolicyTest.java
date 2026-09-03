@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -15,6 +17,17 @@ import entity.User;
 import entity.WorkShift;
 
 class WorkShiftSchedulingPolicyTest {
+    @Test
+    void weeklyReplacementFlushesRemovedShiftsBeforePersistingReplacements() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/service/WorkShiftService.java"));
+        int remove = source.indexOf("existing.forEach(em::remove)");
+        int flush = source.indexOf("em.flush()", remove);
+        int persist = source.indexOf("em.persist(shift)", remove);
+        assertEquals(true, remove >= 0 && flush > remove && persist > flush);
+        String servlet = Files.readString(Path.of("src/main/java/servlet/AdminShiftServlet.java"));
+        assertEquals(true, servlet.contains("catch (PersistenceException e)"));
+    }
+
     @Test
     void staffTemplatesAreFixed() {
         assertEquals(Map.of(

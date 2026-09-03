@@ -311,6 +311,7 @@ public class WorkShiftService {
             if (existing.stream().anyMatch(s -> !"SCHEDULED".equals(s.getStatus()) || s.getCheckInAt() != null || s.getCheckOutAt() != null)) throw new IllegalStateException("Attended weekly schedule cannot be replaced");
             if (!existing.isEmpty() && em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.staffShift IN :shifts", Long.class).setParameter("shifts", existing).getSingleResult() > 0) throw new ScheduleReferenceConflict();
             existing.forEach(em::remove);
+            em.flush();
             for (Object value : slots) {
                 Map<?, ?> slot = (Map<?, ?>) value;
                 User user = em.find(User.class, ((Number) slot.get("userId")).intValue(), LockModeType.PESSIMISTIC_WRITE);

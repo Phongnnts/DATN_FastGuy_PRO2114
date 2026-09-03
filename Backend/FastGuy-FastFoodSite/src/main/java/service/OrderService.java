@@ -27,6 +27,12 @@ import jakarta.persistence.LockModeType;
 import utils.DatabaseUtil;
 
 public class OrderService {
+    static final int HCM_GHN_PROVINCE_ID = 202;
+
+    static boolean isSupportedDeliveryProvince(Integer provinceId) {
+        return provinceId != null && provinceId == HCM_GHN_PROVINCE_ID;
+    }
+
     public static boolean canUserAccess(Orders order, int userId) {
         return order != null && order.getUser() != null && order.getUser().getUserId() == userId;
     }
@@ -66,6 +72,7 @@ public class OrderService {
                             Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
                              String toProvinceName, String toDistrictName, String toWardName,
                              String couponCode, String idempotencyKey, String requestHash, String cartSignature) {
+        if (!isSupportedDeliveryProvince(ghnProvinceId)) throw new IllegalArgumentException("FastGuy chỉ giao hàng trong TP. Hồ Chí Minh");
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
@@ -166,6 +173,7 @@ public class OrderService {
                                  Integer ghnProvinceId, Integer ghnDistrictId, String ghnWardCode,
                                   String toProvinceName, String toDistrictName, String toWardName,
                                   String couponCode, String idempotencyKey, String requestHash) {
+        if (!isSupportedDeliveryProvince(ghnProvinceId)) throw new IllegalArgumentException("FastGuy chỉ giao hàng trong TP. Hồ Chí Minh");
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();

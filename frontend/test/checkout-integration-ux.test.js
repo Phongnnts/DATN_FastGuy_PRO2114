@@ -7,6 +7,13 @@ const cart = fs.readFileSync(new URL('../src/views/guest/CartPage.vue', import.m
 const paymentReturn = fs.readFileSync(new URL('../src/views/user/PaymentReturnPage.vue', import.meta.url), 'utf8');
 const success = fs.readFileSync(new URL('../src/views/user/OrderSuccessPage.vue', import.meta.url), 'utf8');
 const stepper = fs.readFileSync(new URL('../src/components/common/CheckoutStepper.vue', import.meta.url), 'utf8');
+const settings = fs.readFileSync(new URL('../src/views/admin/SettingsPage.vue', import.meta.url), 'utf8');
+
+test('settings snapshots reactive form as a plain object and keeps notice validation state', () => {
+  assert.match(settings, /baseline\.value = \{ \.\.\.form\.value \}/);
+  assert.doesNotMatch(settings, /structuredClone\(form\.value\)/);
+  assert.match(settings, /notice: \{\}/);
+});
 
 test('customer order flow shares one accessible four-step visual system', () => {
   assert.match(stepper, /const steps = \[/);
@@ -77,6 +84,17 @@ test('guest checkout defaults to PayOS and gates COD behind account modal', () =
 test('payment return verifies PayOS through payment status endpoint for authenticated orders', () => {
   assert.match(paymentReturn, /orderApi\.getPaymentStatus\(orderId\.value\)/);
   assert.doesNotMatch(paymentReturn, /orderApi\.getById\(orderId\.value\)/);
+});
+
+test('checkout rejects delivery outside Ho Chi Minh City near province and before submit', () => {
+  assert.match(checkout, /HCM_GHN_PROVINCE_ID = 202/);
+  assert.match(checkout, /provinceError/);
+  assert.match(checkout, /if \(!isSupportedProvince\(selectedProvince\.value\)\) return toast\.error/);
+  assert.match(checkout, /role="alert"[^>]*>\{\{ provinceError \}\}/);
+});
+
+test('payment return stops when backend confirms cancelled order status', () => {
+  assert.match(paymentReturn, /order\?\.orderStatus === 'CANCELLED'/);
 });
 
 test('checkout keeps the website polling while PayOS opens separately', () => {

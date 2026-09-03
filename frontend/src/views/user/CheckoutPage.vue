@@ -24,6 +24,8 @@ const orderStore = useOrderStore();
 const productStore = useProductStore();
 
 const CONFLICT_MESSAGE = 'Một số món trong giỏ vừa hết hàng hoặc không đủ số lượng. Giỏ hàng đã được cập nhật, vui lòng kiểm tra lại trước khi đặt hàng.';
+const HCM_GHN_PROVINCE_ID = 202;
+const DELIVERY_AREA_MESSAGE = 'FastGuy chỉ giao hàng trong TP. Hồ Chí Minh. Vui lòng chọn lại tỉnh/thành.';
 
 const isGuest = computed(() => !auth.isLoggedIn);
 
@@ -75,6 +77,7 @@ const cutoffNow = ref(new Date());
 let cutoffTimer;
 const currentStep = ref(1);
 const shippingError = ref('');
+const provinceError = ref('');
 
 const provinces = ref([]);
 const districts = ref([]);
@@ -123,7 +126,7 @@ onMounted(async () => {
       name: p.ProvinceName || p.province_name || p.provinceName,
     }));
     if (isGuest.value) {
-      const hcm = provinces.value.find(p => p.name?.includes('Hồ Chí Minh'));
+      const hcm = provinces.value.find(p => Number(p.id) === HCM_GHN_PROVINCE_ID);
       if (hcm) selectedProvince.value = hcm.id;
     }
 
@@ -142,7 +145,12 @@ onMounted(async () => {
   }
 });
 
+function isSupportedProvince(id) {
+  return Number(id) === HCM_GHN_PROVINCE_ID;
+}
+
 watch(selectedProvince, async (id) => {
+  provinceError.value = id && !isSupportedProvince(id) ? DELIVERY_AREA_MESSAGE : '';
   if (applyingSavedAddress) return;
   const generation = ++addressSelectionGeneration;
   districts.value = [];
@@ -396,6 +404,7 @@ async function placeOrder() {
   catch {}
   if (storeConfig.value?.isOpen === false || isPastOrderCutoff(storeConfig.value?.orderCutoffTime, new Date())) return toast.error('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
   if (hasInvalidItems.value) return toast.error('Co mon da het hang hoac vuot ton kho, vui long cap nhat gio hang');
+  if (!isSupportedProvince(selectedProvince.value)) return toast.error(DELIVERY_AREA_MESSAGE);
   if (shippingFee.value === null) return toast.error('Dịch vụ giao hàng tạm không khả dụng. Vui lòng thử lại sau.');
   if (!isPaymentEnabled(paymentMethod.value)) return toast.error('Phương thức thanh toán đang chọn không khả dụng.');
   if (!canPlaceOrder()) return toast.error('Vui lòng điền đầy đủ thông tin giao hàng');
@@ -559,6 +568,7 @@ async function placeOrder() {
               <i class="bi bi-geo-alt-fill"></i>
               Giao hàng nội thành TP. Hồ Chí Minh
             </div>
+            <div v-if="provinceError" class="shipping-error" role="alert">{{ provinceError }}</div>
             <div class="form-group">
               <label class="form-label">Quận / Huyện</label>
               <select v-model="selectedDistrict" class="form-select" :disabled="!selectedProvince">

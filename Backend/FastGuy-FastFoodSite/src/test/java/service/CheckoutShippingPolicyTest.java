@@ -13,6 +13,13 @@ class CheckoutShippingPolicyTest {
     private static final Path ORDER_SERVICE = Path.of("src/main/java/service/OrderService.java");
 
     @Test
+    void registeredAndGuestCheckoutRejectProvinceOutsideHoChiMinhCity() throws Exception {
+        assertTrue(OrderService.isSupportedDeliveryProvince(202));
+        assertFalse(OrderService.isSupportedDeliveryProvince(201));
+        assertFalse(OrderService.isSupportedDeliveryProvince(null));
+    }
+
+    @Test
     void registeredAndGuestCheckoutRequireGhnFee() throws Exception {
         String src = Files.readString(ORDER_SERVICE);
         assertTrue(src.indexOf("calculateGhnFee(lines, ghnDistrictId, ghnWardCode)") >= 0);

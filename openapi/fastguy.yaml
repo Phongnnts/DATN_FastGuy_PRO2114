@@ -3403,18 +3403,32 @@ components:
         data: { type: object }
     GuestPaymentStatusResponse:
       type: object
-      additionalProperties: true
+      additionalProperties: false
       required: [status, data]
       properties:
         status: { const: success }
-        data: { type: object }
+        data:
+          type: object
+          additionalProperties: false
+          required: [orderCode, paymentStatus, orderStatus]
+          properties:
+            orderCode: { type: string }
+            paymentStatus: { type: string, enum: [UNPAID, PAID, FAILED, REFUNDED] }
+            orderStatus: { type: string, enum: [PENDING, CONFIRMED, PREPARING, READY, ASSIGNED, PICKED_UP, DELIVERED, DELIVERY_FAILED, CANCELLED, RETURNED_TO_STORE] }
     PaymentStatusResponse:
       type: object
-      additionalProperties: true
+      additionalProperties: false
       required: [status, data]
       properties:
         status: { const: success }
-        data: { type: object }
+        data:
+          type: object
+          additionalProperties: false
+          required: [paymentStatus, orderStatus]
+          properties:
+            paymentStatus: { type: string, enum: [UNPAID, PAID, FAILED, REFUNDED] }
+            orderStatus: { type: string, enum: [PENDING, CONFIRMED, PREPARING, READY, ASSIGNED, PICKED_UP, DELIVERED, DELIVERY_FAILED, CANCELLED, RETURNED_TO_STORE] }
+            paidAt: { type: [string, 'null'], format: date-time }
     SuccessResponse:
       type: object
       additionalProperties: false

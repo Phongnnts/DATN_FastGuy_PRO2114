@@ -208,6 +208,13 @@ public class PayOSPaymentService {
             if (info.containsKey("error")) return false;
 
             String status = String.valueOf(info.getOrDefault("status", ""));
+            if ("CANCELLED".equals(status)) {
+                PaymentAttempt attempt = findAttempt(em, orderId);
+                long amount = order.getFinalAmount().longValueExact();
+                if (attempt == null || attempt.getAmount() == null || attempt.getAmount().longValueExact() != amount
+                        || !matchesPolledProviderResponse(info, order.getPayosPaymentLinkId(), attempt.getProviderReference(), orderId, amount)) return false;
+                return new OrderService().cancelOrder(orderId, null, null, "Thanh toán PayOS đã bị hủy", true, "UNPAID");
+            }
             if ("PAID".equals(status)) {
                 em.getTransaction().begin();
                 Orders locked = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
