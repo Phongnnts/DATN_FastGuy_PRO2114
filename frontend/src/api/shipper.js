@@ -10,6 +10,12 @@ export default {
   getActiveOrders() {
     return client.get('/shipper/orders/active');
   },
+  getReadyOrders() {
+    return client.get('/shipper/orders/ready');
+  },
+  claimOrder(id, expectedStatus) {
+    return client.put(`/shipper/orders/${id}/claim`, { expectedStatus });
+  },
   getHistory(params) {
     return client.get('/shipper/orders/history', { params });
   },

@@ -55,6 +55,21 @@ class ShipperAssignmentPolicyTest {
     }
 
     @Test
+    void checkedInShipperCanListAndClaimOneReadyOrder() throws IOException {
+        String servlet = Files.readString(Path.of("src/main/java/servlet/ShipperServlet.java"));
+        String service = Files.readString(Path.of("src/main/java/service/ShipperService.java"));
+        String dao = Files.readString(Path.of("src/main/java/dao/OrdersDAO.java"));
+
+        assertTrue(servlet.contains("case \"/orders/ready\""));
+        assertTrue(servlet.contains("(pickup|deliver|fail|claim)"));
+        assertTrue(service.contains("getReadyOrders"));
+        assertTrue(service.contains("claimReadyOrder"));
+        assertTrue(service.contains("getMyActiveOrders(shipperId).isEmpty()"));
+        assertTrue(service.contains("ordersDAO.findByStatus(\"READY\")"));
+        assertTrue(dao.contains("public List<Orders> findByStatus"));
+    }
+
+    @Test
     void workloadQueryRequiresCurrentShiftStart() throws IOException {
         String dao = Files.readString(Path.of("src/main/java/dao/OrdersDAO.java"));
         String service = Files.readString(Path.of("src/main/java/service/StaffOrderService.java"));

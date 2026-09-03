@@ -74,7 +74,7 @@ public class ShipperServlet extends HttpServlet {
     }
 
     static MutationPath parseMutationPath(String path) {
-        if (path == null || !path.matches("/orders/\\d+/(pickup|deliver|fail)")) return null;
+        if (path == null || !path.matches("/orders/\\d+/(pickup|deliver|fail|claim)")) return null;
         String[] segments = path.split("/");
         try {
             return new MutationPath(Integer.parseInt(segments[2]), segments[3]);
@@ -90,12 +90,14 @@ public class ShipperServlet extends HttpServlet {
     }
 
     static Map<String, Object> validateFailurePayload(Map<String, Object> body) {
-        if (body == null || !(body.get("expectedStatus") instanceof String expectedStatus)
-                || !(body.get("reasonCode") instanceof String reasonCode) || !(body.get("note") instanceof String note)) return null;
+        if (body == null || !java.util.Set.of("expectedStatus", "reasonCode", "note").containsAll(body.keySet())
+                || !(body.get("expectedStatus") instanceof String expectedStatus)
+                || !(body.get("reasonCode") instanceof String reasonCode)
+                || body.containsKey("note") && !(body.get("note") instanceof String)) return null;
         expectedStatus = expectedStatus.trim();
         reasonCode = reasonCode.trim();
-        note = note.trim();
-        if (!isValidExpectedStatus(expectedStatus) || reasonCode.isEmpty() || note.isEmpty()) return null;
+        String note = body.get("note") instanceof String value ? value.trim() : "";
+        if (!isValidExpectedStatus(expectedStatus) || reasonCode.isEmpty()) return null;
         Map<String, Object> result = new HashMap<>();
         result.put("expectedStatus", expectedStatus);
         result.put("reasonCode", reasonCode);
@@ -151,6 +153,10 @@ public class ShipperServlet extends HttpServlet {
             case "/orders/active":
                 List<Orders> active = shipperService.getMyActiveOrders(shipperId);
                 ApiResponse.ok(resp, active.stream().map(this::toListItem).collect(Collectors.toList()));
+                break;
+            case "/orders/ready":
+                List<Orders> ready = shipperService.getReadyOrders(shipperId);
+                ApiResponse.ok(resp, ready.stream().map(this::toListItem).collect(Collectors.toList()));
                 break;
             case "/orders/history": {
                 int page = 1;
@@ -291,6 +297,9 @@ public class ShipperServlet extends HttpServlet {
         int orderId = mutation.orderId();
         OrderTransitionService.MutationResult result;
         switch (mutation.action()) {
+            case "claim":
+                result = shipperService.claimReadyOrder(orderId, shipperId, expectedStatus);
+                break;
             case "pickup":
                 result = shipperService.pickUpOrder(orderId, shipperId, expectedStatus);
                 break;
@@ -313,8 +322,17 @@ public class ShipperServlet extends HttpServlet {
         }
         if (result == OrderTransitionService.MutationResult.CONFLICT) {
             ApiResponse.error(resp, CONFLICT_MESSAGE, 409);
+        } else if (result == OrderTransitionService.MutationResult.UNPROCESSABLE) {
+            ApiResponse.error(resp, "Shipper must be checked in and have no active order", 422);
+        } else if (result == OrderTransitionService.MutationResult.NOT_FOUND) {
+            ApiResponse.error(resp, "Order not found", 404);
         } else if (result == OrderTransitionService.MutationResult.SUCCESS) {
-            ApiResponse.ok(resp, null, "pickup".equals(mutation.action()) ? "Picked up successfully" : "Delivered successfully");
+            String message = switch (mutation.action()) {
+                case "claim" -> "Order claimed successfully";
+                case "pickup" -> "Picked up successfully";
+                default -> "Delivered successfully";
+            };
+            ApiResponse.ok(resp, null, message);
         } else {
             ApiResponse.error(resp, "Cannot update this order", 400);
         }

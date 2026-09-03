@@ -404,6 +404,124 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+  /shipper/dashboard:
+    get:
+      operationId: getShipperDashboard
+      summary: Get the authenticated shipper dashboard
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Shipper dashboard, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperDashboardResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /shipper/orders/mine:
+    get:
+      operationId: listShipperOrders
+      summary: List orders assigned to the authenticated shipper
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Assigned orders, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperOrderListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /shipper/orders/active:
+    get:
+      operationId: listShipperActiveOrders
+      summary: List active orders owned by the authenticated shipper
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Active orders, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperOrderListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /shipper/orders/ready:
+    get:
+      operationId: listShipperReadyOrders
+      summary: List READY orders claimable by the checked-in shipper
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Claimable READY orders, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperOrderListResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /shipper/orders/history:
+    get:
+      operationId: listShipperOrderHistory
+      summary: List paginated terminal shipper orders
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: fromDate, in: query, schema: { type: string, format: date } }
+        - { name: toDate, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Shipper order history, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperOrderHistoryResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /shipper/orders/{orderId}:
+    get:
+      operationId: getShipperOrder
+      summary: Get one order owned by the authenticated shipper
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      responses:
+        '200': { description: Shipper order detail, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperOrderDetailResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /shipper/orders/{orderId}/claim:
+    put:
+      operationId: claimShipperReadyOrder
+      summary: Atomically claim one READY order
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperClaimRequest' } } } }
+      responses:
+        '200': { description: Order claimed, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessMessageResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /shipper/orders/{orderId}/pickup:
+    put:
+      operationId: pickUpShipperOrder
+      summary: Confirm pickup of an assigned order
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperExpectedStatusRequest' } } } }
+      responses:
+        '200': { description: Order picked up, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessMessageResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /shipper/orders/{orderId}/deliver:
+    put:
+      operationId: deliverShipperOrder
+      summary: Confirm successful delivery
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperDeliverRequest' } } } }
+      responses:
+        '200': { description: Order delivered, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessMessageResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /shipper/orders/{orderId}/fail:
+    post:
+      operationId: reportShipperDeliveryFailure
+      summary: Report a failed delivery attempt
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrderId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ShipperDeliveryFailureRequest' } } } }
+      responses:
+        '200': { description: Failure reported, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessMessageResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   /shifts/{shiftId}/check-out:
     post:
       operationId: checkOutShift
@@ -503,7 +621,7 @@ paths:
   /admin/shifts/week:
     get:
       operationId: getAdminShiftWeek
-      summary: Get the Staff schedule for one Monday-based week
+      summary: Get the operational schedule for one Monday-based week
       security: [{ bearerAuth: [] }]
       parameters:
         - { name: weekStart, in: query, required: true, schema: { type: string, format: date } }
@@ -514,7 +632,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
     put:
       operationId: replaceAdminShiftWeek
-      summary: Replace the Staff schedule for one Monday-based week
+      summary: Replace the operational schedule for one Monday-based week
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -1873,6 +1991,110 @@ components:
     ShiftAlertSeverity:
       type: string
       enum: [INFO, WARNING, CRITICAL]
+    SuccessMessageResponse:
+      type: object
+      additionalProperties: false
+      required: [status, message, data]
+      properties:
+        status: { type: string, const: success }
+        message: { type: string }
+        data: { type: 'null' }
+    ShipperOrderListItem:
+      type: object
+      additionalProperties: false
+      required: [orderId, orderCode, status, customerName, customerPhone, customerAddress, finalAmount, shippingFee, paymentMethod, paymentStatus, itemCount, assignedAt, pickedUpAt, deliveredAt, codCollectedAmount, codCollectedAt, createdAt]
+      properties:
+        orderId: { type: integer, minimum: 1 }
+        orderCode: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        customerName: { type: [string, 'null'] }
+        customerPhone: { type: [string, 'null'] }
+        customerAddress: { type: [string, 'null'] }
+        finalAmount: { type: [number, 'null'] }
+        shippingFee: { type: [number, 'null'] }
+        paymentMethod: { type: [string, 'null'] }
+        paymentStatus: { type: [string, 'null'] }
+        itemCount: { type: integer, minimum: 0 }
+        assignedAt: { type: [string, 'null'] }
+        pickedUpAt: { type: [string, 'null'] }
+        deliveredAt: { type: [string, 'null'] }
+        codCollectedAmount: { type: [number, 'null'] }
+        codCollectedAt: { type: [string, 'null'] }
+        createdAt: { type: [string, 'null'] }
+    ShipperOrderListResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: array, items: { $ref: '#/components/schemas/ShipperOrderListItem' } }
+    ShipperOrderHistoryData:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ShipperOrderListItem' } }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+    ShipperOrderHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/ShipperOrderHistoryData' }
+    ShipperDashboardData:
+      type: object
+      additionalProperties: false
+      required: [todayDelivered, todayPickedUp, totalDelivered, activeCount, todayCodCollected]
+      properties:
+        todayDelivered: { type: integer, minimum: 0 }
+        todayPickedUp: { type: integer, minimum: 0 }
+        totalDelivered: { type: integer, minimum: 0 }
+        activeCount: { type: integer, minimum: 0 }
+        todayCodCollected: { type: number, minimum: 0 }
+    ShipperDashboardResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/ShipperDashboardData' }
+    ShipperOrderDetailResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { type: object, additionalProperties: true }
+    ShipperExpectedStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus]
+      properties:
+        expectedStatus: { $ref: '#/components/schemas/OrderStatus' }
+    ShipperClaimRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus]
+      properties:
+        expectedStatus: { type: string, const: READY }
+    ShipperDeliverRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus]
+      properties:
+        expectedStatus: { $ref: '#/components/schemas/OrderStatus' }
+        collectedAmount: { type: number, minimum: 0 }
+    ShipperDeliveryFailureRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedStatus, reasonCode]
+      properties:
+        expectedStatus: { $ref: '#/components/schemas/OrderStatus' }
+        reasonCode: { type: string, enum: [CUSTOMER_UNREACHABLE, INVALID_ADDRESS, CUSTOMER_RESCHEDULED, CUSTOMER_REJECTED, SHIPPER_INCIDENT, PRODUCT_INCIDENT] }
+        note: { type: string, maxLength: 500, default: '' }
     ShiftWeekItem:
       type: object
       additionalProperties: false
@@ -1898,7 +2120,7 @@ components:
       required: [weekStart, shifts]
       properties:
         weekStart: { type: string, format: date }
-        shifts: { type: array, maxItems: 21, items: { $ref: '#/components/schemas/ShiftWeekItem' } }
+        shifts: { type: array, maxItems: 126, items: { $ref: '#/components/schemas/ShiftWeekItem' } }
     ShiftWeekResponse:
       type: object
       additionalProperties: false
@@ -1914,7 +2136,7 @@ components:
         shiftDate: { type: string, format: date }
         shiftCode: { $ref: '#/components/schemas/ShiftCode' }
         userId: { type: integer, minimum: 1 }
-        role: { type: string, const: STAFF }
+        role: { type: string, enum: [STAFF, SHIPPER] }
     AdminShiftWeekUpdateRequest:
       type: object
       additionalProperties: false
@@ -1923,7 +2145,7 @@ components:
         weekStart: { type: string, format: date }
         slots:
           type: array
-          maxItems: 21
+          maxItems: 126
           items: { $ref: '#/components/schemas/AdminShiftWeekSlotRequest' }
     ShiftMonitoringItem:
       type: object
@@ -2871,16 +3093,19 @@ components:
     ShiftCheckoutConflictData:
       type: object
       additionalProperties: false
-      required: [activeOwnershipCount]
       properties:
         activeOwnershipCount: { type: integer, minimum: 1 }
+        settlementStatus: { type: [string, 'null'], enum: [SUBMITTED, SHORT, OVER, SETTLED, null] }
+      anyOf:
+        - required: [activeOwnershipCount]
+        - required: [settlementStatus]
     ShiftCheckoutConflictResponse:
       type: object
       additionalProperties: false
       required: [status, message, data]
       properties:
         status: { type: string, const: error }
-        message: { type: string, const: Active order ownership must be handed over before check-out }
+        message: { type: string, enum: [Active order ownership must be handed over before check-out, Gửi đối soát COD trước khi kết ca, Đang chờ Admin xác nhận đối soát] }
         data: { $ref: '#/components/schemas/ShiftCheckoutConflictData' }
     ShiftMutationResponse:
       type: object

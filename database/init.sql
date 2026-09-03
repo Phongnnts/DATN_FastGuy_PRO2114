@@ -39,7 +39,8 @@ INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
     ('062_staff_pay_rate_snapshot', N'Canonical fresh schema baseline'),
     ('063_activity_log', N'Canonical fresh schema baseline'),
     ('064_refund_private_proof', N'Canonical fresh schema baseline'),
-    ('065_warehouse_operations_redesign', N'Canonical fresh schema baseline');
+    ('065_warehouse_operations_redesign', N'Canonical fresh schema baseline'),
+    ('066_unified_staff_shipper_schedule', N'Canonical fresh schema baseline');
 
 CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
@@ -708,7 +709,7 @@ CREATE INDEX IX_CartItem_Product ON dbo.CartItem(product_id);
 CREATE INDEX IX_CartItem_Variant ON dbo.CartItem(variant_id);
 CREATE INDEX IX_Orders_User ON dbo.Orders(user_id);
 CREATE INDEX IX_Orders_Staff_Status ON dbo.Orders(staff_id, order_status);
-CREATE UNIQUE INDEX UX_WorkShift_Staff_Date_Code ON dbo.WorkShift(shift_date,shift_code) WHERE staff_role_snapshot='STAFF';
+CREATE UNIQUE INDEX UX_WorkShift_User_Date_Code ON dbo.WorkShift(user_id,shift_date,shift_code);
 CREATE INDEX IX_Orders_StaffShift_Status ON dbo.Orders(staff_shift_id, order_status);
 CREATE INDEX IX_Orders_Status_StatusEnteredAt ON dbo.Orders(order_status,status_entered_at);
 CREATE INDEX IX_Orders_PaymentStatus_OrderStatus_StatusEnteredAt ON dbo.Orders(payment_status,order_status,status_entered_at);

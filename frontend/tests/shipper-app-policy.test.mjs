@@ -64,7 +64,7 @@ test('dashboard shows 5 stats and polls every 30s with inFlight guard', () => {
   assert.match(dashboard, /Tổng đã giao/);
   assert.match(dashboard, /COD hôm nay/);
   assert.match(dashboard, /setInterval\(\(\) => retry\(true\), 30_000\)/);
-  assert.match(dashboard, /Promise\.allSettled\(\[store\.fetchDashboard\(silent\), store\.fetchActiveOrders\(silent\)\]\)/);
+  assert.match(dashboard, /Promise\.allSettled\(\[store\.fetchDashboard\(silent\), store\.fetchActiveOrders\(silent\), store\.fetchReadyOrders\(silent\)\]\)/);
   assert.match(dashboard, /async function retry\(silent = false\)/);
   assert.match(dashboard, /clearInterval\(timer\)/);
   assert.match(dashboard, /inFlight/);

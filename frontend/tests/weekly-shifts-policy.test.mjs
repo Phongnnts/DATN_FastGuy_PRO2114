@@ -15,16 +15,21 @@ test('weekly APIs match OpenAPI paths, query, and replacement body', () => {
   assert.match(shiftApi, /getWeek\(weekStart\)[\s\S]*client\.get\('\/shifts\/week', \{ params: \{ weekStart \} \}\)/);
 });
 
-test('admin schedule renders seven days by three fixed Staff slots and exact payload', () => {
+test('admin schedule renders seven days with multi-person Staff and Shipper assignments', () => {
   for (const token of ['shift-mode-tabs', 'schedule-toolbar', 'week-calendar-shell', 'assignment-cell', 'month-inspector', 'monitoring-workspace']) assert.match(adminPage, new RegExp(token));
   assert.match(adminPage, /SHIFT_CODES\s*=\s*\['MORNING', 'AFTERNOON', 'EVENING'\]/);
   assert.match(adminPage, /v-for="day in days"/);
   assert.match(adminPage, /v-for="code in SHIFT_CODES"/);
-  assert.match(adminPage, /role: 'STAFF'/);
+  assert.match(adminPage, /schedulableUsers/);
+  assert.match(adminPage, /selectedUserIds/);
+  assert.match(adminPage, /Nhân viên cửa hàng/);
+  assert.match(adminPage, /Shipper/);
+  assert.match(adminPage, /role: user\.roleName/);
   assert.match(adminPage, /\{ weekStart: requestedWeek, slots/);
   assert.match(adminPage, /getShiftWeek\(requestedWeek\)/);
   assert.match(adminPage, /baseline/);
-  assert.match(adminPage, /roleName === 'STAFF'/);
+  assert.doesNotMatch(adminPage, /const staff = computed\(\(\) => users\.value\.filter\(\(user\) => user\.roleName === 'STAFF'/);
+  assert.doesNotMatch(adminPage, /role: 'STAFF'/);
   assert.match(adminPage, /:disabled="isCurrentWeek"/);
   assert.doesNotMatch(adminPage, /transition:\s*all/);
 });

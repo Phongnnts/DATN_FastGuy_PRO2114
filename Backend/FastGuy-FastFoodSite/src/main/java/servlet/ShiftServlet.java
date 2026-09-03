@@ -73,6 +73,10 @@ public class ShiftServlet extends HttpServlet {
             Map<String, Object> details = new java.util.HashMap<>();
             details.put("activeOwnershipCount", e.getActiveOwnershipCount());
             ApiResponse.error(resp, e.getMessage(), 409, details);
+        } catch (WorkShiftService.CodSettlementConflict e) {
+            Map<String, Object> details = new java.util.HashMap<>();
+            details.put("settlementStatus", e.getSettlementStatus());
+            ApiResponse.error(resp, e.getMessage(), 409, details);
         } catch (IllegalArgumentException e) {
             ApiResponse.error(resp, e.getMessage(), 400);
         }

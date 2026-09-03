@@ -212,6 +212,12 @@ public class WorkShiftService {
                     long activeOwnershipCount = new dao.OrdersDAO().countActiveOwnership(em, shiftId);
                     if (activeOwnershipCount > 0) throw new ActiveOwnershipConflict(activeOwnershipCount);
                 }
+                if ("SHIPPER".equals(shift.getUser().getRole())) {
+                    List<entity.CodSettlement> settlements = em.createQuery("SELECT cs FROM CodSettlement cs WHERE cs.shift.shiftId=:shiftId AND cs.shipper.userId=:shipperId", entity.CodSettlement.class)
+                            .setParameter("shiftId", shiftId).setParameter("shipperId", userId).getResultList();
+                    String settlementStatus = settlements.isEmpty() ? null : settlements.get(0).getStatus();
+                    if (!CodSettlementService.isVerifiedForCheckout(settlementStatus)) throw new CodSettlementConflict(settlementStatus);
+                }
                 completeAttendance(shift, now, "MANUAL");
             }
             em.getTransaction().commit();
@@ -232,6 +238,12 @@ public class WorkShiftService {
         private final long activeOwnershipCount;
         public ActiveOwnershipConflict(long activeOwnershipCount) { super("Active order ownership must be handed over before check-out"); this.activeOwnershipCount = activeOwnershipCount; }
         public long getActiveOwnershipCount() { return activeOwnershipCount; }
+    }
+
+    public static class CodSettlementConflict extends RuntimeException {
+        private final String settlementStatus;
+        public CodSettlementConflict(String settlementStatus) { super(settlementStatus == null ? "Gửi đối soát COD trước khi kết ca" : "Đang chờ Admin xác nhận đối soát"); this.settlementStatus = settlementStatus; }
+        public String getSettlementStatus() { return settlementStatus; }
     }
 
     private void lockShiftUser(EntityManager em, Map<String, Object> data) {
@@ -290,8 +302,12 @@ public class WorkShiftService {
         LocalDate monday = validateWeekStart(weekStart, LocalDate.now(BUSINESS_ZONE).with(DayOfWeek.MONDAY));
         Map<String, Object> result = new HashMap<>();
         result.put("weekStart", monday);
-        result.put("shifts", list(userId, "STAFF", monday.toString(), monday.plusDays(6).toString()));
+        result.put("shifts", list(userId, null, monday.toString(), monday.plusDays(6).toString()));
         return result;
+    }
+
+    private static boolean isSchedulableRole(String role) {
+        return "STAFF".equals(role) || "SHIPPER".equals(role);
     }
 
     public Map<String, Object> replaceWeek(Map<String, Object> payload) {
@@ -299,25 +315,28 @@ public class WorkShiftService {
         LocalDate monday = validateWeekStart(String.valueOf(payload.get("weekStart")), LocalDate.now(BUSINESS_ZONE).with(DayOfWeek.MONDAY));
         java.util.Set<String> keys = new java.util.HashSet<>();
         for (Object value : slots) {
-            if (!(value instanceof Map<?, ?> slot) || !slot.keySet().equals(java.util.Set.of("shiftDate", "shiftCode", "userId", "role")) || !"STAFF".equals(slot.get("role")) || !(slot.get("userId") instanceof Number)) throw new IllegalArgumentException("Invalid weekly schedule slot");
+            if (!(value instanceof Map<?, ?> slot) || !slot.keySet().equals(java.util.Set.of("shiftDate", "shiftCode", "userId", "role")) || !(slot.get("userId") instanceof Number)) throw new IllegalArgumentException("Invalid weekly schedule slot");
+            String role = String.valueOf(slot.get("role"));
+            if (!isSchedulableRole(role)) throw new IllegalArgumentException("Invalid weekly schedule slot");
             LocalDate date = parseDate(slot.get("shiftDate"), "shiftDate");
             String code = String.valueOf(slot.get("shiftCode"));
-            if (date.isBefore(monday) || date.isAfter(monday.plusDays(6)) || !STAFF_TEMPLATES.containsKey(code) || !keys.add(date + ":" + code)) throw new IllegalArgumentException("Invalid weekly schedule slot");
+            if (date.isBefore(monday) || date.isAfter(monday.plusDays(6)) || !STAFF_TEMPLATES.containsKey(code) || !keys.add(date + ":" + code + ":" + slot.get("userId"))) throw new IllegalArgumentException("Invalid weekly schedule slot");
         }
         EntityManager em = DatabaseUtil.getEntityManager();
         try {
             em.getTransaction().begin();
-            List<WorkShift> existing = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.role = 'STAFF' AND ws.shiftDate BETWEEN :start AND :end", WorkShift.class).setParameter("start", monday).setParameter("end", monday.plusDays(6)).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
+            List<WorkShift> existing = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.role IN ('STAFF','SHIPPER') AND ws.shiftDate BETWEEN :start AND :end", WorkShift.class).setParameter("start", monday).setParameter("end", monday.plusDays(6)).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
             if (existing.stream().anyMatch(s -> !"SCHEDULED".equals(s.getStatus()) || s.getCheckInAt() != null || s.getCheckOutAt() != null)) throw new IllegalStateException("Attended weekly schedule cannot be replaced");
             if (!existing.isEmpty() && em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.staffShift IN :shifts", Long.class).setParameter("shifts", existing).getSingleResult() > 0) throw new ScheduleReferenceConflict();
             existing.forEach(em::remove);
             em.flush();
             for (Object value : slots) {
                 Map<?, ?> slot = (Map<?, ?>) value;
+                String role = String.valueOf(slot.get("role"));
                 User user = em.find(User.class, ((Number) slot.get("userId")).intValue(), LockModeType.PESSIMISTIC_WRITE);
-                if (user == null || !"STAFF".equals(user.getRole()) || !"ACTIVE".equals(user.getStatus())) throw new IllegalArgumentException("Shift user must be active STAFF");
+                if (user == null || !isSchedulableRole(user.getRole()) || !role.equals(user.getRole()) || !"ACTIVE".equals(user.getStatus())) throw new IllegalArgumentException("Shift user must be active STAFF or SHIPPER with matching role");
                 WorkShift shift = new WorkShift();
-                shift.setUser(user); shift.setStaffRoleSnapshot("STAFF"); shift.setShiftDate(parseDate(slot.get("shiftDate"), "shiftDate")); shift.setShiftCode(String.valueOf(slot.get("shiftCode")));
+                shift.setUser(user); shift.setStaffRoleSnapshot(roleSnapshot(user)); shift.setShiftDate(parseDate(slot.get("shiftDate"), "shiftDate")); shift.setShiftCode(String.valueOf(slot.get("shiftCode")));
                 shift.setStartTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(0)); shift.setEndTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(1)); shift.setStatus("SCHEDULED"); em.persist(shift);
             }
             em.getTransaction().commit();

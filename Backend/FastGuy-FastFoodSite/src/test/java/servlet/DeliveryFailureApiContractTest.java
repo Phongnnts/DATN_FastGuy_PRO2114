@@ -35,6 +35,8 @@ class DeliveryFailureApiContractTest {
         assertEquals("PICKED_UP", failure.get("expectedStatus"));
         assertEquals("ADDRESS_NOT_FOUND", failure.get("reasonCode"));
         assertEquals("details", failure.get("note"));
+        assertEquals("", ShipperServlet.validateFailurePayload(Map.of("expectedStatus", "PICKED_UP", "reasonCode", "CUSTOMER_UNREACHABLE")).get("note"));
+        assertEquals("", ShipperServlet.validateFailurePayload(Map.of("expectedStatus", "PICKED_UP", "reasonCode", "CUSTOMER_UNREACHABLE", "note", "   ")).get("note"));
         assertNull(ShipperServlet.validateFailurePayload(Map.of("expectedStatus", 1, "reasonCode", "X", "note", "x")));
 
         Map<String, Object> retry = StaffOrderServlet.validateRetryPayload(Map.of(

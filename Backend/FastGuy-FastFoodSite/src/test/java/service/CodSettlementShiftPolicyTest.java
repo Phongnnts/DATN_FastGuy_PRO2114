@@ -65,6 +65,14 @@ class CodSettlementShiftPolicyTest {
         assertFalse(CodSettlementService.isCurrentShift(shift, LocalDateTime.of(2026, 8, 15, 6, 0)));
     }
 
+    @Test void checkoutRequiresAdminVerifiedSettlementForShipper() {
+        assertFalse(CodSettlementService.isVerifiedForCheckout(null));
+        assertFalse(CodSettlementService.isVerifiedForCheckout("SUBMITTED"));
+        assertTrue(CodSettlementService.isVerifiedForCheckout("SETTLED"));
+        assertTrue(CodSettlementService.isVerifiedForCheckout("SHORT"));
+        assertTrue(CodSettlementService.isVerifiedForCheckout("OVER"));
+    }
+
     @Test void persistenceDuplicateIsNormalizedButOtherFailuresAreNot() {
         PersistenceException duplicate = new PersistenceException("Violation of UNIQUE KEY constraint 'UQ_CodSettlement_ShipperShift'");
         PersistenceException other = new PersistenceException("connection closed");

@@ -11,6 +11,18 @@ test('shipper API sends expectedStatus for pickup and delivery', () => {
   assert.match(api, /deliverOrder\(id, collectedAmount, expectedStatus\)/);
 });
 
+test('shipper API and store expose READY self-claim', () => {
+  const api = read('../src/api/shipper.js');
+  const store = read('../src/stores/shipper.js');
+  assert.match(api, /getReadyOrders\(\)/);
+  assert.match(api, /\/shipper\/orders\/ready/);
+  assert.match(api, /claimOrder\(id, expectedStatus\)/);
+  assert.match(api, /\/shipper\/orders\/\$\{id\}\/claim/);
+  assert.match(store, /const readyOrders = ref\(\[\]\)/);
+  assert.match(store, /fetchReadyOrders/);
+  assert.match(store, /claimOrder/);
+});
+
 test('shipper store preserves status and reloads canonical data on conflict', () => {
   const store = read('../src/stores/shipper.js');
   assert.match(store, /error\.status === 409/);

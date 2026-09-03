@@ -11,6 +11,7 @@ const mapOrder = o => ({ id: o.orderId ?? o.id, orderCode: o.orderCode || '', st
 export const useShipperStore = defineStore('shipper', () => {
   const dashboard = ref(null);
   const activeOrders = ref([]);
+  const readyOrders = ref([]);
   const historyOrders = ref([]);
   const historyTotal = ref(0);
   const historyPage = ref(1);
@@ -53,6 +54,7 @@ export const useShipperStore = defineStore('shipper', () => {
       const mapped = Array.isArray(data) ? data.map(mapOrder) : [];
       if (acceptsShipperRequest({ requestGeneration, latestGeneration: listGeneration, requestMode: mode, currentMode: mode })) {
         if (mode === 'active') activeOrders.value = mapped;
+        else if (mode === 'ready') readyOrders.value = mapped;
         else historyOrders.value = mapped;
       }
       return mapped;
@@ -65,6 +67,7 @@ export const useShipperStore = defineStore('shipper', () => {
   }
 
   const fetchActiveOrders = (silent = false) => loadList('active', () => shipperApi.getActiveOrders(), silent);
+  const fetchReadyOrders = (silent = false) => loadList('ready', () => shipperApi.getReadyOrders(), silent);
   const fetchMyOrders = fetchActiveOrders;
 
   async function fetchHistory({ page = 1, size = 20, fromDate, toDate } = {}) {
@@ -120,8 +123,18 @@ export const useShipperStore = defineStore('shipper', () => {
       throw error;
     }
   }
+  const claimOrder = async (id, expectedStatus) => {
+    try {
+      const result = await shipperApi.claimOrder(id, expectedStatus);
+      await Promise.all([fetchActiveOrders(true), fetchReadyOrders(true)]);
+      return result;
+    } catch (error) {
+      if (error.status === 409) await Promise.allSettled([fetchActiveOrders(true), fetchReadyOrders(true)]);
+      throw error;
+    }
+  };
   const pickUpOrder = (id, expectedStatus) => mutateOrder(id, () => shipperApi.pickUpOrder(id, expectedStatus));
   const deliverOrder = (id, collectedAmount, expectedStatus) => mutateOrder(id, () => shipperApi.deliverOrder(id, collectedAmount, expectedStatus));
 
-  return { dashboard, activeOrders, historyOrders, historyTotal, historyPage, historySize, currentOrder, dashboardLoading, dashboardError, listLoading, listError, historyLoading, historyError, detailLoading, detailError, fetchDashboard, fetchActiveOrders, fetchMyOrders, fetchHistory, invalidateListRequests, fetchOrderById, invalidateDetailRequests, pickUpOrder, deliverOrder };
+  return { dashboard, activeOrders, readyOrders, historyOrders, historyTotal, historyPage, historySize, currentOrder, dashboardLoading, dashboardError, listLoading, listError, historyLoading, historyError, detailLoading, detailError, fetchDashboard, fetchActiveOrders, fetchReadyOrders, fetchMyOrders, fetchHistory, invalidateListRequests, fetchOrderById, invalidateDetailRequests, claimOrder, pickUpOrder, deliverOrder };
 });

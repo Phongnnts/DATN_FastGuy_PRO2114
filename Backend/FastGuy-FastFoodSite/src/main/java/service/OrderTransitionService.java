@@ -248,6 +248,36 @@ public class OrderTransitionService {
         }
     }
 
+    public MutationResult claimReadyOrder(int orderId, int shipperId, String expectedStatus) {
+        if (!"READY".equals(expectedStatus)) return MutationResult.INVALID;
+        EntityManager em = DatabaseUtil.getEntityManager();
+        try {
+            em.getTransaction().begin();
+            User shipper = em.find(User.class, shipperId, LockModeType.PESSIMISTIC_WRITE);
+            if (shipper == null || !"SHIPPER".equals(shipper.getRole()) || !"ACTIVE".equals(shipper.getStatus()) || currentActiveShift(em, shipper, "SHIPPER") == null) {
+                em.getTransaction().rollback();
+                return MutationResult.UNPROCESSABLE;
+            }
+            Orders order = em.find(Orders.class, orderId, LockModeType.PESSIMISTIC_WRITE);
+            if (order == null) { em.getTransaction().rollback(); return MutationResult.NOT_FOUND; }
+            if (!matchesExpectedStatus(order, expectedStatus)) { em.getTransaction().rollback(); return MutationResult.CONFLICT; }
+            Long active = em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.shipper.userId=:shipperId AND o.orderStatus IN ('ASSIGNED','PICKED_UP')", Long.class)
+                    .setParameter("shipperId", shipperId).getSingleResult();
+            if (active > 0) { em.getTransaction().rollback(); return MutationResult.UNPROCESSABLE; }
+            order.setShipper(shipper);
+            order.setAssignedAt(LocalDateTime.now());
+            applyStatus(order, "ASSIGNED", WorkShiftService.businessNow());
+            em.persist(new OrderStatusHistory(orderId, shipperId, "SHIPPER", "READY", "ASSIGNED", "Shipper tự nhận đơn", LocalDateTime.now()));
+            em.getTransaction().commit();
+            return MutationResult.SUCCESS;
+        } catch (RuntimeException e) {
+            if (em.getTransaction().isActive()) em.getTransaction().rollback();
+            throw e;
+        } finally {
+            em.close();
+        }
+    }
+
     public MutationResult appendAdminNote(int orderId, int adminId, String expectedStatus, String note) {
         if (note == null || note.isBlank()) return MutationResult.INVALID;
         EntityManager em = DatabaseUtil.getEntityManager();

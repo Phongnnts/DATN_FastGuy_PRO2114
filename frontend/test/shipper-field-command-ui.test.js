@@ -21,6 +21,10 @@ test('shipper dashboard and order list expose field actions without changing dat
   assert.match(dashboard, /operations-grid/);
   assert.match(dashboard, /priority-order/);
   assert.match(dashboard, /to="\/shipper\/shifts"/);
+  assert.match(dashboard, /store\.fetchReadyOrders/);
+  assert.match(dashboard, /store\.claimOrder/);
+  assert.match(dashboard, /ready-order-card/);
+  assert.match(dashboard, /Nhận đơn/);
   assert.match(orders, /order-toolbar/);
   assert.match(orders, /order-card-actions/);
   assert.match(sheet, /safe-area-inset-bottom/);
@@ -36,6 +40,8 @@ test('shipper order detail keeps mutation guards inside a sticky command surface
   assert.match(detail, /order\.value\.status/);
   assert.match(detail, /error\?\.status === 409/);
   assert.match(detail, /role="dialog"/);
+  assert.match(detail, /Ghi chú \(không bắt buộc\)/);
+  assert.doesNotMatch(detail, /id="failure-note"[^>]*required/);
 });
 
 test('shipper shift and COD pages use command hierarchy and preserve irreversible warnings', () => {
@@ -43,6 +49,10 @@ test('shipper shift and COD pages use command hierarchy and preserve irreversibl
   const shifts = read('../src/views/shipper/ShipperShiftsPage.vue');
   const cash = read('../src/views/shipper/CashPage.vue');
   assert.match(shift, /shift-command/);
+  assert.match(shift, /codSettlementApi\.getCurrent/);
+  assert.match(shift, /SETTLED.*SHORT.*OVER/s);
+  assert.match(shift, /Gửi đối soát COD trước khi kết ca/);
+  assert.match(shift, /Đang chờ Admin xác nhận đối soát/);
   assert.match(shifts, /shift-sections/);
   assert.match(cash, /cod-command-summary/);
   assert.match(cash, /Số tiền không thể sửa sau khi gửi/);

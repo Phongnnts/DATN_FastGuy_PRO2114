@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useShipperStore } from '@/stores/shipper';
 import ShiftStatus from '@/components/common/ShiftStatus.vue';
 import { formatPrice } from '@/utils/format';
@@ -7,6 +7,9 @@ import { formatPrice } from '@/utils/format';
 const store = useShipperStore();
 const dashboard = computed(() => store.dashboard);
 const activeOrders = computed(() => store.activeOrders);
+const readyOrders = computed(() => store.readyOrders);
+const claimingId = ref(null);
+const claimError = ref('');
 let inFlight = false;
 let stopped = false;
 let timer;
@@ -17,8 +20,17 @@ const nextOrder = computed(() => [...activeOrders.value].sort((a, b) => (a.statu
 async function retry(silent = false) {
   if (inFlight || stopped) return;
   inFlight = true;
-  await Promise.allSettled([store.fetchDashboard(silent), store.fetchActiveOrders(silent)]);
+  await Promise.allSettled([store.fetchDashboard(silent), store.fetchActiveOrders(silent), store.fetchReadyOrders(silent)]);
   if (!stopped) inFlight = false;
+}
+
+async function claim(order) {
+  if (claimingId.value !== null) return;
+  claimingId.value = order.id;
+  claimError.value = '';
+  try { await store.claimOrder(order.id, order.status); }
+  catch (error) { claimError.value = error.message || 'Không thể nhận đơn. Vui lòng tải lại.'; }
+  finally { claimingId.value = null; }
 }
 
 onMounted(() => {
@@ -44,7 +56,8 @@ onUnmounted(() => { stopped = true; clearInterval(timer); store.invalidateListRe
         <div class="order-main"><span class="order-status">{{ nextOrder.status === 'PICKED_UP' ? 'Đang giao' : 'Chờ lấy hàng' }}</span><strong>{{ nextOrder.orderCode }}</strong><span class="order-address">{{ nextOrder.customerAddress }}</span></div>
         <div class="order-action"><strong>{{ formatPrice(nextOrder.total) }}</strong><span>{{ nextOrder.status === 'PICKED_UP' ? 'Tiếp tục giao' : 'Đi lấy hàng' }}</span></div>
       </router-link>
-      <div v-else-if="!store.listLoading && !store.listError" class="state empty-task">Chưa có đơn đang hoạt động — <router-link class="state-link" to="/shipper/shifts">Xem ca làm</router-link></div>
+      <div v-else-if="readyOrders.length" class="ready-orders" aria-labelledby="ready-orders-title"><h3 id="ready-orders-title">Đơn sẵn sàng</h3><article v-for="order in readyOrders" :key="order.id" class="ready-order-card"><div><strong>{{ order.orderCode }}</strong><span>{{ order.customerAddress }}</span><small>{{ formatPrice(order.total) }} · {{ order.itemCount }} món</small></div><button type="button" :disabled="claimingId !== null" @click="claim(order)">{{ claimingId === order.id ? 'Đang nhận...' : 'Nhận đơn' }}</button></article><p v-if="claimError" class="claim-error" role="alert">{{ claimError }}</p></div>
+      <div v-else-if="!store.listLoading && !store.listError" class="state empty-task">Chưa có đơn sẵn sàng — <router-link class="state-link" to="/shipper/shifts">Xem ca làm</router-link></div>
     </section>
     <section class="mini-stats" aria-labelledby="stats-title">
       <div class="section-heading"><h2 id="stats-title">Hiệu suất</h2></div>
@@ -95,6 +108,7 @@ h2 { font-size:16px; }
 .empty-task { padding:28px 16px; background:#fff; border:1px dashed var(--border); border-radius:var(--radius); }
 .error { color:var(--red-active); }
 .state-link { color:var(--primary); font-weight:600; }
+.ready-orders{display:grid;gap:9px}.ready-orders h3{margin:0;font-size:14px}.ready-order-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border:1px solid var(--border-light);border-radius:14px;background:#fff}.ready-order-card div{display:grid;min-width:0;gap:3px}.ready-order-card span,.ready-order-card small{overflow:hidden;color:var(--text-mid);font-size:11px;text-overflow:ellipsis;white-space:nowrap}.ready-order-card button{min-width:92px;min-height:44px;border:0;border-radius:10px;background:var(--primary);color:#fff;font-weight:750}.ready-order-card button:disabled{cursor:not-allowed;opacity:.6}.claim-error{margin:0;color:var(--red-active);font-size:12px}
 @media(max-width:360px) {
   .dashboard-heading { align-items:center; }
   h1 { font-size:23px; }

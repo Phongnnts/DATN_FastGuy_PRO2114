@@ -78,12 +78,54 @@ test('OpenAPI contracts Staff shift ownership, handover, and checkout conflict',
   assert.deepEqual(contract.components.schemas.StaffOwnershipCountData.required, ['activeOwnershipCount']);
   assert.equal(contract.components.schemas.StaffOwnershipCountData.properties.activeOwnershipCount.minimum, 0);
   assert.equal(checkout.responses['409'].content['application/json'].schema.$ref, '#/components/schemas/ShiftCheckoutConflictResponse');
+  assert.deepEqual(contract.components.schemas.ShiftCheckoutConflictData.anyOf, [{ required: ['activeOwnershipCount'] }, { required: ['settlementStatus'] }]);
   assert.deepEqual(item.required, ['orderId', 'orderCode', 'status', 'customerName', 'itemCount', 'waitingSince', 'staffShiftId', 'ownerShiftLabel', 'ownerShiftCode', 'handoverRequired']);
   assert.deepEqual(item.properties.status.enum, ['CONFIRMED', 'PREPARING', 'READY', 'DELIVERY_FAILED']);
   assert.deepEqual(item.properties.staffShiftId.type, ['integer', 'null']);
   assert.deepEqual(item.properties.ownerShiftLabel.type, ['string', 'null']);
   assert.deepEqual(request.required, ['expectedStatus', 'expectedOwnerShiftId']);
   assert.deepEqual(request.properties.expectedOwnerShiftId.type, ['integer', 'null']);
+});
+
+test('OpenAPI contracts a multi-person weekly schedule for STAFF and SHIPPER', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const request = contract.components.schemas.AdminShiftWeekSlotRequest;
+  const update = contract.components.schemas.AdminShiftWeekUpdateRequest;
+  const response = contract.components.schemas.ShiftWeekData;
+
+  assert.deepEqual(request.properties.role.enum, ['STAFF', 'SHIPPER']);
+  assert.equal(update.properties.slots.maxItems, 126);
+  assert.equal(response.properties.shifts.maxItems, 126);
+  assert.equal(contract.paths['/admin/shifts/week'].get.summary, 'Get the operational schedule for one Monday-based week');
+  assert.equal(contract.paths['/admin/shifts/week'].put.summary, 'Replace the operational schedule for one Monday-based week');
+});
+
+test('OpenAPI contracts the complete shipper order workflow', async () => {
+  const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
+  const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);
+  const contract = JSON.parse(stdout);
+  const paths = contract.paths;
+  const operations = {
+    '/shipper/dashboard': ['get', 'getShipperDashboard'],
+    '/shipper/orders/mine': ['get', 'listShipperOrders'],
+    '/shipper/orders/active': ['get', 'listShipperActiveOrders'],
+    '/shipper/orders/ready': ['get', 'listShipperReadyOrders'],
+    '/shipper/orders/history': ['get', 'listShipperOrderHistory'],
+    '/shipper/orders/{orderId}': ['get', 'getShipperOrder'],
+    '/shipper/orders/{orderId}/claim': ['put', 'claimShipperReadyOrder'],
+    '/shipper/orders/{orderId}/pickup': ['put', 'pickUpShipperOrder'],
+    '/shipper/orders/{orderId}/deliver': ['put', 'deliverShipperOrder'],
+    '/shipper/orders/{orderId}/fail': ['post', 'reportShipperDeliveryFailure'],
+  };
+  for (const [path, [method, operationId]] of Object.entries(operations)) {
+    assert.equal(paths[path]?.[method]?.operationId, operationId, path);
+    for (const status of ['401', '403']) assert.ok(paths[path][method].responses[status], `${path} ${status}`);
+  }
+  assert.deepEqual(contract.components.schemas.ShipperDeliveryFailureRequest.required, ['expectedStatus', 'reasonCode']);
+  assert.deepEqual(contract.components.schemas.ShipperClaimRequest.required, ['expectedStatus']);
+  assert.equal(contract.components.schemas.ShipperOrderListResponse.properties.data.items.$ref, '#/components/schemas/ShipperOrderListItem');
 });
 
 test('OpenAPI contracts current-shift shipper listing and assignment', async () => {
@@ -366,9 +408,9 @@ test('OpenAPI contracts weekly shifts, monitoring, cutoff, and order timeout met
   assert.ok(adminWeek.put.security?.[0]?.bearerAuth);
   assert.equal(request.additionalProperties, false);
   assert.deepEqual(request.required, ['weekStart', 'slots']);
-  assert.equal(request.properties.slots.maxItems, 21);
+  assert.equal(request.properties.slots.maxItems, 126);
   assert.equal(request.properties.slots.items.$ref, '#/components/schemas/AdminShiftWeekSlotRequest');
-  assert.equal(schemas.AdminShiftWeekSlotRequest.properties.role.const, 'STAFF');
+  assert.deepEqual(schemas.AdminShiftWeekSlotRequest.properties.role.enum, ['STAFF', 'SHIPPER']);
   assert.deepEqual(schemas.ShiftMonitoringState.enum, ['SCHEDULED', 'CHECK_IN_WINDOW', 'LATE', 'ACTIVE_MANUAL', 'ACTIVE_AUTO', 'CHECK_OUT_WINDOW', 'COMPLETED_MANUAL', 'COMPLETED_AUTO', 'MISSING_STAFF', 'MISSING_NEXT_SHIFT', 'ROLLOVER_BLOCKED']);
   assert.deepEqual(schemas.ShiftAlertSeverity.enum, ['INFO', 'WARNING', 'CRITICAL']);
   for (const schemaName of ['ShiftWeekItem', 'ShiftMonitoringItem']) {

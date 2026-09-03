@@ -51,7 +51,8 @@ class ShiftScheduleOrderTimeoutMigrationPolicyTest {
             String schema = Files.readString(Path.of("../../database/" + file));
             assertTrue(schema.contains("shift_code varchar(10) NOT NULL"), file);
             assertTrue(schema.contains("status_entered_at datetime2(0) NOT NULL"), file);
-            assertTrue(schema.contains("UX_WorkShift_Staff_Date_Code"), file);
+            assertTrue(schema.contains("UX_WorkShift_User_Date_Code"), file);
+            assertFalse(schema.contains("UX_WorkShift_Staff_Date_Code"), file);
             assertFalse(schema.contains("TR_WorkShift_RoleSnapshot"), file);
             assertTrue(schema.contains("IX_Orders_Status_StatusEnteredAt"), file);
             assertTrue(schema.contains("IX_Orders_PaymentStatus_OrderStatus_StatusEnteredAt"), file);
@@ -76,7 +77,8 @@ class ShiftScheduleOrderTimeoutMigrationPolicyTest {
         String service = Files.readString(Path.of("src/main/java/service/WorkShiftService.java"));
         assertTrue(service.contains("shift.setStaffRoleSnapshot(roleSnapshot(user));"));
         assertTrue(service.contains("!\"STAFF\".equals(user.getRole()) && !\"SHIPPER\".equals(user.getRole())"));
-        assertTrue(service.contains("shift.setStaffRoleSnapshot(\"STAFF\")"));
+        assertTrue(service.contains("shift.setStaffRoleSnapshot(roleSnapshot(user))"));
+        assertFalse(service.contains("shift.setStaffRoleSnapshot(\"STAFF\")"));
         assertTrue(service.contains("return \"STAFF\".equals(user.getRole()) ? \"STAFF\" : \"NON_STAFF\";"));
     }
 }

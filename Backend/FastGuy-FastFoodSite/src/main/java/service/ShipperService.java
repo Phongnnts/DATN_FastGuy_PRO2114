@@ -47,6 +47,14 @@ public class ShipperService {
         return orders;
     }
 
+    public List<Orders> getReadyOrders(int shipperId) {
+        return getMyActiveOrders(shipperId).isEmpty() ? ordersDAO.findByStatus("READY") : List.of();
+    }
+
+    public OrderTransitionService.MutationResult claimReadyOrder(int orderId, int shipperId, String expectedStatus) {
+        return transitionService.claimReadyOrder(orderId, shipperId, expectedStatus);
+    }
+
     public List<Orders> getMyHistory(int shipperId, int page, int size, LocalDateTime from, LocalDateTime to) {
         return ordersDAO.findHistoryByShipperId(shipperId, page, size, from, to);
     }

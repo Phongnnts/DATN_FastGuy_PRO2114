@@ -77,6 +77,10 @@ public class CodSettlementService {
         return shifts.stream().filter(shift -> isCurrentShift(shift, now)).findFirst().orElse(null);
     }
 
+    static boolean isVerifiedForCheckout(String status) {
+        return status != null && java.util.Set.of("SETTLED", "SHORT", "OVER").contains(status);
+    }
+
     static boolean isDuplicateSettlementFailure(RuntimeException failure) {
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
             String message = cause.getMessage();

@@ -29,6 +29,16 @@ class WorkShiftSchedulingPolicyTest {
     }
 
     @Test
+    void weeklyScheduleSupportsMultipleStaffAndShippersPerSlot() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/service/WorkShiftService.java"));
+        assertEquals(true, source.contains("list(userId, null, monday.toString()"));
+        assertEquals(true, source.contains("date + \":\" + code + \":\" + slot.get(\"userId\")"));
+        assertEquals(true, source.contains("isSchedulableRole(role)"));
+        assertEquals(true, source.contains("ws.user.role IN ('STAFF','SHIPPER')"));
+        assertEquals(true, source.contains("role.equals(user.getRole())"));
+    }
+
+    @Test
     void staffTemplatesAreFixed() {
         assertEquals(Map.of(
                 "MORNING", List.of(LocalTime.of(8, 0), LocalTime.of(12, 0)),

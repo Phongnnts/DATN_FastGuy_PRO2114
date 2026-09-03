@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { shiftApi } from '@/api';
+import { codSettlementApi, shiftApi } from '@/api';
 import { toLocalDateKey, parseShiftEndDatetime } from '@/api/shift';
 
 const props = defineProps({
@@ -11,13 +11,16 @@ const shifts = ref([]);
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
+const settlementStatus = ref(null);
 const now = ref(new Date());
 const todayKey = ref(toLocalDateKey(new Date()));
 let clockTimer;
 
 const currentShift = computed(() => shifts.value.find((shift) => shift.role === props.role && shift.shiftDate === todayKey.value && !shift.checkOutAt) || null);
 const action = computed(() => currentShift.value?.checkInAt ? 'checkOut' : 'checkIn');
-const canCheckOut = computed(() => !currentShift.value?.endTime || now.value >= parseShiftEndDatetime(todayKey.value, currentShift.value.endTime, currentShift.value.startTime));
+const settlementVerified = computed(() => props.role !== 'SHIPPER' || ['SETTLED', 'SHORT', 'OVER'].includes(settlementStatus.value));
+const canCheckOut = computed(() => (!currentShift.value?.endTime || now.value >= parseShiftEndDatetime(todayKey.value, currentShift.value.endTime, currentShift.value.startTime)) && settlementVerified.value);
+const settlementMessage = computed(() => settlementStatus.value === 'SUBMITTED' ? 'Đang chờ Admin xác nhận đối soát' : 'Gửi đối soát COD trước khi kết ca');
 
 function time(value) {
   return value ? String(value).slice(0, 5) : '';
@@ -29,6 +32,10 @@ async function load() {
   try {
     const data = await shiftApi.getMine();
     shifts.value = Array.isArray(data) ? data : [];
+    if (props.role === 'SHIPPER') {
+      const current = await codSettlementApi.getCurrent();
+      settlementStatus.value = current?.settlement?.status || current?.state || null;
+    }
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -78,9 +85,10 @@ onUnmounted(() => clearInterval(clockTimer));
     <p v-else-if="error" class="shift-note error">{{ error }}</p>
     <template v-else-if="currentShift">
       <p class="shift-note">{{ currentShift.checkInAt ? `Check-in ${currentShift.checkInAt}` : 'Chưa check-in' }}</p>
-      <div aria-live="polite" role="status" class="sr-only">{{ saving ? 'Đang cập nhật trạng thái ca.' : currentShift.checkInAt ? canCheckOut ? 'Đã cho phép check-out.' : `Có thể check-out từ ${time(currentShift.endTime)}.` : 'Đang sẵn sàng check-in.' }}</div>
+      <p v-if="props.role === 'SHIPPER' && currentShift.checkInAt && !settlementVerified" class="shift-note settlement-warning">{{ settlementMessage }} · <router-link to="/shipper/cash">Mở đối soát COD</router-link></p>
+      <div aria-live="polite" role="status" class="sr-only">{{ saving ? 'Đang cập nhật trạng thái ca.' : currentShift.checkInAt ? canCheckOut ? 'Đã cho phép check-out.' : !settlementVerified ? settlementMessage : `Có thể check-out từ ${time(currentShift.endTime)}.` : 'Đang sẵn sàng check-in.' }}</div>
       <button class="btn btn-sm" :class="currentShift.checkInAt ? 'btn-outline' : 'btn-primary'" :disabled="saving || (currentShift.checkInAt && !canCheckOut)" @click="submit">
-        {{ saving ? 'Đang cập nhật...' : currentShift.checkInAt ? canCheckOut ? 'Check-out' : `Có thể check-out từ ${time(currentShift.endTime)}` : 'Check-in' }}
+        {{ saving ? 'Đang cập nhật...' : currentShift.checkInAt ? canCheckOut ? 'Check-out' : !settlementVerified ? settlementMessage : `Có thể check-out từ ${time(currentShift.endTime)}` : 'Check-in' }}
       </button>
     </template>
     <p v-else class="shift-note">Chưa có ca được phân công hôm nay.</p>
@@ -95,6 +103,7 @@ onUnmounted(() => clearInterval(clockTimer));
 .shift-state.active { background: #dcfce7; color: #166534; }
 .shift-note { color: var(--text-mid); font-size: 13px; margin: 8px 0; }
 .error { color: var(--red-active); }
+.settlement-warning{padding:9px;border-radius:8px;background:#fff7e6;color:#7a4d00}.settlement-warning a{color:inherit;font-weight:750}
 .shift-card .btn { min-height:44px; padding-inline:16px; }.shift-command:has(.shift-state.active){border-color:#bbf7d0;background:linear-gradient(135deg,#fff,#f0fdf4)}
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 </style>
