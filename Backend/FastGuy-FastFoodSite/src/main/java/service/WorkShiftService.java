@@ -326,17 +326,25 @@ public class WorkShiftService {
         try {
             em.getTransaction().begin();
             List<WorkShift> existing = em.createQuery("SELECT ws FROM WorkShift ws WHERE ws.user.role IN ('STAFF','SHIPPER') AND ws.shiftDate BETWEEN :start AND :end", WorkShift.class).setParameter("start", monday).setParameter("end", monday.plusDays(6)).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
-            if (existing.stream().anyMatch(s -> !"SCHEDULED".equals(s.getStatus()) || s.getCheckInAt() != null || s.getCheckOutAt() != null)) throw new IllegalStateException("Attended weekly schedule cannot be replaced");
-            if (!existing.isEmpty() && em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.staffShift IN :shifts", Long.class).setParameter("shifts", existing).getSingleResult() > 0) throw new ScheduleReferenceConflict();
-            existing.forEach(em::remove);
+            List<WorkShift> replaceable = existing.stream()
+                    .filter(s -> "SCHEDULED".equals(s.getStatus()) && s.getCheckInAt() == null && s.getCheckOutAt() == null)
+                    .toList();
+            java.util.Set<String> immutableKeys = existing.stream().filter(s -> !replaceable.contains(s))
+                    .map(s -> s.getShiftDate() + ":" + s.getShiftCode() + ":" + s.getUser().getUserId())
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!replaceable.isEmpty() && em.createQuery("SELECT COUNT(o) FROM Orders o WHERE o.staffShift IN :shifts", Long.class).setParameter("shifts", replaceable).getSingleResult() > 0) throw new ScheduleReferenceConflict();
+            replaceable.forEach(em::remove);
             em.flush();
             for (Object value : slots) {
                 Map<?, ?> slot = (Map<?, ?>) value;
                 String role = String.valueOf(slot.get("role"));
                 User user = em.find(User.class, ((Number) slot.get("userId")).intValue(), LockModeType.PESSIMISTIC_WRITE);
                 if (user == null || !isSchedulableRole(user.getRole()) || !role.equals(user.getRole()) || !"ACTIVE".equals(user.getStatus())) throw new IllegalArgumentException("Shift user must be active STAFF or SHIPPER with matching role");
+                LocalDate shiftDate = parseDate(slot.get("shiftDate"), "shiftDate");
+                String shiftCode = String.valueOf(slot.get("shiftCode"));
+                if (immutableKeys.contains(shiftDate + ":" + shiftCode + ":" + user.getUserId())) continue;
                 WorkShift shift = new WorkShift();
-                shift.setUser(user); shift.setStaffRoleSnapshot(roleSnapshot(user)); shift.setShiftDate(parseDate(slot.get("shiftDate"), "shiftDate")); shift.setShiftCode(String.valueOf(slot.get("shiftCode")));
+                shift.setUser(user); shift.setStaffRoleSnapshot(roleSnapshot(user)); shift.setShiftDate(shiftDate); shift.setShiftCode(shiftCode);
                 shift.setStartTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(0)); shift.setEndTime(STAFF_TEMPLATES.get(shift.getShiftCode()).get(1)); shift.setStatus("SCHEDULED"); em.persist(shift);
             }
             em.getTransaction().commit();

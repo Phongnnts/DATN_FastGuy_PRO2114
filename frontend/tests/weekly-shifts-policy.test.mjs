@@ -32,6 +32,11 @@ test('admin schedule renders seven days with multi-person Staff and Shipper assi
   assert.doesNotMatch(adminPage, /role: 'STAFF'/);
   assert.match(adminPage, /:disabled="isCurrentWeek"/);
   assert.doesNotMatch(adminPage, /transition:\s*all/);
+  assert.match(adminPage, /immutableAssignmentIds/);
+  assert.match(adminPage, /isImmutableAssignment/);
+  assert.match(adminPage, /:disabled="isImmutableAssignment/);
+  assert.match(adminPage, /Đã chấm công/);
+  assert.doesNotMatch(adminPage, /\.assignment-options\{position:absolute/);
 });
 
 test('admin attendance filters by existing staff and includes userId in request identity', () => {

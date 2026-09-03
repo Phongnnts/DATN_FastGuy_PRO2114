@@ -20,7 +20,7 @@ class WorkShiftSchedulingPolicyTest {
     @Test
     void weeklyReplacementFlushesRemovedShiftsBeforePersistingReplacements() throws Exception {
         String source = Files.readString(Path.of("src/main/java/service/WorkShiftService.java"));
-        int remove = source.indexOf("existing.forEach(em::remove)");
+        int remove = source.indexOf("replaceable.forEach(em::remove)");
         int flush = source.indexOf("em.flush()", remove);
         int persist = source.indexOf("em.persist(shift)", remove);
         assertEquals(true, remove >= 0 && flush > remove && persist > flush);
@@ -36,6 +36,16 @@ class WorkShiftSchedulingPolicyTest {
         assertEquals(true, source.contains("isSchedulableRole(role)"));
         assertEquals(true, source.contains("ws.user.role IN ('STAFF','SHIPPER')"));
         assertEquals(true, source.contains("role.equals(user.getRole())"));
+    }
+
+    @Test
+    void weeklyReplacementPreservesAttendedShiftsAndReplacesOnlyScheduledRows() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/service/WorkShiftService.java"));
+        assertEquals(true, source.contains("List<WorkShift> replaceable = existing.stream()"));
+        assertEquals(true, source.contains("filter(s -> \"SCHEDULED\".equals(s.getStatus()) && s.getCheckInAt() == null && s.getCheckOutAt() == null)"));
+        assertEquals(true, source.contains("java.util.Set<String> immutableKeys"));
+        assertEquals(true, source.contains("replaceable.forEach(em::remove)"));
+        assertEquals(false, source.contains("Attended weekly schedule cannot be replaced"));
     }
 
     @Test
