@@ -33,7 +33,7 @@ class PresentationDemoSeedPolicyTest {
                 "Presentation demo seed validation passed"}) {
             assertTrue(validator.contains(token), token);
         }
-        assertTrue(seed.contains("CASE WHEN n<=7 THEN 'DELIVERED'"));
+        assertTrue(seed.contains("CASE WHEN seq.n<=7 THEN 'DELIVERED'"));
         assertTrue(seed.contains("IF EXISTS(SELECT 1 FROM dbo.Coupon WHERE code='DEMO-PRES-CPN-10')"));
         assertTrue(!seed.contains("DELETE FROM dbo.Coupon WHERE code LIKE 'DEMO-PRES-CPN-%'"));
         assertTrue(validator.contains("delivered_at>=DATEADD(day,-6,CAST(SYSDATETIME() AS date))"));
@@ -42,7 +42,7 @@ class PresentationDemoSeedPolicyTest {
         for (String token : new String[] {
                 "@ExpectedRefundOrders int=3", "@ExpectedCodSettlements int=4",
                 "@ExpectedDemoShifts int=9", "@ExpectedPayRates int=2",
-                "DEMO-PRES-SHIFT", "DEMO-PRES-COD"}) {
+                "Ca dữ liệu vận hành COD số", "Ca dữ liệu vận hành nhân viên số"}) {
             assertTrue(seed.contains(token), token);
         }
         for (String token : new String[] {
@@ -50,5 +50,10 @@ class PresentationDemoSeedPolicyTest {
                 "@ExpectedDemoShifts int=9", "@ExpectedPayRates int=2"}) {
             assertTrue(validator.contains(token), token);
         }
+        for (String category : new String[] {"Bánh mì", "Burger", "Pizza", "Cơm", "Mì", "Gà rán", "Nước uống"}) {
+            assertTrue(seed.contains("N'" + category + "'"), category);
+        }
+        assertTrue(validator.contains("Forbidden presentation wording in visible fields"));
+        assertTrue(validator.contains("Expected seven natural menu categories"));
     }
 }

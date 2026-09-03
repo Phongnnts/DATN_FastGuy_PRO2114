@@ -23,6 +23,61 @@
 
 ---
 
+### Task 0: Chuẩn hóa dữ liệu hiển thị theo thực đơn thật
+
+**Files:**
+- Modify: `database/seed_presentation_demo.sql`
+- Modify: `database/seed_presentation_demo_validate.sql`
+- Modify: `Backend/FastGuy-FastFoodSite/src/test/java/service/PresentationDemoSeedPolicyTest.java`
+
+**Interfaces:**
+- Consumes: hidden ownership keys `DEMO-PRES-*` and visible fields on Category, Product, InventoryItem, Orders, Review, WorkShift and warehouse records.
+- Produces: exactly seven visible categories and twenty naturally named products without forbidden sample wording.
+
+- [ ] **Step 1: Write failing source-policy assertions**
+
+Require exact visible categories and a validator marker:
+
+```java
+for (String category : new String[] {"Bánh mì", "Burger", "Pizza", "Cơm", "Mì", "Gà rán", "Nước uống"}) assertTrue(seed.contains("N'" + category + "'"), category);
+assertTrue(validator.contains("Forbidden presentation wording in visible fields"));
+assertTrue(validator.contains("Expected seven natural menu categories"));
+```
+
+- [ ] **Step 2: Run targeted test and confirm RED**
+
+Run: `mvn -Dtest=PresentationDemoSeedPolicyTest test`
+
+Workdir: `Backend/FastGuy-FastFoodSite`
+
+Expected: FAIL because natural categories and validator checks are absent.
+
+- [ ] **Step 3: Replace the single synthetic category with seven owned categories**
+
+Use natural `Category.name` values and hidden descriptions `DEMO-PRES-CATEGORY-01` through `DEMO-PRES-CATEGORY-07`. Cleanup identifies ownership by description, never by visible category name.
+
+- [ ] **Step 4: Define twenty natural products**
+
+Use deterministic rows distributed across all categories, including names such as `Bánh mì thịt nướng`, `Burger bò phô mai`, `Pizza hải sản`, `Cơm gà sốt tiêu`, `Mì Ý bò bằm`, `Gà rán giòn cay`, and `Trà đào cam sả`. Keep `DEMO-PRES-SKU-*` only in SKU and technical keys.
+
+- [ ] **Step 5: Replace all visible synthetic text**
+
+Replace customer names, addresses, product descriptions, ingredient names, review comments, refund notes, shift notes shown by UI, supplier names, inventory notes and delivery notes with natural Vietnamese copy containing none of: `demo`, `DEMO`, `trình diễn`, `mẫu`. Technical references, codes and cleanup markers may retain `DEMO-PRES-*` only where not displayed.
+
+- [ ] **Step 6: Add validator checks**
+
+Validate exactly seven owned categories, each of the twenty products belongs to one allowed category, and visible owned fields contain no forbidden terms using case-insensitive collation. Throw `Expected seven natural menu categories` or `Forbidden presentation wording in visible fields` on mismatch.
+
+- [ ] **Step 7: Run targeted test and confirm GREEN**
+
+Run: `mvn -Dtest=PresentationDemoSeedPolicyTest test`
+
+Expected: 1 test, 0 failures.
+
+- [ ] **Step 8: Re-run Tasks 5–8**
+
+Run seed + validator twice on `DemoDatabase`; only after both pass, regenerate target-locked temp files, confirm `DuckJo/FastGuyDB`, apply and validate. Then run backend/frontend/E2E checks and commit exact changed files on local `main`.
+
 ### Task 1: Khóa contract dữ liệu toàn nghiệp vụ bằng source-policy test
 
 **Files:**
