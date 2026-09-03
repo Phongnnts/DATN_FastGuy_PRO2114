@@ -13,6 +13,8 @@ class CanonicalDemoSeedPolicyTest {
     void canonicalDemoSeedAndValidatorsCoverApprovedSchemaAndReports() throws Exception {
         String source = Files.readString(Path.of("../../database/init.sql"));
         assertTrue(source.contains("DECLARE @ExpectedTableCount int = (SELECT COUNT(*) FROM @RequiredTables)"));
+        assertTrue(source.contains("IF @ExpectedTableCount <> 39"));
+        assertTrue(source.contains("('StaffPayRate')"));
         assertTrue(source.contains("('OperatingExpense')") && source.contains("('FixedAsset')"));
         assertTrue(source.contains("@WeekStart") && source.contains("21"));
         assertTrue(source.contains("COUNT(*) FROM dbo.Orders) BETWEEN 20 AND 40"));

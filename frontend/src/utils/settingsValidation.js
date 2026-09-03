@@ -64,6 +64,7 @@ export const SCOPE_KEYS = {
   fees: ['service_fee', 'tax_rate', 'delivery_fee', 'min_order_amount'],
   delivery: ['estimated_delivery_minutes'],
   inventory: ['low_stock_threshold'],
+  notice: ['morning_count_notice_enabled', 'morning_count_notice_title', 'morning_count_notice_message', 'morning_count_notice_image_url', 'morning_count_notice_link', 'morning_count_notice_cta_label'],
 };
 
 export function buildSettingsPayload(scopeKey, form = {}) {
@@ -94,6 +95,14 @@ export function buildSettingsPayload(scopeKey, form = {}) {
         payload: { low_stock_threshold: Number(form.low_stock_threshold) },
         errors: validateInventory(form.low_stock_threshold),
       };
+    case 'notice': {
+      const payload = Object.fromEntries(SCOPE_KEYS.notice.map(key => [key, String(form[key] ?? '').trim()]));
+      const errors = {};
+      if (!payload.morning_count_notice_title) errors.title = 'Nhập tiêu đề thông báo';
+      if (!payload.morning_count_notice_message) errors.message = 'Nhập nội dung thông báo';
+      for (const key of ['morning_count_notice_image_url', 'morning_count_notice_link']) if (payload[key] && !(/^(https?:\/\/|\/)/i.test(payload[key]))) errors[key] = 'URL phải là đường dẫn nội bộ hoặc HTTP(S)';
+      return { payload, errors };
+    }
     default:
       return { payload: {}, errors: {} };
   }

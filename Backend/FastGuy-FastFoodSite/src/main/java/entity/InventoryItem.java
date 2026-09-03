@@ -27,7 +27,7 @@ public class InventoryItem {
     @PrePersist void prePersist() { createdAt = updatedAt = LocalDateTime.now().withNano(0); }
     @PreUpdate void preUpdate() { updatedAt = LocalDateTime.now().withNano(0); }
 
-    public BigDecimal availableQuantity() { return onHandQuantity.subtract(reservedQuantity); }
+    public BigDecimal availableQuantity() { return onHandQuantity.subtract(reservedQuantity).max(BigDecimal.ZERO).setScale(4); }
     public void reserve(BigDecimal quantity) {
         if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0 || quantity.compareTo(availableQuantity()) > 0) throw new IllegalStateException("Invalid reservation quantity");
         reservedQuantity = reservedQuantity.add(quantity);
@@ -44,9 +44,9 @@ public class InventoryItem {
     public String getBaseUnit() { return baseUnit; }
     public void setBaseUnit(String baseUnit) { this.baseUnit = baseUnit; }
     public BigDecimal getOnHandQuantity() { return onHandQuantity; }
-    public void setOnHandQuantity(BigDecimal quantity) { if (quantity == null || quantity.compareTo(reservedQuantity) < 0) throw new IllegalStateException("Invalid on-hand quantity"); onHandQuantity = quantity; }
+    public void setOnHandQuantity(BigDecimal quantity) { if (quantity == null || quantity.compareTo(BigDecimal.ZERO) < 0) throw new IllegalStateException("Invalid on-hand quantity"); onHandQuantity = quantity; }
     public BigDecimal getReservedQuantity() { return reservedQuantity; }
-    public void setReservedQuantity(BigDecimal quantity) { if (quantity == null || quantity.compareTo(BigDecimal.ZERO) < 0 || quantity.compareTo(onHandQuantity) > 0) throw new IllegalStateException("Invalid reserved quantity"); reservedQuantity = quantity; }
+    public void setReservedQuantity(BigDecimal quantity) { if (quantity == null || quantity.compareTo(BigDecimal.ZERO) < 0) throw new IllegalStateException("Invalid reserved quantity"); reservedQuantity = quantity; }
     public BigDecimal getMinimumQuantity() { return minimumQuantity; }
     public void setMinimumQuantity(BigDecimal quantity) { if (quantity == null || quantity.compareTo(BigDecimal.ZERO) < 0) throw new IllegalStateException("Invalid minimum quantity"); minimumQuantity = quantity; }
     public boolean isActive() { return active; }

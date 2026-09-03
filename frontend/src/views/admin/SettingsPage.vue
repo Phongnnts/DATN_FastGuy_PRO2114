@@ -12,10 +12,11 @@ const tabs = [
   { id: 'fees', label: 'Phí & thuế', icon: 'bi-cash-stack' },
   { id: 'delivery', label: 'Giao hàng', icon: 'bi-truck' },
   { id: 'inventory', label: 'Tồn kho', icon: 'bi-boxes' },
+  { id: 'notice', label: 'Thông báo', icon: 'bi-megaphone' },
   { id: 'payment', label: 'Thanh toán', icon: 'bi-credit-card' },
   { id: 'ghn', label: 'Vận chuyển GHN', icon: 'bi-box' },
 ];
-const EDITABLE_SCOPES = ['store', 'hours', 'fees', 'delivery', 'inventory'];
+const EDITABLE_SCOPES = ['store', 'hours', 'fees', 'delivery', 'inventory', 'notice'];
 const PAYMENT_METHODS = [
   { key: 'COD', label: 'Thanh toán khi nhận hàng' },
   { key: 'BANK_TRANSFER', label: 'Chuyển khoản ngân hàng (PayOS)' },
@@ -30,7 +31,7 @@ const loading = ref(true);
 const loadState = ref('loading');
 const loadMessage = ref('');
 const saving = ref(false);
-const tabErrors = ref({ store: {}, hours: {}, fees: {}, delivery: {}, inventory: {} });
+const tabErrors = ref({ store: {}, hours: {}, fees: {}, delivery: {}, inventory: {}, notice: {} });
 let stopped = false;
 
 function createForm() {
@@ -40,6 +41,7 @@ function createForm() {
     service_fee: 0, tax_rate: 0, delivery_fee: 0, min_order_amount: 0,
     estimated_delivery_minutes: 30,
     low_stock_threshold: 5,
+    morning_count_notice_enabled: '1', morning_count_notice_title: 'Cửa hàng đang chuẩn bị nguyên liệu', morning_count_notice_message: 'Chúng tôi đang kiểm kê đầu ngày.', morning_count_notice_image_url: '', morning_count_notice_link: '', morning_count_notice_cta_label: 'Xem thông báo',
     ghn_from_district_id: '', ghn_from_ward_code: '', default_service_type_id: '',
     default_weight: '', default_length: '', default_width: '', default_height: '',
   };
@@ -247,6 +249,16 @@ onUnmounted(() => {
             <p v-if="fieldError('inventory', 'low_stock_threshold')" id="settings-low-stock-error" class="field-error" role="alert">{{ fieldError('inventory', 'low_stock_threshold') }}</p>
           </div>
           <div class="panel-actions"><button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? 'Đang lưu...' : 'Lưu cài đặt' }}</button></div>
+        </form>
+
+        <form v-else-if="activeTab === 'notice'" class="card card-flat settings-card" @submit.prevent="saveTab('notice')" novalidate>
+          <h3 class="panel-title"><i class="bi bi-megaphone"></i> Popup kiểm kê đầu ngày</h3><p class="readonly-note">Popup chỉ thông báo, không khóa xem menu hoặc đặt hàng. Mỗi khách thấy tối đa một lần mỗi ngày.</p>
+          <label class="checkbox-row"><input v-model="form.morning_count_notice_enabled" type="checkbox" true-value="1" false-value="0"> Bật popup khi chưa duyệt kiểm kê hôm nay</label>
+          <div class="form-group"><label class="form-label" for="notice-title">Tiêu đề</label><input id="notice-title" v-model="form.morning_count_notice_title" class="form-input" maxlength="200"><p v-if="fieldError('notice','title')" class="field-error">{{ fieldError('notice','title') }}</p></div>
+          <div class="form-group"><label class="form-label" for="notice-message">Nội dung</label><textarea id="notice-message" v-model="form.morning_count_notice_message" class="form-input" rows="4" maxlength="500"></textarea><p v-if="fieldError('notice','message')" class="field-error">{{ fieldError('notice','message') }}</p></div>
+          <div class="settings-grid"><div class="form-group"><label class="form-label" for="notice-image">URL ảnh</label><input id="notice-image" v-model="form.morning_count_notice_image_url" class="form-input" placeholder="https://..."><p v-if="fieldError('notice','morning_count_notice_image_url')" class="field-error">{{ fieldError('notice','morning_count_notice_image_url') }}</p></div><div class="form-group"><label class="form-label" for="notice-link">URL liên kết</label><input id="notice-link" v-model="form.morning_count_notice_link" class="form-input" placeholder="/menu hoặc https://..."><p v-if="fieldError('notice','morning_count_notice_link')" class="field-error">{{ fieldError('notice','morning_count_notice_link') }}</p></div></div>
+          <div class="form-group"><label class="form-label" for="notice-cta">Nhãn nút</label><input id="notice-cta" v-model="form.morning_count_notice_cta_label" class="form-input" maxlength="100"></div>
+          <div class="panel-actions"><button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? 'Đang lưu...' : 'Lưu thông báo' }}</button></div>
         </form>
 
         <div v-else-if="activeTab === 'payment'" class="card card-flat settings-card">

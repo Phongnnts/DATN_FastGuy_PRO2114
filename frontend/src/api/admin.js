@@ -181,6 +181,9 @@ export default {
   adjustInventoryItem(data) {
     return client.post('/admin/inventory/transactions/adjustments', data);
   },
+  recordInventoryWaste(data) {
+    return client.post('/admin/inventory/transactions/waste', data);
+  },
   getGoodsReceipts() {
     return client.get('/admin/inventory/receipts');
   },

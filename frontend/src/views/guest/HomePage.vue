@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useHomepageStore } from '@/stores/homepage';
 import FeaturedProducts from '@/components/guest/FeaturedProducts.vue';
 import ProductCard from '@/components/common/ProductCard.vue';
+import MorningCountNotice from '@/components/common/MorningCountNotice.vue';
 import bannerApi from '@/api/banner';
 import { productApi, storeApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
@@ -18,6 +19,7 @@ const categories = ref([]);
 const invalidCategoryImages = ref(new Set());
 const storeName = ref('FastGuy');
 const storeAddress = ref('');
+const morningCountNotice = ref(null);
 const mapEmbedUrl = computed(() => storeAddress.value ? `https://www.google.com/maps?q=${encodeURIComponent(storeAddress.value)}&output=embed` : '');
 const mapOpenUrl = computed(() => storeAddress.value ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(storeAddress.value)}` : '');
 const fallbackImage = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700"%3E%3Crect width="1200" height="700" fill="%231b1714"/%3E%3Ccircle cx="900" cy="350" r="250" fill="%23f26a2e" fill-opacity=".18"/%3E%3C/svg%3E';
@@ -54,6 +56,7 @@ function startCarousel() { stopCarousel(); if (!reduceMotion.value && !carouselP
 function setPaused(value) { carouselPaused.value = value; value ? stopCarousel() : startCarousel(); }
 function updateMotion(event) { reduceMotion.value = event.matches; startCarousel(); }
 function selectRecommendation(key) { activeRecommendation.value = key; }
+function closeMorningNotice() { if (morningCountNotice.value?.stableKey) localStorage.setItem(`fastguy-notice:${morningCountNotice.value.stableKey}`, new Date().toLocaleDateString('en-CA')); morningCountNotice.value = null; }
 function moveReview(offset) {
   const count = homepageStore.featuredReviews.length;
   if (count) activeReview.value = (activeReview.value + offset + count) % count;
@@ -70,6 +73,8 @@ onMounted(async () => {
   if (storeResult.status === 'fulfilled') {
     storeName.value = String(storeResult.value?.storeName || 'FastGuy').trim();
     storeAddress.value = String(storeResult.value?.storeAddress || '').trim();
+    const notice = storeResult.value?.morningCountNotice;
+    if (notice?.stableKey && localStorage.getItem(`fastguy-notice:${notice.stableKey}`) !== new Date().toLocaleDateString('en-CA')) morningCountNotice.value = notice;
   }
   currentSlide.value = 0;
   startCarousel();
@@ -79,6 +84,7 @@ onBeforeUnmount(() => { stopCarousel(); motionQuery?.removeEventListener('change
 
 <template>
   <div class="home-page">
+    <MorningCountNotice :notice="morningCountNotice" @close="closeMorningNotice" />
     <section class="hero signature-hero" aria-labelledby="signature-title">
       <div class="hero-glow" aria-hidden="true"></div>
       <div class="container hero-shell">

@@ -1,6 +1,7 @@
 package service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,7 +47,7 @@ public class StoreConfigService {
     private static final java.util.Set<String> TIME_KEYS = Set.of(OPEN_TIME, CLOSE_TIME);
     private static final java.util.Set<String> FEE_KEYS = Set.of(SERVICE_FEE, "tax_rate", "delivery_fee", "min_order_amount");
     private static final java.util.Set<String> INT_KEYS = Set.of("estimated_delivery_minutes", LOW_STOCK_THRESHOLD);
-    private static final java.util.Set<String> TEXT_KEYS = Set.of("store_name", "store_phone", "store_address", "store_logo");
+    private static final java.util.Set<String> TEXT_KEYS = Set.of("store_name", "store_phone", "store_address", "store_logo", "morning_count_notice_enabled", "morning_count_notice_title", "morning_count_notice_message", "morning_count_notice_image_url", "morning_count_notice_link", "morning_count_notice_cta_label");
 
     public Map<String, Object> getPublicConfig() {
         Map<String, String> config = getAll();
@@ -67,7 +68,23 @@ public class StoreConfigService {
         result.put("storePhone", config.getOrDefault("store_phone", ""));
         result.put("storeAddress", config.getOrDefault("store_address", ""));
         result.put("storeLogo", config.getOrDefault("store_logo", ""));
+        result.put("morningCountNotice", morningCountNotice(config));
         return result;
+    }
+
+    private Map<String,Object> morningCountNotice(Map<String,String> config) {
+        if (!"1".equals(config.get("morning_count_notice_enabled"))) return null;
+        EntityManager em=entityManagers.get();
+        try {
+            Number approved=(Number)em.createNativeQuery("SELECT COUNT_BIG(*) FROM StockCount WHERE count_date=:today AND status='APPROVED'").setParameter("today",LocalDate.now()).getSingleResult();
+            if (approved.longValue()>0) return null;
+        } finally { em.close(); }
+        String title=config.getOrDefault("morning_count_notice_title","Cửa hàng đang chuẩn bị nguyên liệu").trim();
+        String message=config.getOrDefault("morning_count_notice_message","Chúng tôi đang kiểm kê đầu ngày.").trim();
+        String link=config.getOrDefault("morning_count_notice_link","").trim();
+        if (!link.isEmpty() && !(link.startsWith("/") || link.startsWith("https://") || link.startsWith("http://"))) link="";
+        Map<String,Object> notice=new LinkedHashMap<>();
+        notice.put("stableKey","morning-count-"+LocalDate.now());notice.put("title",title.isEmpty()?"Cửa hàng đang chuẩn bị nguyên liệu":title);notice.put("message",message.isEmpty()?"Chúng tôi đang kiểm kê đầu ngày.":message);notice.put("imageUrl",config.getOrDefault("morning_count_notice_image_url","").trim());notice.put("link",link);notice.put("ctaLabel",config.getOrDefault("morning_count_notice_cta_label","Xem thông báo").trim());return notice;
     }
 
     private int parseIntSafe(String val, int defaultVal) {
@@ -95,7 +112,12 @@ public class StoreConfigService {
                     if (!TEXT_KEYS.contains(key)) throw new IllegalArgumentException("Invalid config value for " + key);
                     value = "";
                 } else {
-                    if (FEE_KEYS.contains(key)) {
+                    if (key.startsWith("morning_count_notice_")) {
+                        int max=Set.of("morning_count_notice_image_url").contains(key)?1000:Set.of("morning_count_notice_message","morning_count_notice_link").contains(key)?500:200;
+                        if(value.length()>max)throw new IllegalArgumentException("Invalid config value for "+key);
+                        if((key.endsWith("_url")||key.endsWith("_link"))&&!value.isEmpty()&&!(value.startsWith("/")||value.startsWith("https://")||value.startsWith("http://")))throw new IllegalArgumentException("Invalid notice URL");
+                        if("morning_count_notice_enabled".equals(key)&&!Set.of("0","1").contains(value))throw new IllegalArgumentException("Invalid notice enabled value");
+                    } else if (FEE_KEYS.contains(key)) {
                         BigDecimal fee = parseFee(value);
                         if ("tax_rate".equals(key) && (fee.compareTo(BigDecimal.ZERO) < 0 || fee.compareTo(HUNDRED) > 0)) {
                             throw new IllegalArgumentException("tax_rate must be between 0 and 100");

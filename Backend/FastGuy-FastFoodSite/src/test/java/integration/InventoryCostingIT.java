@@ -93,7 +93,7 @@ class InventoryCostingIT {
         assertNotNull(approved.get("approvedAt"));
 
         StockCountService counts = new StockCountService();
-        Map<String, Object> count = counts.create(LocalDate.now(), "WEEKLY", adminId);
+        Map<String, Object> count = counts.create(LocalDate.now(), List.of(itemId), adminId);
         stockCountId = ((Number) count.get("stockCountId")).intValue();
         assertEquals("DRAFT", count.get("status"));
         assertFalse(counts.list().isEmpty());

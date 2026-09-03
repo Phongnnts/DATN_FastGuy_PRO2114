@@ -47,6 +47,16 @@ class IngredientInventoryMappingTest {
     }
 
     @Test
+    void shortageRiskAllowsReservedAboveOnHandAndClampsAvailability() {
+        InventoryItem item = new InventoryItem();
+        item.setOnHandQuantity(new BigDecimal("3.0000"));
+        item.setReservedQuantity(new BigDecimal("4.0000"));
+
+        assertEquals(new BigDecimal("0.0000"), item.availableQuantity());
+        assertThrows(IllegalStateException.class, () -> item.reserve(new BigDecimal("0.0001")));
+    }
+
+    @Test
     void mapsRecipeAndVariantLinksWithSchemaUniqueness() throws Exception {
         assertUnique(VariantInventoryItem.class, List.of("variant_id"), List.of("inventory_item_id"));
         assertUnique(Recipe.class, List.of("variant_id"));

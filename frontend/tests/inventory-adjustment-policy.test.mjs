@@ -17,7 +17,7 @@ test('admin API exposes item-level inventory mutations without legacy variant st
   assert.match(api, /client\.post\('\/admin\/inventory\/items', data\)/);
   assert.doesNotMatch(api, /receiptInventory|\/admin\/inventory\/transactions\/receipts/);
   assert.match(api, /adjustInventoryItem\(data\)/);
-  assert.doesNotMatch(api, /transactions\/waste/);
+  assert.match(api, /recordInventoryWaste\(data\)[\s\S]*?transactions\/waste/);
   assert.doesNotMatch(api, /\{ variantId, \.\.\.data \}/);
 });
 
@@ -28,7 +28,8 @@ test('inventory page offers create, goods receipt navigation and adjustment acti
   assert.match(inventory, /openDialog\('adjust', item, \$event\)/);
   assert.match(inventory, /submitItemForm/);
   assert.match(inventory, /submitMutation\(dialog\.kind\)/);
-  assert.doesNotMatch(inventory, /openWaste|Lãng phí|wasteInventory/);
+  assert.match(inventory, /openDialog\('waste', item, \$event\)/);
+  assert.match(inventory, /Ghi nhận hao hụt/);
 });
 
 test('inventory dialogs validate decimal quantity and required reason', () => {

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { adminApi } from '@/api';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useToast } from '@/stores/toast';
@@ -7,6 +8,7 @@ import { buildGoodsReceiptPayload, filterGoodsReceipts, goodsReceiptContentUnits
 import { formatQuantity } from '@/utils/inventoryItem';
 
 const toast = useToast();
+const router = useRouter();
 const receipts = ref([]);
 const inventoryItems = ref([]);
 const loading = ref(true);
@@ -67,7 +69,8 @@ onMounted(load);
     <header class="page-heading"><div><p class="eyebrow">Nhập hàng</p><h1>Ghi nhận nguyên liệu vừa nhận</h1><p>Chọn mặt hàng, số lượng, đơn vị mua và giá. Hệ thống tự quy đổi sang đơn vị kho.</p></div><button class="btn btn-outline" :disabled="loading" @click="load">Làm mới</button></header>
     <section id="receipt-form" class="panel guided-receipt-workflow">
       <div class="section-heading"><h2>{{ editingId ? `Sửa phiếu #${editingId}` : 'Tạo phiếu nhập' }}</h2><button v-if="editingId" class="btn btn-sm btn-outline" type="button" @click="resetForm">Tạo phiếu mới</button></div>
-      <form @submit.prevent="save(false)">
+      <div v-if="!loading && !receivableItems.length" class="ingredient-empty"><h3>Chưa có nguyên liệu để nhập</h3><p>Tạo nguyên liệu trước. Việc tạo nguyên liệu không làm tăng tồn kho.</p><button type="button" class="btn btn-primary" @click="router.push({ name: 'AdminIngredients' })">Thêm nguyên liệu</button><button type="button" class="btn btn-outline" @click="load">Tải lại danh sách</button></div>
+      <form v-else @submit.prevent="save(false)">
         <fieldset><legend><span>1</span> Thông tin phiếu</legend><div class="form-grid"><label>Nhà cung cấp <small>(không bắt buộc)</small><input v-model="form.supplierName" class="form-input" maxlength="150" placeholder="Nhập tên nếu có" /></label><label>Số hóa đơn <small>(không bắt buộc)</small><input v-model="form.invoiceNumber" class="form-input" maxlength="100" placeholder="HD-250826" /></label><label>Thời gian nhận<input v-model="form.receivedAt" class="form-input" type="datetime-local" required /></label></div></fieldset>
         <fieldset><legend><span>2</span> Nguyên liệu nhận được</legend><article v-for="(line,index) in form.items" :key="index" class="ingredient-card">
           <header><strong>Nguyên liệu {{ String(index + 1).padStart(2, '0') }}</strong><button class="btn btn-sm btn-outline" type="button" :disabled="form.items.length === 1" :aria-label="`Xóa nguyên liệu ${index + 1}`" @click="removeLine(index)">Xóa</button></header>
@@ -94,5 +97,5 @@ onMounted(load);
 @media(max-width:900px){.purchase-fields{grid-template-columns:1fr 1fr}.purchase-fields label:last-child{grid-column:1/-1}}
 @media(max-width:560px){.purchase-fields,.package-fields,.ingredient-card .preview{grid-template-columns:1fr}.purchase-fields label:last-child{grid-column:auto}.money-input{grid-template-columns:1fr}.money-input span{white-space:normal}.review-fieldset li{align-items:flex-start;flex-direction:column}.ingredient-card{padding:14px}}
 .date-presets{display:flex;gap:6px;flex-wrap:wrap}.date-presets button{min-height:40px;padding:0 12px;border:1px solid var(--border-light);border-radius:999px;background:#fff}.receipt-filters{display:grid;grid-template-columns:repeat(3,minmax(0,220px));gap:12px}.receipt-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.receipt-kpis article{display:grid;gap:4px;padding:14px;border:1px solid var(--border-light);border-radius:10px}.receipt-kpis span{color:var(--text-mid);font-size:12px}.receipt-kpis strong{font-size:18px}.receipt-day{display:grid;gap:8px}.receipt-day h3{margin:6px 0 0;font-size:15px}.receipt-day .table{min-width:820px}@media(max-width:760px){.receipt-filters,.receipt-kpis{grid-template-columns:1fr 1fr}.receipt-filters label:last-child{grid-column:1/-1}}@media(max-width:520px){.receipt-filters,.receipt-kpis{grid-template-columns:1fr}.receipt-filters label:last-child{grid-column:auto}}
-.actions{position:relative;z-index:1;scroll-margin-block:90px}
+.actions{position:relative;z-index:1;scroll-margin-block:90px}.ingredient-empty{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:38px;border:1px dashed var(--admin-border);border-radius:12px;text-align:center}.ingredient-empty h3,.ingredient-empty p{flex-basis:100%;margin:0}
 </style>

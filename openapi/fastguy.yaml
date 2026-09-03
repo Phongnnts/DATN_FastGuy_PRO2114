@@ -1427,6 +1427,16 @@ paths:
         '200': { description: Adjustment recorded, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '409': { description: Stale quantity, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
+  /admin/inventory/transactions/waste:
+    post:
+      operationId: recordInventoryWaste
+      summary: Record ingredient loss or damage
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryWasteRequest' } } } }
+      responses:
+        '200': { description: Waste recorded, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryItemResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: Stale quantity, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryConflict' } } } }
   /admin/inventory/transactions:
     get:
       operationId: listInventoryTransactions
@@ -1934,7 +1944,7 @@ components:
     PublicStoreConfig:
       type: object
       additionalProperties: false
-      required: [isOpen, openTime, closeTime, orderCutoffTime, serviceFee, taxRate, deliveryFee, minOrderAmount, estimatedDeliveryMinutes, storeName, storePhone, storeAddress, storeLogo]
+      required: [isOpen, openTime, closeTime, orderCutoffTime, serviceFee, taxRate, deliveryFee, minOrderAmount, estimatedDeliveryMinutes, storeName, storePhone, storeAddress, storeLogo, morningCountNotice]
       properties:
         isOpen: { type: boolean }
         openTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
@@ -1949,6 +1959,17 @@ components:
         storePhone: { type: string }
         storeAddress: { type: string }
         storeLogo: { type: string }
+        morningCountNotice:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [stableKey, title, message, imageUrl, link, ctaLabel]
+          properties:
+            stableKey: { type: string, minLength: 1, maxLength: 100 }
+            title: { type: string, minLength: 1, maxLength: 200 }
+            message: { type: string, minLength: 1, maxLength: 500 }
+            imageUrl: { type: string, maxLength: 1000 }
+            link: { type: string, maxLength: 500 }
+            ctaLabel: { type: string, minLength: 1, maxLength: 100 }
     PublicStoreConfigResponse:
       type: object
       additionalProperties: false
@@ -2272,6 +2293,16 @@ components:
         expectedOnHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
         reason: { type: string, minLength: 1, maxLength: 100 }
         note: { type: [string, 'null'], maxLength: 500 }
+    InventoryWasteRequest:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, quantity, expectedOnHandQuantity, reason, note]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        quantity: { type: number, format: decimal, minimum: 0.0001, maximum: 999999999999999.9999, multipleOf: 0.0001 }
+        expectedOnHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        reason: { type: string, minLength: 1, maxLength: 100 }
+        note: { type: [string, 'null'], maxLength: 500 }
     InventoryTransaction:
       type: object
       additionalProperties: false
@@ -2360,8 +2391,14 @@ components:
     StockCountCreateRequest:
       type: object
       additionalProperties: false
-      required: [countDate, frequency]
-      properties: { countDate: { type: string, format: date }, frequency: { $ref: '#/components/schemas/InventoryCountFrequency' } }
+      required: [countDate, inventoryItemIds]
+      properties:
+        countDate: { type: string, format: date }
+        inventoryItemIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: integer, minimum: 1 }
     StockCountItemRequest:
       type: object
       additionalProperties: false
@@ -2392,7 +2429,7 @@ components:
     StockCountLine:
       type: object
       additionalProperties: false
-      required: [stockCountItemId, inventoryItemId, theoreticalQuantity, actualQuantity, varianceQuantity, unitCostSnapshot, varianceCost, reasonCode, note]
+      required: [stockCountItemId, inventoryItemId, theoreticalQuantity, actualQuantity, varianceQuantity, unitCostSnapshot, reservedQuantitySnapshot, varianceCost, reasonCode, note]
       properties:
         stockCountItemId: { type: integer, minimum: 1 }
         inventoryItemId: { type: integer, minimum: 1 }
@@ -2400,6 +2437,7 @@ components:
         actualQuantity: { oneOf: [{ $ref: '#/components/schemas/InventoryItemQuantity' }, { type: 'null' }] }
         varianceQuantity: { type: [number, 'null'], format: decimal, minimum: -999999999999999.9999, maximum: 999999999999999.9999, multipleOf: 0.0001 }
         unitCostSnapshot: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
+        reservedQuantitySnapshot: { $ref: '#/components/schemas/InventoryItemQuantity' }
         varianceCost: { oneOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }] }
         reasonCode: { type: [string, 'null'], maxLength: 50 }
         note: { type: [string, 'null'], maxLength: 500 }

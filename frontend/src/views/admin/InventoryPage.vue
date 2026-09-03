@@ -139,6 +139,7 @@ function openDialog(kind, item, event) {
   if (kind === 'create') base.form = { inventoryCode: '', name: '', itemType: 'INGREDIENT', baseUnit: 'G', minimumQuantity: '0', countFrequency: 'DAILY', active: true };
   if (kind === 'edit') base.form = { inventoryCode: item.inventoryCode, name: item.name, itemType: item.itemType, baseUnit: item.baseUnit, minimumQuantity: String(item.minimumQuantity), countFrequency: item.countFrequency, active: Boolean(item.active) };
   if (kind === 'adjust') base.form = { operation: 'INCREASE', quantity: '', reason: '', note: '' };
+  if (kind === 'waste') base.form = { operation: 'DECREASE', quantity: '', reason: 'Hỏng nguyên liệu', note: '' };
   dialog.value = base;
   nextTick(() => modalRef.value?.querySelector('input:not(:disabled), select:not(:disabled)')?.focus());
 }
@@ -227,9 +228,10 @@ async function submitMutation(kind) {
   saving.value = true;
   try {
     const payload = buildAdjustmentPayload(item, form);
-    const saved = await adminApi.adjustInventoryItem(payload);
+    if (kind === 'waste') payload.quantity = Math.abs(payload.quantity);
+    const saved = kind === 'waste' ? await adminApi.recordInventoryWaste(payload) : await adminApi.adjustInventoryItem(payload);
     syncRow(saved);
-    toast.success('Đã điều chỉnh tồn kho');
+    toast.success(kind === 'waste' ? 'Đã ghi nhận hao hụt' : 'Đã điều chỉnh tồn kho');
     saving.value = false;
     await closeDialog();
     refreshSideData();
@@ -338,7 +340,7 @@ onMounted(() => {
               <td data-label="Thao tác">
                 <div class="row-actions">
                   <button class="btn btn-sm btn-outline" :aria-label="`Tạo phiếu nhập cho ${item.name}`" @click="router.push({ name: 'AdminGoodsReceipts' })"><i class="bi bi-box-arrow-in-down" aria-hidden="true"></i> Nhập</button>
-                  <button class="btn btn-sm btn-outline" :aria-label="`Điều chỉnh ${item.name}`" @click="openDialog('adjust', item, $event)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
+                  <button class="btn btn-sm btn-outline" :aria-label="`Ghi nhận hao hụt ${item.name}`" @click="openDialog('waste', item, $event)"><i class="bi bi-trash3" aria-hidden="true"></i> Hao hụt</button><button class="btn btn-sm btn-outline" :aria-label="`Điều chỉnh ${item.name}`" @click="openDialog('adjust', item, $event)"><i class="bi bi-sliders" aria-hidden="true"></i> Điều chỉnh</button>
                   <button class="btn btn-sm btn-ghost" :aria-label="`Sửa ${item.name}`" @click="openDialog('edit', item, $event)"><i class="bi bi-pencil" aria-hidden="true"></i></button>
                 </div>
               </td>
@@ -378,7 +380,7 @@ onMounted(() => {
             <h3 id="item-dialog-title">{{ dialog.kind === 'create' ? 'Thêm mặt hàng' : `Sửa ${dialog.item.name}` }}</h3>
           </div>
           <div v-else>
-            <small>ĐIỀU CHỈNH TỒN KHO</small>
+            <small>{{ dialog.kind === 'waste' ? 'GHI NHẬN HAO HỤT' : 'ĐIỀU CHỈNH TỒN KHO' }}</small>
             <h3 id="stock-dialog-title">{{ dialog.item.name }} <span class="muted">#{{ dialog.item.inventoryItemId }}</span></h3>
           </div>
           <button type="button" class="icon-button" aria-label="Đóng" :disabled="saving" @click="closeDialog"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
@@ -418,7 +420,7 @@ onMounted(() => {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" :disabled="saving" @click="closeDialog">Hủy</button>
-          <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Đang lưu...' : (dialog.kind === 'adjust' ? 'Lưu điều chỉnh' : 'Lưu') }}</button>
+          <button type="submit" class="btn btn-primary" :disabled="saving">{{ saving ? 'Đang lưu...' : (dialog.kind === 'waste' ? 'Ghi nhận hao hụt' : dialog.kind === 'adjust' ? 'Lưu điều chỉnh' : 'Lưu') }}</button>
         </div>
       </form>
     </div>

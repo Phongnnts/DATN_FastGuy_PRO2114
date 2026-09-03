@@ -28,7 +28,7 @@ test('admin API client matches OpenAPI ingredient inventory operations exactly',
   assert.match(api, /updateVariantInventorySettings\(variantId, data\)[\s\S]*\/inventory-settings/);
   assert.match(api, /getVariantInventoryCapacity\(variantId\)[\s\S]*\/inventory-capacity/);
   assert.match(api, /getVariantAvailability\(variantId\) \{\s*return client\.get\(`\/admin\/product-variants\/\$\{variantId\}\/availability`\);\s*\}/);
-  assert.doesNotMatch(api, /transactions\/waste/);
+  assert.match(api, /recordInventoryWaste\(data\)[\s\S]*?transactions\/waste/);
   assert.doesNotMatch(api, /\{ variantId, \.\.\.data \}/);
 });
 

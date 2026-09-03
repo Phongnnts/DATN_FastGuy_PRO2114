@@ -1,0 +1,11 @@
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+IF DB_NAME()<>N'DemoDatabase' THROW 51700, 'Warehouse demo validator target must be DemoDatabase', 1;
+IF (SELECT COUNT_BIG(*) FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-ING-%' AND item_type='INGREDIENT' AND active=1)<>12 THROW 51701, 'Expected 12 active demo ingredients', 1;
+IF EXISTS(SELECT 1 FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-ING-%' AND (average_unit_cost<=0 OR on_hand_quantity<0 OR minimum_quantity<=0 OR count_frequency<>'DAILY')) THROW 51702, 'Demo ingredient balance or costing invalid', 1;
+IF (SELECT COUNT_BIG(*) FROM dbo.ProductVariant WHERE sku IN('BURGER-STD','BURGER-L','FRIES-STD','COLA-L','COMBO-BURGER') AND inventory_mode='INGREDIENT')<>5 THROW 51703, 'Expected five ingredient-managed variants', 1;
+IF EXISTS(SELECT 1 FROM dbo.ProductVariant v LEFT JOIN dbo.Recipe r ON r.variant_id=v.variant_id AND r.active=1 OUTER APPLY(SELECT COUNT_BIG(*) line_count FROM dbo.RecipeItem ri WHERE ri.recipe_id=r.recipe_id) x WHERE v.sku IN('BURGER-STD','BURGER-L','FRIES-STD','COLA-L','COMBO-BURGER') AND (r.recipe_id IS NULL OR x.line_count<2)) THROW 51704, 'Demo recipes incomplete', 1;
+IF NOT EXISTS(SELECT 1 FROM dbo.StockCount c WHERE c.count_date=CAST(GETDATE() AS date) AND c.status='DRAFT' AND c.frequency='DAILY' AND EXISTS(SELECT 1 FROM dbo.StockCountItem ci WHERE ci.stock_count_id=c.stock_count_id)) THROW 51705, 'Today stock count draft missing', 1;
+IF NOT EXISTS(SELECT 1 FROM dbo.InventoryItem WHERE inventory_code='DEMO-ING-BEEF' AND on_hand_quantity<=minimum_quantity) THROW 51706, 'Low-stock demo ingredient missing', 1;
+SELECT COUNT_BIG(*) ingredient_count FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-ING-%';
+PRINT 'Warehouse demo seed validation passed';

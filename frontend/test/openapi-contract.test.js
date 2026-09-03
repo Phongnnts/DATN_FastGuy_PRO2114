@@ -375,7 +375,7 @@ test('OpenAPI contracts weekly shifts, monitoring, cutoff, and order timeout met
     for (const field of ['shiftCode', 'checkInSource', 'checkOutSource']) assert.ok(schemas[schemaName].required.includes(field));
     assert.equal(schemas[schemaName].properties.shiftCode.$ref, '#/components/schemas/ShiftCode');
   }
-  const publicConfigFields = ['isOpen', 'openTime', 'closeTime', 'orderCutoffTime', 'serviceFee', 'taxRate', 'deliveryFee', 'minOrderAmount', 'estimatedDeliveryMinutes', 'storeName', 'storePhone', 'storeAddress', 'storeLogo'];
+  const publicConfigFields = ['isOpen', 'openTime', 'closeTime', 'orderCutoffTime', 'serviceFee', 'taxRate', 'deliveryFee', 'minOrderAmount', 'estimatedDeliveryMinutes', 'storeName', 'storePhone', 'storeAddress', 'storeLogo', 'morningCountNotice'];
   assert.equal(schemas.PublicStoreConfig.additionalProperties, false);
   assert.deepEqual(schemas.PublicStoreConfig.required, publicConfigFields);
   assert.deepEqual(Object.keys(schemas.PublicStoreConfig.properties), publicConfigFields);

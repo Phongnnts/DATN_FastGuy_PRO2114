@@ -411,6 +411,12 @@ const routes = [
         component: () => import('@/views/admin/ProductsPage.vue'),
       },
        {
+         path: 'ingredients',
+         name: 'AdminIngredients',
+         component: () => import('@/views/admin/IngredientsPage.vue'),
+         meta: { breadcrumb: [{ label: 'Kho', to: '/admin/inventory' }, { label: 'Nguyên liệu' }] },
+       },
+       {
          path: 'inventory',
          name: 'AdminInventory',
          component: () => import('@/views/admin/InventoryPage.vue'),
@@ -554,7 +560,7 @@ const pageTitles = {
   StaffOrderHistory: 'Lịch sử đơn hàng', StaffOrderDetail: 'Chi tiết đơn hàng', StaffDispatch: 'Điều phối giao hàng', StaffNotifications: 'Thông báo', StaffShifts: 'Ca làm việc', StaffProfile: 'Hồ sơ',
   ShipperDashboard: 'Tổng quan giao hàng', ShipperOrders: 'Đơn giao', ShipperOrderHistory: 'Lịch sử giao hàng',
   ShipperShifts: 'Ca làm việc', ShipperOrderDetail: 'Chi tiết đơn giao', ShipperCash: 'Đối soát COD', ShipperProfile: 'Hồ sơ', AdminDashboard: 'Tổng quan quản trị', AdminHrDashboard: 'Dashboard nhân sự', AdminUsers: 'Người dùng',
-   AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminInventory: 'Tổng quan kho', AdminRecipes: 'Công thức định lượng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
+   AdminProducts: 'Sản phẩm', AdminProductCreate: 'Thêm sản phẩm', AdminProductEdit: 'Chỉnh sửa sản phẩm', AdminIngredients: 'Nguyên liệu', AdminInventory: 'Tổng quan kho', AdminRecipes: 'Công thức định lượng', AdminInventoryLedger: 'Sổ tồn kho', AdminCategories: 'Danh mục', AdminOrders: 'Đơn hàng',
   AdminOrderDetail: 'Chi tiết đơn hàng', AdminReports: 'Báo cáo', AdminCoupons: 'Mã giảm giá', AdminBanners: 'Banner', AdminRefunds: 'Hoàn tiền', AdminCodSettlements: 'Đối soát COD',
   AdminOperatingExpenses: 'Chi phí vận hành', AdminFixedAssets: 'Tài sản cố định',
    AdminActivityLogs: 'Nhật ký hoạt động', AdminSettings: 'Cài đặt', AdminShifts: 'Ca làm việc', AdminAttendance: 'Chấm công & tiền công', AdminStockCounts: 'Kiểm kê kho', NotFound: 'Không tìm thấy trang',

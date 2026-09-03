@@ -129,7 +129,7 @@ test('buildSettingsPayload returns empty payload for read-only and unknown group
 });
 
 test('SCOPE_KEYS cover exactly the editable settings groups', () => {
-  assert.deepEqual(Object.keys(SCOPE_KEYS).sort(), ['delivery', 'fees', 'hours', 'inventory', 'store']);
+  assert.deepEqual(Object.keys(SCOPE_KEYS).sort(), ['delivery', 'fees', 'hours', 'inventory', 'notice', 'store']);
   assert.deepEqual(SCOPE_KEYS.store, ['store_name', 'store_phone', 'store_address', 'store_logo']);
   assert.deepEqual(SCOPE_KEYS.hours, ['business_open_time', 'business_close_time']);
   assert.deepEqual(SCOPE_KEYS.fees, ['service_fee', 'tax_rate', 'delivery_fee', 'min_order_amount']);

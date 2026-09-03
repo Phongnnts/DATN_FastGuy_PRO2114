@@ -117,6 +117,7 @@ const navigationGroups = [
     { label: 'Đơn hàng', path: '/admin/orders', icon: 'bi-receipt' },
   ] },
   { label: 'Kho', links: [
+    { label: 'Nguyên liệu', path: '/admin/ingredients', icon: 'bi-basket2' },
     { label: 'Tồn kho', path: '/admin/inventory', icon: 'bi-boxes' },
     { label: 'Nhập hàng', path: '/admin/inventory/receipts', icon: 'bi-box-arrow-in-down' },
     { label: 'Công thức & định mức', path: '/admin/recipes', icon: 'bi-diagram-3' },

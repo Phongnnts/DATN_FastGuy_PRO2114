@@ -38,7 +38,8 @@ INSERT dbo.SchemaMigrationHistory(migration_id,details) VALUES
     ('061_work_shift_attendance_approval', N'Canonical fresh schema baseline'),
     ('062_staff_pay_rate_snapshot', N'Canonical fresh schema baseline'),
     ('063_activity_log', N'Canonical fresh schema baseline'),
-    ('064_refund_private_proof', N'Canonical fresh schema baseline');
+    ('064_refund_private_proof', N'Canonical fresh schema baseline'),
+    ('065_warehouse_operations_redesign', N'Canonical fresh schema baseline');
 
 CREATE TABLE dbo.Category (
     category_id int IDENTITY(1,1) NOT NULL CONSTRAINT PK_Category PRIMARY KEY,
@@ -357,7 +358,7 @@ CREATE TABLE dbo.InventoryItem (
     CONSTRAINT CK_InventoryItem_CountFrequency CHECK (count_frequency IN ('DAILY','WEEKLY')),
     CONSTRAINT CK_InventoryItem_AverageUnitCost CHECK (average_unit_cost >= 0),
     CONSTRAINT CK_InventoryItem_OnHand CHECK (on_hand_quantity >= 0),
-    CONSTRAINT CK_InventoryItem_Reserved CHECK (reserved_quantity >= 0 AND reserved_quantity <= on_hand_quantity),
+    CONSTRAINT CK_InventoryItem_Reserved CHECK (reserved_quantity >= 0),
     CONSTRAINT CK_InventoryItem_Minimum CHECK (minimum_quantity >= 0)
 );
 CREATE TABLE dbo.VariantInventoryItem (
@@ -463,6 +464,7 @@ CREATE TABLE dbo.StockCountItem (
     actual_quantity decimal(19,4) NULL,
     variance_quantity decimal(19,4) NULL,
     unit_cost_snapshot decimal(19,4) NULL,
+    reserved_quantity_snapshot decimal(19,4) NOT NULL CONSTRAINT DF_StockCountItem_ReservedSnapshot DEFAULT 0,
     variance_cost decimal(19,4) NULL,
     reason_code varchar(50) NULL,
     note nvarchar(500) NULL,
@@ -797,7 +799,10 @@ INSERT dbo.ShippingConfig (config_key, config_value) VALUES
     ('ghn_from_district_id', '1442'), ('ghn_from_ward_code', '20107'),
     ('default_weight', '500'), ('default_length', '20'), ('default_width', '20'), ('default_height', '10'),
     ('default_service_type_id', '2'), ('business_open_time', '00:00'), ('business_close_time', '00:00'), ('service_fee', '0'),
-    ('low_stock_threshold', '5');
+    ('low_stock_threshold', '5'), ('morning_count_notice_enabled', '1'),
+    ('morning_count_notice_title', N'Cửa hàng đang chuẩn bị nguyên liệu'),
+    ('morning_count_notice_message', N'Chúng tôi đang kiểm kê đầu ngày. Bạn vẫn có thể xem thực đơn và đặt món theo giờ hoạt động.'),
+    ('morning_count_notice_image_url', ''), ('morning_count_notice_link', ''), ('morning_count_notice_cta_label', N'Xem thông báo');
 
 -- Demo password for every account: 123456. Hash format is the PBKDF2 format used by utils.PasswordUtil.
 DECLARE @DemoPasswordHash varchar(255) = 'pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=';
@@ -964,10 +969,10 @@ DECLARE @RequiredTables TABLE (table_name sysname PRIMARY KEY);
 INSERT @RequiredTables (table_name) VALUES
     ('SchemaMigrationHistory'), ('Users'), ('ActivityLog'), ('PasswordResetToken'), ('Address'), ('Category'), ('Product'), ('ProductVariant'),
     ('ProductModifierGroup'), ('ProductModifierOption'), ('Cart'), ('CartItem'), ('Orders'), ('OrderItem'),
-    ('Coupon'), ('CouponRedemption'), ('Banner'), ('Review'), ('OrderStatusHistory'), ('LoyaltyTransaction'), ('WorkShift'),
+    ('Coupon'), ('CouponRedemption'), ('Banner'), ('Review'), ('OrderStatusHistory'), ('LoyaltyTransaction'), ('WorkShift'), ('StaffPayRate'),
     ('PaymentAttempt'), ('InventoryItem'), ('VariantInventoryItem'), ('Recipe'), ('RecipeItem'), ('InventoryReservation'), ('InventoryReservationLegacyHistory'), ('InventoryReservationItem'), ('GoodsReceipt'), ('GoodsReceiptItem'), ('StockCount'), ('StockCountItem'), ('InventoryTransaction'), ('OperatingExpense'), ('FixedAsset'), ('CodSettlement'), ('ShippingConfig');
 DECLARE @ExpectedTableCount int = (SELECT COUNT(*) FROM @RequiredTables);
-IF @ExpectedTableCount <> 37 THROW 51020, 'Validation failed: canonical required table list must contain 37 tables.',1;
+IF @ExpectedTableCount <> 39 THROW 51020, 'Validation failed: canonical required table list must contain 39 tables.',1;
 
 IF EXISTS (
     SELECT 1 FROM @RequiredTables r
