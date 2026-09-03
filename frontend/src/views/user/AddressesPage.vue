@@ -1,7 +1,9 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { reactive, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { userApi, shippingApi } from '@/api';
 import { useToast } from '@/stores/toast';
+import FormField from '@/components/common/FormField.vue';
+import { createShippingValidationState, legacyHierarchyState, runValidatedShippingSubmit } from '@/utils/shippingFormValidation';
 
 const toast = useToast();
 const addresses = ref([]);
@@ -29,8 +31,12 @@ const loadingWards = ref(false);
 const provinceError = ref('');
 const districtError = ref('');
 const wardError = ref('');
+const shippingValidation = createShippingValidationState({ includeProvince: true });
+const shippingTouched = reactive(shippingValidation.touched);
+const shippingErrors = reactive(shippingValidation.errors);
 let pendingDistrictId = null;
 let pendingWardCode = null;
+let applyingEditHierarchy = false;
 
 onMounted(() => {
   Promise.all([loadAddresses(), loadProvinces()]);
@@ -61,10 +67,12 @@ async function loadProvinces() {
 }
 
 watch(selectedProvince, async id => {
+  if (applyingEditHierarchy) return;
   districts.value = [];
   wards.value = [];
   selectedDistrict.value = null;
   selectedWard.value = null;
+  shippingValidation.resetDependents(['district', 'ward'], shippingValues());
   addressForm.value.districtName = '';
   addressForm.value.wardName = '';
   addressForm.value.ghnDistrictId = null;
@@ -88,8 +96,11 @@ watch(selectedProvince, async id => {
 });
 
 watch(selectedDistrict, async id => {
+  if (applyingEditHierarchy) return;
   wards.value = [];
   selectedWard.value = null;
+  shippingValidation.resetDependents(['ward'], shippingValues());
+  inputShippingField('district');
   addressForm.value.wardName = '';
   addressForm.value.ghnWardCode = null;
   wardError.value = '';
@@ -145,6 +156,7 @@ function prepareModal(trigger) {
 }
 
 function openAddAddress(event) {
+  shippingValidation.reset();
   editingAddress.value = null;
   addressForm.value = { ...emptyAddress(), isDefault: addresses.value.length === 0 };
   selectedProvince.value = null;
@@ -155,17 +167,61 @@ function openAddAddress(event) {
   prepareModal(event.currentTarget);
 }
 
-function openEditAddress(addr, event) {
+async function loadEditAddressHierarchy(addr) {
+  const saved = legacyHierarchyState(addr);
+  const provinceId = saved.province;
+  const districtId = saved.district;
+  const wardCode = saved.ward;
+  applyingEditHierarchy = true;
+  selectedProvince.value = provinceId;
+  selectedDistrict.value = districtId;
+  selectedWard.value = wardCode;
+  districts.value = [];
+  wards.value = [];
+  if (!provinceId) { applyingEditHierarchy = false; return; }
+  const districtData = await shippingApi.getDistricts(provinceId);
+  districts.value = (districtData || []).map(d => ({ id: d.DistrictID || d.district_id || d.districtId, name: d.DistrictName || d.district_name || d.districtName }));
+  if (!districts.value.some(d => d.id === districtId)) { applyingEditHierarchy = false; return; }
+  selectedDistrict.value = districtId;
+  const wardData = await shippingApi.getWards(districtId);
+  wards.value = (wardData || []).map(w => ({ code: w.WardCode || w.ward_code || w.wardCode, name: w.WardName || w.ward_name || w.wardName }));
+  if (wards.value.some(w => w.code === wardCode)) selectedWard.value = wardCode;
+  await nextTick();
+  applyingEditHierarchy = false;
+  const province = provinces.value.find(item => item.id === provinceId);
+  const district = districts.value.find(item => item.id === districtId);
+  const ward = wards.value.find(item => item.code === selectedWard.value);
+  addressForm.value.provinceName = province?.name || saved.provinceName;
+  addressForm.value.districtName = district?.name || saved.districtName;
+  addressForm.value.wardName = ward?.name || saved.wardName;
+  addressForm.value.ghnProvinceId = provinceId;
+  addressForm.value.ghnDistrictId = districtId;
+  addressForm.value.ghnWardCode = selectedWard.value;
+}
+
+async function openEditAddress(addr, event) {
+  shippingValidation.reset();
   editingAddress.value = addr;
   addressForm.value = { recipientName: addr.recipientName || '', phone: addr.phone || '', street: addr.street || '', wardName: addr.wardName || '', districtName: addr.districtName || '', provinceName: addr.provinceName || '', ghnProvinceId: addr.ghnProvinceId || null, ghnDistrictId: addr.ghnDistrictId || null, ghnWardCode: addr.ghnWardCode || null, isDefault: addr.isDefault || false };
-  pendingDistrictId = addr.ghnDistrictId || null;
-  pendingWardCode = addr.ghnWardCode || null;
-  selectedProvince.value = addr.ghnProvinceId || null;
+  pendingDistrictId = null;
+  pendingWardCode = null;
+  try { await loadEditAddressHierarchy(addr); }
+  catch {
+    applyingEditHierarchy = false;
+    const saved = legacyHierarchyState(addr);
+    selectedProvince.value = saved.province;
+    selectedDistrict.value = saved.district;
+    selectedWard.value = saved.ward;
+    addressForm.value.provinceName = saved.provinceName;
+    addressForm.value.districtName = saved.districtName;
+    addressForm.value.wardName = saved.wardName;
+  }
   prepareModal(event.currentTarget);
 }
 
 function closeAddressModal() {
   if (savingAddress.value) return;
+  shippingValidation.reset();
   showAddressForm.value = false;
   nextTick(() => modalTrigger?.focus());
 }
@@ -191,19 +247,24 @@ function handleModalKeydown(event) {
   }
 }
 
+function shippingValues() { return { recipientName: addressForm.value.recipientName, phone: addressForm.value.phone, province: selectedProvince.value || addressForm.value.provinceName, district: selectedDistrict.value || addressForm.value.districtName, ward: selectedWard.value || addressForm.value.wardName, street: addressForm.value.street }; }
+function blurShippingField(field) { shippingValidation.touch(field, shippingValues()); }
+function inputShippingField(field) { shippingValidation.update(field, shippingValues()); }
+function validateShippingForm() { return shippingValidation.validateAll(shippingValues()); }
+
 async function saveAddress() {
-  const phonePattern = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+  return runValidatedShippingSubmit(shippingValidation, shippingValues(), persistAddress);
+}
+
+async function persistAddress() {
   const f = addressForm.value;
-  if (!f.recipientName?.trim() || f.recipientName.trim().length < 2) return toast.error('Tên người nhận phải có ít nhất 2 ký tự.');
-  if (!f.phone?.trim() || !phonePattern.test(f.phone.trim())) return toast.error('Số điện thoại không hợp lệ, ví dụ: 0912345678.');
-  if (!f.street?.trim() || f.street.trim().length < 5) return toast.error('Địa chỉ phải có ít nhất 5 ký tự.');
-  if (!f.wardName?.trim() || !f.districtName?.trim() || !f.provinceName?.trim()) return toast.error('Vui lòng chọn đầy đủ phường, xã; quận, huyện; tỉnh, thành phố.');
   savingAddress.value = true;
   try {
     const data = { recipientName: f.recipientName.trim(), phone: f.phone.trim(), street: f.street.trim(), wardName: f.wardName.trim(), districtName: f.districtName.trim(), provinceName: f.provinceName.trim(), ghnProvinceId: f.ghnProvinceId, ghnDistrictId: f.ghnDistrictId, ghnWardCode: f.ghnWardCode, isDefault: f.isDefault };
     if (editingAddress.value) await userApi.updateAddress(editingAddress.value.addressId, data);
     else await userApi.createAddress(data);
     toast.success(editingAddress.value ? 'Cập nhật địa chỉ thành công.' : 'Thêm địa chỉ thành công.');
+    shippingValidation.reset();
     showAddressForm.value = false;
     await loadAddresses();
     nextTick(() => modalTrigger?.focus());
@@ -261,12 +322,12 @@ async function setDefault(addr) {
     <div v-if="showAddressForm" class="modal-overlay" @mousedown.self="closeAddressModal">
       <div ref="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="address-modal-title">
         <div class="modal-header"><div><span class="section-kicker">Giao hàng</span><h2 id="address-modal-title">{{ editingAddress ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới' }}</h2></div><button type="button" class="icon-btn" aria-label="Đóng hộp thoại" :disabled="savingAddress" @click="closeAddressModal"><i class="bi bi-x-lg" aria-hidden="true"></i></button></div>
-        <form @submit.prevent="saveAddress">
+        <form novalidate @submit.prevent="saveAddress">
           <div class="modal-body">
-            <div class="form-grid"><div class="field"><label for="recipient-name">Tên người nhận</label><input id="recipient-name" ref="firstModalInput" v-model="addressForm.recipientName" class="form-input" autocomplete="name" maxlength="100" required /></div><div class="field"><label for="recipient-phone">Số điện thoại</label><input id="recipient-phone" v-model="addressForm.phone" type="tel" class="form-input" autocomplete="tel" required /></div></div>
-            <div class="field"><label for="province">Tỉnh / Thành phố</label><div class="select-action"><select id="province" v-model="selectedProvince" class="form-select" :disabled="loadingProvinces" required><option :value="null">{{ loadingProvinces ? 'Đang tải...' : 'Chọn tỉnh, thành phố' }}</option><option v-for="p in provinces" :key="p.id" :value="p.id">{{ p.name }}</option></select><button v-if="provinceError" type="button" class="retry-link" @click="loadProvinces">Tải lại</button></div><small v-if="provinceError" class="field-error" role="alert">{{ provinceError }}</small></div>
-            <div class="form-grid"><div class="field"><label for="district">Quận / Huyện</label><select id="district" v-model="selectedDistrict" class="form-select" :disabled="!selectedProvince || loadingDistricts" required><option :value="null">{{ loadingDistricts ? 'Đang tải...' : 'Chọn quận, huyện' }}</option><option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option></select><small v-if="districtError" class="field-error" role="alert">{{ districtError }} Chọn lại tỉnh để thử lại.</small></div><div class="field"><label for="ward">Phường / Xã</label><select id="ward" v-model="selectedWard" class="form-select" :disabled="!selectedDistrict || loadingWards" required><option :value="null">{{ loadingWards ? 'Đang tải...' : 'Chọn phường, xã' }}</option><option v-for="w in wards" :key="w.code" :value="w.code">{{ w.name }}</option></select><small v-if="wardError" class="field-error" role="alert">{{ wardError }} Chọn lại quận, huyện để thử lại.</small></div></div>
-            <div class="field"><label for="street">Số nhà, tên đường</label><input id="street" v-model="addressForm.street" class="form-input" autocomplete="street-address" placeholder="Ví dụ: 123 Nguyễn Huệ" maxlength="255" required /></div>
+            <div class="form-grid"><FormField id="recipient-name" label="Tên người nhận" required :error="shippingErrors.recipientName"><template #default="{ controlAttrs }"><input v-bind="controlAttrs" ref="firstModalInput" v-model="addressForm.recipientName" class="form-input" autocomplete="name" placeholder="Họ tên người nhận" maxlength="100" @blur="blurShippingField('recipientName')" @input="inputShippingField('recipientName')" /></template></FormField><FormField id="recipient-phone" label="Số điện thoại" required :error="shippingErrors.phone"><template #default="{ controlAttrs }"><input v-bind="controlAttrs" v-model="addressForm.phone" type="tel" class="form-input" autocomplete="tel" placeholder="Số điện thoại nhận hàng" @blur="blurShippingField('phone')" @input="inputShippingField('phone')" /></template></FormField></div>
+            <FormField id="province" label="Tỉnh / Thành phố" required :error="shippingErrors.province || provinceError"><template #default="{ controlAttrs }"><div class="select-action"><select v-bind="controlAttrs" v-model="selectedProvince" class="form-select" :disabled="loadingProvinces" @blur="blurShippingField('province')" @change="inputShippingField('province')"><option :value="null">{{ loadingProvinces ? 'Đang tải...' : 'Chọn tỉnh, thành phố' }}</option><option v-for="p in provinces" :key="p.id" :value="p.id">{{ p.name }}</option></select><button v-if="provinceError" type="button" class="retry-link" @click="loadProvinces">Tải lại</button></div></template></FormField>
+            <div class="form-grid"><FormField id="district" label="Quận / Huyện" required :error="shippingErrors.district || districtError"><template #default="{ controlAttrs }"><select v-bind="controlAttrs" v-model="selectedDistrict" class="form-select" :disabled="!selectedProvince || loadingDistricts" @blur="blurShippingField('district')" @change="inputShippingField('district')"><option :value="null">{{ loadingDistricts ? 'Đang tải...' : 'Chọn quận/huyện' }}</option><option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option></select></template></FormField><FormField id="ward" label="Phường / Xã" required :error="shippingErrors.ward || wardError"><template #default="{ controlAttrs }"><select v-bind="controlAttrs" v-model="selectedWard" class="form-select" :disabled="!selectedDistrict || loadingWards" @blur="blurShippingField('ward')" @change="inputShippingField('ward')"><option :value="null">{{ loadingWards ? 'Đang tải...' : 'Chọn phường/xã' }}</option><option v-for="w in wards" :key="w.code" :value="w.code">{{ w.name }}</option></select></template></FormField></div>
+            <FormField id="street" label="Số nhà, tên đường" required :error="shippingErrors.street"><template #default="{ controlAttrs }"><input v-bind="controlAttrs" v-model="addressForm.street" class="form-input" autocomplete="street-address" placeholder="VD: 123 Nguyễn Huệ" maxlength="255" @blur="blurShippingField('street')" @input="inputShippingField('street')" /></template></FormField>
             <label class="form-checkbox"><input v-model="addressForm.isDefault" type="checkbox" /><span><strong>Đặt làm địa chỉ mặc định</strong><small>Ưu tiên sử dụng cho các đơn hàng tiếp theo.</small></span></label>
           </div>
           <div class="modal-footer"><button type="button" class="btn btn-outline" :disabled="savingAddress" @click="closeAddressModal">Hủy</button><button type="submit" class="btn btn-primary" :disabled="savingAddress"><span v-if="savingAddress" class="spinner" aria-hidden="true"></span>{{ savingAddress ? 'Đang lưu...' : editingAddress ? 'Cập nhật địa chỉ' : 'Thêm địa chỉ' }}</button></div>

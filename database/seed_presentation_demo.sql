@@ -7,182 +7,143 @@ SET ANSI_WARNINGS ON;
 SET ARITHABORT ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 SET NUMERIC_ROUNDABORT OFF;
-IF DB_NAME()<>N'DemoDatabase' THROW 51800, 'Presentation demo seed target must be DemoDatabase', 1;
+IF DB_NAME()<>N'DemoDatabase' THROW 51800, 'Operations seed target must be DemoDatabase', 1;
 IF TRY_CONVERT(int,SESSION_CONTEXT(N'FASTGUY_ALLOW_PRESENTATION_DEMO_SEED'))<>1 THROW 51801, 'Set FASTGUY_ALLOW_PRESENTATION_DEMO_SEED=1 for this session', 1;
 IF NOT EXISTS(SELECT 1 FROM dbo.SchemaMigrationHistory WHERE migration_id='065_warehouse_operations_redesign') THROW 51802, 'Migration 065 is required', 1;
 
-DECLARE @ExpectedProducts int=20;
-DECLARE @ExpectedIngredients int=20;
-DECLARE @ExpectedRecipeLines int=40;
-DECLARE @ExpectedOrders int=45;
-DECLARE @ExpectedRefundOrders int=3;
-DECLARE @ExpectedCodSettlements int=4;
-DECLARE @ExpectedDemoShifts int=9;
-DECLARE @ExpectedPayRates int=2;
+DECLARE @ExpectedAdmins int=2,@ExpectedStaff int=6,@ExpectedShippers int=4,@ExpectedCustomers int=20;
+DECLARE @ExpectedProducts int=40,@ExpectedVariants int=100,@ExpectedIngredients int=40,@ExpectedRecipeLines int=200,@ExpectedOrders int=180;
+DECLARE @ExpectedReceipts int=4,@ExpectedStockCounts int=4,@ExpectedExpenses int=8,@ExpectedAssets int=5,@ExpectedBanners int=4,@ExpectedActivityLogs int=12;
+DECLARE @Now datetime2(0)=SYSDATETIME(),@StartDate date=DATEADD(day,-29,CAST(SYSDATETIME() AS date));
+DECLARE @PasswordHash varchar(255)='pbkdf2$120000$cIKZ7vyW8OayQzvnslRXqA==$BIeWj2zHjvoHTjEU8+cEQ74RG1VOzkdMT5CyTSLTp80=';
 
 BEGIN TRY
  BEGIN TRANSACTION;
-
- DECLARE @Now datetime2(0)=SYSDATETIME();
- DECLARE @ActorId int=(SELECT TOP(1) user_id FROM dbo.Users WHERE role_name='ADMIN' AND status='ACTIVE' ORDER BY user_id);
- DECLARE @StaffId int=(SELECT TOP(1) user_id FROM dbo.Users WHERE role_name='STAFF' AND status='ACTIVE' ORDER BY user_id);
- DECLARE @ShipperId int=(SELECT TOP(1) user_id FROM dbo.Users WHERE role_name='SHIPPER' AND status='ACTIVE' ORDER BY user_id);
- IF @ActorId IS NULL OR @StaffId IS NULL OR @ShipperId IS NULL THROW 51803, 'Presentation seed requires active ADMIN, STAFF and SHIPPER users', 1;
-
+ DECLARE @People TABLE(n int PRIMARY KEY,role_name varchar(20),email varchar(255),phone varchar(20),full_name nvarchar(255));
+ INSERT @People VALUES
+ (1,'ADMIN','nguyen.an@gmail.local','0908101001',N'Nguyễn Hoàng An'),(2,'ADMIN','tran.minh.chau@gmail.local','0908101002',N'Trần Minh Châu'),
+ (3,'STAFF','le.thu.ha@gmail.local','0908101003',N'Lê Thu Hà'),(4,'STAFF','pham.gia.huy@gmail.local','0908101004',N'Phạm Gia Huy'),(5,'STAFF','vo.ngoc.lan@gmail.local','0908101005',N'Võ Ngọc Lan'),(6,'STAFF','bui.quoc.bao@gmail.local','0908101006',N'Bùi Quốc Bảo'),(7,'STAFF','do.thanh.tam@gmail.local','0908101007',N'Đỗ Thanh Tâm'),(8,'STAFF','hoang.my.linh@gmail.local','0908101008',N'Hoàng Mỹ Linh'),
+ (9,'SHIPPER','nguyen.duc.long@gmail.local','0908101009',N'Nguyễn Đức Long'),(10,'SHIPPER','tran.huu.phuc@gmail.local','0908101010',N'Trần Hữu Phúc'),(11,'SHIPPER','le.tuan.kiet@gmail.local','0908101011',N'Lê Tuấn Kiệt'),(12,'SHIPPER','pham.manh.cuong@gmail.local','0908101012',N'Phạm Mạnh Cường'),
+ (13,'USER','nguyen.thao.vy@gmail.local','0908101013',N'Nguyễn Thảo Vy'),(14,'USER','tran.quang.huy@gmail.local','0908101014',N'Trần Quang Huy'),(15,'USER','le.hoai.thuong@gmail.local','0908101015',N'Lê Hoài Thương'),(16,'USER','pham.ngoc.anh@gmail.local','0908101016',N'Phạm Ngọc Anh'),(17,'USER','vo.minh.khang@gmail.local','0908101017',N'Võ Minh Khang'),(18,'USER','bui.khanh.ly@gmail.local','0908101018',N'Bùi Khánh Ly'),(19,'USER','do.gia.bao@gmail.local','0908101019',N'Đỗ Gia Bảo'),(20,'USER','hoang.thu.trang@gmail.local','0908101020',N'Hoàng Thu Trang'),(21,'USER','ngo.tuan.anh@gmail.local','0908101021',N'Ngô Tuấn Anh'),(22,'USER','dang.bich.ngoc@gmail.local','0908101022',N'Đặng Bích Ngọc'),(23,'USER','duong.thanh.nam@gmail.local','0908101023',N'Dương Thành Nam'),(24,'USER','ly.hai.yen@gmail.local','0908101024',N'Lý Hải Yến'),(25,'USER','truong.minh.thu@gmail.local','0908101025',N'Trương Minh Thư'),(26,'USER','dinh.quoc.viet@gmail.local','0908101026',N'Đinh Quốc Việt'),(27,'USER','mai.thanh.ha@gmail.local','0908101027',N'Mai Thanh Hà'),(28,'USER','cao.phuong.linh@gmail.local','0908101028',N'Cao Phương Linh'),(29,'USER','lam.hoang.son@gmail.local','0908101029',N'Lâm Hoàng Sơn'),(30,'USER','phan.ngoc.mai@gmail.local','0908101030',N'Phan Ngọc Mai'),(31,'USER','vu.thanh.dat@gmail.local','0908101031',N'Vũ Thành Đạt'),(32,'USER','ta.kim.ngan@gmail.local','0908101032',N'Tạ Kim Ngân');
+ DECLARE @OwnedUsers TABLE(user_id int PRIMARY KEY);
+ INSERT @OwnedUsers SELECT u.user_id FROM dbo.Users u JOIN @People p ON p.email=u.email AND p.phone=u.phone;
  DECLARE @OwnedOrders TABLE(order_id int PRIMARY KEY);
- INSERT @OwnedOrders SELECT order_id FROM dbo.Orders WHERE order_code LIKE 'DEMO-PRES-ORD-%';
- DECLARE @OwnedProducts TABLE(product_id int PRIMARY KEY);
- INSERT @OwnedProducts SELECT DISTINCT p.product_id FROM dbo.Product p JOIN dbo.ProductVariant v ON v.product_id=p.product_id WHERE v.sku LIKE 'DEMO-PRES-SKU-%';
+ INSERT @OwnedOrders SELECT order_id FROM dbo.Orders WHERE order_code LIKE 'FG-OPS-ORD-%' OR (LEN(order_code)=10 AND order_code LIKE 'FG-ORD-[0-9][0-9][0-9]' AND TRY_CONVERT(int,RIGHT(order_code,3)) BETWEEN 1 AND 45);
  DECLARE @OwnedVariants TABLE(variant_id int PRIMARY KEY);
- INSERT @OwnedVariants SELECT variant_id FROM dbo.ProductVariant WHERE sku LIKE 'DEMO-PRES-SKU-%';
+ INSERT @OwnedVariants SELECT variant_id FROM dbo.ProductVariant WHERE sku LIKE 'FG-OPS-SKU-%' OR (LEN(sku)=10 AND sku LIKE 'FG-SKU-[0-9][0-9][0-9]' AND TRY_CONVERT(int,RIGHT(sku,3)) BETWEEN 1 AND 40);
+ DECLARE @OwnedProducts TABLE(product_id int PRIMARY KEY); INSERT @OwnedProducts SELECT DISTINCT product_id FROM dbo.ProductVariant WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants);
  DECLARE @OwnedItems TABLE(inventory_item_id int PRIMARY KEY);
- INSERT @OwnedItems SELECT inventory_item_id FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-PRES-ING-%';
+ INSERT @OwnedItems SELECT inventory_item_id FROM dbo.InventoryItem WHERE inventory_code LIKE 'FG-OPS-ING-%' OR (LEN(inventory_code)=10 AND inventory_code LIKE 'FG-ING-[0-9][0-9][0-9]' AND TRY_CONVERT(int,RIGHT(inventory_code,3)) BETWEEN 1 AND 40);
  DECLARE @OwnedReceipts TABLE(goods_receipt_id int PRIMARY KEY);
- INSERT @OwnedReceipts SELECT goods_receipt_id FROM dbo.GoodsReceipt WHERE invoice_number LIKE N'DEMO-PRES-REC-%';
+ INSERT @OwnedReceipts SELECT goods_receipt_id FROM dbo.GoodsReceipt WHERE invoice_number LIKE N'FG-OPS-REC-%' OR invoice_number=N'FG-REC-001';
  DECLARE @OwnedCounts TABLE(stock_count_id int PRIMARY KEY);
- INSERT @OwnedCounts SELECT stock_count_id FROM dbo.StockCount WHERE created_by=@ActorId AND EXISTS(SELECT 1 FROM dbo.StockCountItem sci JOIN @OwnedItems oi ON oi.inventory_item_id=sci.inventory_item_id WHERE sci.stock_count_id=StockCount.stock_count_id);
- DECLARE @OwnedShifts TABLE(shift_id int PRIMARY KEY);
- INSERT @OwnedShifts SELECT shift_id FROM dbo.WorkShift WHERE attendance_note LIKE N'Ca dữ liệu vận hành%';
+ INSERT @OwnedCounts SELECT DISTINCT sc.stock_count_id FROM dbo.StockCount sc JOIN dbo.StockCountItem sci ON sci.stock_count_id=sc.stock_count_id WHERE sci.inventory_item_id IN(SELECT inventory_item_id FROM @OwnedItems);
+ DECLARE @OwnedShifts TABLE(shift_id int PRIMARY KEY); INSERT @OwnedShifts SELECT shift_id FROM dbo.WorkShift WHERE user_id IN(SELECT user_id FROM @OwnedUsers) OR attendance_note LIKE N'Ca dữ liệu vận hành%';
 
- DELETE FROM dbo.CodSettlement WHERE shift_id IN(SELECT shift_id FROM @OwnedShifts);
- DELETE FROM dbo.WorkShift WHERE shift_id IN(SELECT shift_id FROM @OwnedShifts);
- DELETE FROM dbo.StaffPayRate WHERE user_id IN(@StaffId,@ShipperId) AND effective_from=DATEADD(day,-30,CAST(@Now AS date));
- DELETE FROM dbo.Review WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.LoyaltyTransaction WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.CouponRedemption WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.PaymentAttempt WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.OrderStatusHistory WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.InventoryTransaction WHERE order_id IN(SELECT order_id FROM @OwnedOrders) OR goods_receipt_id IN(SELECT goods_receipt_id FROM @OwnedReceipts) OR stock_count_id IN(SELECT stock_count_id FROM @OwnedCounts) OR inventory_item_id IN(SELECT inventory_item_id FROM @OwnedItems);
- DELETE FROM dbo.InventoryReservationItem WHERE reservation_id IN(SELECT reservation_id FROM dbo.InventoryReservation WHERE order_id IN(SELECT order_id FROM @OwnedOrders));
- DELETE FROM dbo.InventoryReservation WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.OrderItem WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.StockCountItem WHERE stock_count_id IN(SELECT stock_count_id FROM @OwnedCounts);
- DELETE FROM dbo.StockCount WHERE stock_count_id IN(SELECT stock_count_id FROM @OwnedCounts);
- DELETE FROM dbo.GoodsReceiptItem WHERE goods_receipt_id IN(SELECT goods_receipt_id FROM @OwnedReceipts);
- DELETE FROM dbo.GoodsReceipt WHERE goods_receipt_id IN(SELECT goods_receipt_id FROM @OwnedReceipts);
- DELETE FROM dbo.Orders WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
- DELETE FROM dbo.RecipeItem WHERE recipe_id IN(SELECT recipe_id FROM dbo.Recipe WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants));
- DELETE FROM dbo.Recipe WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants);
- DELETE FROM dbo.VariantInventoryItem WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants) OR inventory_item_id IN(SELECT inventory_item_id FROM @OwnedItems);
- DELETE FROM dbo.ProductVariant WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants);
- DELETE FROM dbo.Product WHERE product_id IN(SELECT product_id FROM @OwnedProducts);
- DELETE FROM dbo.InventoryItem WHERE inventory_item_id IN(SELECT inventory_item_id FROM @OwnedItems);
- DELETE FROM dbo.Category WHERE description LIKE N'DEMO-PRES-CATEGORY%';
+ DELETE dbo.ActivityLog WHERE actor_user_id IN(SELECT user_id FROM @OwnedUsers) OR (action_type LIKE 'FG_OPS_%' AND target_id LIKE N'FG-OPS-%');
+ DELETE dbo.CodSettlement WHERE shift_id IN(SELECT shift_id FROM @OwnedShifts);
+ UPDATE dbo.Orders SET staff_shift_id=NULL,staff_id=NULL,shipper_id=NULL WHERE staff_shift_id IN(SELECT shift_id FROM @OwnedShifts) AND order_id NOT IN(SELECT order_id FROM @OwnedOrders);
+ DELETE dbo.WorkShift WHERE shift_id IN(SELECT shift_id FROM @OwnedShifts);
+ DELETE dbo.StaffPayRate WHERE user_id IN(SELECT user_id FROM @OwnedUsers);
+ DELETE dbo.Review WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
+ DELETE dbo.LoyaltyTransaction WHERE order_id IN(SELECT order_id FROM @OwnedOrders) OR user_id IN(SELECT user_id FROM @OwnedUsers);
+ DELETE dbo.CouponRedemption WHERE order_id IN(SELECT order_id FROM @OwnedOrders) OR user_id IN(SELECT user_id FROM @OwnedUsers);
+ DELETE dbo.Coupon WHERE code='FG-OPS-CPN-10';
+ DELETE dbo.PaymentAttempt WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
+ DELETE dbo.OrderStatusHistory WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
+ DELETE dbo.InventoryTransaction WHERE order_id IN(SELECT order_id FROM @OwnedOrders) OR goods_receipt_id IN(SELECT goods_receipt_id FROM @OwnedReceipts) OR stock_count_id IN(SELECT stock_count_id FROM @OwnedCounts) OR inventory_item_id IN(SELECT inventory_item_id FROM @OwnedItems);
+ DELETE dbo.InventoryReservationItem WHERE reservation_id IN(SELECT reservation_id FROM dbo.InventoryReservation WHERE order_id IN(SELECT order_id FROM @OwnedOrders));
+ DELETE dbo.InventoryReservation WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
+ DELETE dbo.OrderItem WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
+ DELETE dbo.Orders WHERE order_id IN(SELECT order_id FROM @OwnedOrders);
+ DELETE dbo.CartItem WHERE cart_id IN(SELECT cart_id FROM dbo.Cart WHERE user_id IN(SELECT user_id FROM @OwnedUsers));
+ DELETE dbo.Cart WHERE user_id IN(SELECT user_id FROM @OwnedUsers);
+ DELETE dbo.Address WHERE user_id IN(SELECT user_id FROM @OwnedUsers);
+ DELETE dbo.StockCountItem WHERE stock_count_id IN(SELECT stock_count_id FROM @OwnedCounts); DELETE dbo.StockCount WHERE stock_count_id IN(SELECT stock_count_id FROM @OwnedCounts);
+ DELETE dbo.GoodsReceiptItem WHERE goods_receipt_id IN(SELECT goods_receipt_id FROM @OwnedReceipts); DELETE dbo.GoodsReceipt WHERE goods_receipt_id IN(SELECT goods_receipt_id FROM @OwnedReceipts);
+ DELETE dbo.RecipeItem WHERE recipe_id IN(SELECT recipe_id FROM dbo.Recipe WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants)); DELETE dbo.Recipe WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants);
+ DELETE dbo.VariantInventoryItem WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants) OR inventory_item_id IN(SELECT inventory_item_id FROM @OwnedItems);
+ DELETE dbo.ProductModifierOption WHERE modifier_group_id IN(SELECT modifier_group_id FROM dbo.ProductModifierGroup WHERE product_id IN(SELECT product_id FROM @OwnedProducts)); DELETE dbo.ProductModifierGroup WHERE product_id IN(SELECT product_id FROM @OwnedProducts);
+ DELETE dbo.ProductVariant WHERE variant_id IN(SELECT variant_id FROM @OwnedVariants); DELETE dbo.Product WHERE product_id IN(SELECT product_id FROM @OwnedProducts); DELETE dbo.InventoryItem WHERE inventory_item_id IN(SELECT inventory_item_id FROM @OwnedItems);
+ DELETE dbo.Category WHERE description LIKE N'FG-OPS-CATEGORY-%' OR (LEN(description)=14 AND description LIKE N'FG-CATEGORY-[0-9][0-9]' AND TRY_CONVERT(int,RIGHT(description,2)) BETWEEN 1 AND 7);
+ DELETE dbo.Banner WHERE link LIKE '/menu?campaign=fg-ops-%';
+ DELETE dbo.OperatingExpense WHERE (expense_date=@StartDate AND category='RENT' AND description=N'Tiền thuê mặt bằng tháng này' AND amount=28000000) OR (expense_date=DATEADD(day,4,@StartDate) AND category='UTILITIES' AND description=N'Tiền điện khu bếp và sảnh' AND amount=6850000) OR (expense_date=DATEADD(day,8,@StartDate) AND category='MARKETING' AND description=N'Chi phí quảng bá thực đơn mới' AND amount=4200000) OR (expense_date=DATEADD(day,12,@StartDate) AND category='MAINTENANCE' AND description=N'Bảo dưỡng hệ thống hút khói' AND amount=3100000) OR (expense_date=DATEADD(day,16,@StartDate) AND category='OTHER' AND description=N'Vật tư vệ sinh cửa hàng' AND amount=1850000) OR (expense_date=DATEADD(day,20,@StartDate) AND category='UTILITIES' AND description=N'Tiền nước và internet cửa hàng' AND amount=2750000) OR (expense_date=DATEADD(day,24,@StartDate) AND category='MARKETING' AND description=N'In tờ rơi khuyến mãi cuối tuần' AND amount=1600000) OR (expense_date=DATEADD(day,28,@StartDate) AND category='MAINTENANCE' AND description=N'Bảo trì tủ đông nguyên liệu' AND amount=2400000);
+ DELETE dbo.FixedAsset WHERE (asset_name=N'Lò nướng đối lưu Unox' AND acquisition_cost=68000000 AND salvage_value=6800000 AND depreciation_start_date=DATEADD(month,-18,@StartDate) AND useful_life_months=60) OR (asset_name=N'Tủ đông inox bốn cánh' AND acquisition_cost=42000000 AND salvage_value=4200000 AND depreciation_start_date=DATEADD(month,-14,@StartDate) AND useful_life_months=60) OR (asset_name=N'Máy pha cà phê hai vòi' AND acquisition_cost=36000000 AND salvage_value=3600000 AND depreciation_start_date=DATEADD(month,-10,@StartDate) AND useful_life_months=48) OR (asset_name=N'Hệ thống máy bán hàng' AND acquisition_cost=24000000 AND salvage_value=2400000 AND depreciation_start_date=DATEADD(month,-8,@StartDate) AND useful_life_months=36) OR (asset_name=N'Xe máy giao hàng Honda Wave' AND acquisition_cost=22000000 AND salvage_value=5000000 AND depreciation_start_date=DATEADD(month,-6,@StartDate) AND useful_life_months=48);
+ DELETE dbo.Users WHERE user_id IN(SELECT user_id FROM @OwnedUsers);
 
- DECLARE @Categories TABLE(n int PRIMARY KEY,name nvarchar(100),category_id int);
- INSERT @Categories(n,name) VALUES(1,N'Bánh mì'),(2,N'Burger'),(3,N'Pizza'),(4,N'Cơm'),(5,N'Mì'),(6,N'Gà rán'),(7,N'Nước uống');
- INSERT dbo.Category(name,description,sort_order,status)
- SELECT name,CONCAT('DEMO-PRES-CATEGORY-',RIGHT('00'+CONVERT(varchar(2),n),2)),80+n,'ACTIVE' FROM @Categories;
- UPDATE c SET category_id=category.category_id FROM @Categories c JOIN dbo.Category category ON category.description=CONCAT('DEMO-PRES-CATEGORY-',RIGHT('00'+CONVERT(varchar(2),c.n),2));
+ INSERT dbo.Users(role_name,email,phone,password_hash,full_name,status,loyalty_points,favorite_ids_json,created_at,updated_at)
+ SELECT role_name,email,phone,@PasswordHash,full_name,'ACTIVE',IIF(role_name='USER',100+n*7,0),N'[]',DATEADD(day,-45,@Now),@Now FROM @People;
+ DECLARE @Users TABLE(n int PRIMARY KEY,user_id int,role_name varchar(20)); INSERT @Users SELECT p.n,u.user_id,p.role_name FROM @People p JOIN dbo.Users u ON u.email=p.email AND u.phone=p.phone;
+ DECLARE @AdminId int=(SELECT user_id FROM @Users WHERE n=1);
+ INSERT dbo.Address(user_id,recipient_name,phone,street,ward_name,district_name,province_name,ghn_province_id,ghn_district_id,ghn_ward_code,city,is_default,created_at,updated_at)
+ SELECT u.user_id,p.full_name,p.phone,CONCAT(N'Số ',20+(p.n-13)*7,N' đường Nguyễn Văn Linh'),CASE (p.n-13)%4 WHEN 0 THEN N'Phường Tân Phong' WHEN 1 THEN N'Phường Bến Nghé' WHEN 2 THEN N'Phường 7' ELSE N'Phường Thảo Điền' END,CASE (p.n-13)%4 WHEN 0 THEN N'Quận 7' WHEN 1 THEN N'Quận 1' WHEN 2 THEN N'Quận 3' ELSE N'Thành phố Thủ Đức' END,N'TP. Hồ Chí Minh',202,IIF((p.n-13)%4=0,1450,IIF((p.n-13)%4=1,1442,IIF((p.n-13)%4=2,1444,3695))),CONCAT('20',RIGHT('00'+CONVERT(varchar(2),p.n),2)),N'TP. Hồ Chí Minh',1,@Now,@Now FROM @People p JOIN @Users u ON u.n=p.n WHERE p.role_name='USER';
 
- DECLARE @Products TABLE(n int PRIMARY KEY,category_n int,name nvarchar(255),description nvarchar(500),price decimal(18,2));
- INSERT @Products VALUES
- (1,1,N'Bánh mì thịt nướng',N'Thịt nướng thơm, đồ chua và rau tươi trong ổ bánh giòn.',35000),(2,1,N'Bánh mì gà xé',N'Gà xé mềm, sốt bơ trứng và dưa leo tươi.',32000),(3,1,N'Bánh mì bò sốt tiêu',N'Bò mềm đậm vị cùng sốt tiêu đen.',42000),
- (4,2,N'Burger bò phô mai',N'Bò nướng, phô mai và rau xà lách.',59000),(5,2,N'Burger gà giòn',N'Gà giòn, bắp cải và sốt mayonnaise.',52000),(6,2,N'Burger hai tầng',N'Hai lớp bò nướng cùng phô mai tan chảy.',79000),
- (7,3,N'Pizza hải sản',N'Tôm, mực, ớt chuông và phô mai mozzarella.',129000),(8,3,N'Pizza xúc xích',N'Xúc xích, sốt cà chua và phô mai.',99000),(9,3,N'Pizza gà nấm',N'Gà nướng, nấm và hành tây.',109000),
- (10,4,N'Cơm gà sốt tiêu',N'Cơm nóng dùng cùng gà sốt tiêu đen.',55000),(11,4,N'Cơm bò lúc lắc',N'Bò lúc lắc, rau củ và cơm thơm.',69000),(12,4,N'Cơm sườn nướng',N'Sườn nướng mật ong, đồ chua và mỡ hành.',62000),
- (13,5,N'Mì Ý bò bằm',N'Mì Ý với sốt cà chua và bò bằm.',65000),(14,5,N'Mì xào hải sản',N'Mì xào tôm mực và rau cải.',68000),(15,5,N'Mì gà cay',N'Mì dai, gà mềm và nước sốt cay vừa.',58000),
- (16,6,N'Gà rán giòn cay',N'Gà rán lớp vỏ giòn với vị cay nhẹ.',45000),(17,6,N'Gà sốt mật ong',N'Gà rán phủ sốt mật ong thơm ngọt.',49000),(18,6,N'Cánh gà sốt tỏi',N'Cánh gà giòn phủ sốt tỏi đậm đà.',52000),
- (19,7,N'Trà đào cam sả',N'Trà đào thanh mát với cam và sả.',29000),(20,7,N'Coca-Cola',N'Nước ngọt có ga dùng lạnh.',22000);
- INSERT dbo.Product(category_id,name,description,base_price,gallery_images,is_new,spice_level,status,available_from,available_to,created_at,updated_at)
- SELECT c.category_id,p.name,p.description,p.price,N'[]',IIF(p.n<=5,1,0),p.n%4,IIF(p.n=20,'UNAVAILABLE','AVAILABLE'),'08:00','22:00',DATEADD(day,-30,@Now),@Now FROM @Products p JOIN @Categories c ON c.n=p.category_n;
+ DECLARE @Categories TABLE(n int PRIMARY KEY,name nvarchar(100),category_id int); INSERT @Categories(n,name) VALUES(1,N'Bánh mì'),(2,N'Burger'),(3,N'Pizza'),(4,N'Cơm'),(5,N'Mì'),(6,N'Gà rán'),(7,N'Nước uống');
+ INSERT dbo.Category(name,description,sort_order,status) SELECT name,CONCAT('FG-OPS-CATEGORY-',RIGHT('00'+CONVERT(varchar(2),n),2)),n,'ACTIVE' FROM @Categories;
+ UPDATE c SET category_id=x.category_id FROM @Categories c JOIN dbo.Category x ON x.description=CONCAT('FG-OPS-CATEGORY-',RIGHT('00'+CONVERT(varchar(2),c.n),2));
+ DECLARE @Products TABLE(n int PRIMARY KEY,category_n int,name nvarchar(255),price decimal(18,2));
+ INSERT @Products VALUES (1,1,N'Bánh mì thịt nướng',35000),(2,1,N'Bánh mì gà xé',34000),(3,1,N'Bánh mì bò sốt tiêu',42000),(4,1,N'Bánh mì xíu mại',38000),(5,1,N'Bánh mì chả lụa',33000),(6,1,N'Bánh mì trứng ốp la',30000),(7,2,N'Burger bò phô mai',59000),(8,2,N'Burger gà giòn',52000),(9,2,N'Burger bò hai tầng',79000),(10,2,N'Burger cá giòn',55000),(11,2,N'Burger thịt xông khói',69000),(12,2,N'Burger nấm phô mai',54000),(13,3,N'Pizza hải sản',129000),(14,3,N'Pizza xúc xích',99000),(15,3,N'Pizza gà nấm',109000),(16,3,N'Pizza bò bằm',119000),(17,3,N'Pizza rau củ',95000),(18,3,N'Pizza thịt xông khói',125000),(19,4,N'Cơm gà sốt tiêu',55000),(20,4,N'Cơm bò lúc lắc',69000),(21,4,N'Cơm sườn nướng',62000),(22,4,N'Cơm gà teriyaki',59000),(23,4,N'Cơm cá chiên giòn',58000),(24,4,N'Cơm thịt kho trứng',57000),(25,5,N'Mì Ý bò bằm',65000),(26,5,N'Mì xào hải sản',68000),(27,5,N'Mì gà cay',58000),(28,5,N'Mì Ý sốt kem nấm',67000),(29,5,N'Mì xào bò',64000),(30,5,N'Mì Ý xúc xích',60000),(31,6,N'Gà rán giòn cay',45000),(32,6,N'Gà sốt mật ong',49000),(33,6,N'Cánh gà sốt tỏi',52000),(34,6,N'Gà sốt phô mai',54000),(35,6,N'Gà sốt Hàn Quốc',53000),(36,7,N'Trà đào cam sả',29000),(37,7,N'Trà vải',28000),(38,7,N'Trà chanh mật ong',27000),(39,7,N'Cà phê sữa đá',25000),(40,7,N'Nước ép cam',32000);
+ INSERT dbo.Product(category_id,name,description,base_price,gallery_images,is_new,spice_level,status,available_from,available_to,created_at,updated_at) SELECT c.category_id,p.name,CONCAT(N'Chế biến tươi trong ngày, hương vị cân bằng của ',LOWER(p.name),N'.'),p.price,N'[]',IIF(p.n<=6,1,0),p.n%4,'AVAILABLE','08:00','22:00',DATEADD(day,-45,@Now),@Now FROM @Products p JOIN @Categories c ON c.n=p.category_n;
+ DECLARE @ProductIds TABLE(n int PRIMARY KEY,product_id int); INSERT @ProductIds SELECT p.n,x.product_id FROM @Products p JOIN dbo.Product x ON x.name=p.name AND x.category_id=(SELECT category_id FROM @Categories WHERE n=p.category_n);
+ ;WITH sizes AS(SELECT p.n,p.product_id,s.s,CASE s.s WHEN 1 THEN N'Nhỏ' WHEN 2 THEN N'Vừa' ELSE N'Lớn' END variant_name FROM @ProductIds p CROSS APPLY(SELECT 1 s UNION ALL SELECT 2 UNION ALL SELECT 3 WHERE p.n<=20)s)
  INSERT dbo.ProductVariant(product_id,variant_name,price,original_price,sku,quantity_available,inventory_mode,weight,length,width,height,is_default,status,created_at,updated_at)
- SELECT product.product_id,N'Tiêu chuẩn',x.price,IIF(x.n%4=0,x.price+10000,NULL),CONCAT('DEMO-PRES-SKU-',RIGHT('00'+CONVERT(varchar(2),x.n),2)),NULL,'INGREDIENT',400+x.n*10,20,20,10,1,IIF(x.n=20,'UNAVAILABLE','AVAILABLE'),DATEADD(day,-30,@Now),@Now
- FROM @Products x JOIN dbo.Product product ON product.name=x.name;
+ SELECT z.product_id,z.variant_name,p.price+(z.s-1)*IIF(p.category_n=3,30000,10000),NULL,CONCAT('FG-OPS-SKU-',RIGHT('000'+CONVERT(varchar(3),z.n),3),'-',z.s),NULL,'INGREDIENT',350+z.s*120,18+z.s*2,18+z.s*2,8+z.s, IIF(z.s=2,1,0),'AVAILABLE',@Now,@Now FROM sizes z JOIN @Products p ON p.n=z.n;
+ DECLARE @Ingredients TABLE(n int PRIMARY KEY,name nvarchar(255),unit varchar(10));
+ ;WITH n AS(SELECT 1 n UNION ALL SELECT n+1 FROM n WHERE n<40) INSERT @Ingredients SELECT n,CASE n WHEN 1 THEN N'Bánh mì' WHEN 2 THEN N'Thịt heo nướng' WHEN 3 THEN N'Thịt gà' WHEN 4 THEN N'Thịt bò' WHEN 5 THEN N'Xíu mại' WHEN 6 THEN N'Chả lụa' WHEN 7 THEN N'Trứng gà' WHEN 8 THEN N'Rau và đồ chua' WHEN 9 THEN N'Vỏ bánh burger' WHEN 10 THEN N'Phô mai' WHEN 11 THEN N'Cá phi lê' WHEN 12 THEN N'Thịt xông khói' WHEN 13 THEN N'Nấm' WHEN 14 THEN N'Đế bánh pizza' WHEN 15 THEN N'Phô mai mozzarella' WHEN 16 THEN N'Tôm' WHEN 17 THEN N'Mực' WHEN 18 THEN N'Xúc xích' WHEN 19 THEN N'Sốt cà chua' WHEN 20 THEN N'Rau củ hỗn hợp' WHEN 21 THEN N'Gạo' WHEN 22 THEN N'Sườn heo' WHEN 23 THEN N'Cá basa' WHEN 24 THEN N'Thịt kho' WHEN 25 THEN N'Mì Ý' WHEN 26 THEN N'Mì trứng' WHEN 27 THEN N'Sốt tiêu đen' WHEN 28 THEN N'Sốt teriyaki' WHEN 29 THEN N'Sốt kem nấm' WHEN 30 THEN N'Bột chiên giòn' WHEN 31 THEN N'Mật ong' WHEN 32 THEN N'Tỏi' WHEN 33 THEN N'Sốt phô mai' WHEN 34 THEN N'Sốt cay Hàn Quốc' WHEN 35 THEN N'Trà đen' WHEN 36 THEN N'Đào ngâm' WHEN 37 THEN N'Vải ngâm' WHEN 38 THEN N'Chanh tươi' WHEN 39 THEN N'Cà phê' ELSE N'Cam tươi' END,CASE n%3 WHEN 0 THEN 'ML' WHEN 1 THEN 'G' ELSE 'PIECE' END FROM n;
+ INSERT dbo.InventoryItem(name,item_type,base_unit,inventory_code,count_frequency,average_unit_cost,on_hand_quantity,reserved_quantity,minimum_quantity,active,created_at,updated_at) SELECT name,'INGREDIENT',unit,CONCAT('FG-OPS-ING-',RIGHT('000'+CONVERT(varchar(3),n),3)),IIF(n%2=0,'DAILY','WEEKLY'),30+n*12,8000+n*100,0,500,1,@Now,@Now FROM @Ingredients;
+ INSERT dbo.Recipe(variant_id,yield_quantity,active,created_at,updated_at) SELECT variant_id,1,1,@Now,@Now FROM dbo.ProductVariant WHERE sku LIKE 'FG-OPS-SKU-%';
+ INSERT dbo.RecipeItem(recipe_id,inventory_item_id,quantity) SELECT r.recipe_id,i.inventory_item_id,CASE WHEN i.base_unit='PIECE' THEN vsize.s ELSE (40+(p.n%5)*10)*vsize.s END FROM dbo.ProductVariant v JOIN @ProductIds p ON p.product_id=v.product_id CROSS APPLY(VALUES(TRY_CONVERT(int,RIGHT(v.sku,1))))vsize(s) JOIN dbo.Recipe r ON r.variant_id=v.variant_id JOIN dbo.InventoryItem i ON i.inventory_code=CONCAT('FG-OPS-ING-',RIGHT('000'+CONVERT(varchar(3),p.n),3)) WHERE v.sku LIKE 'FG-OPS-SKU-%' UNION ALL SELECT r.recipe_id,i.inventory_item_id,20*vsize.s FROM dbo.ProductVariant v JOIN @ProductIds p ON p.product_id=v.product_id CROSS APPLY(VALUES(TRY_CONVERT(int,RIGHT(v.sku,1))))vsize(s) JOIN dbo.Recipe r ON r.variant_id=v.variant_id JOIN dbo.InventoryItem i ON i.inventory_code=CONCAT('FG-OPS-ING-',RIGHT('000'+CONVERT(varchar(3),IIF(p.n=40,1,p.n+1)),3)) WHERE v.sku LIKE 'FG-OPS-SKU-%';
+ INSERT dbo.ProductModifierGroup(product_id,name,min_selections,max_selections,is_active,sort_order) SELECT product_id,IIF(n>=36,N'Mức đá và đường',N'Món thêm'),0,2,1,1 FROM @ProductIds;
+ INSERT dbo.ProductModifierOption(modifier_group_id,name,price,is_active,sort_order) SELECT g.modifier_group_id,x.name,x.price,1,x.sort_order FROM dbo.ProductModifierGroup g JOIN @ProductIds p ON p.product_id=g.product_id CROSS APPLY(VALUES(N'Không thêm',0,1),(IIF(p.n>=36,N'Ít đá',N'Thêm phô mai'),IIF(p.n>=36,0,12000),2),(IIF(p.n>=36,N'Ít đường',N'Thêm rau'),IIF(p.n>=36,0,6000),3))x(name,price,sort_order);
 
- DECLARE @Ingredients TABLE(n int PRIMARY KEY,code varchar(30),unit varchar(10),qty decimal(19,4),cost decimal(19,4));
- ;WITH n AS(SELECT 1 n UNION ALL SELECT n+1 FROM n WHERE n<20)
- INSERT @Ingredients SELECT n,CONCAT('DEMO-PRES-ING-',RIGHT('00'+CONVERT(varchar(2),n),2)),CASE n%3 WHEN 0 THEN 'G' WHEN 1 THEN 'ML' ELSE 'PIECE' END,5000+n*250,10+n*5 FROM n;
- INSERT dbo.InventoryItem(name,item_type,base_unit,inventory_code,count_frequency,average_unit_cost,on_hand_quantity,reserved_quantity,minimum_quantity,active,created_at,updated_at)
- SELECT CASE n WHEN 1 THEN N'Bột mì' WHEN 2 THEN N'Thịt bò' WHEN 3 THEN N'Thịt gà' WHEN 4 THEN N'Phô mai' WHEN 5 THEN N'Cà chua' WHEN 6 THEN N'Rau xà lách' WHEN 7 THEN N'Tôm' WHEN 8 THEN N'Mực' WHEN 9 THEN N'Gạo' WHEN 10 THEN N'Sườn heo' WHEN 11 THEN N'Mì Ý' WHEN 12 THEN N'Mì trứng' WHEN 13 THEN N'Nấm' WHEN 14 THEN N'Hành tây' WHEN 15 THEN N'Tỏi' WHEN 16 THEN N'Mật ong' WHEN 17 THEN N'Trà đào' WHEN 18 THEN N'Cam tươi' WHEN 19 THEN N'Sả' ELSE N'Nước giải khát' END,'INGREDIENT',unit,code,IIF(n%2=0,'DAILY','WEEKLY'),cost,qty,0,500,1,DATEADD(day,-30,@Now),@Now FROM @Ingredients;
- INSERT dbo.Recipe(variant_id,yield_quantity,active,created_at,updated_at)
- SELECT variant_id,1,1,DATEADD(day,-30,@Now),@Now FROM dbo.ProductVariant WHERE sku LIKE 'DEMO-PRES-SKU-%';
- INSERT dbo.RecipeItem(recipe_id,inventory_item_id,quantity)
- SELECT r.recipe_id,i.inventory_item_id,CASE x.line_no WHEN 1 THEN 1 ELSE 25 END
- FROM @Products p CROSS JOIN(VALUES(1),(2))x(line_no)
- JOIN dbo.ProductVariant v ON v.sku=CONCAT('DEMO-PRES-SKU-',RIGHT('00'+CONVERT(varchar(2),p.n),2))
- JOIN dbo.Recipe r ON r.variant_id=v.variant_id
- JOIN dbo.InventoryItem i ON i.inventory_code=CONCAT('DEMO-PRES-ING-',RIGHT('00'+CONVERT(varchar(2),CASE WHEN x.line_no=1 THEN p.n ELSE p.n%20+1 END),2));
+ UPDATE u SET favorite_ids_json=CONCAT('[',p1.product_id,',',p2.product_id,']') FROM dbo.Users u JOIN @Users x ON x.user_id=u.user_id AND x.role_name='USER' JOIN @ProductIds p1 ON p1.n=((x.n-13)%40)+1 JOIN @ProductIds p2 ON p2.n=((x.n-8)%40)+1;
+ INSERT dbo.Cart(user_id,created_at,updated_at) SELECT user_id,@Now,@Now FROM @Users WHERE role_name='USER' AND n%2=1;
+ INSERT dbo.CartItem(cart_id,product_id,variant_id,quantity,unit_price,modifiers_json,created_at,updated_at) SELECT c.cart_id,p.product_id,v.variant_id,1,v.price,N'[]',@Now,@Now FROM dbo.Cart c JOIN @Users u ON u.user_id=c.user_id JOIN @ProductIds p ON p.n=((u.n-13)%40)+1 CROSS APPLY(SELECT TOP(1) * FROM dbo.ProductVariant v WHERE v.product_id=p.product_id AND v.is_default=1)v;
+ INSERT dbo.Coupon(code,type,value,min_order,max_discount,max_uses,used_count,expires_at,is_active,is_public,created_at,updated_at) VALUES('FG-OPS-CPN-10','PERCENT',10,60000,25000,1000,0,DATEADD(day,30,@Now),1,1,@Now,@Now);
 
- IF EXISTS(SELECT 1 FROM dbo.Coupon WHERE code='DEMO-PRES-CPN-10')
-  UPDATE dbo.Coupon SET type='PERCENT',value=10,min_order=50000,max_discount=20000,max_uses=100,expires_at=DATEADD(day,30,@Now),is_active=1,is_public=1,updated_at=@Now WHERE code='DEMO-PRES-CPN-10';
- ELSE
-  INSERT dbo.Coupon(code,type,value,min_order,max_discount,max_uses,used_count,expires_at,is_active,is_public,created_at,updated_at)
-  VALUES('DEMO-PRES-CPN-10','PERCENT',10,50000,20000,100,0,DATEADD(day,30,@Now),1,1,@Now,@Now);
+ DECLARE @Orders TABLE(n int PRIMARY KEY,order_id int,status varchar(30),user_id int,product_n int,created_at datetime2(0),amount decimal(18,2),payment_method varchar(50));
+ ;WITH n AS(SELECT 1 n UNION ALL SELECT n+1 FROM n WHERE n<180),src AS(SELECT n,DATEADD(minute,480+(n*37)%780,DATEADD(day,(n-1)%30,CAST(@StartDate AS datetime2))) created_at FROM n)
+ INSERT dbo.Orders(order_code,idempotency_key,idempotency_owner,user_id,customer_name,customer_phone,customer_address,to_province_name,to_district_name,to_ward_name,ghn_province_id,ghn_district_id,ghn_ward_code,total_amount,shipping_fee,service_fee,final_amount,cod_collected_amount,cod_collected_at,shipping_provider,payment_method,payment_status,paid_at,order_status,status_entered_at,confirmed_at,ready_at,picked_up_at,delivered_at,cancelled_at,failure_reason,delivery_attempt_count,delivery_attempt_limit,delivery_failure_code,delivery_failed_at,returned_to_store_at,cancelled_by,discount_amount,delivery_note,created_at,updated_at)
+ OUTPUT CONVERT(int,RIGHT(inserted.order_code,3)),inserted.order_id,inserted.order_status,inserted.user_id,((CONVERT(int,RIGHT(inserted.order_code,3))-1)%40)+1,inserted.created_at,inserted.final_amount,inserted.payment_method INTO @Orders
+ SELECT CONCAT('FG-OPS-ORD-',RIGHT('000'+CONVERT(varchar(3),s.n),3)),CONCAT('FG-OPS-IDEMP-',RIGHT('000'+CONVERT(varchar(3),s.n),3)),'FG-OPS-SEED',u.user_id,ppl.full_name,ppl.phone,CONCAT(a.street,N', ',a.ward_name,N', ',a.district_name),a.province_name,a.district_name,a.ward_name,a.ghn_province_id,a.ghn_district_id,a.ghn_ward_code,v.price,15000,0,v.price+15000,CASE WHEN s.n%3<>0 AND (s.n%10 IN(0,1,2,3,4,5)) THEN v.price+15000 END,CASE WHEN s.n%3<>0 AND (s.n%10 IN(0,1,2,3,4,5)) THEN DATEADD(minute,100,s.created_at) END,'GHN',IIF(s.n%3=0,'BANK_TRANSFER','COD'),CASE WHEN s.n%10 IN(6,7) THEN 'UNPAID' WHEN s.n%10=8 THEN 'FAILED' ELSE 'PAID' END,CASE WHEN s.n%10 NOT IN(6,7,8) THEN DATEADD(minute,8,s.created_at) END,CASE s.n%10 WHEN 0 THEN 'DELIVERED' WHEN 1 THEN 'DELIVERED' WHEN 2 THEN 'DELIVERED' WHEN 3 THEN 'DELIVERED' WHEN 4 THEN 'DELIVERY_FAILED' WHEN 5 THEN 'RETURNED_TO_STORE' WHEN 6 THEN 'PENDING' WHEN 7 THEN 'CANCELLED' WHEN 8 THEN 'CONFIRMED' ELSE 'READY' END,DATEADD(minute,120,s.created_at),CASE WHEN s.n%10<>6 THEN DATEADD(minute,12,s.created_at) END,CASE WHEN s.n%10 IN(0,1,2,3,4,5,9) THEN DATEADD(minute,35,s.created_at) END,CASE WHEN s.n%10 IN(0,1,2,3,4,5) THEN DATEADD(minute,55,s.created_at) END,CASE WHEN s.n%10 IN(0,1,2,3) THEN DATEADD(minute,100,s.created_at) END,CASE WHEN s.n%10=7 THEN DATEADD(minute,20,s.created_at) END,CASE WHEN s.n%10 IN(4,5) THEN N'Khách không liên lạc được sau hai lần gọi' END,IIF(s.n%10 IN(4,5),2,0),2,CASE WHEN s.n%10 IN(4,5) THEN 'CUSTOMER_UNREACHABLE' END,CASE WHEN s.n%10 IN(4,5) THEN DATEADD(minute,95,s.created_at) END,CASE WHEN s.n%10=5 THEN DATEADD(minute,130,s.created_at) END,CASE WHEN s.n%10=7 THEN 'CUSTOMER' END,0,CASE s.n%4 WHEN 0 THEN N'Gọi trước khi giao giúp tôi' WHEN 1 THEN N'Giao tại quầy bảo vệ' WHEN 2 THEN N'Không dùng muỗng nhựa' ELSE N'Xin giao đúng khung giờ' END,s.created_at,@Now FROM src s JOIN @Users u ON u.n=13+((s.n-1)%20) JOIN @People ppl ON ppl.n=u.n JOIN dbo.Address a ON a.user_id=u.user_id JOIN @ProductIds p ON p.n=((s.n-1)%40)+1 CROSS APPLY(SELECT TOP(1) * FROM dbo.ProductVariant v WHERE v.product_id=p.product_id AND v.is_default=1)v OPTION(MAXRECURSION 200);
+ INSERT dbo.OrderItem(order_id,product_id,variant_id,product_name,variant_name,quantity,unit_price,total_price,unit_cost_snapshot,total_cost_snapshot,modifiers_json) SELECT o.order_id,p.product_id,v.variant_id,pr.name,v.variant_name,1,v.price,v.price,v.price*.35,v.price*.35,N'[]' FROM @Orders o JOIN @ProductIds p ON p.n=o.product_n JOIN @Products pr ON pr.n=p.n CROSS APPLY(SELECT TOP(1) * FROM dbo.ProductVariant v WHERE v.product_id=p.product_id AND v.is_default=1)v;
+ INSERT dbo.OrderStatusHistory(order_id,actor_user_id,actor_role,from_status,to_status,note,created_at) SELECT order_id,@AdminId,'SYSTEM',NULL,status,N'Ghi nhận trạng thái theo tiến trình vận hành',DATEADD(minute,1,created_at) FROM @Orders;
+ INSERT dbo.PaymentAttempt(order_id,provider,provider_reference,amount,status,created_at,updated_at) SELECT order_id,IIF(payment_method='BANK_TRANSFER','PAYOS','COD'),CONCAT('FG-OPS-PAY-',RIGHT('000'+CONVERT(varchar(3),n),3)),amount,CASE WHEN status IN('PENDING','CANCELLED') THEN 'PENDING' WHEN n%10=8 THEN 'FAILED' ELSE 'PAID' END,created_at,@Now FROM @Orders;
+ INSERT dbo.InventoryReservation(order_id,status,created_at) SELECT order_id,IIF(status='DELIVERED','CONSUMED',IIF(status IN('CANCELLED','DELIVERY_FAILED','RETURNED_TO_STORE'),'RELEASED','RESERVED')),created_at FROM @Orders;
+ INSERT dbo.InventoryReservationItem(reservation_id,inventory_item_id,quantity) SELECT r.reservation_id,i.inventory_item_id,50 FROM dbo.InventoryReservation r JOIN @Orders o ON o.order_id=r.order_id JOIN dbo.InventoryItem i ON i.inventory_code=CONCAT('FG-OPS-ING-',RIGHT('000'+CONVERT(varchar(3),o.product_n),3));
+ INSERT dbo.LoyaltyTransaction(user_id,order_id,transaction_type,points,created_at) SELECT user_id,order_id,'EARN',10+n%25,DATEADD(minute,110,created_at) FROM @Orders WHERE status='DELIVERED';
+ INSERT dbo.Review(user_id,order_id,product_id,rating,comment,is_featured,homepage_consent,created_at,updated_at) SELECT o.user_id,o.order_id,p.product_id,CASE o.n%10 WHEN 0 THEN 3 WHEN 1 THEN 4 ELSE 5 END,CASE o.n%4 WHEN 0 THEN N'Món còn nóng, phần ăn vừa đủ và đóng gói chắc chắn.' WHEN 1 THEN N'Giao hàng đúng giờ, hương vị đậm đà và dễ ăn.' WHEN 2 THEN N'Rau tươi, món trình bày gọn và nhân viên thân thiện.' ELSE N'Thức ăn ngon, bao bì sạch sẽ, sẽ tiếp tục ủng hộ.' END,IIF(o.n%12=0,1,0),IIF(o.n%12=0,1,0),DATEADD(hour,2,o.created_at),@Now FROM @Orders o JOIN @ProductIds p ON p.n=o.product_n WHERE o.status='DELIVERED';
+ DECLARE @CouponId int=(SELECT coupon_id FROM dbo.Coupon WHERE code='FG-OPS-CPN-10');
+ INSERT dbo.CouponRedemption(coupon_id,user_id,order_id,claimed_at,used_at,discount_amount,created_at,updated_at) SELECT @CouponId,u.user_id,CASE WHEN u.n%2=0 THEN o.order_id END,DATEADD(day,-10,@Now),CASE WHEN u.n%2=0 THEN o.created_at END,CASE WHEN u.n%2=0 THEN 10000 END,@Now,@Now FROM @Users u OUTER APPLY(SELECT TOP(1) order_id,created_at FROM @Orders WHERE user_id=u.user_id ORDER BY n)o WHERE u.role_name='USER';
+ UPDATE dbo.Coupon SET used_count=(SELECT COUNT(*) FROM dbo.CouponRedemption WHERE coupon_id=@CouponId AND used_at IS NOT NULL) WHERE coupon_id=@CouponId;
 
- DECLARE @Orders TABLE(n int PRIMARY KEY,order_id int,status varchar(30),payment_method varchar(50),payment_status varchar(20),created_at datetime2(0),amount decimal(18,2));
- ;WITH n AS(SELECT 1 n UNION ALL SELECT n+1 FROM n WHERE n<45)
- INSERT dbo.Orders(order_code,idempotency_key,customer_name,customer_phone,customer_address,total_amount,shipping_fee,service_fee,final_amount,cod_collected_amount,cod_collected_at,shipping_provider,payment_method,payment_status,paid_at,order_status,status_entered_at,confirmed_at,ready_at,picked_up_at,delivered_at,cancelled_at,failure_reason,delivery_attempt_count,delivery_attempt_limit,delivery_failure_code,delivery_failed_at,returned_to_store_at,cancelled_by,coupon_code,discount_amount,delivery_note,created_at,updated_at)
- OUTPUT CONVERT(int,RIGHT(inserted.order_code,3)),inserted.order_id,inserted.order_status,inserted.payment_method,inserted.payment_status,inserted.created_at,inserted.final_amount INTO @Orders(n,order_id,status,payment_method,payment_status,created_at,amount)
- SELECT CONCAT('DEMO-PRES-ORD-',RIGHT('000'+CONVERT(varchar(3),seq.n),3)),CONCAT('DEMO-PRES-IDEMP-',RIGHT('000'+CONVERT(varchar(3),seq.n),3)),CONCAT(N'Khách hàng ',seq.n),CONCAT('090000',RIGHT('0000'+CONVERT(varchar(4),seq.n),4)),CONCAT(N'Số ',seq.n,N' Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh'),
-        product.price,15000,0,product.price+15000,NULL,NULL,'GHN',IIF(seq.n%3=0,'BANK_TRANSFER','COD'),
-        CASE WHEN seq.n<=7 THEN 'PAID' WHEN seq.n%10=0 THEN 'FAILED' WHEN seq.n%10=1 THEN 'UNPAID' ELSE 'PAID' END,
-        CASE WHEN seq.n<=7 OR seq.n%10 NOT IN(0,1) THEN DATEADD(minute,10,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n<=7 THEN 'DELIVERED' ELSE CASE seq.n%10 WHEN 0 THEN 'CANCELLED' WHEN 1 THEN 'PENDING' WHEN 2 THEN 'CONFIRMED' WHEN 3 THEN 'PREPARING' WHEN 4 THEN 'READY' WHEN 5 THEN 'ASSIGNED' WHEN 6 THEN 'PICKED_UP' WHEN 7 THEN 'DELIVERY_FAILED' WHEN 8 THEN 'RETURNED_TO_STORE' ELSE 'DELIVERED' END END,
-        DATEADD(hour,2,DATEADD(day,-((seq.n-1)%30),@Now)),
-        CASE WHEN seq.n<=7 OR seq.n%10 IN(2,3,4,5,6,7,8,9) THEN DATEADD(minute,15,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n<=7 OR seq.n%10 IN(4,5,6,7,8,9) THEN DATEADD(minute,30,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n<=7 OR seq.n%10 IN(6,7,8,9) THEN DATEADD(minute,45,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n<=7 OR seq.n%10=9 THEN DATEADD(hour,2,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n>7 AND seq.n%10=0 THEN DATEADD(hour,1,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n>7 AND seq.n%10 IN(7,8) THEN N'Khách không liên lạc được' END,
-        IIF(seq.n>7 AND seq.n%10 IN(7,8),1,0),2,CASE WHEN seq.n>7 AND seq.n%10 IN(7,8) THEN 'CUSTOMER_UNREACHABLE' END,
-        CASE WHEN seq.n>7 AND seq.n%10 IN(7,8) THEN DATEADD(hour,1,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n>7 AND seq.n%10=8 THEN DATEADD(hour,3,DATEADD(day,-((seq.n-1)%30),@Now)) END,
-        CASE WHEN seq.n>7 AND seq.n%10=0 THEN 'CUSTOMER' END,NULL,0,N'Giao hàng tận nơi',DATEADD(day,-((seq.n-1)%30),@Now),@Now FROM n seq JOIN @Products product ON product.n=((seq.n-1)%20)+1;
-
- INSERT dbo.OrderItem(order_id,product_id,variant_id,product_name,variant_name,quantity,unit_price,total_price,unit_cost_snapshot,total_cost_snapshot,modifiers_json)
- SELECT o.order_id,p.product_id,v.variant_id,p.name,v.variant_name,1,v.price,v.price,v.price*.35,v.price*.35,N'[]'
- FROM @Orders o JOIN dbo.ProductVariant v ON v.sku=CONCAT('DEMO-PRES-SKU-',RIGHT('00'+CONVERT(varchar(2),((o.n-1)%20)+1),2)) JOIN dbo.Product p ON p.product_id=v.product_id;
- INSERT dbo.OrderStatusHistory(order_id,actor_user_id,actor_role,from_status,to_status,note,created_at)
- SELECT order_id,@ActorId,'SYSTEM',NULL,status,N'DEMO-PRES-HISTORY',created_at FROM @Orders;
- INSERT dbo.PaymentAttempt(order_id,provider,provider_reference,amount,status,created_at,updated_at)
- SELECT order_id,IIF(payment_method='BANK_TRANSFER','PAYOS','COD'),CONCAT('DEMO-PRES-PAY-',RIGHT('000'+CONVERT(varchar(3),n),3)),amount,CASE payment_status WHEN 'PAID' THEN 'PAID' WHEN 'FAILED' THEN 'FAILED' ELSE 'PENDING' END,created_at,@Now FROM @Orders;
- INSERT dbo.LoyaltyTransaction(user_id,order_id,transaction_type,points,created_at)
- SELECT @ActorId,order_id,'EARN',10+n,created_at FROM @Orders WHERE status='DELIVERED';
- INSERT dbo.Review(user_id,order_id,product_id,rating,comment,is_featured,homepage_consent,created_at,updated_at)
- SELECT @ActorId,o.order_id,oi.product_id,3+o.n%3,N'Món ngon, đóng gói cẩn thận và giao đúng giờ.',IIF(o.n%4=0,1,0),IIF(o.n%4=0,1,0),o.created_at,@Now FROM @Orders o JOIN dbo.OrderItem oi ON oi.order_id=o.order_id WHERE o.status='DELIVERED';
-
- UPDATE dbo.Orders SET refund_status='PENDING',refund_note=N'Khách phản ánh món giao chưa đúng yêu cầu' WHERE order_code='DEMO-PRES-ORD-009';
- UPDATE dbo.Orders SET refund_status='REFUNDED',refund_amount=final_amount,refunded_at=DATEADD(hour,4,delivered_at),refund_note=N'Đã xác nhận hoàn tiền cho khách',refund_processed_by=@ActorId,refund_reference=N'DEMO-PRES-REFUND-019' WHERE order_code='DEMO-PRES-ORD-019';
- UPDATE dbo.Orders SET refund_status='REJECTED',refund_note=N'Từ chối do không đủ bằng chứng',refund_processed_by=@ActorId WHERE order_code='DEMO-PRES-ORD-029';
-
- INSERT dbo.StaffPayRate(user_id,effective_from,regular_hourly_rate,overtime_hourly_rate,created_by,created_at)
- VALUES(@StaffId,DATEADD(day,-30,CAST(@Now AS date)),30000,45000,@ActorId,@Now),(@ShipperId,DATEADD(day,-30,CAST(@Now AS date)),28000,42000,@ActorId,@Now);
- DECLARE @ShiftDates TABLE(n int PRIMARY KEY,shift_date date);
- ;WITH n AS(SELECT 1 n UNION ALL SELECT n+1 FROM n WHERE n<30),available AS(SELECT TOP(4) ROW_NUMBER() OVER(ORDER BY n) rn,DATEADD(day,-n,CAST(@Now AS date)) shift_date FROM n WHERE NOT EXISTS(SELECT 1 FROM dbo.WorkShift w WHERE w.shift_date=DATEADD(day,-n,CAST(@Now AS date))) ORDER BY n)
- INSERT @ShiftDates SELECT rn,shift_date FROM available;
- IF (SELECT COUNT(*) FROM @ShiftDates)<>4 THROW 51809, 'Presentation seed requires four collision-free shift dates', 1;
+ INSERT dbo.StaffPayRate(user_id,effective_from,regular_hourly_rate,overtime_hourly_rate,created_by,created_at) SELECT user_id,DATEADD(day,-30,@StartDate),IIF(role_name='STAFF',32000,29000),IIF(role_name='STAFF',48000,43500),@AdminId,@Now FROM @Users WHERE role_name IN('STAFF','SHIPPER');
+ ;WITH days AS(SELECT 0 n UNION ALL SELECT n+1 FROM days WHERE n<29),workers AS(SELECT * FROM @Users WHERE role_name IN('STAFF','SHIPPER'))
  INSERT dbo.WorkShift(user_id,shift_date,start_time,end_time,shift_code,check_in_source,check_out_source,staff_role_snapshot,check_in_at,check_out_at,status,attendance_status,approved_minutes,approved_overtime_minutes,attendance_note,approved_by,approved_at,pay_snapshot_status,regular_hourly_rate_snapshot,overtime_hourly_rate_snapshot,regular_pay_amount,overtime_pay_amount,total_pay_amount,created_at,updated_at)
- SELECT @ShipperId,shift_date,'08:00','12:00','MORNING','MANUAL','MANUAL','NON_STAFF',DATEADD(hour,8,CAST(shift_date AS datetime2)),DATEADD(hour,12,CAST(shift_date AS datetime2)),'CHECKED_OUT','APPROVED',240,30,CONCAT(N'Ca dữ liệu vận hành COD số ',n),@ActorId,DATEADD(hour,13,CAST(shift_date AS datetime2)),'CALCULATED',28000,42000,112000,21000,133000,@Now,@Now FROM @ShiftDates;
- INSERT dbo.WorkShift(user_id,shift_date,start_time,end_time,shift_code,staff_role_snapshot,status,attendance_status,attendance_note,created_at,updated_at)
- SELECT @StaffId,shift_date,'12:00','16:00','AFTERNOON','STAFF','SCHEDULED','PENDING',CONCAT(N'Ca dữ liệu vận hành nhân viên số ',n),@Now,@Now FROM @ShiftDates
- UNION ALL SELECT @StaffId,(SELECT shift_date FROM @ShiftDates WHERE n=1),'16:00','21:00','EVENING','STAFF','SCHEDULED',NULL,N'Ca dữ liệu vận hành nhân viên số 5',@Now,@Now;
- INSERT dbo.CodSettlement(shipper_id,shift_id,received_by,status,expected_amount,submitted_amount,verified_amount,reason,submitted_at,verified_at,created_at,updated_at)
- SELECT @ShipperId,w.shift_id,CASE x.n WHEN 1 THEN NULL ELSE @ActorId END,CASE x.n WHEN 1 THEN 'SUBMITTED' WHEN 2 THEN 'SETTLED' WHEN 3 THEN 'SHORT' ELSE 'OVER' END,100000,100000,CASE x.n WHEN 1 THEN NULL WHEN 2 THEN 100000 WHEN 3 THEN 90000 ELSE 110000 END,CASE x.n WHEN 3 THEN N'Thiếu tiền khi kiểm đếm cuối ca' WHEN 4 THEN N'Thừa tiền khi kiểm đếm cuối ca' END,DATEADD(hour,13,CAST(w.shift_date AS datetime2)),CASE WHEN x.n=1 THEN NULL ELSE DATEADD(hour,14,CAST(w.shift_date AS datetime2)) END,@Now,@Now
- FROM @ShiftDates x JOIN dbo.WorkShift w ON w.shift_date=x.shift_date AND w.user_id=@ShipperId AND w.attendance_note=CONCAT(N'Ca dữ liệu vận hành COD số ',x.n);
+ SELECT w.user_id,DATEADD(day,d.n,@StartDate),IIF(w.role_name='STAFF','08:00','09:00'),IIF(w.role_name='STAFF','12:00','14:00'), 'MORNING','MANUAL','MANUAL',IIF(w.role_name='STAFF','STAFF','NON_STAFF'),DATEADD(hour,IIF(w.role_name='STAFF',8,9),CAST(DATEADD(day,d.n,@StartDate) AS datetime2)),DATEADD(hour,IIF(w.role_name='STAFF',12,14),CAST(DATEADD(day,d.n,@StartDate) AS datetime2)),'CHECKED_OUT','APPROVED',IIF(w.role_name='STAFF',240,300),IIF((w.user_id+d.n)%7=0,30,0),N'Ca làm việc hoàn tất, bàn giao đầy đủ',@AdminId,DATEADD(hour,15,CAST(DATEADD(day,d.n,@StartDate) AS datetime2)),'CALCULATED',IIF(w.role_name='STAFF',32000,29000),IIF(w.role_name='STAFF',48000,43500),IIF(w.role_name='STAFF',128000,145000),IIF((w.user_id+d.n)%7=0,IIF(w.role_name='STAFF',24000,21750),0),IIF(w.role_name='STAFF',128000,145000)+IIF((w.user_id+d.n)%7=0,IIF(w.role_name='STAFF',24000,21750),0),@Now,@Now FROM days d CROSS JOIN workers w OPTION(MAXRECURSION 40);
+ ;WITH shipperShifts AS(SELECT w.*,ROW_NUMBER() OVER(ORDER BY w.shift_date,w.user_id) rn FROM dbo.WorkShift w JOIN @Users u ON u.user_id=w.user_id AND u.role_name='SHIPPER')
+ INSERT dbo.CodSettlement(shipper_id,shift_id,received_by,status,expected_amount,submitted_amount,verified_amount,reason,submitted_at,verified_at,created_at,updated_at) SELECT user_id,shift_id,IIF(rn%4=1,NULL,@AdminId),CASE rn%4 WHEN 1 THEN 'SUBMITTED' WHEN 2 THEN 'SETTLED' WHEN 3 THEN 'SHORT' ELSE 'OVER' END,500000,500000,CASE rn%4 WHEN 1 THEN NULL WHEN 3 THEN 490000 WHEN 0 THEN 510000 ELSE 500000 END,CASE rn%4 WHEN 3 THEN N'Thiếu tiền khi đối soát cuối ca' WHEN 0 THEN N'Thừa tiền khi đối soát cuối ca' END,DATEADD(hour,15,CAST(shift_date AS datetime2)),CASE WHEN rn%4=1 THEN NULL ELSE DATEADD(hour,16,CAST(shift_date AS datetime2)) END,@Now,@Now FROM shipperShifts;
 
- INSERT dbo.GoodsReceipt(supplier_name,invoice_number,received_at,status,created_by,approved_by,created_at,approved_at)
- VALUES(N'Công ty Thực phẩm Sài Gòn',N'DEMO-PRES-REC-001',DATEADD(day,-15,@Now),'APPROVED',@ActorId,@ActorId,DATEADD(day,-15,@Now),DATEADD(day,-15,@Now));
- DECLARE @ReceiptId int=SCOPE_IDENTITY();
- INSERT dbo.GoodsReceiptItem(goods_receipt_id,inventory_item_id,purchase_quantity,purchase_unit,conversion_factor,base_quantity,purchase_unit_price,line_total,average_cost_before,average_cost_after)
- SELECT @ReceiptId,inventory_item_id,100,N'Đơn vị',1,100,average_unit_cost,100*average_unit_cost,average_unit_cost,average_unit_cost FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-PRES-ING-%';
- INSERT dbo.InventoryTransaction(inventory_item_id,transaction_type,quantity,quantity_before,quantity_after,reference_type,reference_id,unit_cost_snapshot,total_cost,goods_receipt_id,created_by,created_at)
- SELECT inventory_item_id,'RECEIPT',100,on_hand_quantity-100,on_hand_quantity,'GOODS_RECEIPT',N'DEMO-PRES-REC-001',average_unit_cost,100*average_unit_cost,@ReceiptId,@ActorId,DATEADD(day,-15,@Now) FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-PRES-ING-%';
- INSERT dbo.InventoryTransaction(inventory_item_id,transaction_type,quantity,quantity_before,quantity_after,reference_type,reference_id,reason_code,note,unit_cost_snapshot,total_cost,created_by,created_at)
- SELECT TOP(4) inventory_item_id,'WASTE',-5,on_hand_quantity+5,on_hand_quantity,'DEMO_SEED',inventory_code,'SPOILAGE',N'Hao hụt trong quá trình sơ chế',average_unit_cost,5*average_unit_cost,@ActorId,DATEADD(day,-5,@Now) FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-PRES-ING-%' ORDER BY inventory_code;
+ DECLARE @ReceiptDates TABLE(n int PRIMARY KEY,d date); INSERT @ReceiptDates VALUES(1,DATEADD(day,1,@StartDate)),(2,DATEADD(day,9,@StartDate)),(3,DATEADD(day,17,@StartDate)),(4,DATEADD(day,25,@StartDate));
+ INSERT dbo.GoodsReceipt(supplier_name,invoice_number,received_at,status,created_by,approved_by,created_at,approved_at) SELECT CASE n WHEN 1 THEN N'Công ty Thực phẩm An Khang' WHEN 2 THEN N'Nhà cung cấp Rau sạch Việt' WHEN 3 THEN N'Công ty Gia vị Phương Nam' ELSE N'Thực phẩm Đông lạnh Sài Gòn' END,CONCAT('FG-OPS-REC-',RIGHT('00'+CONVERT(varchar(2),n),2)),DATEADD(hour,7,CAST(d AS datetime2)),'APPROVED',@AdminId,@AdminId,CAST(d AS datetime2),DATEADD(hour,8,CAST(d AS datetime2)) FROM @ReceiptDates;
+ INSERT dbo.GoodsReceiptItem(goods_receipt_id,inventory_item_id,purchase_quantity,purchase_unit,conversion_factor,base_quantity,purchase_unit_price,line_total,average_cost_before,average_cost_after) SELECT g.goods_receipt_id,i.inventory_item_id,100,N'Đơn vị',1,100,i.average_unit_cost,100*i.average_unit_cost,i.average_unit_cost,i.average_unit_cost FROM dbo.GoodsReceipt g CROSS JOIN dbo.InventoryItem i WHERE g.invoice_number LIKE 'FG-OPS-REC-%' AND i.inventory_code LIKE 'FG-OPS-ING-%';
+ INSERT dbo.InventoryTransaction(inventory_item_id,transaction_type,quantity,quantity_before,quantity_after,reference_type,reference_id,unit_cost_snapshot,total_cost,goods_receipt_id,created_by,created_at) SELECT gi.inventory_item_id,'RECEIPT',gi.base_quantity,i.on_hand_quantity-gi.base_quantity,i.on_hand_quantity,'GOODS_RECEIPT',g.invoice_number,gi.purchase_unit_price,gi.line_total,g.goods_receipt_id,@AdminId,g.received_at FROM dbo.GoodsReceiptItem gi JOIN dbo.GoodsReceipt g ON g.goods_receipt_id=gi.goods_receipt_id JOIN dbo.InventoryItem i ON i.inventory_item_id=gi.inventory_item_id WHERE g.invoice_number LIKE 'FG-OPS-REC-%';
+ INSERT dbo.InventoryTransaction(inventory_item_id,order_id,transaction_type,quantity,quantity_before,quantity_after,reference_type,reference_id,unit_cost_snapshot,total_cost,created_by,created_at) SELECT i.inventory_item_id,o.order_id,'CONSUME',-50,i.on_hand_quantity+50,i.on_hand_quantity,'ORDER',CONVERT(varchar(100),o.order_id),i.average_unit_cost,50*i.average_unit_cost,@AdminId,DATEADD(minute,110,o.created_at) FROM @Orders o JOIN dbo.InventoryItem i ON i.inventory_code=CONCAT('FG-OPS-ING-',RIGHT('000'+CONVERT(varchar(3),o.product_n),3)) WHERE o.status='DELIVERED';
+ INSERT dbo.StockCount(count_date,frequency,status,created_by,approved_by,created_at,approved_at) SELECT d,'WEEKLY','APPROVED',@AdminId,@AdminId,CAST(d AS datetime2),DATEADD(hour,1,CAST(d AS datetime2)) FROM @ReceiptDates;
+ INSERT dbo.StockCountItem(stock_count_id,inventory_item_id,theoretical_quantity,actual_quantity,variance_quantity,unit_cost_snapshot,reserved_quantity_snapshot,variance_cost,reason_code,note) SELECT sc.stock_count_id,i.inventory_item_id,i.on_hand_quantity,i.on_hand_quantity+IIF(i.inventory_item_id%10=0,-2,0),IIF(i.inventory_item_id%10=0,-2,0),i.average_unit_cost,i.reserved_quantity,IIF(i.inventory_item_id%10=0,-2*i.average_unit_cost,0),IIF(i.inventory_item_id%10=0,'COUNT_CORRECTION','MATCHED'),N'Kiểm kê định kỳ và đối chiếu sổ kho' FROM dbo.StockCount sc CROSS JOIN dbo.InventoryItem i WHERE sc.created_by=@AdminId AND sc.count_date IN(SELECT d FROM @ReceiptDates) AND i.inventory_code LIKE 'FG-OPS-ING-%';
+ INSERT dbo.InventoryTransaction(inventory_item_id,transaction_type,quantity,quantity_before,quantity_after,reference_type,reference_id,reason_code,note,unit_cost_snapshot,total_cost,stock_count_id,created_by,created_at) SELECT sci.inventory_item_id,'ADJUSTMENT',sci.variance_quantity,sci.theoretical_quantity,sci.actual_quantity,'STOCK_COUNT',CONVERT(varchar(100),sci.stock_count_id),'COUNT_CORRECTION',N'Điều chỉnh theo kết quả kiểm kê',sci.unit_cost_snapshot,ABS(sci.variance_cost),sci.stock_count_id,@AdminId,DATEADD(hour,1,CAST(sc.count_date AS datetime2)) FROM dbo.StockCountItem sci JOIN dbo.StockCount sc ON sc.stock_count_id=sci.stock_count_id WHERE sci.variance_quantity<>0;
 
- INSERT dbo.StockCount(count_date,frequency,status,created_by,approved_by,created_at,approved_at) VALUES(CAST(@Now AS date),'DAILY','APPROVED',@ActorId,@ActorId,@Now,@Now);
- DECLARE @CountId int=SCOPE_IDENTITY();
- INSERT dbo.StockCountItem(stock_count_id,inventory_item_id,theoretical_quantity,actual_quantity,variance_quantity,unit_cost_snapshot,reserved_quantity_snapshot,variance_cost,reason_code,note)
- SELECT @CountId,inventory_item_id,on_hand_quantity,on_hand_quantity,0,average_unit_cost,reserved_quantity,0,'MATCHED',N'Kiểm kê cuối ca' FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-PRES-ING-%';
- INSERT dbo.InventoryTransaction(inventory_item_id,transaction_type,quantity,quantity_before,quantity_after,reference_type,reference_id,reason_code,note,unit_cost_snapshot,total_cost,stock_count_id,created_by,created_at)
- SELECT TOP(1) inventory_item_id,'ADJUSTMENT',1,on_hand_quantity-1,on_hand_quantity,'STOCK_COUNT',CONVERT(varchar(100),@CountId),'COUNT_CORRECTION',N'Điều chỉnh sau kiểm kê',average_unit_cost,average_unit_cost,@CountId,@ActorId,@Now FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-PRES-ING-%' ORDER BY inventory_code;
+ INSERT dbo.OperatingExpense(expense_date,category,description,amount,created_by,created_at,updated_at) VALUES(@StartDate,'RENT',N'Tiền thuê mặt bằng tháng này',28000000,@AdminId,@Now,@Now),(DATEADD(day,4,@StartDate),'UTILITIES',N'Tiền điện khu bếp và sảnh',6850000,@AdminId,@Now,@Now),(DATEADD(day,8,@StartDate),'MARKETING',N'Chi phí quảng bá thực đơn mới',4200000,@AdminId,@Now,@Now),(DATEADD(day,12,@StartDate),'MAINTENANCE',N'Bảo dưỡng hệ thống hút khói',3100000,@AdminId,@Now,@Now),(DATEADD(day,16,@StartDate),'OTHER',N'Vật tư vệ sinh cửa hàng',1850000,@AdminId,@Now,@Now),(DATEADD(day,20,@StartDate),'UTILITIES',N'Tiền nước và internet cửa hàng',2750000,@AdminId,@Now,@Now),(DATEADD(day,24,@StartDate),'MARKETING',N'In tờ rơi khuyến mãi cuối tuần',1600000,@AdminId,@Now,@Now),(DATEADD(day,28,@StartDate),'MAINTENANCE',N'Bảo trì tủ đông nguyên liệu',2400000,@AdminId,@Now,@Now);
+ INSERT dbo.FixedAsset(asset_name,acquisition_cost,salvage_value,depreciation_start_date,useful_life_months,status,retired_at,created_by,created_at,updated_at) VALUES(N'Lò nướng đối lưu Unox',68000000,6800000,DATEADD(month,-18,@StartDate),60,'ACTIVE',NULL,@AdminId,@Now,@Now),(N'Tủ đông inox bốn cánh',42000000,4200000,DATEADD(month,-14,@StartDate),60,'ACTIVE',NULL,@AdminId,@Now,@Now),(N'Máy pha cà phê hai vòi',36000000,3600000,DATEADD(month,-10,@StartDate),48,'ACTIVE',NULL,@AdminId,@Now,@Now),(N'Hệ thống máy bán hàng',24000000,2400000,DATEADD(month,-8,@StartDate),36,'ACTIVE',NULL,@AdminId,@Now,@Now),(N'Xe máy giao hàng Honda Wave',22000000,5000000,DATEADD(month,-6,@StartDate),48,'ACTIVE',NULL,@AdminId,@Now,@Now);
+ INSERT dbo.Banner(title,subtitle,image_url,link,sort_order,is_active,created_at,updated_at) VALUES(N'Bữa trưa gọn vị',N'Chọn món cơm và mì cho ngày làm việc năng động.','/assets/banners/lunch.webp','/menu?campaign=fg-ops-lunch',1,1,@Now,@Now),(N'Cuối tuần sum vầy',N'Pizza và gà rán cho buổi gặp gỡ thêm vui.','/assets/banners/weekend.webp','/menu?campaign=fg-ops-weekend',2,1,@Now,@Now),(N'Trà mát mỗi ngày',N'Thưởng thức thức uống thanh mát cùng món yêu thích.','/assets/banners/drinks.webp','/menu?campaign=fg-ops-drinks',3,1,@Now,@Now),(N'Ưu đãi thành viên',N'Tích điểm sau mỗi đơn hàng đã giao thành công.','/assets/banners/loyalty.webp','/menu?campaign=fg-ops-loyalty',4,0,@Now,@Now);
+ INSERT dbo.ActivityLog(actor_user_id,action_type,target_type,target_id,summary,metadata_json,created_at) SELECT TOP(12) @AdminId,'FG_OPS_ORDER_REVIEW','ORDER',order_code,N'Đối soát đơn hàng cuối ngày',CONCAT(N'{"orderCode":"',order_code,N'"}'),DATEADD(minute,130,created_at) FROM dbo.Orders WHERE order_code LIKE 'FG-OPS-ORD-%' ORDER BY order_id;
 
- IF (SELECT COUNT(DISTINCT p.product_id) FROM dbo.Product p JOIN dbo.ProductVariant v ON v.product_id=p.product_id WHERE v.sku LIKE 'DEMO-PRES-SKU-%')<>@ExpectedProducts THROW 51804, 'Unexpected presentation product count', 1;
- IF (SELECT COUNT(*) FROM dbo.InventoryItem WHERE inventory_code LIKE 'DEMO-PRES-ING-%')<>@ExpectedIngredients THROW 51805, 'Unexpected presentation ingredient count', 1;
- IF (SELECT COUNT(*) FROM dbo.RecipeItem ri JOIN dbo.Recipe r ON r.recipe_id=ri.recipe_id JOIN dbo.ProductVariant v ON v.variant_id=r.variant_id WHERE v.sku LIKE 'DEMO-PRES-SKU-%')<>@ExpectedRecipeLines THROW 51806, 'Unexpected presentation recipe line count', 1;
- IF (SELECT COUNT(*) FROM dbo.Orders WHERE order_code LIKE 'DEMO-PRES-ORD-%')<>@ExpectedOrders THROW 51807, 'Unexpected presentation order count', 1;
+ IF (SELECT COUNT(*) FROM dbo.Users u JOIN @People p ON p.email=u.email AND p.phone=u.phone WHERE u.role_name='ADMIN')<>@ExpectedAdmins THROW 51810,'Unexpected ADMIN count',1;
+ IF (SELECT COUNT(*) FROM dbo.Users u JOIN @People p ON p.email=u.email AND p.phone=u.phone WHERE u.role_name='STAFF')<>@ExpectedStaff THROW 51811,'Unexpected STAFF count',1;
+ IF (SELECT COUNT(*) FROM dbo.Users u JOIN @People p ON p.email=u.email AND p.phone=u.phone WHERE u.role_name='SHIPPER')<>@ExpectedShippers THROW 51812,'Unexpected SHIPPER count',1;
+ IF (SELECT COUNT(*) FROM dbo.Users u JOIN @People p ON p.email=u.email AND p.phone=u.phone WHERE u.role_name='USER')<>@ExpectedCustomers THROW 51813,'Unexpected customer count',1;
+ IF (SELECT COUNT(*) FROM dbo.ProductVariant WHERE sku LIKE 'FG-OPS-SKU-%')<>@ExpectedVariants THROW 51814,'Unexpected variant count',1;
+ IF (SELECT COUNT(*) FROM dbo.Orders WHERE order_code LIKE 'FG-OPS-ORD-%')<>@ExpectedOrders THROW 51815,'Unexpected order count',1;
  COMMIT;
 END TRY
 BEGIN CATCH

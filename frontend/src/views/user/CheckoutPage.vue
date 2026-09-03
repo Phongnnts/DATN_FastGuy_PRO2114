@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
+import { reactive, ref, computed, nextTick, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import CheckoutStepper from '@/components/common/CheckoutStepper.vue';
+import FormField from '@/components/common/FormField.vue';
+import { validPhone } from '@/utils/formValidation';
+import { addressModeState, createShippingValidationState, runValidatedShippingSubmit } from '@/utils/shippingFormValidation';
 import { useAuthStore } from '@/stores/auth';
 import { useCartStore } from '@/stores/cart';
 import { useOrderStore } from '@/stores/order';
@@ -35,6 +38,9 @@ const useNewAddress = ref(false);
 const phone = ref('');
 const recipientName = ref('');
 const street = ref('');
+const shippingValidation = createShippingValidationState();
+const shippingTouched = reactive(shippingValidation.touched);
+const shippingErrors = reactive(shippingValidation.errors);
 const paymentMethod = ref(isGuest.value ? 'BANK_TRANSFER' : 'COD');
 const availablePaymentMethods = ref(['COD', 'BANK_TRANSFER']);
 const paymentAvailability = ref({
@@ -157,6 +163,7 @@ watch(selectedProvince, async (id) => {
   wards.value = [];
   selectedDistrict.value = null;
   selectedWard.value = null;
+  shippingValidation.resetDependents(['district', 'ward'], shippingValues());
   shippingFee.value = null;
   if (!id) return;
   try {
@@ -176,6 +183,8 @@ watch(selectedDistrict, async (id) => {
   const generation = ++addressSelectionGeneration;
   wards.value = [];
   selectedWard.value = null;
+  shippingValidation.resetDependents(['ward'], shippingValues());
+  inputShippingField('district');
   shippingFee.value = null;
   if (!id) return;
   try {
@@ -255,17 +264,27 @@ async function applySavedAddress(addr) {
 }
 
 function useManualEntry() {
-  selectedAddressId.value = null;
-  useNewAddress.value = true;
-  street.value = '';
-  phone.value = '';
-  recipientName.value = '';
+  const state = addressModeState('manual');
+  Object.assign(shippingValidation.errors, { recipientName: '', phone: '', district: '', ward: '', street: '' });
+  shippingValidation.reset();
+  selectedAddressId.value = state.selectedAddressId;
+  useNewAddress.value = state.useNewAddress;
+  recipientName.value = state.recipientName;
+  phone.value = state.phone;
+  street.value = state.street;
+  selectedDistrict.value = state.district;
+  selectedWard.value = state.ward;
+  shippingFee.value = null;
+  shippingError.value = '';
   addressSelectionGeneration += 1;
 }
 
-function returnToSavedAddresses() {
-  useNewAddress.value = false;
-  selectedAddressId.value = null;
+async function returnToSavedAddresses() {
+  shippingValidation.reset();
+  shippingError.value = '';
+  const saved = savedAddresses.value.find(address => address.isDefault) || savedAddresses.value[0];
+  if (saved) await selectAddress(saved);
+  else { useNewAddress.value = false; selectedAddressId.value = null; }
 }
 
 function selectedAddress() {
@@ -285,13 +304,14 @@ function getFullAddress() {
   ].filter(Boolean).join(', ');
 }
 
-function isValidPhone(value) {
-  return /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(value.trim());
-}
+function shippingValues() { return { recipientName: recipientName.value, phone: phone.value, district: selectedDistrict.value, ward: selectedWard.value, street: street.value }; }
+function blurShippingField(field) { shippingValidation.touch(field, shippingValues()); }
+function inputShippingField(field) { shippingValidation.update(field, shippingValues()); }
+function validateShippingForm() { return shippingValidation.validateAll(shippingValues()); }
 
 function canPlaceOrder() {
   return selectedWard.value && selectedDistrict.value && shippingFee.value !== null
-    && recipientName.value.trim().length >= 2 && isValidPhone(phone.value) && street.value.trim().length >= 5;
+    && recipientName.value.trim().length >= 2 && validPhone(phone.value) && street.value.trim().length >= 5;
 }
 
 function isPaymentEnabled(key) {
@@ -400,6 +420,10 @@ function selectClaimedCoupon(c) {
 
 async function placeOrder() {
   if (submitting.value) return;
+  return runValidatedShippingSubmit(shippingValidation, shippingValues(), executePlaceOrder);
+}
+
+async function executePlaceOrder() {
   try { storeConfig.value = await storeApi.getConfig(); cutoffNow.value = new Date(); }
   catch {}
   if (storeConfig.value?.isOpen === false || isPastOrderCutoff(storeConfig.value?.orderCutoffTime, new Date())) return toast.error('Cửa hàng hiện đã đóng cửa. Vui lòng quay lại trong giờ hoạt động');
@@ -560,37 +584,16 @@ async function placeOrder() {
 
           <div v-if="useNewAddress || savedAddresses.length === 0" class="manual-address-form">
             <button v-if="useNewAddress && savedAddresses.length" type="button" class="saved-address-back" @click="returnToSavedAddresses"><i class="bi bi-arrow-left" aria-hidden="true"></i> Chọn địa chỉ đã lưu</button>
-            <div class="form-group">
-              <label class="form-label">Tên người nhận</label>
-              <input v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" minlength="2" maxlength="100" required />
-            </div>
+            <FormField id="checkout-recipient" label="Tên người nhận" required :error="shippingErrors.recipientName"><template #default="{ controlAttrs }"><input v-bind="controlAttrs" v-model="recipientName" class="form-input" placeholder="Họ tên người nhận" minlength="2" maxlength="100" @blur="blurShippingField('recipientName')" @input="inputShippingField('recipientName')" /></template></FormField>
             <div class="delivery-area">
               <i class="bi bi-geo-alt-fill"></i>
               Giao hàng nội thành TP. Hồ Chí Minh
             </div>
             <div v-if="provinceError" class="shipping-error" role="alert">{{ provinceError }}</div>
-            <div class="form-group">
-              <label class="form-label">Quận / Huyện</label>
-              <select v-model="selectedDistrict" class="form-select" :disabled="!selectedProvince">
-                <option :value="null">Chọn quận/huyện</option>
-                <option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Phường / Xã</label>
-              <select v-model="selectedWard" class="form-select" :disabled="!selectedDistrict">
-                <option :value="null">Chọn phường/xã</option>
-                <option v-for="w in wards" :key="w.code" :value="w.code">{{ w.name }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Số nhà, tên đường</label>
-              <input v-model="street" class="form-input" placeholder="VD: 123 Nguyễn Huệ" minlength="5" maxlength="255" required />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Số điện thoại</label>
-              <input v-model="phone" type="tel" class="form-input" placeholder="Số điện thoại nhận hàng" pattern="^(0|\+84)(3|5|7|8|9)[0-9]{8}$" required />
-            </div>
+            <FormField id="checkout-district" label="Quận / Huyện" required :error="shippingErrors.district"><template #default="{ controlAttrs }"><select v-bind="controlAttrs" v-model="selectedDistrict" class="form-select" :disabled="!selectedProvince" @blur="blurShippingField('district')" @change="inputShippingField('district')"><option :value="null">Chọn quận/huyện</option><option v-for="d in districts" :key="d.id" :value="d.id">{{ d.name }}</option></select></template></FormField>
+            <FormField id="checkout-ward" label="Phường / Xã" required :error="shippingErrors.ward"><template #default="{ controlAttrs }"><select v-bind="controlAttrs" v-model="selectedWard" class="form-select" :disabled="!selectedDistrict" @blur="blurShippingField('ward')" @change="inputShippingField('ward')"><option :value="null">Chọn phường/xã</option><option v-for="w in wards" :key="w.code" :value="w.code">{{ w.name }}</option></select></template></FormField>
+            <FormField id="checkout-street" label="Số nhà, tên đường" required :error="shippingErrors.street"><template #default="{ controlAttrs }"><input v-bind="controlAttrs" v-model="street" class="form-input" placeholder="VD: 123 Nguyễn Huệ" minlength="5" maxlength="255" @blur="blurShippingField('street')" @input="inputShippingField('street')" /></template></FormField>
+            <FormField id="checkout-phone" label="Số điện thoại" required :error="shippingErrors.phone"><template #default="{ controlAttrs }"><input v-bind="controlAttrs" v-model="phone" type="tel" class="form-input" placeholder="Số điện thoại nhận hàng" @blur="blurShippingField('phone')" @input="inputShippingField('phone')" /></template></FormField>
           </div>
 
           <div class="preview-address" v-if="getFullAddress()">

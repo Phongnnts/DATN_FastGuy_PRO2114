@@ -1,129 +1,21 @@
 <script setup>
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import FormField from '@/components/common/FormField.vue';
+import { matchesPassword, required, validEmail, validPassword, validPhone } from '@/utils/formValidation';
 import { useAuthStore } from '@/stores/auth';
-
-const router = useRouter();
-const route = useRoute();
-const auth = useAuthStore();
-
-const form = ref({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
-const error = ref('');
-const loading = ref(false);
-const showPassword = ref(false);
-
-async function handleRegister() {
-  error.value = '';
-  const phonePattern = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
-  if (form.value.name.trim().length < 2) { error.value = 'Họ tên phải từ 2 ký tự'; return; }
-  if (!phonePattern.test(form.value.phone.trim())) { error.value = 'Số điện thoại không hợp lệ (VD: 0912345678)'; return; }
-  if (form.value.password.length < 8) { error.value = 'Mật khẩu phải từ 8 ký tự'; return; }
-  if (!/[a-zA-Z]/.test(form.value.password) || !/[0-9]/.test(form.value.password)) {
-    error.value = 'Mật khẩu phải có ít nhất 1 chữ và 1 số';
-    return;
-  }
-  if (form.value.password !== form.value.confirmPassword) { error.value = 'Mật khẩu không khớp'; return; }
-  loading.value = true;
-  try {
-    await auth.register({
-      fullName: form.value.name.trim(),
-      email: form.value.email.trim(),
-      phone: form.value.phone.trim(),
-      password: form.value.password,
-    });
-    router.push(typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : '/home');
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
-}
+const router=useRouter();const route=useRoute();const auth=useAuthStore();
+const form=ref({name:'',email:'',phone:'',password:'',confirmPassword:''});const error=ref('');const loading=ref(false);const showPassword=ref(false);
+const touched=reactive({name:false,email:false,phone:false,password:false,confirmPassword:false});const errors=reactive({name:'',email:'',phone:'',password:'',confirmPassword:''});
+function validateField(field){const value=form.value[field];if(field==='name')errors.name=!required(value)?'Vui lòng nhập họ và tên':value.trim().length<2?'Họ tên phải từ 2 ký tự':'';if(field==='email')errors.email=!required(value)?'Vui lòng nhập email':!validEmail(value)?'Email không hợp lệ':'';if(field==='phone')errors.phone=!required(value)?'Vui lòng nhập số điện thoại':!validPhone(value)?'Số điện thoại không hợp lệ':'';if(field==='password')errors.password=!required(value)?'Vui lòng nhập mật khẩu':!validPassword(value)?'Mật khẩu phải từ 8 đến 72 ký tự, có ít nhất 1 chữ và 1 số':'';if(field==='confirmPassword')errors.confirmPassword=!required(value)?'Vui lòng nhập lại mật khẩu':!matchesPassword(value,form.value.password)?'Mật khẩu không khớp':'';return !errors[field]}
+function blurField(field){touched[field]=true;validateField(field)}function inputField(field){if(touched[field]||errors[field])validateField(field);if(field==='password'&&(touched.confirmPassword||errors.confirmPassword))validateField('confirmPassword')}
+function validateForm(){let valid=true;for(const field of Object.keys(touched)){touched[field]=true;if(!validateField(field))valid=false}return valid}
+async function handleRegister(){error.value='';if(!validateForm()) return;loading.value=true;try{await auth.register({fullName:form.value.name.trim(),email:form.value.email.trim(),phone:form.value.phone.trim(),password:form.value.password});router.push(typeof route.query.redirect==='string'&&route.query.redirect.startsWith('/')?route.query.redirect:'/home')}catch(e){error.value=e.message}finally{loading.value=false}}
 </script>
-
-<template>
-  <div class="auth-page">
-    <div class="auth-container">
-      <div class="auth-card">
-        <div class="auth-header">
-          <router-link to="/home" class="auth-brand">Fast<span>Guy</span></router-link>
-          <h1>Đăng ký</h1>
-          <p>Tạo tài khoản FastGuy ngay!</p>
-        </div>
-        <form @submit.prevent="handleRegister" class="auth-form">
-          <div class="form-group">
-            <label class="form-label" for="register-name">Họ tên</label>
-            <input id="register-name" v-model="form.name" type="text" class="form-input" autocomplete="name" placeholder="Nguyễn Văn A" minlength="2" maxlength="100" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="register-email">Email</label>
-            <input id="register-email" v-model="form.email" type="email" class="form-input" autocomplete="email" placeholder="your@email.com" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="register-phone">Số điện thoại</label>
-            <input id="register-phone" v-model="form.phone" type="tel" class="form-input" autocomplete="tel" inputmode="tel" placeholder="0912345678" required />
-          </div>
-          <div class="form-row-2">
-            <div class="form-group">
-               <label class="form-label" for="register-password">Mật khẩu</label>
-               <input id="register-password" v-model="form.password" :type="showPassword ? 'text' : 'password'" class="form-input" autocomplete="new-password" placeholder="Tối thiểu 8 ký tự, có chữ và số" minlength="8" maxlength="72" required />
-            </div>
-            <div class="form-group">
-               <label class="form-label" for="register-confirm">Xác nhận</label>
-               <input id="register-confirm" v-model="form.confirmPassword" :type="showPassword ? 'text' : 'password'" class="form-input" autocomplete="new-password" placeholder="••••••" minlength="8" maxlength="72" required />
-            </div>
-          </div>
-           <label class="show-password"><input v-model="showPassword" type="checkbox" /> Hiện mật khẩu</label>
-           <p v-if="error" class="form-error" role="alert" aria-live="assertive">{{ error }}</p>
-          <button type="submit" class="btn btn-primary btn-lg submit-btn" :disabled="loading">
-            {{ loading ? 'Đang đăng ký...' : 'Đăng ký' }}
-          </button>
-        </form>
-        <div class="auth-footer">
-          Đã có tài khoản?
-          <router-link to="/" class="fw-semibold text-primary">Đăng nhập</router-link>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
-<style scoped>
-.auth-page {
-  min-height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 16px;
-}
-.auth-container { width: 100%; max-width: 440px; }
-.auth-card {
-  background: #fff;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 40px;
-  box-shadow: var(--shadow-md);
-}
-.auth-header { text-align: center; margin-bottom: 28px; }
-.auth-brand {
-  display: inline-block;
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  margin-bottom: 20px;
-}
-.auth-brand span { color: var(--primary); }
-.auth-header h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-.auth-header p { color: var(--text-mid); font-size: 14px; }
-.auth-form { display: flex; flex-direction: column; gap: 4px; }
-.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.submit-btn { width: 100%; }
-.show-password { display: flex; align-items: center; gap: 8px; margin: 2px 0 12px; color: var(--text-mid); font-size: 13px; }
-.show-password input { accent-color: var(--primary); }
-.auth-footer {
-  text-align: center;
-  margin-top: 24px;
-  font-size: 14px;
-  color: var(--text-mid);
-}
-@media (max-width: 480px) { .auth-page { padding: 24px 10px; } .auth-card { padding: 24px 16px; } .form-row-2 { grid-template-columns: 1fr; gap: 0; } }
-</style>
+<template><div class="auth-page"><div class="auth-container"><div class="auth-card"><div class="auth-header"><router-link to="/home" class="auth-brand">Fast<span>Guy</span></router-link><h1>Đăng ký</h1><p>Tạo tài khoản FastGuy ngay!</p></div><form class="auth-form" novalidate @submit.prevent="handleRegister">
+<FormField id="register-name" label="Họ tên" required :error="errors.name"><template #default="{controlAttrs}"><input v-bind="controlAttrs" v-model="form.name" class="form-input" autocomplete="name" placeholder="Nhập họ và tên" maxlength="100" @blur="blurField('name')" @input="inputField('name')"></template></FormField>
+<FormField id="register-email" label="Email" required :error="errors.email"><template #default="{controlAttrs}"><input v-bind="controlAttrs" v-model="form.email" type="email" class="form-input" autocomplete="email" placeholder="your@email.com" @blur="blurField('email')" @input="inputField('email')"></template></FormField>
+<FormField id="register-phone" label="Số điện thoại" required :error="errors.phone"><template #default="{controlAttrs}"><input v-bind="controlAttrs" v-model="form.phone" type="tel" class="form-input" autocomplete="tel" placeholder="Nhập số điện thoại" @blur="blurField('phone')" @input="inputField('phone')"></template></FormField>
+<div class="form-row-2"><FormField id="register-password" label="Mật khẩu" required :error="errors.password"><template #default="{controlAttrs}"><input v-bind="controlAttrs" v-model="form.password" :type="showPassword?'text':'password'" class="form-input" autocomplete="new-password" placeholder="Nhập mật khẩu" maxlength="72" @blur="blurField('password')" @input="inputField('password')"></template></FormField><FormField id="register-confirm" label="Xác nhận" required :error="errors.confirmPassword"><template #default="{controlAttrs}"><input v-bind="controlAttrs" v-model="form.confirmPassword" :type="showPassword?'text':'password'" class="form-input" autocomplete="new-password" placeholder="Nhập lại mật khẩu" maxlength="72" @blur="blurField('confirmPassword')" @input="inputField('confirmPassword')"></template></FormField></div>
+<label class="show-password"><input v-model="showPassword" type="checkbox"> Hiện mật khẩu</label><p v-if="error" class="form-error" role="alert">{{error}}</p><button type="submit" class="btn btn-primary btn-lg submit-btn" :disabled="loading">{{loading?'Đang đăng ký...':'Đăng ký'}}</button></form><div class="auth-footer">Đã có tài khoản? <router-link to="/" class="fw-semibold text-primary">Đăng nhập</router-link></div></div></div></div></template>
+<style scoped>.auth-page{min-height:100%;display:flex;align-items:center;justify-content:center;padding:40px 16px}.auth-container{width:100%;max-width:440px}.auth-card{background:#fff;border:1px solid var(--border-light);border-radius:var(--radius-lg);padding:40px;box-shadow:var(--shadow-md)}.auth-header{text-align:center;margin-bottom:28px}.auth-brand{display:inline-block;font-size:24px;font-weight:800;margin-bottom:20px}.auth-brand span{color:var(--primary)}.auth-header h1{font-size:22px}.auth-header p{color:var(--text-mid);font-size:14px}.auth-form{display:flex;flex-direction:column;gap:4px}.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.submit-btn{width:100%}.show-password{display:flex;align-items:center;gap:8px;margin:2px 0 12px;font-size:13px}.auth-footer{text-align:center;margin-top:24px;font-size:14px}@media(max-width:480px){.auth-card{padding:24px 16px}.form-row-2{grid-template-columns:1fr;gap:0}}</style>
