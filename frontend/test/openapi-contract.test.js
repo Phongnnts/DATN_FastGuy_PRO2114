@@ -500,6 +500,15 @@ test('OpenAPI contracts paginated R7 admin activity logs', async () => {
   assert.deepEqual(schemas.ActivityLogListResponse.required, ['status', 'data']);
 });
 
+test('OpenAPI contracts inventory analytics trends and health', async () => {
+  const contract = await readFile(new URL('../../openapi/fastguy.yaml', import.meta.url), 'utf8');
+  const path = contract.slice(contract.indexOf('  /admin/inventory/analytics:'), contract.indexOf('  /admin/inventory/reports/summary:'));
+  assert.match(path, /operationId: getInventoryAnalytics/);
+  for (const field of ['fromDate', 'toDate', 'granularity']) assert.match(path, new RegExp(`name: ${field}`));
+  for (const schema of ['InventoryAnalytics', 'InventoryAnalyticsPoint', 'InventoryHealth', 'InventoryAttentionItem']) assert.match(contract, new RegExp(`^    ${schema}:`, 'm'));
+  for (const field of ['inventoryValue', 'receiptValue', 'consumptionValue', 'wasteValue', 'adjustmentLossValue', 'adjustmentGainValue']) assert.match(contract, new RegExp(`${field}:`));
+});
+
 test('OpenAPI contracts Slice 2 admin Operations APIs', async () => {
   const cli = fileURLToPath(new URL('../node_modules/@redocly/cli/bin/cli.js', import.meta.url));
   const { stdout } = await execFileAsync(process.execPath, [cli, 'bundle', fileURLToPath(contractUrl), '--ext', 'json']);

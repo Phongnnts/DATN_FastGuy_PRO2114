@@ -1543,6 +1543,19 @@ paths:
       responses:
         '200': { description: Count approved, content: { application/json: { schema: { $ref: '#/components/schemas/StockCountResponse' } } } }
         '409': { $ref: '#/components/responses/Conflict' }
+  /admin/inventory/analytics:
+    get:
+      operationId: getInventoryAnalytics
+      summary: Get daily inventory value, movement, and health analytics
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: fromDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: toDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: granularity, in: query, required: true, schema: { type: string, enum: [DAY] } }
+      responses:
+        '200': { description: Inventory analytics, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryAnalyticsResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
   /admin/inventory/reports/summary:
     get:
       operationId: getInventoryCostSummary
@@ -2451,6 +2464,77 @@ components:
       additionalProperties: false
       required: [status, data]
       properties: { status: { type: string, const: success }, data: { type: array, items: { $ref: '#/components/schemas/StockCount' } } }
+    InventoryAnalyticsPeriod:
+      type: object
+      additionalProperties: false
+      required: [fromDate, toDate, granularity]
+      properties:
+        fromDate: { type: string, format: date }
+        toDate: { type: string, format: date }
+        granularity: { type: string, const: DAY }
+    InventoryAnalyticsKpis:
+      type: object
+      additionalProperties: false
+      required: [itemCount, lowStockCount, outOfStockCount, inventoryValue]
+      properties:
+        itemCount: { type: integer, minimum: 0 }
+        lowStockCount: { type: integer, minimum: 0 }
+        outOfStockCount: { type: integer, minimum: 0 }
+        inventoryValue: { $ref: '#/components/schemas/Money' }
+    InventoryAnalyticsPoint:
+      type: object
+      additionalProperties: false
+      required: [date, inventoryValue, receiptValue, consumptionValue, wasteValue, adjustmentLossValue, adjustmentGainValue]
+      properties:
+        date: { type: string, format: date }
+        inventoryValue: { $ref: '#/components/schemas/Money' }
+        receiptValue: { $ref: '#/components/schemas/Money' }
+        consumptionValue: { $ref: '#/components/schemas/Money' }
+        wasteValue: { $ref: '#/components/schemas/Money' }
+        adjustmentLossValue: { $ref: '#/components/schemas/Money' }
+        adjustmentGainValue: { $ref: '#/components/schemas/Money' }
+    InventoryHealth:
+      type: object
+      additionalProperties: false
+      required: [healthyCount, attentionCount, lowStockCount, outOfStockCount]
+      properties:
+        healthyCount: { type: integer, minimum: 0 }
+        attentionCount: { type: integer, minimum: 0 }
+        lowStockCount: { type: integer, minimum: 0 }
+        outOfStockCount: { type: integer, minimum: 0 }
+    InventoryAttentionItem:
+      type: object
+      additionalProperties: false
+      required: [inventoryItemId, inventoryCode, name, baseUnit, onHandQuantity, availableQuantity, minimumQuantity, healthRatio, healthState]
+      properties:
+        inventoryItemId: { type: integer, minimum: 1 }
+        inventoryCode: { type: string, minLength: 1, maxLength: 30 }
+        name: { type: string, minLength: 1, maxLength: 150 }
+        baseUnit: { type: string, enum: [G, ML, PIECE] }
+        onHandQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        availableQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        minimumQuantity: { $ref: '#/components/schemas/InventoryItemQuantity' }
+        healthRatio: { type: number, format: decimal, minimum: 0 }
+        healthState: { type: string, enum: [OUT, LOW, ATTENTION, HEALTHY, EXCESS] }
+    InventoryAnalytics:
+      type: object
+      additionalProperties: false
+      required: [period, comparisonPeriod, kpis, previousKpis, series, health, attentionItems]
+      properties:
+        period: { $ref: '#/components/schemas/InventoryAnalyticsPeriod' }
+        comparisonPeriod: { $ref: '#/components/schemas/InventoryAnalyticsPeriod' }
+        kpis: { $ref: '#/components/schemas/InventoryAnalyticsKpis' }
+        previousKpis: { $ref: '#/components/schemas/InventoryAnalyticsKpis' }
+        series: { type: array, items: { $ref: '#/components/schemas/InventoryAnalyticsPoint' } }
+        health: { $ref: '#/components/schemas/InventoryHealth' }
+        attentionItems: { type: array, items: { $ref: '#/components/schemas/InventoryAttentionItem' } }
+    InventoryAnalyticsResponse:
+      type: object
+      additionalProperties: false
+      required: [status, data]
+      properties:
+        status: { type: string, const: success }
+        data: { $ref: '#/components/schemas/InventoryAnalytics' }
     InventoryCostSummary:
       type: object
       additionalProperties: false

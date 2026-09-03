@@ -209,6 +209,17 @@ function localDate(date) {
   return `${year}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+export function paginateWarehouseItems(items, requestedPage, pageSize = 10) {
+  const source = Array.isArray(items) ? items : [];
+  const size = Number.isInteger(pageSize) && pageSize > 0 ? pageSize : 10;
+  const totalItems = source.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / size));
+  const page = Math.min(Math.max(1, Number.parseInt(requestedPage, 10) || 1), totalPages);
+  const from = totalItems ? (page - 1) * size + 1 : 0;
+  const to = totalItems ? Math.min(page * size, totalItems) : 0;
+  return { items: source.slice(from ? from - 1 : 0, to), page, totalPages, totalItems, from, to };
+}
+
 export function dateRangeForDays(days, now = new Date()) {
   const from = new Date(now);
   from.setDate(from.getDate() - Math.max(0, days - 1));

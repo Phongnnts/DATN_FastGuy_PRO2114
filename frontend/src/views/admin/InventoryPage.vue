@@ -13,6 +13,8 @@ import {
   itemStockState,
   parseQuantity,
 } from '@/utils/inventoryItem';
+import { paginateWarehouseItems } from '@/utils/inventoryOperations';
+import { inventoryAnalyticsDelta, inventoryAnalyticsPeriod, normalizeInventoryAnalyticsSeries } from '@/utils/inventoryAnalytics';
 
 const toast = useToast();
 const adminStore = useAdminStore();
@@ -66,6 +68,13 @@ const loading = ref(true);
 const loadError = ref('');
 const searchTerm = ref('');
 const statusFilter = ref(statusFromQuery(route.query.filter));
+const PAGE_SIZE = 10;
+const inventoryPage = ref(1);
+const analytics = ref(null);
+const analyticsLoading = ref(false);
+const analyticsError = ref('');
+const analyticsDays = ref([7, 30, 90].includes(Number(route.query.days)) ? Number(route.query.days) : 30);
+let analyticsGeneration = 0;
 const unavailableVariants = ref(null);
 const recentTransactions = ref([]);
 const saving = ref(false);
@@ -80,8 +89,17 @@ const todayActions = computed(() => [
   kpis.value.belowMinimumCount ? { label: `${kpis.value.belowMinimumCount} mặt hàng cần nhập thêm`, route: 'AdminGoodsReceipts', action: 'Nhập hàng' } : null,
   unavailableVariants.value > 0 ? { label: `${unavailableVariants.value} kích cỡ đang không bán được`, route: 'AdminRecipes', action: 'Xem công thức' } : null,
 ].filter(Boolean));
+const shortageRiskItems = computed(() => items.value.filter(item => item.active !== false && Number(item.reservedQuantity) > Number(item.onHandQuantity)));
+const lowStockItems = computed(() => items.value.filter(item => item.active !== false && ['LOW', 'OUT'].includes(itemStockState(item))));
 const inventoryValue = computed(() => items.value.reduce((total, item) => total + Number(item.onHandQuantity || 0) * Number(item.averageUnitCost || 0), 0));
 const money = (value) => `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
+const analyticsSeries = computed(() => normalizeInventoryAnalyticsSeries(analytics.value?.series));
+const inventoryValueDelta = computed(() => inventoryAnalyticsDelta(analytics.value?.kpis?.inventoryValue, analytics.value?.previousKpis?.inventoryValue));
+const chartMax = computed(() => Math.max(1, ...analyticsSeries.value.map(point => point.inventoryValue)));
+const movementMax = computed(() => Math.max(1, ...analyticsSeries.value.flatMap(point => [point.receiptValue, point.consumptionValue, point.wasteValue + point.adjustmentLossValue])));
+const deltaText = (current, previous, percent = false) => { const delta = inventoryAnalyticsDelta(current, previous); if (percent && !delta.comparable) return 'Chưa có kỳ so sánh'; const value = percent ? `${Math.abs(delta.percent).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%` : Math.abs(delta.value).toLocaleString('vi-VN'); return `${delta.value >= 0 ? 'Tăng' : 'Giảm'} ${value} so kỳ trước`; };
+async function loadAnalytics() { const request = ++analyticsGeneration; analyticsLoading.value = true; analyticsError.value = ''; try { const data = await adminApi.getInventoryAnalytics(inventoryAnalyticsPeriod(analyticsDays.value)); if (request !== analyticsGeneration) return; analytics.value = data; } catch (error) { if (request !== analyticsGeneration) return; analyticsError.value = error.message || 'Không thể tải phân tích tồn kho'; } finally { if (request === analyticsGeneration) analyticsLoading.value = false; } }
+function selectAnalyticsDays(days) { if (analyticsDays.value === days) return; analyticsDays.value = days; router.push({ query: { ...route.query, days: days === 30 ? undefined : String(days) } }); loadAnalytics(); }
 
 const filteredItems = computed(() => {
   const query = searchTerm.value.trim().toLocaleLowerCase('vi');
@@ -92,6 +110,7 @@ const filteredItems = computed(() => {
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 });
+const paginatedItems = computed(() => paginateWarehouseItems(filteredItems.value, inventoryPage.value, PAGE_SIZE));
 
 async function loadItems() {
   loading.value = true;
@@ -248,16 +267,19 @@ function showFormError(message) {
 }
 
 watch(activeTab, (tab) => { if (tab === 'current') loadCurrentTab(); });
+watch(searchTerm, () => { inventoryPage.value = 1; });
+watch(() => paginatedItems.value.page, page => { if (inventoryPage.value !== page) inventoryPage.value = page; });
 watch(() => route.query.filter, (raw) => {
   const next = statusFromQuery(raw);
   if (statusFilter.value !== next) statusFilter.value = next;
 });
 watch(statusFilter, (value) => {
+  inventoryPage.value = 1;
   if (!STATUS_FILTERS.some(filter => filter.value === value) || value === statusFromQuery(route.query.filter)) return;
   router.push({ query: { ...route.query, filter: value === 'ALL' ? undefined : value } });
 });
 onMounted(() => {
-  if (activeTab.value === 'current') loadCurrentTab();
+  if (activeTab.value === 'current') { loadCurrentTab(); loadAnalytics(); }
 });
 </script>
 
@@ -276,6 +298,16 @@ onMounted(() => {
       </div>
     </header>
 
+    <div v-if="activeTab === 'current'" class="period-controls" aria-label="Khoảng thời gian phân tích"><button v-for="days in [7,30,90]" :key="days" type="button" :aria-pressed="analyticsDays === days" @click="selectAnalyticsDays(days)">{{ days }} ngày</button></div>
+    <section v-if="activeTab === 'current'" class="kpi-strip" aria-label="Chỉ số tồn kho"><article><span>Tổng mặt hàng</span><strong>{{ analytics?.kpis?.itemCount ?? kpis.itemCount }}</strong><small>{{ analytics ? deltaText(analytics.kpis.itemCount, analytics.previousKpis.itemCount) : 'Theo dữ liệu hiện tại' }}</small></article><article><span>Cần nhập thêm</span><strong>{{ analytics?.kpis?.lowStockCount ?? lowStockItems.length }}</strong><small>{{ analytics ? deltaText(analytics.kpis.lowStockCount, analytics.previousKpis.lowStockCount) : 'Theo dữ liệu hiện tại' }}</small></article><article><span>Hết hàng</span><strong>{{ analytics?.kpis?.outOfStockCount ?? 0 }}</strong><small>{{ analytics ? deltaText(analytics.kpis.outOfStockCount, analytics.previousKpis.outOfStockCount) : 'Theo dữ liệu hiện tại' }}</small></article><article><span>Giá trị tồn</span><strong>{{ money(analytics?.kpis?.inventoryValue ?? inventoryValue) }}</strong><small>{{ analytics ? deltaText(analytics.kpis.inventoryValue, analytics.previousKpis.inventoryValue, true) : 'Theo giá vốn hiện tại' }}</small></article></section>
+    <section v-if="activeTab === 'current'" class="analytics-grid" aria-label="Xu hướng tồn kho"><article class="analytics-card value-chart"><header><div><span>Giá trị tồn kho</span><strong>{{ money(analytics?.kpis?.inventoryValue ?? inventoryValue) }}</strong></div><small>{{ inventoryValueDelta.comparable ? deltaText(analytics?.kpis?.inventoryValue, analytics?.previousKpis?.inventoryValue, true) : 'Chưa có kỳ so sánh' }}</small></header><div v-if="analyticsLoading" class="chart-state" role="status">Đang tải xu hướng...</div><div v-else-if="analyticsError" class="chart-state" role="alert">{{ analyticsError }} <button type="button" @click="loadAnalytics">Thử lại</button></div><div v-else class="line-chart" role="img" aria-label="Biểu đồ giá trị tồn kho theo ngày"><i v-for="point in analyticsSeries" :key="point.date" :style="{ height: `${Math.max(3, point.inventoryValue / chartMax * 100)}%` }" :title="`${point.date}: ${money(point.inventoryValue)}`"></i></div></article><article class="analytics-card"><header><div><span>Biến động tồn kho</span><strong>Theo giá trị</strong></div><small>Nhập · tiêu hao · hao hụt</small></header><div class="movement-chart" role="img" aria-label="Biểu đồ biến động tồn kho theo ngày"><div v-for="point in analyticsSeries" :key="point.date" :title="`${point.date}: nhập ${money(point.receiptValue)}, tiêu hao ${money(point.consumptionValue)}, hao hụt ${money(point.wasteValue + point.adjustmentLossValue)}`"><i class="receipt" :style="{ height: `${point.receiptValue / movementMax * 100}%` }"></i><i class="consume" :style="{ height: `${point.consumptionValue / movementMax * 100}%` }"></i><i class="waste" :style="{ height: `${(point.wasteValue + point.adjustmentLossValue) / movementMax * 100}%` }"></i></div></div></article></section>
+    <section v-if="activeTab === 'current'" class="secondary-grid"><article class="analytics-card health-card"><header><div><span>Sức khỏe tồn kho</span><strong>{{ analytics?.kpis?.itemCount ?? items.length }} mặt hàng</strong></div></header><div class="health-bar"><i class="healthy" :style="{ flex: analytics?.health?.healthyCount || 0 }"></i><i class="attention" :style="{ flex: analytics?.health?.attentionCount || 0 }"></i><i class="low" :style="{ flex: analytics?.health?.lowStockCount || 0 }"></i><i class="out" :style="{ flex: analytics?.health?.outOfStockCount || 0 }"></i></div><p>{{ analytics?.health?.healthyCount || 0 }} ổn · {{ analytics?.health?.attentionCount || 0 }} chú ý · {{ analytics?.health?.lowStockCount || 0 }} cần nhập · {{ analytics?.health?.outOfStockCount || 0 }} hết hàng</p></article><article class="analytics-card action-today"><header><div><span>Cần làm hôm nay</span><strong>{{ lowStockItems.length ? `${lowStockItems.length} mặt hàng cần nhập thêm` : 'Kho đang ổn' }}</strong></div></header><p>{{ lowStockItems.slice(0,3).map(item => item.name).join(' · ') || 'Không có mặt hàng nào cần xử lý ngay.' }}</p><button v-if="lowStockItems.length" type="button" class="btn btn-primary" @click="router.push({ name: 'AdminGoodsReceipts' })">Tạo phiếu nhập</button></article></section>
+    <section v-if="false" class="command-rail inventory-command-rail" aria-label="Ưu tiên vận hành kho">
+      <button class="command-card inventory-risk-command" :class="{ urgent: shortageRiskItems.length }" @click="statusFilter = shortageRiskItems.length ? 'OUT' : 'ALL'"><span>Rủi ro thiếu</span><strong>{{ shortageRiskItems.length }} mặt hàng</strong><small>Lượng đã giữ cao hơn tồn thực tế</small></button>
+      <button class="command-card attention" @click="statusFilter = 'LOW'"><span>Cần nhập thêm</span><strong>{{ lowStockItems.length }}</strong><small>Dưới mức tối thiểu hoặc đã hết</small></button>
+      <article class="command-card"><span>Giá trị tồn hiện tại</span><strong>{{ money(inventoryValue) }}</strong><small>Tính từ tồn thực tế và giá vốn</small></article>
+    </section>
+
     <nav class="page-tabs" role="tablist" aria-label="Tồn kho">
       <button id="inventory-current-tab" :ref="el => tabRefs[0] = el" type="button" role="tab" aria-controls="inventory-current-panel" :aria-selected="activeTab === 'current'" :tabindex="activeTab === 'current' ? 0 : -1" :class="{ active: activeTab === 'current' }" @keydown="handleTabKeydown($event, 0)" @click="selectTab('current')">Tồn hiện tại</button>
       <button id="inventory-history-tab" :ref="el => tabRefs[1] = el" type="button" role="tab" aria-controls="inventory-history-panel" :aria-selected="activeTab === 'history'" :tabindex="activeTab === 'history' ? 0 : -1" :class="{ active: activeTab === 'history' }" @keydown="handleTabKeydown($event, 1)" @click="selectTab('history')">Lịch sử biến động</button>
@@ -286,7 +318,7 @@ onMounted(() => {
       <div><p class="eyebrow">Tồn hiện tại</p><h2>Tổng quan sức khỏe kho</h2></div>
       <p>Ưu tiên rủi ro thiếu hàng trước khi đi vào từng mặt hàng.</p>
     </div>
-    <section class="risk-strip today-panel" aria-labelledby="today-title">
+    <section v-if="false" class="risk-strip today-panel priority-card" aria-labelledby="today-title">
       <div><p class="eyebrow">Ưu tiên</p><h2 id="today-title">Hôm nay cần làm gì?</h2></div>
       <div class="action-grid" aria-live="polite">
         <article v-for="action in todayActions" :key="action.route" class="action-card">
@@ -295,14 +327,14 @@ onMounted(() => {
       </div>
     </section>
 
-    <nav class="workflow" aria-label="Quy trình tồn kho và giá vốn">
+    <nav v-if="false" class="workflow" aria-label="Quy trình tồn kho và giá vốn">
       <router-link :to="{ name: 'AdminGoodsReceipts' }"><span>1</span><strong>Nhập hàng</strong><small>Ghi nhận hàng về</small></router-link>
       <router-link :to="{ name: 'AdminRecipes' }"><span>2</span><strong>Công thức</strong><small>Đặt lượng dùng</small></router-link>
       <span class="workflow-step"><span>3</span><strong>Bán món</strong><small>Kho tự trừ</small></span>
       <router-link :to="{ path: '/admin/reports', query: { tab: 'menu' } }"><span>4</span><strong>Lãi gộp</strong><small>Xem theo món</small></router-link>
     </nav>
 
-    <section class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
+    <section v-if="false" class="stat-grid inventory-stats" aria-label="Tổng quan tồn kho">
       <div class="stat-card stat-total"><span class="stat-icon stat-blue"><i class="bi bi-boxes" aria-hidden="true"></i></span><strong class="stat-value">{{ kpis.itemCount }}</strong><span class="stat-label">Tổng mặt hàng</span></div>
       <button class="stat-card" :class="{ active: statusFilter === 'LOW' }" :aria-pressed="statusFilter === 'LOW'" @click="statusFilter = statusFilter === 'LOW' ? 'ALL' : 'LOW'">
         <span class="stat-icon stat-yellow"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><strong class="stat-value">{{ kpis.belowMinimumCount }}</strong><span class="stat-label">Dưới mức tối thiểu</span>
@@ -331,9 +363,9 @@ onMounted(() => {
         <table class="table">
           <thead><tr><th scope="col">Mặt hàng</th><th scope="col">Tồn hiện tại</th><th scope="col">Tối thiểu</th><th scope="col">Giá vốn hiện tại</th><th scope="col">Trạng thái</th><th scope="col">Thao tác</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredItems" :key="item.inventoryItemId">
-              <td data-label="Mặt hàng"><strong>{{ item.name }}</strong><div class="muted">{{ item.inventoryCode }} · {{ TYPE_LABELS[item.itemType] || item.itemType }}</div><small class="muted">Khả dụng {{ formatQuantity(item.availableQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }} · Đã giữ {{ formatQuantity(item.reservedQuantity) }}</small></td>
-              <td data-label="Tồn hiện tại"><strong>{{ formatQuantity(item.onHandQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</strong></td>
+            <tr v-for="item in paginatedItems.items" :key="item.inventoryItemId">
+              <td data-label="Mặt hàng"><strong>{{ item.name }}</strong><div class="muted">{{ item.inventoryCode }} · {{ TYPE_LABELS[item.itemType] || item.itemType }}</div><small class="muted">Đã giữ {{ formatQuantity(item.reservedQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</small></td>
+              <td data-label="Tồn hiện tại"><strong>{{ formatQuantity(item.onHandQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</strong><small class="available-quantity">Có thể dùng {{ formatQuantity(item.availableQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</small></td>
               <td data-label="Tối thiểu">{{ formatQuantity(item.minimumQuantity) }} {{ UNIT_LABELS[item.baseUnit] || item.baseUnit }}</td>
               <td data-label="Giá vốn hiện tại"><strong>{{ Number(item.averageUnitCost) > 0 ? `${money(item.averageUnitCost)}/${UNIT_LABELS[item.baseUnit] || item.baseUnit}` : 'Chưa có dữ liệu' }}</strong></td>
               <td data-label="Trạng thái"><span class="badge" :class="STATE_CLASSES[itemStockState(item)]">{{ STATE_LABELS[itemStockState(item)] }}</span></td>
@@ -348,6 +380,7 @@ onMounted(() => {
           </tbody>
         </table>
       </div>
+      <footer v-if="filteredItems.length" class="pagination-footer"><span>{{ paginatedItems.from }}–{{ paginatedItems.to }} / {{ paginatedItems.totalItems }} mặt hàng</span><nav aria-label="Phân trang tồn kho"><button type="button" :disabled="paginatedItems.page === 1" @click="inventoryPage--">‹</button><button v-for="page in paginatedItems.totalPages" :key="page" type="button" :aria-current="page === paginatedItems.page ? 'page' : undefined" :class="{ active: page === paginatedItems.page }" @click="inventoryPage = page">{{ page }}</button><button type="button" :disabled="paginatedItems.page === paginatedItems.totalPages" @click="inventoryPage++">›</button></nav></footer>
     </section>
 
     <section v-if="recentTransactions.length" class="card card-flat recent-panel" aria-label="Giao dịch gần đây">
@@ -429,9 +462,10 @@ onMounted(() => {
 
 <style scoped>
 .inventory-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.period-controls{display:flex;justify-content:flex-end;gap:6px}.period-controls button{min-height:40px;padding:0 13px;border:1px solid var(--admin-border);border-radius:999px;background:#fff}.period-controls button[aria-pressed=true]{background:var(--admin-foreground);color:#fff}.kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);overflow:hidden;border:1px solid var(--admin-border);border-radius:18px;background:#fff;box-shadow:0 12px 30px rgba(15,23,42,.06)}.kpi-strip article{display:grid;gap:6px;padding:18px;border-right:1px solid var(--admin-border)}.kpi-strip article:last-child{border:0}.kpi-strip span,.analytics-card header span{color:var(--admin-muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.kpi-strip strong{font-size:25px}.kpi-strip small{color:var(--admin-muted)}.analytics-grid,.secondary-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}.analytics-card{display:grid;gap:16px;min-width:0;padding:20px;border:1px solid var(--admin-border);border-radius:18px;background:#fff;box-shadow:0 12px 30px rgba(15,23,42,.06)}.analytics-card header{display:flex;justify-content:space-between;gap:12px}.analytics-card header div{display:grid;gap:5px}.analytics-card header strong{font-size:20px}.analytics-card header small,.analytics-card p{color:var(--admin-muted)}.line-chart,.movement-chart{display:flex;align-items:end;gap:4px;height:210px;padding:16px 4px 0;border-bottom:1px solid var(--admin-border);background:linear-gradient(to bottom,transparent 24%,var(--admin-border) 25%,transparent 26%,transparent 49%,var(--admin-border) 50%,transparent 51%,transparent 74%,var(--admin-border) 75%,transparent 76%)}.line-chart>i{flex:1;min-width:3px;border-radius:5px 5px 0 0;background:var(--admin-brand)}.movement-chart>div{display:flex;align-items:end;gap:1px;flex:1;height:100%}.movement-chart i{flex:1;min-width:2px;border-radius:3px 3px 0 0}.movement-chart .receipt{background:var(--admin-brand)}.movement-chart .consume{background:var(--admin-info)}.movement-chart .waste{background:var(--admin-danger)}.chart-state{display:grid;place-items:center;min-height:210px;color:var(--admin-muted)}.health-bar{display:flex;height:12px;overflow:hidden;border-radius:999px;background:var(--admin-border)}.health-bar .healthy{background:var(--admin-success)}.health-bar .attention{background:var(--admin-warning)}.health-bar .low{background:var(--admin-brand)}.health-bar .out{background:var(--admin-danger)}.action-today{align-content:start}.action-today .btn{justify-self:start}.command-rail{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px}.command-card{display:grid;gap:6px;min-height:112px;padding:18px;border:1px solid var(--admin-border);border-radius:var(--admin-panel-radius);background:#fff;color:inherit;text-align:left}.command-card>span{color:var(--admin-muted);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.command-card strong{font-size:24px}.command-card small{color:var(--admin-muted)}button.command-card{cursor:pointer}.command-card.attention{background:var(--admin-warning-soft)}.inventory-risk-command.urgent{border-color:var(--admin-danger);background:var(--admin-danger-soft);color:var(--admin-danger)}.available-quantity{display:block;margin-top:4px;color:var(--admin-brand);font-weight:700}
 .stock-workspace,.history-workspace{display:grid;gap:20px;min-width:0}.workspace-heading{display:flex;align-items:end;justify-content:space-between;gap:24px}.workspace-heading h2{margin:2px 0 0;font-size:22px}.workspace-heading>p{max-width:52ch;margin:0;color:var(--admin-muted);font-size:13px;text-align:right}.risk-strip{border-radius:var(--admin-panel-radius)}
 .page-tabs{display:flex;gap:4px;width:max-content;max-width:100%;padding:4px;border:1px solid var(--border-light);border-radius:12px;background:#fff}.page-tabs button{min-height:40px;padding:8px 16px;border-radius:8px;color:var(--text-mid);font-weight:700}.page-tabs button.active{background:var(--admin-brand-soft);color:var(--admin-foreground)}.page-tabs button:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
-.today-panel{display:grid;gap:14px;padding:24px;border-radius:18px;background:#251d18;color:#fff}.today-panel h2{margin:2px 0 0;font-size:24px}.eyebrow{margin:0;color:#f2aa87;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.action-card{display:grid;gap:12px;align-content:space-between;min-height:118px;padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.06)}.action-card .btn{justify-self:start;background:#fff}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.workflow>a,.workflow-step{display:grid;gap:3px;min-height:96px;padding:14px;border:1px solid var(--border-light);border-radius:12px;background:#fff;color:inherit;text-decoration:none}.workflow span>span,.workflow a>span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-weight:800}.workflow small{color:var(--text-mid)}
+.today-panel{display:grid;gap:14px;padding:22px;border:1px solid var(--admin-border);border-radius:18px;background:#fff;color:var(--admin-foreground);box-shadow:0 10px 28px rgba(15,23,42,.06)}.today-panel h2{margin:2px 0 0;font-size:24px}.eyebrow{margin:0;color:#f2aa87;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.action-card{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:12px 14px;border:1px solid var(--admin-border);border-radius:12px;background:var(--admin-surface)}.action-card .btn{justify-self:start;background:#fff}.workflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.workflow>a,.workflow-step{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px;border:1px solid var(--border-light);border-radius:999px;background:#fff;color:inherit;text-decoration:none}.workflow span>span,.workflow a>span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-weight:800}.workflow small{color:var(--text-mid)}
 .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .page-subtitle { margin: 4px 0 0; color: var(--text-mid); font-size: 14px; }
 .inventory-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -449,7 +483,7 @@ onMounted(() => {
 .search-box i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-mid); }
 .search-box .form-input { width: 100%; padding-left: 40px; }
 .status-select .form-select { min-width: 200px; }
-.result-count { margin: 12px 0; color: var(--text-mid); font-size: 13px; }
+.result-count { margin: 12px 0; color: var(--text-mid); font-size: 13px; }.pagination-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:14px;border-top:1px solid var(--admin-border);color:var(--admin-muted);font-size:12px}.pagination-footer nav{display:flex;gap:6px}.pagination-footer button{min-width:40px;min-height:40px;border:1px solid var(--admin-border);border-radius:10px;background:#fff}.pagination-footer button.active{border-color:var(--admin-brand);background:var(--admin-brand-soft);color:var(--admin-brand)}
 .muted { color: var(--text-mid); font-size: 12px; margin-top: 3px; }
 .row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .section-title{display:flex;align-items:end;justify-content:space-between;gap:12px}.section-title h2{margin:2px 0 0}.section-title>span{color:var(--text-mid);font-size:13px}details{margin-top:8px}summary{width:max-content;min-height:40px;display:flex;align-items:center;color:var(--primary);font-size:12px;font-weight:700;cursor:pointer}dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px;margin:6px 0 0;padding:10px;border-radius:8px;background:var(--surface)}dl div{display:flex;justify-content:space-between;gap:8px}dt{color:var(--text-mid)}dd{margin:0;font-weight:650}
@@ -482,7 +516,8 @@ onMounted(() => {
 .error-panel { color: var(--danger, #dc2626); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .inventory-page :is(button,a,summary,input,select):focus-visible{outline:3px solid var(--primary);outline-offset:2px}.inventory-page :is(.btn,input,select){min-height:40px}
-@media (max-width: 1024px) { .inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .toolbar { align-items: stretch; flex-direction: column; } .search-box { max-width: none; } }
-@media (max-width: 800px){.action-grid{grid-template-columns:1fr}.workflow{grid-template-columns:1fr 1fr}.workflow>a,.workflow-step{min-height:88px}}
-@media (max-width: 680px) { .workspace-heading{align-items:flex-start;flex-direction:column;gap:6px}.workspace-heading>p{text-align:left}.inventory-page,.inventory-stats,.inventory-stats .stat-card,.table { min-width: 0; } .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: 1fr; } .workflow{grid-template-columns:1fr}.section-title{align-items:flex-start;flex-direction:column}.table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } dl{grid-template-columns:1fr} }
+@media (max-width: 1024px) { .kpi-strip{grid-template-columns:1fr 1fr}.kpi-strip article:nth-child(2){border-right:0}.analytics-grid,.secondary-grid{grid-template-columns:1fr}.inventory-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .toolbar { align-items: stretch; flex-direction: column; } .search-box { max-width: none; } }
+@media (max-width: 900px){.command-rail{grid-template-columns:1fr}.action-grid{grid-template-columns:1fr}.workflow{grid-template-columns:1fr 1fr}.workflow>a,.workflow-step{min-height:88px}}
+@media(prefers-reduced-motion:reduce){.inventory-page *{scroll-behavior:auto!important;animation-duration:.01ms!important}}
+@media (max-width: 680px) { .period-controls{justify-content:flex-start;overflow-x:auto}.kpi-strip{grid-template-columns:1fr}.kpi-strip article{border-right:0;border-bottom:1px solid var(--admin-border)}.line-chart,.movement-chart{height:170px}.workspace-heading{align-items:flex-start;flex-direction:column;gap:6px}.workspace-heading>p{text-align:left}.inventory-page,.inventory-stats,.inventory-stats .stat-card,.table { min-width: 0; } .inventory-page { gap: 16px; } .inventory-stats { grid-template-columns: 1fr; } .workflow{grid-template-columns:1fr}.section-title{align-items:flex-start;flex-direction:column}.table-wrapper { overflow: visible; } .table thead { display: none; } .table, .table tbody, .table tr, .table td { display: block; width: 100%; } .table tr { padding: 16px; border-bottom: 1px solid var(--border-light); } .table td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border: 0; } .table td::before { content: attr(data-label); color: var(--text-mid); font-size: 12px; font-weight: 600; } dl{grid-template-columns:1fr} }
 </style>

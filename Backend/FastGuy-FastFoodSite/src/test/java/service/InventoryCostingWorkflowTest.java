@@ -3,6 +3,7 @@ package service;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -107,6 +108,20 @@ class InventoryCostingWorkflowTest {
         Map<String,Object> result=InventoryReportService.itemLossRows(List.of(row)).get(0);
         assertEquals(new BigDecimal("2.0000"),result.get("wasteQuantity"));
         assertEquals(new BigDecimal("0.0000"),result.get("totalLossCost"));
+    }
+
+    @Test void analyticsComparisonPeriodUsesSameInclusiveDayCount() {
+        assertArrayEquals(new LocalDate[]{LocalDate.of(2026,8,2),LocalDate.of(2026,8,31)},InventoryReportService.comparisonPeriod(LocalDate.of(2026,9,1),LocalDate.of(2026,9,30)));
+        assertThrows(IllegalArgumentException.class,()->InventoryReportService.comparisonPeriod(LocalDate.of(2025,1,1),LocalDate.of(2026,2,1)));
+    }
+
+    @Test void analyticsClassifiesInventoryHealthByAvailableToMinimumRatio() {
+        assertEquals("OUT",InventoryReportService.healthState(new BigDecimal("0"),new BigDecimal("10")));
+        assertEquals("LOW",InventoryReportService.healthState(new BigDecimal("9.9"),new BigDecimal("10")));
+        assertEquals("ATTENTION",InventoryReportService.healthState(new BigDecimal("12.5"),new BigDecimal("10")));
+        assertEquals("HEALTHY",InventoryReportService.healthState(new BigDecimal("20"),new BigDecimal("10")));
+        assertEquals("EXCESS",InventoryReportService.healthState(new BigDecimal("20.1"),new BigDecimal("10")));
+        assertEquals("HEALTHY",InventoryReportService.healthState(new BigDecimal("5"),BigDecimal.ZERO));
     }
 
     @Test void menuCostDividesCurrentIngredientCostByRecipeYield() {

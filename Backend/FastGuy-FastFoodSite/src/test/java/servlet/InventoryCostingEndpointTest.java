@@ -14,6 +14,7 @@ class InventoryCostingEndpointTest {
         assertEquals("/api/admin/inventory/receipts/*", GoodsReceiptServlet.class.getAnnotation(WebServlet.class).value()[0]);
         assertEquals("/api/admin/inventory/stock-counts/*", StockCountServlet.class.getAnnotation(WebServlet.class).value()[0]);
         assertEquals("/api/admin/inventory/reports/*", InventoryReportServlet.class.getAnnotation(WebServlet.class).value()[0]);
+        assertEquals("/api/admin/inventory/analytics", InventoryAnalyticsServlet.class.getAnnotation(WebServlet.class).value()[0]);
     }
 
     @Test void parsesDocumentAndApprovePathsStrictly() {
@@ -41,6 +42,18 @@ class InventoryCostingEndpointTest {
         assertFalse(countService.got);
     }
 
+    @Test void reportRoutesInventoryAnalyticsWithExactDayGranularity() throws Exception {
+        StubReportService service=new StubReportService(false);
+        TestInventoryAnalyticsServlet servlet=new TestInventoryAnalyticsServlet(service);
+        ResponseCapture capture=new ResponseCapture();
+        servlet.get(request(null,Map.of("fromDate","2026-09-01","toDate","2026-09-30","granularity","DAY")),response(capture));
+        assertEquals(200,capture.status);
+        assertTrue(service.analyticsCalled);
+        ResponseCapture bad=new ResponseCapture();
+        servlet.get(request(null,Map.of("fromDate","2026-09-01","toDate","2026-09-30","granularity","WEEK")),response(bad));
+        assertEquals(400,bad.status);
+    }
+
     @Test void reportMapsValidationTo400AndUnexpectedFailureToGeneric500() throws Exception {
         TestInventoryReportServlet validation=new TestInventoryReportServlet(new StubReportService(false));
         ResponseCapture bad=new ResponseCapture();
@@ -64,6 +77,7 @@ class InventoryCostingEndpointTest {
     private static class TestStockCountServlet extends StockCountServlet{TestStockCountServlet(StockCountService s){super(s);}@Override protected boolean authorized(HttpServletRequest q,HttpServletResponse p){return true;}void get(HttpServletRequest q,HttpServletResponse p)throws Exception{doGet(q,p);}}
     private static class StubStockCountService extends StockCountService{boolean got;@Override public Map<String,Object> get(int id){got=true;return Map.of();}}
     private static class TestInventoryReportServlet extends InventoryReportServlet{TestInventoryReportServlet(InventoryReportService s){super(s);}@Override protected boolean authorized(HttpServletRequest q,HttpServletResponse p){return true;}void get(HttpServletRequest q,HttpServletResponse p)throws Exception{doGet(q,p);}}
-    private static class StubReportService extends InventoryReportService{private final boolean fail;StubReportService(boolean fail){this.fail=fail;}@Override public java.util.List<Map<String,Object>> menuCost(){if(fail)throw new IllegalStateException("database detail");return java.util.List.of();}}
+    private static class TestInventoryAnalyticsServlet extends InventoryAnalyticsServlet{TestInventoryAnalyticsServlet(InventoryReportService s){super(s);}@Override protected boolean authorized(HttpServletRequest q,HttpServletResponse p){return true;}void get(HttpServletRequest q,HttpServletResponse p)throws Exception{doGet(q,p);}}
+    private static class StubReportService extends InventoryReportService{private final boolean fail;boolean analyticsCalled;StubReportService(boolean fail){this.fail=fail;}@Override public java.util.List<Map<String,Object>> menuCost(){if(fail)throw new IllegalStateException("database detail");return java.util.List.of();}@Override public Map<String,Object> analytics(java.time.LocalDate from,java.time.LocalDate to){analyticsCalled=true;return Map.of();}}
     private static class ResponseCapture{int status=200;StringWriter body=new StringWriter();PrintWriter writer=new PrintWriter(body);}
 }

@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="ledger-page">
+  <main class="ledger-page ledger-evidence-workspace">
     <header class="page-heading">
       <div>
         <p class="eyebrow">Vận hành</p>

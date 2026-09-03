@@ -217,6 +217,9 @@ export default {
   approveStockCount(id) {
     return client.post(`/admin/inventory/stock-counts/${id}/approve`);
   },
+  getInventoryAnalytics(params) {
+    return client.get('/admin/inventory/analytics', { params });
+  },
   getInventoryCostSummary(params) {
     return client.get('/admin/inventory/reports/summary', { params });
   },

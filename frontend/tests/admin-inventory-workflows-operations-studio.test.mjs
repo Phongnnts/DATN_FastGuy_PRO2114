@@ -7,6 +7,25 @@ const recipes = read('../src/views/admin/RecipesPage.vue');
 const receipts = read('../src/views/admin/GoodsReceiptsPage.vue');
 const counts = read('../src/views/admin/StockCountsPage.vue');
 const categories = read('../src/views/admin/CategoriesPage.vue');
+const ingredients = read('../src/views/admin/IngredientsPage.vue');
+
+const warehousePages = [ingredients, recipes, receipts, counts];
+
+test('warehouse pages use the approved command center hierarchy', () => {
+  assert.match(ingredients, /class="command-rail ingredient-command-rail"/);
+  assert.match(ingredients, /Cần hoàn thiện/);
+  assert.match(ingredients, /Cần nhập thêm/);
+  assert.match(receipts, /class="receipt-stage-track"/);
+  assert.match(receipts, /Kiểm tra & duyệt/);
+  assert.match(recipes, /class="command-rail recipe-command-rail"/);
+  assert.match(recipes, /Năng lực bán/);
+  assert.match(counts, /class="command-rail count-command-rail"/);
+  assert.match(counts, /Có chênh lệch/);
+  for (const source of warehousePages) {
+    assert.doesNotMatch(source, /transition:\s*all/);
+    assert.match(source, /prefers-reduced-motion/);
+  }
+});
 
 test('recipes present product variant and ingredient relationships before capacity evidence', () => {
   assert.match(recipes, /class="panel selector-panel recipe-context"/);

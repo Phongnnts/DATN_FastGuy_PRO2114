@@ -20,7 +20,15 @@ import {
   stockCountVariance,
   validateGoodsReceipt,
   validateStockCount,
+  paginateWarehouseItems,
 } from '../src/utils/inventoryOperations.js';
+
+test('warehouse pagination slices ten items and clamps the requested page', () => {
+  const source = Array.from({ length: 23 }, (_, index) => index + 1);
+  assert.deepEqual(paginateWarehouseItems(source, 2), { items: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20], page: 2, totalPages: 3, totalItems: 23, from: 11, to: 20 });
+  assert.deepEqual(paginateWarehouseItems(source, 99), { items: [21, 22, 23], page: 3, totalPages: 3, totalItems: 23, from: 21, to: 23 });
+  assert.deepEqual(paginateWarehouseItems([], 3), { items: [], page: 1, totalPages: 1, totalItems: 0, from: 0, to: 0 });
+});
 
 test('receipt units derive standard and packaging conversions from the inventory base unit', () => {
   assert.deepEqual(goodsReceiptUnitOptions('G').map(unit => unit.value), ['g', 'kg', 'bao', 'hộp', 'khay', 'thùng']);

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const apiPaths = [
   '/api/admin/inventory/items',
+  '/api/admin/inventory/analytics',
   '/api/admin/inventory/receipts',
   '/api/admin/inventory/stock-counts',
   '/api/admin/inventory/reports/menu-performance',
@@ -29,7 +30,12 @@ test('admin reviews receipts, stock counts, and inventory reports', async ({ pag
   const item = { inventoryItemId: 7, inventoryCode: 'NL-007', name: 'Ức gà', baseUnit: 'G', onHandQuantity: 70000, averageUnitCost: 85 };
   const finishedGood = { inventoryItemId: 8, inventoryCode: 'INV-000001', name: 'Classic Beef Burger / Mặc định', itemType: 'FINISHED_GOOD', active: true, baseUnit: 'PIECE' };
   item.itemType = 'INGREDIENT'; item.active = true;
+  await page.route('**/api/auth/profile', route => route.fulfill({ json: fulfill({ id: 1, fullName: 'Quản trị viên', role: 'ADMIN', email: 'admin@example.com' }) }));
+  await page.route('**/api/admin/dashboard', route => route.fulfill({ json: fulfill({ unavailableVariantCount: 0 }) }));
+  await page.route('**/api/admin/products*', route => route.fulfill({ json: fulfill([]) }));
+  await page.route('**/api/admin/inventory/transactions*', route => route.fulfill({ json: fulfill({ items: [], totalItems: 0, totalPages: 0 }) }));
   await page.route('**/api/admin/inventory/items', route => route.fulfill({ json: fulfill([item, finishedGood]) }));
+  await page.route('**/api/admin/inventory/analytics*', route => route.fulfill({ json: fulfill({ period: { fromDate: '2026-08-05', toDate: '2026-09-03', granularity: 'DAY' }, comparisonPeriod: { fromDate: '2026-07-06', toDate: '2026-08-04', granularity: 'DAY' }, kpis: { itemCount: 2, lowStockCount: 1, outOfStockCount: 0, inventoryValue: 5950000 }, previousKpis: { itemCount: 2, lowStockCount: 0, outOfStockCount: 0, inventoryValue: 5500000 }, series: [{ date: '2026-09-03', inventoryValue: 5950000, receiptValue: 600000, consumptionValue: 250000, wasteValue: 10000, adjustmentLossValue: 0, adjustmentGainValue: 0 }], health: { healthyCount: 1, attentionCount: 0, lowStockCount: 1, outOfStockCount: 0 }, attentionItems: [{ inventoryItemId: 7, inventoryCode: 'NL-007', name: 'Ức gà', baseUnit: 'G', onHandQuantity: 70000, availableQuantity: 70000, minimumQuantity: 80000, healthRatio: 0.875, healthState: 'LOW' }] }) }));
   await page.route('**/api/admin/inventory/receipts/22/approve', route => { receiptWrites.push({ method: route.request().method(), path: '/approve' }); return route.fulfill({ json: fulfill({ goodsReceiptId: 22, status: 'APPROVED', items: [] }) }); });
   await page.route('**/api/admin/inventory/receipts', route => {
     if (route.request().method() === 'POST') {
@@ -41,8 +47,12 @@ test('admin reviews receipts, stock counts, and inventory reports', async ({ pag
   await page.route('**/api/admin/inventory/stock-counts', route => route.fulfill({ json: fulfill([{ stockCountId: 31, countDate: '2026-08-24', frequency: 'DAILY', status: 'DRAFT', items: [{ inventoryItemId: 7 }] }]) }));
   await page.route('**/api/admin/inventory/reports/menu-performance?*', route => route.fulfill({ json: fulfill({ grossRevenue: 1000000, allocatedDiscount: 50000, netRevenue: 950000, cost: 400000, costComplete: true, missingCostItemCount: 0, grossProfit: 550000, foodCostPercent: 42.11, grossMarginPercent: 57.89, items: [{ variantId: 11, productName: 'Gà rán', variantName: 'Cỡ M', quantitySold: 10, grossRevenue: 1000000, allocatedDiscount: 50000, netRevenue: 950000, cost: 400000, costComplete: true, grossProfit: 550000, foodCostPercent: 42.11, grossMarginPercent: 57.89 }] }) }));
 
+  await page.goto('/admin/inventory');
+  await expect(page.getByRole('region', { name: 'Chỉ số tồn kho' })).toContainText('5.950.000 ₫');
+  await expect(page.getByRole('region', { name: 'Xu hướng tồn kho' })).toBeVisible();
+
   await page.goto('/admin/inventory/receipts');
-  await expect(page.getByRole('heading', { name: 'Ghi nhận nguyên liệu vừa nhận' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nhập hàng' })).toBeVisible();
   await expect(page.getByText('Thực phẩm Sạch')).toBeVisible();
   await expect(page.getByText('HD-2026-21')).toBeVisible();
   const ingredientSelect = page.getByRole('combobox', { name: /^Nguyên liệu/ });
@@ -80,7 +90,7 @@ test('admin reviews receipts, stock counts, and inventory reports', async ({ pag
   ]);
 
   await page.goto('/admin/inventory/stock-counts');
-  await expect(page.getByRole('heading', { name: 'Đếm và đối chiếu tồn kho' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading', { name: 'Kiểm kê kho' })).toBeVisible();
   await expect(page.getByText('#31 · 2026-08-24')).toBeVisible();
   await expect(page.getByText('Hàng ngày · 1 mặt hàng')).toBeVisible();
 
