@@ -43,7 +43,7 @@ function variantShape(row) {
 function syncRows() {
   const variants = props.modelValue.variants || [];
   rows.value = withUid(variants.map((variant) => ({ ...variant, reasonCode: '', note: '' })));
-  snapshot.value = variants.map((variant) => ({ ...variant }));
+  snapshot.value = variants.map(variantShape);
 }
 
 function rowsDirty() {

@@ -282,6 +282,11 @@ test('variant section disables clearing persisted original price and emits dirty
   assert.doesNotMatch(productVariantsSection, /:key="index"/);
 });
 
+test('loaded variants compare canonical shapes so navigation is not blocked before editing', () => {
+  assert.match(productVariantsSection, /snapshot\.value = variants\.map\(variantShape\)/);
+  assert.match(productVariantsSection, /sectionDirty\(snapshot\.value, rows\.value\.map\(variantShape\)\)/);
+});
+
 test('editor tracks dirty across visible sections and syncs editable pending variants', () => {
   assert.match(productEditorPage, /dirtySections = ref\(\{ general: false, media: false, variants: false, modifiers: false \}\)/);
   assert.match(productEditorPage, /function setSectionDirty\(section, value\)/);
