@@ -9,8 +9,6 @@ const toast = useToast();
 const tabs = [
   { id: 'store', label: 'Cửa hàng', icon: 'bi-shop' },
   { id: 'hours', label: 'Giờ hoạt động', icon: 'bi-clock' },
-  { id: 'fees', label: 'Phí & thuế', icon: 'bi-cash-stack' },
-  { id: 'delivery', label: 'Giao hàng', icon: 'bi-truck' },
   { id: 'inventory', label: 'Tồn kho', icon: 'bi-boxes' },
   { id: 'notice', label: 'Thông báo', icon: 'bi-megaphone' },
   { id: 'payment', label: 'Thanh toán', icon: 'bi-credit-card' },

@@ -29,7 +29,7 @@ const expectedGroups = {
   'Tài chính': ['/admin/cod-settlements', '/admin/refunds', '/admin/reports'],
   'Marketing': ['/admin/products', '/admin/categories', '/admin/coupons', '/admin/banners'],
   'Nhân sự': ['/admin/hr', '/admin/users', '/admin/shifts', '/admin/attendance'],
-  'Cấu hình': ['/admin/activity-logs', '/admin/settings'],
+  'Cấu hình': ['/admin/settings'],
 };
 
 test('admin sidebar places every destination exactly once in the six approved business groups', () => {
@@ -46,7 +46,7 @@ test('admin sidebar places every destination exactly once in the six approved bu
   }
 
   assert.equal(layout.match(/\{ label: '[^']+', links:/g)?.length, 6);
-  assert.equal(allPaths.length, 19);
+  assert.equal(allPaths.length, 18);
   assert.match(layout, /class="page-content fg-page"/);
 });
 

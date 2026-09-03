@@ -141,7 +141,6 @@ const navigationGroups = [
     { label: 'Chấm công & tiền công', path: '/admin/attendance', icon: 'bi-person-check' },
   ] },
   { label: 'Cấu hình', links: [
-    { label: 'Nhật ký hoạt động', path: '/admin/activity-logs', icon: 'bi-clock-history' },
     { label: 'Cài đặt', path: '/admin/settings', icon: 'bi-gear' },
   ] },
 ];

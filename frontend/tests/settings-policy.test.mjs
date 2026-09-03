@@ -8,11 +8,12 @@ const helper = read('../src/utils/settingsValidation.js');
 const adminApi = read('../src/api/admin.js');
 const orderApi = read('../src/api/order.js');
 
-const TAB_LABELS = ['Cửa hàng', 'Giờ hoạt động', 'Phí & thuế', 'Giao hàng', 'Tồn kho', 'Thông báo', 'Thanh toán', 'Vận chuyển GHN'];
+const TAB_LABELS = ['Cửa hàng', 'Giờ hoạt động', 'Tồn kho', 'Thông báo', 'Thanh toán', 'Vận chuyển GHN'];
 const GHN_KEYS = ['ghn_from_district_id', 'ghn_from_ward_code', 'default_service_type_id', 'default_weight', 'default_length', 'default_width', 'default_height'];
 
-test('settings page defines grouped tabs with accessible roving tablist', () => {
+test('settings page defines visible grouped tabs with accessible roving tablist', () => {
   for (const label of TAB_LABELS) assert.ok(page.includes(label), `missing tab label ${label}`);
+  assert.doesNotMatch(page, /\{ id: 'fees'|\{ id: 'delivery'/);
   assert.match(page, /role="tablist"/);
   assert.match(page, /role="tab"/);
   assert.match(page, /role="tabpanel"/);

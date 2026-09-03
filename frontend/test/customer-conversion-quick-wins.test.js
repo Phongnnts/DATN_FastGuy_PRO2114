@@ -117,7 +117,8 @@ test('menu keeps essential filters in a compact customer-facing layout', () => {
   assert.match(menuPage, /Bán chạy/);
   assert.doesNotMatch(menuPage, /productType/);
   assert.doesNotMatch(menuPage, /legend>Loại món<\/legend>/);
-  assert.match(menuPage, /\.category-chips\{[^}]*max-height:46px/);
+  assert.match(menuPage, /\.category-chips\{[^}]*flex-wrap:wrap/);
+  assert.match(menuPage, /@media\(max-width:900px\)[\s\S]*?\.category-chips\{[^}]*flex-wrap:nowrap[^}]*white-space:nowrap/);
   assert.match(menuPage, /class="[^"]*filter-dropdown[^"]*"/);
   assert.match(menuPage, /class="result-summary"/);
   assert.match(menuPage, /class="result-count"/);

@@ -17,11 +17,10 @@ const actions = {
   STOCK_COUNT_APPROVED: 'Duyệt kiểm kê kho',
 };
 
-test('R7 exposes the contract API, admin route, title, and sidebar destination', () => {
+test('R7 keeps the contract API while hiding the admin route title and sidebar destination', () => {
   assert.match(api, /getActivityLogs\(params\).*activity-logs', \{ params \}/s);
-  assert.match(router, /path: 'activity-logs'[\s\S]*name: 'AdminActivityLogs'[\s\S]*ActivityLogsPage\.vue/);
-  assert.match(router, /AdminActivityLogs: 'Nhật ký hoạt động'/);
-  assert.match(layout, /label: 'Nhật ký hoạt động', path: '\/admin\/activity-logs'/);
+  assert.doesNotMatch(router, /path: 'activity-logs'|AdminActivityLogs|ActivityLogsPage\.vue/);
+  assert.doesNotMatch(layout, /Nhật ký hoạt động|\/admin\/activity-logs/);
 });
 
 test('R7 activity log page provides exact action labels and contract filters', () => {
