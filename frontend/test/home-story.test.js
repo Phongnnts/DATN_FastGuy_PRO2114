@@ -12,7 +12,8 @@ test('home tells the approved signature story with a product-led CTA', async () 
   assert.match(source, /Bận không có nghĩa[\s\S]*là ăn qua loa/);
   assert.match(source, /Nhanh ở việc đặt\.[\s\S]*Không vội ở việc làm món/);
   assert.match(source, /Nhanh để bạn[\s\S]*không phải sống vội/);
-  assert.match(source, /res\.cloudinary\.com/);
+  assert.match(source, /fastguy-delivery-story\.jpg/);
+  assert.match(source, /alt="Nhân viên FastGuy giao bữa ăn cho khách hàng"/);
 });
 
 test('home removes duplicate ordering guide and unsupported metrics', async () => {

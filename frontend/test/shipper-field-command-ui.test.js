@@ -49,6 +49,7 @@ test('shipper shift and COD pages use command hierarchy and preserve irreversibl
   const shifts = read('../src/views/shipper/ShipperShiftsPage.vue');
   const cash = read('../src/views/shipper/CashPage.vue');
   assert.match(shift, /shift-command/);
+  assert.match(shift, /if \(props\.role === 'SHIPPER' && currentShift\.value\?\.checkInAt\)/);
   assert.match(shift, /codSettlementApi\.getCurrent/);
   assert.match(shift, /SETTLED.*SHORT.*OVER/s);
   assert.match(shift, /Gửi đối soát COD trước khi kết ca/);

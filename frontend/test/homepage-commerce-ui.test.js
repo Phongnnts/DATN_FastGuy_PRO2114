@@ -56,7 +56,7 @@ test('storytelling uses balanced container grids, content-driven height and one 
   assert.doesNotMatch(source, /\.manifesto-shell\{[^}]*min-height|\.people-shell\{[^}]*min-height/);
   assert.doesNotMatch(source, /\.manifesto-shell\{[^}]*padding-inline:0|\.people-shell\{[^}]*padding-inline:0/);
   assert.doesNotMatch(source, /class="people-visual"/);
-  assert.equal((source.match(/fastguy-home-story_lfyhtg\.jpg/g) || []).length, 1);
+  assert.equal((source.match(/fastguy-delivery-story\.jpg/g) || []).length, 1);
   assert.match(source, /@media\(max-width:900px\)[\s\S]*\.manifesto-shell[^}]*grid-template-columns:1fr/);
   assert.match(source, /@media\(prefers-reduced-motion:reduce\)/);
 });

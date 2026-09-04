@@ -32,9 +32,13 @@ async function load() {
   try {
     const data = await shiftApi.getMine();
     shifts.value = Array.isArray(data) ? data : [];
-    if (props.role === 'SHIPPER') {
-      const current = await codSettlementApi.getCurrent();
-      settlementStatus.value = current?.settlement?.status || current?.state || null;
+    if (props.role === 'SHIPPER' && currentShift.value?.checkInAt) {
+      try {
+        const current = await codSettlementApi.getCurrent();
+        settlementStatus.value = current?.settlement?.status || current?.state || null;
+      } catch {
+        settlementStatus.value = null;
+      }
     }
   } catch (e) {
     error.value = e.message;
