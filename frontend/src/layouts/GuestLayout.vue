@@ -12,9 +12,7 @@ const mobileMenuOpen = ref(false);
 function goCart() {
   router.push('/cart');
 }
-function goLogin() {
-  router.push('/login');
-}
+
 function logout() {
   auth.logout();
   router.push('/');
@@ -26,7 +24,6 @@ const navLinks = [
   { label: 'Tra cứu đơn', path: '/track-order' },
 ];
 </script>
-
 <template>
   <div class="guest-layout">
     <nav class="navbar">
